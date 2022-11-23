@@ -18,7 +18,7 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
  * Pattern converter to format the node_id variable into JSON fields <code>node.id</code> .
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeIdConverter")
-@ConverterKeys({"node_id"})
+@ConverterKeys({ "node_id" })
 public final class NodeIdConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.

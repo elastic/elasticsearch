@@ -24,6 +24,7 @@ query
     : sequence
     | join
     | eventQuery
+    | sample
     ;
 
 sequenceParams
@@ -32,8 +33,13 @@ sequenceParams
 
 sequence
     : SEQUENCE (by=joinKeys sequenceParams? | sequenceParams disallowed=joinKeys?)?
-      sequenceTerm sequenceTerm+
+      sequenceTerm+
       (UNTIL until=sequenceTerm)?
+    ;
+
+sample
+    : SAMPLE (by=joinKeys)?
+      joinTerm+
     ;
 
 join
@@ -56,7 +62,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (by=joinKeys)?
+   : subquery (by=joinKeys)? (WITH key=IDENTIFIER ASGN value=number)?
    ;
 
 subquery
@@ -137,7 +143,7 @@ booleanValue
     ;
 
 qualifiedName
-    : identifier (DOT identifier | LB INTEGER_VALUE+ RB)*
+    : OPTIONAL? identifier (DOT identifier | LB INTEGER_VALUE+ RB)*
     ;
 
 identifier
@@ -174,6 +180,7 @@ OF: 'of';
 OR: 'or';
 REGEX: 'regex';
 REGEX_INSENSITIVE: 'regex~';
+SAMPLE: 'sample';
 SEQUENCE: 'sequence';
 TRUE: 'true';
 UNTIL: 'until';
@@ -204,6 +211,7 @@ RB: ']';
 LP: '(';
 RP: ')';
 PIPE: '|';
+OPTIONAL: '?';
 
 fragment STRING_ESCAPE
     : '\\' [btnfr"'\\]

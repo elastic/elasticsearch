@@ -9,7 +9,7 @@ The following variables are available in all watcher contexts.
         The id of the watch.
 
 `ctx['id']` (`String`, read-only)::
-        The server generated unique identifer for the run watch.
+        The server generated unique identifier for the run watch.
 
 `ctx['metadata']` (`Map`, read-only)::
         Metadata can be added to the top level of the watch definition. This

@@ -7,14 +7,16 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
 import java.io.IOException;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class GetDataFrameAnalyticsAction extends ActionType<GetDataFrameAnalyticsAction.Response> {
 
@@ -45,6 +47,11 @@ public class GetDataFrameAnalyticsAction extends ActionType<GetDataFrameAnalytic
         @Override
         public String getResourceIdField() {
             return DataFrameAnalyticsConfig.ID.getPreferredName();
+        }
+
+        @Override
+        public String getCancelableTaskDescription() {
+            return format("get_data_frame_analytics[%s]", getResourceId());
         }
     }
 

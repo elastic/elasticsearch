@@ -11,14 +11,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Deletes the index identified by the shrink index name stored in the lifecycle state of the managed index (if any was generated)
@@ -44,23 +43,31 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
             if (currentClusterState.metadata().index(shrunkenIndexSource) == null) {
                 // if the source index does not exist, we'll skip deleting the
                 // (managed) shrunk index as that will cause data loss
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
-                logger.warn("managed index [{}] as part of policy [{}] is a shrunk index and the source index [{}] does not exist " +
-                    "anymore. will skip the [{}] step", indexMetadata.getIndex().getName(), policyName, shrunkenIndexSource, NAME);
+                String policyName = indexMetadata.getLifecyclePolicyName();
+                logger.warn(
+                    "managed index [{}] as part of policy [{}] is a shrunk index and the source index [{}] does not exist "
+                        + "anymore. will skip the [{}] step",
+                    indexMetadata.getIndex().getName(),
+                    policyName,
+                    shrunkenIndexSource,
+                    NAME
+                );
                 listener.onResponse(null);
                 return;
             }
         }
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
-        final String shrinkIndexName = lifecycleState.getShrinkIndexName();
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
+        final String shrinkIndexName = lifecycleState.shrinkIndexName();
         // if the shrink index was not generated there is nothing to delete so we move on
         if (Strings.hasText(shrinkIndexName) == false) {
             listener.onResponse(null);
             return;
         }
-        getClient().admin().indices()
-            .delete(new DeleteIndexRequest(shrinkIndexName).masterNodeTimeout(TimeValue.MAX_VALUE),
+        getClient().admin()
+            .indices()
+            .delete(
+                new DeleteIndexRequest(shrinkIndexName).masterNodeTimeout(TimeValue.MAX_VALUE),
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -78,7 +85,8 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
                             listener.onFailure(e);
                         }
                     }
-                });
+                }
+            );
     }
 
 }

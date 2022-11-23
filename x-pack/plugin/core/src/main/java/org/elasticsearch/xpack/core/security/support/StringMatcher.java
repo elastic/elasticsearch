@@ -36,6 +36,8 @@ public class StringMatcher implements Predicate<String> {
 
     private static final StringMatcher MATCH_NOTHING = new StringMatcher("(empty)", s -> false);
 
+    protected static final Predicate<String> ALWAYS_TRUE_PREDICATE = s -> true;
+
     private final String description;
     private final Predicate<String> predicate;
     private static final Logger LOGGER = LogManager.getLogger(StringMatcher.class);
@@ -65,6 +67,15 @@ public class StringMatcher implements Predicate<String> {
     @Override
     public boolean test(String s) {
         return predicate.test(s);
+    }
+
+    public boolean isTotal() {
+        return predicate == ALWAYS_TRUE_PREDICATE;
+    }
+
+    // For testing
+    Predicate<String> getPredicate() {
+        return predicate;
     }
 
     @Override
@@ -118,6 +129,9 @@ public class StringMatcher implements Predicate<String> {
             }
 
             final String description = describe(allText);
+            if (nonExactMatch.contains("*")) {
+                return new StringMatcher(description, ALWAYS_TRUE_PREDICATE);
+            }
             if (exactMatch.isEmpty()) {
                 return new StringMatcher(description, buildAutomataPredicate(nonExactMatch));
             }
@@ -159,12 +173,23 @@ public class StringMatcher implements Predicate<String> {
                 return Automatons.predicate(patterns);
             } catch (TooComplexToDeterminizeException e) {
                 LOGGER.debug("Pattern automaton [{}] is too complex", patterns);
-                String description = Strings.collectionToCommaDelimitedString(patterns);
-                if (description.length() > 80) {
-                    description = Strings.cleanTruncate(description, 80) + "...";
-                }
-                throw new ElasticsearchSecurityException("The set of patterns [{}] is too complex to evaluate", e, description);
+                throw new ElasticsearchSecurityException(
+                    "The set of patterns [{}] is too complex to evaluate",
+                    e,
+                    getPatternsDescription(patterns)
+                );
+            } catch (IllegalArgumentException e) {
+                LOGGER.debug("Pattern automaton [{}] is invalid", patterns);
+                throw new ElasticsearchSecurityException("The set of patterns [{}] is invalid", e, getPatternsDescription(patterns));
             }
+        }
+
+        private static String getPatternsDescription(Collection<String> patterns) {
+            String description = Strings.collectionToCommaDelimitedString(patterns);
+            if (description.length() > 80) {
+                description = Strings.cleanTruncate(description, 80) + "...";
+            }
+            return description;
         }
     }
 }

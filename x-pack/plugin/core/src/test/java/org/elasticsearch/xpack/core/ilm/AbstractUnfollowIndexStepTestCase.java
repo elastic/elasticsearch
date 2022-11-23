@@ -26,9 +26,9 @@ public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfoll
         Step.StepKey nextKey = instance.getNextStepKey();
 
         if (randomBoolean()) {
-            key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
         } else {
-            nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
         }
 
         return newInstance(key, nextKey);
@@ -49,7 +49,7 @@ public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfoll
         T step = newInstance(randomStepKey(), randomStepKey());
 
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
-        Mockito.verifyZeroInteractions(client);
+        Mockito.verifyNoMoreInteractions(client);
     }
 
     protected abstract T newInstance(Step.StepKey key, Step.StepKey nextKey);

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ccr.rest;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -21,9 +21,7 @@ public class RestGetAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_ccr/auto_follow/{name}"),
-            new Route(GET, "/_ccr/auto_follow"));
+        return List.of(new Route(GET, "/_ccr/auto_follow/{name}"), new Route(GET, "/_ccr/auto_follow"));
     }
 
     @Override

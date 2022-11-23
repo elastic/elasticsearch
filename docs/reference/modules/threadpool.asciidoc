@@ -21,6 +21,11 @@ There are several thread pools, but the important ones include:
     For count/search/suggest/get operations on `search_throttled indices`.
     Thread pool type is `fixed` with a size of `1`, and queue_size of `100`.
 
+`search_coordination`::
+    For lightweight search-related coordination operations. Thread pool type is
+    `fixed` with a size of a max of `min(5, (`<<node.processors,
+`# of allocated processors`>>`) / 2)`, and queue_size of `1000`.
+
 `get`::
     For get operations. Thread pool type is `fixed`
     with a size of <<node.processors, `# of allocated processors`>>,
@@ -56,11 +61,6 @@ There are several thread pools, but the important ones include:
     keep-alive of `5m` and a max of `min(10, (`<<node.processors,
     `# of allocated processors`>>`) / 2)`.
 
-`listener`::
-    Mainly for java client executing of action when listener threaded is set to
-    `true`. Thread pool type is `scaling` with a default max of
-    `min(10, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
-
 `fetch_shard_started`::
     For listing shard states.
     Thread pool type is `scaling` with keep-alive of `5m` and a default maximum
@@ -79,7 +79,8 @@ There are several thread pools, but the important ones include:
 
 `force_merge`::
     For <<indices-forcemerge,force merge>> operations.
-    Thread pool type is `fixed` with a size of 1 and an unbounded queue size.
+    Thread pool type is `fixed` with a size of `max(1, (`<<node.processors,
+`# of allocated processors`>>`) / 8)` and an unbounded queue size.
 
 `management`::
     For cluster management.
@@ -112,9 +113,10 @@ There are several thread pools, but the important ones include:
     `min(5 * (`<<node.processors, `# of allocated processors`>>`), 50)`
     and queue_size of `1000`.
 
-Changing a specific thread pool can be done by setting its type-specific
-parameters; for example, changing the number of threads in the `write` thread
-pool:
+Thread pool settings are <<static-cluster-setting,static>> and can be changed by
+editing `elasticsearch.yml`. Changing a specific thread pool can be done by
+setting its type-specific parameters; for example, changing the number of
+threads in the `write` thread pool:
 
 [source,yaml]
 --------------------------------------------------
@@ -175,7 +177,10 @@ thread_pool:
 The number of processors is automatically detected, and the thread pool settings
 are automatically set based on it. In some cases it can be useful to override
 the number of detected processors. This can be done by explicitly setting the
-`node.processors` setting.
+`node.processors` setting. This setting is bounded by the number of available
+processors and accepts floating point numbers, which can be useful in environments
+where the {es} nodes are configured to run with CPU limits, such as cpu
+shares or quota under `Cgroups`. 
 
 [source,yaml]
 --------------------------------------------------

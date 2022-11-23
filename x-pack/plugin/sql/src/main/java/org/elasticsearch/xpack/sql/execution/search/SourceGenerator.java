@@ -13,7 +13,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -56,7 +55,7 @@ public abstract class SourceGenerator {
         // need to be retrieved from the result documents
 
         // NB: the sortBuilder takes care of eliminating duplicates
-        container.fields().forEach(f -> f.v1().collectFields(sortBuilder));
+        container.fields().forEach(f -> f.extraction().collectFields(sortBuilder));
         sortBuilder.build(source);
 
         // add the aggs (if present)
@@ -107,22 +106,19 @@ public abstract class SourceGenerator {
         for (Sort sortable : container.sort().values()) {
             SortBuilder<?> sortBuilder = null;
 
-            if (sortable instanceof AttributeSort) {
-                AttributeSort as = (AttributeSort) sortable;
+            if (sortable instanceof AttributeSort as) {
                 Attribute attr = as.attribute();
 
                 // sorting only works on not-analyzed fields - look for a multi-field replacement
                 if (attr instanceof FieldAttribute) {
                     FieldAttribute fa = ((FieldAttribute) attr).exactAttribute();
 
-                    sortBuilder = fieldSort(fa.name())
-                            .missing(as.missing().position())
-                            .unmappedType(fa.dataType().esType());
+                    sortBuilder = fieldSort(fa.name()).missing(as.missing().searchOrder(as.direction()))
+                        .unmappedType(fa.dataType().esType());
 
                     if (fa.isNested()) {
-                        FieldSortBuilder fieldSort = fieldSort(fa.name())
-                                .missing(as.missing().position())
-                                .unmappedType(fa.dataType().esType());
+                        FieldSortBuilder fieldSort = fieldSort(fa.name()).missing(as.missing().searchOrder(as.direction()))
+                            .unmappedType(fa.dataType().esType());
 
                         NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
                         NestedSortBuilder nestedSort = fieldSort.getNestedSort();
@@ -144,10 +140,8 @@ public abstract class SourceGenerator {
                         sortBuilder = fieldSort;
                     }
                 }
-            } else if (sortable instanceof ScriptSort) {
-                ScriptSort ss = (ScriptSort) sortable;
-                sortBuilder = scriptSort(ss.script().toPainless(),
-                        ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
+            } else if (sortable instanceof ScriptSort ss) {
+                sortBuilder = scriptSort(ss.script().toPainless(), ss.script().outputType().scriptSortType());
             } else if (sortable instanceof ScoreSort) {
                 sortBuilder = scoreSort();
             }
@@ -167,6 +161,8 @@ public abstract class SourceGenerator {
         }
         if (query.shouldTrackHits()) {
             builder.trackTotalHits(true);
+        } else {
+            builder.trackTotalHits(false);
         }
         builder.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
     }

@@ -16,14 +16,16 @@ import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+
+import javax.inject.Inject;
 
 /**
  * Runs CheckJarHell on a classpath.
@@ -36,7 +38,6 @@ public class JarHellTask extends DefaultTask {
     private FileCollection classpath;
     private ExecOperations execOperations;
     private ProjectLayout projectLayout;
-
 
     @Inject
     public JarHellTask(ExecOperations execOperations, ProjectLayout projectLayout) {
@@ -51,7 +52,7 @@ public class JarHellTask extends DefaultTask {
     }
 
     @TaskAction
-    public void runJarHellCheck() throws IOException{
+    public void runJarHellCheck() throws IOException {
         LoggedExec.javaexec(execOperations, spec -> {
             spec.environment("CLASSPATH", getJarHellRuntimeClasspath().plus(getClasspath()).getAsPath());
             spec.getMainClass().set("org.elasticsearch.jdk.JarHell");
@@ -66,8 +67,9 @@ public class JarHellTask extends DefaultTask {
     // We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jar hell.
     // We only care about the runtime classpath ABI here.
     @CompileClasspath
+    @SkipWhenEmpty
     public FileCollection getClasspath() {
-        return classpath.filter(File::exists);
+        return classpath == null ? null : classpath.filter(File::exists);
     }
 
     public void setClasspath(FileCollection classpath) {

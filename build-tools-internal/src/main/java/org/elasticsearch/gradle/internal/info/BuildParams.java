@@ -8,14 +8,17 @@
 package org.elasticsearch.gradle.internal.info;
 
 import org.elasticsearch.gradle.internal.BwcVersions;
+import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.provider.Provider;
+import org.gradle.jvm.toolchain.JavaToolchainSpec;
 
 import java.io.File;
 import java.lang.reflect.Modifier;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Consumer;
 
 import static java.util.Objects.requireNonNull;
@@ -28,6 +31,7 @@ public class BuildParams {
     private static JavaVersion minimumRuntimeVersion;
     private static JavaVersion gradleJavaVersion;
     private static JavaVersion runtimeJavaVersion;
+    private static Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
     private static String runtimeJavaDetails;
     private static Boolean inFipsJvm;
     private static String gitRevision;
@@ -107,6 +111,10 @@ public class BuildParams {
         return value(testSeed);
     }
 
+    public static Random getRandom() {
+        return new Random(Long.parseUnsignedLong(testSeed.split(":", 1)[0], 16));
+    }
+
     public static Boolean isCi() {
         return value(isCi);
     }
@@ -117,6 +125,10 @@ public class BuildParams {
 
     public static boolean isSnapshotBuild() {
         return value(BuildParams.isSnapshotBuild);
+    }
+
+    public static Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec() {
+        return javaToolChainSpec;
     }
 
     private static <T> T value(T object) {
@@ -226,6 +238,10 @@ public class BuildParams {
 
         public void setBwcVersions(Provider<BwcVersions> bwcVersions) {
             BuildParams.bwcVersions = requireNonNull(bwcVersions);
+        }
+
+        public void setJavaToolChainSpec(Provider<? extends Action<JavaToolchainSpec>> javaToolChain) {
+            BuildParams.javaToolChainSpec = javaToolChain;
         }
     }
 }

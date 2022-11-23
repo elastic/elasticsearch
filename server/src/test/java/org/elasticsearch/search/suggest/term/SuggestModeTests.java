@@ -39,8 +39,7 @@ public class SuggestModeTests extends AbstractWriteableEnumTestCase {
         try {
             SuggestMode.resolve(doesntExist);
             fail("SuggestMode should not have an element " + doesntExist);
-        } catch (IllegalArgumentException e) {
-        }
+        } catch (IllegalArgumentException e) {}
         try {
             SuggestMode.resolve(null);
             fail("SuggestMode.resolve on a null value should throw an exception.");

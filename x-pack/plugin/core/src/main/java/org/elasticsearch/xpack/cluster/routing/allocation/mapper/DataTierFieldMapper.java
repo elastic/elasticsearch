@@ -10,15 +10,16 @@ package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.Collections;
 import java.util.List;
@@ -79,8 +80,8 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
 
             String tierPreference = getTierPreference(context);
             return tierPreference == null
-                ? lookup -> List.of()
-                : lookup -> List.of(tierPreference);
+                ? (lookup, doc, ignoredValues) -> List.of()
+                : (lookup, doc, ignoredValues) -> List.of(tierPreference);
         }
 
         /**
@@ -89,7 +90,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
          */
         private String getTierPreference(SearchExecutionContext context) {
             Settings settings = context.getIndexSettings().getSettings();
-            String value = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings);
+            String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
 
             if (Strings.hasText(value) == false) {
                 return null;
@@ -108,5 +109,10 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

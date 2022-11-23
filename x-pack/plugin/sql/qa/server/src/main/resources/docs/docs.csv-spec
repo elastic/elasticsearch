@@ -97,11 +97,11 @@ showTables
 // tag::showTables
 SHOW TABLES;
 
-     name      | type     |     kind      
----------------+----------+---------------
-emp            |TABLE     |INDEX          
-employees      |VIEW      |ALIAS          
-library        |TABLE     |INDEX    
+ catalog       |     name      | type     |     kind
+---------------+---------------+----------+---------------
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
+javaRestTest      |library        |TABLE     |INDEX
 
 // end::showTables
 ;
@@ -110,9 +110,9 @@ showTablesLikeExact
 // tag::showTablesLikeExact
 SHOW TABLES LIKE 'emp';
 
-     name      | type     |     kind      
----------------+----------+---------------
-emp            |TABLE     |INDEX    
+ catalog       |     name      | type     |     kind
+---------------+---------------+----------+---------------
+javaRestTest      |emp            |TABLE     |INDEX
 
 // end::showTablesLikeExact
 ;
@@ -121,10 +121,10 @@ showTablesLikeWildcard
 // tag::showTablesLikeWildcard
 SHOW TABLES LIKE 'emp%';
 
-     name      | type     |     kind      
----------------+----------+---------------
-emp            |TABLE     |INDEX          
-employees      |VIEW      |ALIAS             
+ catalog       |     name      | type     |     kind
+---------------+---------------+----------+---------------
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
 
 // end::showTablesLikeWildcard
 ;
@@ -134,9 +134,9 @@ showTablesLikeOneChar
 // tag::showTablesLikeOneChar
 SHOW TABLES LIKE 'em_';
 
-     name      | type     |     kind      
----------------+----------+---------------
-emp            |TABLE     |INDEX     
+ catalog       |     name      | type     |     kind
+---------------+---------------+----------+---------------
+javaRestTest      |emp            |TABLE     |INDEX
 
 // end::showTablesLikeOneChar
 ;
@@ -145,20 +145,20 @@ showTablesLikeMixed
 // tag::showTablesLikeMixed
 SHOW TABLES LIKE '%em_';
 
-     name      | type     |     kind      
----------------+----------+---------------
-emp            |TABLE     |INDEX        
+ catalog       |     name      | type     |     kind
+---------------+---------------+----------+---------------
+javaRestTest      |emp            |TABLE     |INDEX
 
 // end::showTablesLikeMixed
 ;
 
 showTablesLikeEscape
-schema::name:s|type:s|kind:s
+schema::catalog:s|name:s|type:s|kind:s
 // tag::showTablesLikeEscape
 SHOW TABLES LIKE 'emp!%' ESCAPE '!';
 
-     name      |     type      |     kind      
----------------+---------------+---------------
+ catalog       |     name      |     type      |     kind
+---------------+---------------+---------------+---------------
 
 // end::showTablesLikeEscape
 ;
@@ -168,10 +168,10 @@ showTablesEsMultiIndex
 // tag::showTablesEsMultiIndex
 SHOW TABLES "*,-l*";
 
-     name      | type     |     kind      
----------------+----------+---------------
-emp            |TABLE     |INDEX          
-employees      |VIEW      |ALIAS  
+ catalog       |     name      | type     |     kind
+---------------+---------------+----------+---------------
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
 
 // end::showTablesEsMultiIndex
 ;
@@ -184,12 +184,12 @@ showTablesIncludeFrozen
 // tag::showTablesIncludeFrozen
 SHOW TABLES INCLUDE FROZEN;
 
-     name      | type     |     kind      
----------------+----------+---------------
-archive        |TABLE     |FROZEN INDEX
-emp            |TABLE     |INDEX          
-employees      |VIEW      |ALIAS          
-library        |TABLE     |INDEX    
+ catalog       |     name      | type     |     kind
+---------------+---------------+----------+---------------
+javaRestTest      |archive        |TABLE     |FROZEN INDEX
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
+javaRestTest      |library        |TABLE     |INDEX
 
 // end::showTablesIncludeFrozen
 ;
@@ -249,6 +249,7 @@ DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
+DATE_FORMAT      |SCALAR
 DATE_PARSE       |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
@@ -2904,6 +2905,36 @@ SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
 // end::dateTimeFormatTime
 ;
 
+dateFormatDate
+// tag::dateFormatDate
+SELECT DATE_FORMAT(CAST('2020-04-05' AS DATE), '%d/%m/%Y') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::dateFormatDate
+;
+
+dateFormatDateTime
+// tag::dateFormatDateTime
+SELECT DATE_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), '%d/%m/%Y %H:%i:%s.%f') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.987654
+// end::dateFormatDateTime
+;
+
+dateFormatTime
+// tag::dateFormatTime
+SELECT DATE_FORMAT(CAST('23:22:33.987' AS TIME), '%H %i %s.%f') AS "time";
+
+      time
+------------------
+23 22 33.987000
+// end::dateFormatTime
+;
+
 toCharDate
 // tag::toCharDate
 SELECT TO_CHAR(CAST('2020-04-05' AS DATE), 'DD/MM/YYYY') AS "date";
@@ -3190,7 +3221,7 @@ SELECT DATE_TRUNC('days', INTERVAL '19 15:24:19' DAY TO SECONDS) AS day;
 
 formatDate
 // tag::formatDate
-SELECT FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
+SELECT FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/yyyy') AS "date";
 
       date
 ------------------
@@ -3200,7 +3231,7 @@ SELECT FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
 
 formatDateTime
 // tag::formatDateTime
-SELECT FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/YYYY HH:mm:ss.ff') AS "datetime";
+SELECT FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/yyyy HH:mm:ss.ff') AS "datetime";
 
       datetime
 ------------------
@@ -3351,7 +3382,7 @@ Alejandro
 Amabile
 Anneke
 Anoosh
-Arumugam
+Basil
 // end::filterToday
 ;
 
@@ -3516,4 +3547,3 @@ SELECT author, name FROM library WHERE name RLIKE 'Child.* Dune';
 Frank Herbert  |Children of Dune
 // end::simpleRLike
 ;
-

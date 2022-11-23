@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -20,10 +21,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
@@ -46,13 +49,13 @@ public class CertGenCliTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
-        // Enable security for this test only where it is necessary, until we can enable it for all
-        ServerUtils.enableSecurityFeatures(installation);
+        // Disable security auto-configuration as we want to generate keys/certificates manually here
+        ServerUtils.disableSecurityAutoConfiguration(installation);
     }
 
     public void test20Help() {
         Shell.Result result = installation.executables().certgenTool.run("--help");
-        assertThat(result.stdout, containsString("Simplifies certificate creation"));
+        assertThat(result.stdout(), containsString("Simplifies certificate creation"));
     }
 
     public void test30Generate() throws Exception {
@@ -94,20 +97,33 @@ public class CertGenCliTests extends PackagingTestCase {
         final String keyPath = escapePath(installation.config("certs/mynode/mynode.key"));
         final String certPath = escapePath(installation.config("certs/mynode/mynode.crt"));
         final String caCertPath = escapePath(installation.config("certs/ca/ca.crt"));
+        final Settings settings = Settings.builder().loadFromPath(installation.config("elasticsearch.yml")).build();
+        // Replace possibly auto-configured TLS settings with ones pointing to the material generated with certgen
+        // (we do disable auto-configuration above but for packaged installations TLS auto-config happens on installation time and is
+        // not affected by this setting
+        final Settings newSettings = Settings.builder()
+            .put(
+                settings.filter(k -> k.startsWith("xpack.security") == false)
+                    .filter(k -> k.equals("node.name") == false)
+                    .filter(k -> k.equals("http.host") == false)
+                    .filter(k -> k.equals("cluster.initial_master_nodes") == false)
 
-        List<String> yaml = List.of(
-            "node.name: mynode",
-            "xpack.security.transport.ssl.key: " + keyPath,
-            "xpack.security.transport.ssl.certificate: " + certPath,
-            "xpack.security.transport.ssl.certificate_authorities: [\"" + caCertPath + "\"]",
-            "xpack.security.http.ssl.key: " + keyPath,
-            "xpack.security.http.ssl.certificate: " + certPath,
-            "xpack.security.http.ssl.certificate_authorities: [\"" + caCertPath + "\"]",
-            "xpack.security.transport.ssl.enabled: true",
-            "xpack.security.http.ssl.enabled: true"
+            )
+            .put("node.name", "mynode")
+            .put("xpack.security.transport.ssl.key", keyPath)
+            .put("xpack.security.transport.ssl.certificate", certPath)
+            .put("xpack.security.transport.ssl.certificate_authorities", caCertPath)
+            .put("xpack.security.http.ssl.key", keyPath)
+            .put("xpack.security.http.ssl.certificate", certPath)
+            .putList("xpack.security.http.ssl.certificate_authorities", caCertPath)
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put("xpack.security.http.ssl.enabled", true)
+            .build();
+        Files.write(
+            installation.config("elasticsearch.yml"),
+            newSettings.keySet().stream().map(k -> k + ": " + newSettings.get(k)).collect(Collectors.toList()),
+            TRUNCATE_EXISTING
         );
-
-        Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
 
         assertWhileRunning(() -> {
             final String password = setElasticPassword();
@@ -117,8 +133,8 @@ public class CertGenCliTests extends PackagingTestCase {
     }
 
     private String setElasticPassword() {
-        Shell.Result result = installation.executables().resetElasticPasswordTool.run("--auto --batch --silent", null);
-        return result.stdout;
+        Shell.Result result = installation.executables().resetPasswordTool.run("--auto --batch --silent --username elastic", null);
+        return result.stdout();
     }
 
 }

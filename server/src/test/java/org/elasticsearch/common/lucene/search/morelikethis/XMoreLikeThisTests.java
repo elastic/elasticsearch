@@ -8,18 +8,18 @@
 
 package org.elasticsearch.common.lucene.search.morelikethis;
 
-import org.apache.lucene.analysis.MockAnalyzer;
-import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.mlt.MoreLikeThis;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ public class XMoreLikeThisTests extends ESTestCase {
         mlt.setMinDocFreq(1);
         mlt.setMinTermFreq(1);
         mlt.setMinWordLen(1);
-        mlt.setFieldNames(new String[]{"text"});
+        mlt.setFieldNames(new String[] { "text" });
 
         // perform MLT query
         String likeText = "";

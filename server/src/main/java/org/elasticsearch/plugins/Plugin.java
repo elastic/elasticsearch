@@ -9,9 +9,10 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -19,17 +20,18 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -48,6 +50,7 @@ import java.util.function.UnaryOperator;
  * <li>{@link AnalysisPlugin}
  * <li>{@link ClusterPlugin}
  * <li>{@link DiscoveryPlugin}
+ * <li>{@link HealthPlugin}
  * <li>{@link IngestPlugin}
  * <li>{@link MapperPlugin}
  * <li>{@link NetworkPlugin}
@@ -61,30 +64,40 @@ public abstract class Plugin implements Closeable {
 
     /**
      * Returns components added by this plugin.
-     *
+     * <p>
      * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
      * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
      * to themselves.
      *
-     * @param client A client to make requests to the system
-     * @param clusterService A service to allow watching and updating cluster state
-     * @param threadPool A service to allow retrieving an executor to run an async action
-     * @param resourceWatcherService A service to watch for changes to node local files
-     * @param scriptService A service to allow running scripts on the local node
-     * @param xContentRegistry the registry for extensible xContent parsing
-     * @param environment the environment for path and setting configurations
-     * @param nodeEnvironment the node environment used coordinate access to the data paths
-     * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
+     * @param client                      A client to make requests to the system
+     * @param clusterService              A service to allow watching and updating cluster state
+     * @param threadPool                  A service to allow retrieving an executor to run an async action
+     * @param resourceWatcherService      A service to watch for changes to node local files
+     * @param scriptService               A service to allow running scripts on the local node
+     * @param xContentRegistry            the registry for extensible xContent parsing
+     * @param environment                 the environment for path and setting configurations
+     * @param nodeEnvironment             the node environment used coordinate access to the data paths
+     * @param namedWriteableRegistry      the registry for {@link NamedWriteable} object parsing
      * @param indexNameExpressionResolver A service that resolves expression to index and alias names
      * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
-     *                                   is called, but will return the repositories service once the node is initialized.
+     *                                    is called, but will return the repositories service once the node is initialized.
+     * @param tracer                      An interface for distributed tracing
      */
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
+    ) {
         return Collections.emptyList();
     }
 
@@ -93,7 +106,7 @@ public abstract class Plugin implements Closeable {
      * overwritten with the additional settings. These settings added if they don't exist.
      */
     public Settings additionalSettings() {
-        return Settings.Builder.EMPTY_SETTINGS;
+        return Settings.EMPTY;
     }
 
     /**
@@ -121,12 +134,16 @@ public abstract class Plugin implements Closeable {
     /**
      * Returns a list of additional {@link Setting} definitions for this plugin.
      */
-    public List<Setting<?>> getSettings() { return Collections.emptyList(); }
+    public List<Setting<?>> getSettings() {
+        return Collections.emptyList();
+    }
 
     /**
      * Returns a list of additional settings filter for this plugin
      */
-    public List<String> getSettingsFilter() { return Collections.emptyList(); }
+    public List<String> getSettingsFilter() {
+        return Collections.emptyList();
+    }
 
     /**
      * Get the setting upgraders provided by this plugin.
@@ -144,7 +161,7 @@ public abstract class Plugin implements Closeable {
      * <p>
      * The order of the template upgrader calls is undefined and can change between runs so, it is expected that
      * plugins will modify only templates owned by them to avoid conflicts.
-     * <p>
+     *
      * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetadata} map.
      * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetadata}
      *                               cannot be upgraded
@@ -170,7 +187,9 @@ public abstract class Plugin implements Closeable {
      * to provide a better out of the box experience by pre-configuring otherwise (in production) mandatory settings or to enforce certain
      * configurations like OS settings or 3rd party resources.
      */
-    public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
+    public List<BootstrapCheck> getBootstrapChecks() {
+        return Collections.emptyList();
+    }
 
     /**
      * Close the resources opened by this plugin.
@@ -188,7 +207,7 @@ public abstract class Plugin implements Closeable {
      * the default values for an index-level setting, these act as though the setting has been set
      * explicitly, but still allow the setting to be overridden by a template or creation request body.
      */
-    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         return Collections.emptyList();
     }
 }

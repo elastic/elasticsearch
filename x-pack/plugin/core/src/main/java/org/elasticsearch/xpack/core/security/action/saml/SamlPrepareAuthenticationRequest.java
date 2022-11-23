@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.security.action.saml;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -38,8 +38,7 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
         }
     }
 
-    public SamlPrepareAuthenticationRequest() {
-    }
+    public SamlPrepareAuthenticationRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
@@ -72,11 +71,15 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{" +
-                "realmName=" + realmName +
-                ", assertionConsumerServiceURL=" + assertionConsumerServiceURL +
-                ", relayState=" + relayState +
-                '}';
+        return getClass().getSimpleName()
+            + "{"
+            + "realmName="
+            + realmName
+            + ", assertionConsumerServiceURL="
+            + assertionConsumerServiceURL
+            + ", relayState="
+            + relayState
+            + '}';
     }
 
     @Override

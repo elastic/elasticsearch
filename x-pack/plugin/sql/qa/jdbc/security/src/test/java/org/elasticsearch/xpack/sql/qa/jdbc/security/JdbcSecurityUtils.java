@@ -13,7 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
 
-import static org.apache.lucene.util.LuceneTestCase.getTestClass;
+import static org.apache.lucene.tests.util.LuceneTestCase.getTestClass;
 
 final class JdbcSecurityUtils {
 

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[delete-license]]
 === Delete license API
 ++++

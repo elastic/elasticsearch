@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,13 +38,17 @@ public class FeatureImportanceBaseline implements ToXContentObject, Writeable {
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<FeatureImportanceBaseline, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<FeatureImportanceBaseline, Void> parser = new ConstructingObjectParser<>(NAME,
+        ConstructingObjectParser<FeatureImportanceBaseline, Void> parser = new ConstructingObjectParser<>(
+            NAME,
             ignoreUnknownFields,
-            a -> new FeatureImportanceBaseline((Double)a[0], (List<ClassBaseline>)a[1]));
+            a -> new FeatureImportanceBaseline((Double) a[0], (List<ClassBaseline>) a[1])
+        );
         parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), BASELINE);
-        parser.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
+        parser.declareObjectArray(
+            ConstructingObjectParser.optionalConstructorArg(),
             ignoreUnknownFields ? ClassBaseline.LENIENT_PARSER : ClassBaseline.STRICT_PARSER,
-            CLASSES);
+            CLASSES
+        );
         return parser;
     }
 
@@ -81,8 +85,7 @@ public class FeatureImportanceBaseline implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FeatureImportanceBaseline that = (FeatureImportanceBaseline) o;
-        return Objects.equals(that.baseline, baseline)
-            && Objects.equals(classBaselines, that.classBaselines);
+        return Objects.equals(that.baseline, baseline) && Objects.equals(classBaselines, that.classBaselines);
     }
 
     public Map<String, Object> asMap() {
@@ -110,9 +113,11 @@ public class FeatureImportanceBaseline implements ToXContentObject, Writeable {
         public static final ConstructingObjectParser<ClassBaseline, Void> STRICT_PARSER = createParser(false);
 
         private static ConstructingObjectParser<ClassBaseline, Void> createParser(boolean ignoreUnknownFields) {
-            ConstructingObjectParser<ClassBaseline, Void> parser = new ConstructingObjectParser<>(NAME,
+            ConstructingObjectParser<ClassBaseline, Void> parser = new ConstructingObjectParser<>(
+                NAME,
                 ignoreUnknownFields,
-                a -> new ClassBaseline(a[0], (double)a[1]));
+                a -> new ClassBaseline(a[0], (double) a[1])
+            );
             parser.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
                 if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                     return p.text();

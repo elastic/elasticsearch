@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.rollup.action;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -21,7 +21,6 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.rollup.action.TransportGetRollupIndexCapsAction.getCapsByRollupIndex;
@@ -43,18 +42,17 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
     }
 
     public void testNoIndicesByRollup() {
-        ImmutableOpenMap<String, IndexMetadata> indices = new ImmutableOpenMap.Builder<String, IndexMetadata>().build();
-        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Collections.singletonList("foo"), indices);
+        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Collections.singletonList("foo"), Map.of());
         assertThat(caps.size(), equalTo(0));
     }
 
     public void testAllIndicesByRollupSingleRollup() throws IOException {
         int num = randomIntBetween(1, 5);
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = new ImmutableOpenMap.Builder<>(5);
+        Map<String, IndexMetadata> indices = Maps.newMapWithExpectedSize(5);
         int indexCounter = 0;
         for (int j = 0; j < 5; j++) {
 
-            Map<String, Object> jobs = new HashMap<>(num);
+            Map<String, Object> jobs = Maps.newMapWithExpectedSize(num);
             for (int i = 0; i < num; i++) {
                 String jobName = randomAlphaOfLength(10);
                 String indexName = Integer.toString(indexCounter);
@@ -75,16 +73,16 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
             indices.put("foo", meta);
         }
 
-        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Collections.singletonList("foo"), indices.build());
+        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Collections.singletonList("foo"), indices);
         assertThat(caps.size(), equalTo(1));
     }
 
     public void testAllIndicesByRollupManyRollup() throws IOException {
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = new ImmutableOpenMap.Builder<>(5);
+        Map<String, IndexMetadata> indices = Maps.newMapWithExpectedSize(5);
         int indexCounter = 0;
         for (int j = 0; j < 5; j++) {
 
-            Map<String, Object> jobs = new HashMap<>(1);
+            Map<String, Object> jobs = Maps.newMapWithExpectedSize(1);
             String jobName = randomAlphaOfLength(10);
             String indexName = Integer.toString(indexCounter);
             indexCounter += 1;
@@ -103,16 +101,16 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
             indices.put("rollup_" + indexName, meta);
         }
 
-        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Arrays.asList(indices.keys().toArray(String.class)), indices.build());
+        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Arrays.asList(indices.keySet().toArray(new String[0])), indices);
         assertThat(caps.size(), equalTo(5));
     }
 
     public void testOneIndexByRollupManyRollup() throws IOException {
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = new ImmutableOpenMap.Builder<>(5);
+        Map<String, IndexMetadata> indices = Maps.newMapWithExpectedSize(5);
         int indexCounter = 0;
         for (int j = 0; j < 5; j++) {
 
-            Map<String, Object> jobs = new HashMap<>(1);
+            Map<String, Object> jobs = Maps.newMapWithExpectedSize(1);
             String jobName = randomAlphaOfLength(10);
             String indexName = Integer.toString(indexCounter);
             indexCounter += 1;
@@ -131,18 +129,18 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
             indices.put("rollup_" + indexName, meta);
         }
 
-        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Collections.singletonList("rollup_1"), indices.build());
+        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Collections.singletonList("rollup_1"), indices);
         assertThat(caps.size(), equalTo(1));
         assertThat(caps.get("rollup_1").getIndexName(), equalTo("rollup_1"));
         assertThat(caps.get("rollup_1").getJobCaps().size(), equalTo(1));
     }
 
     public void testOneIndexByRollupOneRollup() throws IOException {
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = new ImmutableOpenMap.Builder<>(5);
+        Map<String, IndexMetadata> indices = Maps.newMapWithExpectedSize(5);
         int indexCounter = 0;
         for (int j = 0; j < 5; j++) {
 
-            Map<String, Object> jobs = new HashMap<>(1);
+            Map<String, Object> jobs = Maps.newMapWithExpectedSize(1);
             String jobName = randomAlphaOfLength(10);
             String indexName = Integer.toString(indexCounter);
             indexCounter += 1;
@@ -161,7 +159,7 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
             indices.put("rollup_foo", meta);
         }
 
-        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Collections.singletonList("rollup_foo"), indices.build());
+        Map<String, RollableIndexCaps> caps = getCapsByRollupIndex(Collections.singletonList("rollup_foo"), indices);
         assertThat(caps.size(), equalTo(1));
         assertThat(caps.get("rollup_foo").getIndexName(), equalTo("rollup_foo"));
         assertThat(caps.get("rollup_foo").getJobCaps().size(), equalTo(1));

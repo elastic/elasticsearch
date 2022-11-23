@@ -9,13 +9,13 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -172,17 +172,6 @@ public class BucketHelpersTests extends ESTestCase {
             }
         };
 
-        AggregationExecutionException e = expectThrows(
-            AggregationExecutionException.class,
-            () -> BucketHelpers.resolveBucketValue(agg, bucket, "foo>bar", BucketHelpers.GapPolicy.SKIP)
-        );
-
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "buckets_path must reference either a number value or a single value numeric "
-                    + "metric aggregation, but [foo] contains multiple values. Please specify which to use."
-            )
-        );
+        assertEquals(Double.valueOf(0.0), BucketHelpers.resolveBucketValue(agg, bucket, "foo>bar", BucketHelpers.GapPolicy.INSERT_ZEROS));
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -24,7 +25,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,12 +43,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 
@@ -63,7 +61,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
@@ -159,18 +156,27 @@ public class CancellableTasksIT extends ESIntegTestCase {
         if (randomBoolean()) {
             internalCluster().startNodes(randomIntBetween(1, 3));
         }
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 4));
         ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         Set<TestRequest> pendingRequests = allowPartialRequest(rootRequest);
         TaskId rootTaskId = getRootTaskId(rootRequest);
-        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks()
-            .setTaskId(rootTaskId).waitForCompletion(true).execute();
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setTargetTaskId(rootTaskId)
+            .waitForCompletion(true)
+            .execute();
         if (randomBoolean()) {
-            List<TaskInfo> runningTasks = client().admin().cluster().prepareListTasks()
-                .setActions(TransportTestAction.ACTION.name()).setDetailed(true).get().getTasks();
+            List<TaskInfo> runningTasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(TransportTestAction.ACTION.name())
+                .setDetailed(true)
+                .get()
+                .getTasks();
             for (TaskInfo subTask : randomSubsetOf(runningTasks)) {
-                client().admin().cluster().prepareCancelTasks().setTaskId(subTask.getTaskId()).waitForCompletion(false).get();
+                client().admin().cluster().prepareCancelTasks().setTargetTaskId(subTask.taskId()).waitForCompletion(false).get();
             }
         }
         try {
@@ -180,9 +186,11 @@ public class CancellableTasksIT extends ESIntegTestCase {
                     Set<TaskId> expectedBans = new HashSet<>();
                     for (TestRequest req : pendingRequests) {
                         if (req.node.equals(node)) {
-                            List<Task> childTasks = taskManager.getTasks().values().stream()
+                            List<Task> childTasks = taskManager.getTasks()
+                                .values()
+                                .stream()
                                 .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
-                                .collect(Collectors.toList());
+                                .toList();
                             assertThat(childTasks, hasSize(1));
                             CancellableTask childTask = (CancellableTask) childTasks.get(0);
                             assertTrue(childTask.isCancelled());
@@ -201,23 +209,31 @@ public class CancellableTasksIT extends ESIntegTestCase {
     }
 
     public void testCancelTaskMultipleTimes() throws Exception {
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         TestRequest rootRequest = generateTestRequest(nodes, 0, randomIntBetween(1, 3));
         ActionFuture<TestResponse> mainTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         TaskId taskId = getRootTaskId(rootRequest);
         allowPartialRequest(rootRequest);
-        CancelTasksResponse resp = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).waitForCompletion(false).get();
+        CancelTasksResponse resp = client().admin().cluster().prepareCancelTasks().setTargetTaskId(taskId).waitForCompletion(false).get();
         assertThat(resp.getTaskFailures(), empty());
         assertThat(resp.getNodeFailures(), empty());
-        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
-            .waitForCompletion(true).execute();
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setTargetTaskId(taskId)
+            .waitForCompletion(true)
+            .execute();
         assertFalse(cancelFuture.isDone());
         allowEntireRequest(rootRequest);
         assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
         assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
         waitForRootTask(mainTaskFuture);
-        CancelTasksResponse cancelError = client().admin().cluster().prepareCancelTasks()
-            .setTaskId(taskId).waitForCompletion(randomBoolean()).get();
+        CancelTasksResponse cancelError = client().admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setTargetTaskId(taskId)
+            .waitForCompletion(randomBoolean())
+            .get();
         assertThat(cancelError.getNodeFailures(), hasSize(1));
         final Throwable notFound = ExceptionsHelper.unwrap(cancelError.getNodeFailures().get(0), ResourceNotFoundException.class);
         assertThat(notFound.getMessage(), equalTo("task [" + taskId + "] is not found"));
@@ -225,7 +241,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
     }
 
     public void testDoNotWaitForCompletion() throws Exception {
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
         ActionFuture<TestResponse> mainTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         TaskId taskId = getRootTaskId(rootRequest);
@@ -233,8 +249,12 @@ public class CancellableTasksIT extends ESIntegTestCase {
             allowPartialRequest(rootRequest);
         }
         boolean waitForCompletion = randomBoolean();
-        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
-            .waitForCompletion(waitForCompletion).execute();
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setTargetTaskId(taskId)
+            .waitForCompletion(waitForCompletion)
+            .execute();
         if (waitForCompletion) {
             assertFalse(cancelFuture.isDone());
         } else {
@@ -247,11 +267,11 @@ public class CancellableTasksIT extends ESIntegTestCase {
     }
 
     public void testFailedToStartChildTaskAfterCancelled() throws Exception {
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
         ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         TaskId taskId = getRootTaskId(rootRequest);
-        client().admin().cluster().prepareCancelTasks().setTaskId(taskId).waitForCompletion(false).get();
+        client().admin().cluster().prepareCancelTasks().setTargetTaskId(taskId).waitForCompletion(false).get();
         DiscoveryNode nodeWithParentTask = nodes.stream().filter(n -> n.getId().equals(taskId.getNodeId())).findFirst().get();
         TransportTestAction mainAction = internalCluster().getInstance(TransportTestAction.class, nodeWithParentTask.getName());
         PlainActionFuture<TestResponse> future = new PlainActionFuture<>();
@@ -267,12 +287,12 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
     public void testCancelOrphanedTasks() throws Exception {
         final String nodeWithRootTask = internalCluster().startDataOnlyNode();
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
         client(nodeWithRootTask).execute(TransportTestAction.ACTION, rootRequest);
         allowPartialRequest(rootRequest);
         try {
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithRootTask));
+            internalCluster().stopNode(nodeWithRootTask);
             assertBusy(() -> {
                 for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
                     for (CancellableTask task : transportService.getTaskManager().getCancellableTasks().values()) {
@@ -292,13 +312,17 @@ public class CancellableTasksIT extends ESIntegTestCase {
     }
 
     public void testRemoveBanParentsOnDisconnect() throws Exception {
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 4));
         client().execute(TransportTestAction.ACTION, rootRequest);
         Set<TestRequest> pendingRequests = allowPartialRequest(rootRequest);
         TaskId rootTaskId = getRootTaskId(rootRequest);
-        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks()
-            .setTaskId(rootTaskId).waitForCompletion(true).execute();
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin()
+            .cluster()
+            .prepareCancelTasks()
+            .setTargetTaskId(rootTaskId)
+            .waitForCompletion(true)
+            .execute();
         try {
             assertBusy(() -> {
                 for (DiscoveryNode node : nodes) {
@@ -306,9 +330,11 @@ public class CancellableTasksIT extends ESIntegTestCase {
                     Set<TaskId> expectedBans = new HashSet<>();
                     for (TestRequest req : pendingRequests) {
                         if (req.node.equals(node)) {
-                            List<Task> childTasks = taskManager.getTasks().values().stream()
+                            List<Task> childTasks = taskManager.getTasks()
+                                .values()
+                                .stream()
                                 .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
-                                .collect(Collectors.toList());
+                                .toList();
                             assertThat(childTasks, hasSize(1));
                             CancellableTask childTask = (CancellableTask) childTasks.get(0);
                             assertTrue(childTask.isCancelled());
@@ -331,7 +357,9 @@ public class CancellableTasksIT extends ESIntegTestCase {
                     if (bannedParent.getNodeId().equals(node.getId()) && randomBoolean()) {
                         Collection<Transport.Connection> childConns = taskManager.startBanOnChildTasks(bannedParent.getId(), "", () -> {});
                         for (Transport.Connection connection : randomSubsetOf(childConns)) {
-                            connection.close();
+                            if (connection.getNode().equals(node) == false) {
+                                connection.close();
+                            }
                         }
                     }
                 }
@@ -346,13 +374,18 @@ public class CancellableTasksIT extends ESIntegTestCase {
     static TaskId getRootTaskId(TestRequest request) throws Exception {
         SetOnce<TaskId> taskId = new SetOnce<>();
         assertBusy(() -> {
-            ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks()
-                .setActions(TransportTestAction.ACTION.name()).setDetailed(true).get();
-            List<TaskInfo> tasks = listTasksResponse.getTasks().stream()
-                .filter(t -> t.getDescription().equals(request.taskDescription()))
-                .collect(Collectors.toList());
+            ListTasksResponse listTasksResponse = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(TransportTestAction.ACTION.name())
+                .setDetailed(true)
+                .get();
+            List<TaskInfo> tasks = listTasksResponse.getTasks()
+                .stream()
+                .filter(t -> t.description().equals(request.taskDescription()))
+                .toList();
             assertThat(tasks, hasSize(1));
-            taskId.set(tasks.get(0).getTaskId());
+            taskId.set(tasks.get(0).taskId());
         });
         return taskId.get();
     }
@@ -363,10 +396,14 @@ public class CancellableTasksIT extends ESIntegTestCase {
         } catch (Exception e) {
             final Throwable cause = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
             assertNotNull(cause);
-            assertThat(cause.getMessage(), anyOf(
-                equalTo("parent task was cancelled [by user request]"),
-                equalTo("task cancelled before starting [by user request]"),
-                equalTo("task cancelled [by user request]")));
+            assertThat(
+                cause.getMessage(),
+                anyOf(
+                    equalTo("parent task was cancelled [by user request]"),
+                    equalTo("task cancelled before starting [by user request]"),
+                    equalTo("task cancelled [by user request]")
+                )
+            );
         }
     }
 
@@ -420,8 +457,8 @@ public class CancellableTasksIT extends ESIntegTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, taskDescription(), parentTaskId, headers);
+        public Task createTask(long someId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(someId, type, action, taskDescription(), parentTaskId, headers);
         }
 
         @Override
@@ -470,11 +507,13 @@ public class CancellableTasksIT extends ESIntegTestCase {
         protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
             arrivedLatches.get(request).countDown();
             List<TestRequest> subRequests = request.subRequests;
-            GroupedActionListener<TestResponse> groupedListener =
-                new GroupedActionListener<>(listener.map(r -> new TestResponse()), subRequests.size() + 1);
+            GroupedActionListener<TestResponse> groupedListener = new GroupedActionListener<>(
+                listener.map(r -> new TestResponse()),
+                subRequests.size() + 1
+            );
             transportService.getThreadPool().generic().execute(ActionRunnable.supply(groupedListener, () -> {
                 assertTrue(beforeExecuteLatches.get(request).await(60, TimeUnit.SECONDS));
-                ((CancellableTask)task).ensureNotCancelled();
+                ((CancellableTask) task).ensureNotCancelled();
                 return new TestResponse();
             }));
             for (TestRequest subRequest : subRequests) {
@@ -503,29 +542,17 @@ public class CancellableTasksIT extends ESIntegTestCase {
                             latchedListener.onFailure(new SendRequestTransportException(subRequest.node, ACTION.name(), e));
                         }
                     } else {
-                        transportService.sendRequest(subRequest.node, ACTION.name(), subRequest,
-                            new TransportResponseHandler<TestResponse>() {
-                                @Override
-                                public void handleResponse(TestResponse response) {
-                                    latchedListener.onResponse(response);
-                                }
-
-                                @Override
-                                public void handleException(TransportException exp) {
-                                    latchedListener.onFailure(exp);
-                                }
-
-                                @Override
-                                public TestResponse read(StreamInput in) throws IOException {
-                                    return new TestResponse(in);
-                                }
-                            });
+                        transportService.sendRequest(
+                            subRequest.node,
+                            ACTION.name(),
+                            subRequest,
+                            new ActionListenerResponseHandler<TestResponse>(latchedListener, TestResponse::new)
+                        );
                     }
                 }
             });
         }
     }
-
 
     public static class TaskPlugin extends Plugin implements ActionPlugin {
         @Override

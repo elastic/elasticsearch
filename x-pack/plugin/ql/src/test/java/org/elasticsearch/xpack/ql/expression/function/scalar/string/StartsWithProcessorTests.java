@@ -60,31 +60,29 @@ public class StartsWithProcessorTests extends ESTestCase {
     }
 
     private Boolean startsWith(boolean caseInsensitive, String left, String right) {
-        return (Boolean) new StartsWithFunctionPipeTests.StartsWithTest(EMPTY, l(left), l(right), caseInsensitive)
-            .makePipe().asProcessor().process(null);
+        return (Boolean) new StartsWithFunctionPipeTests.StartsWithTest(EMPTY, l(left), l(right), caseInsensitive).makePipe()
+            .asProcessor()
+            .process(null);
     }
 
     private Boolean untypedStartsWith(Object left, Object right) {
-        return (Boolean) new StartsWithFunctionPipeTests.StartsWithTest(EMPTY, l(left), l(right), randomBoolean())
-            .makePipe().asProcessor().process(null);
+        return (Boolean) new StartsWithFunctionPipeTests.StartsWithTest(EMPTY, l(left), l(right), randomBoolean()).makePipe()
+            .asProcessor()
+            .process(null);
     }
 
     public void testStartsWithFunctionInputsValidation() {
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-            () -> untypedStartsWith(5, "foo"));
+        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class, () -> untypedStartsWith(5, "foo"));
         assertEquals("A string/char is required; received [5]", siae.getMessage());
-        siae = expectThrows(QlIllegalArgumentException.class,
-            () -> untypedStartsWith("bar", false));
+        siae = expectThrows(QlIllegalArgumentException.class, () -> untypedStartsWith("bar", false));
         assertEquals("A string/char is required; received [false]", siae.getMessage());
     }
 
     public void testStartsWithFunctionWithRandomInvalidDataType() {
         Literal literal = randomValueOtherThanMany(v -> v.dataType() == KEYWORD, () -> LiteralTests.randomLiteral());
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-            () -> untypedStartsWith(literal, "foo"));
+        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class, () -> untypedStartsWith(literal, "foo"));
         assertThat(siae.getMessage(), Matchers.startsWith("A string/char is required; received"));
-        siae = expectThrows(QlIllegalArgumentException.class,
-            () -> untypedStartsWith("foo", literal));
+        siae = expectThrows(QlIllegalArgumentException.class, () -> untypedStartsWith("foo", literal));
         assertThat(siae.getMessage(), Matchers.startsWith("A string/char is required; received"));
     }
 }

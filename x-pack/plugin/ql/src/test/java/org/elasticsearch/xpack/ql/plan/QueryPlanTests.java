@@ -56,8 +56,10 @@ public class QueryPlanTests extends ESTestCase {
         FieldAttribute two = fieldAttribute("two", INTEGER);
 
         Project project = new Project(EMPTY, relation(), asList(one, two));
-        LogicalPlan transformed = project.transformExpressionsOnly(NamedExpression.class, n -> n.name().equals("one") ?
-            new FieldAttribute(EMPTY, "changed", one.field()) : n);
+        LogicalPlan transformed = project.transformExpressionsOnly(
+            NamedExpression.class,
+            n -> n.name().equals("one") ? new FieldAttribute(EMPTY, "changed", one.field()) : n
+        );
 
         assertEquals(Project.class, transformed.getClass());
         Project p = (Project) transformed;

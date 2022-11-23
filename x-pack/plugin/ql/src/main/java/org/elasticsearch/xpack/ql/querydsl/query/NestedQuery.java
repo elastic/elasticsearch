@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.querydsl.query;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -16,7 +17,6 @@ import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.AbstractMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,30 +60,30 @@ public class NestedQuery extends Query {
     }
 
     @Override
-    public boolean containsNestedField(String path, String field) {
-        boolean iContainThisField = this.path.equals(path) && fields.containsKey(field);
-        boolean myChildContainsThisField = child.containsNestedField(path, field);
+    public boolean containsNestedField(String otherPath, String field) {
+        boolean iContainThisField = this.path.equals(otherPath) && fields.containsKey(field);
+        boolean myChildContainsThisField = child.containsNestedField(otherPath, field);
         return iContainThisField || myChildContainsThisField;
     }
 
     @Override
-    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
-        if (false == this.path.equals(path)) {
+    public Query addNestedField(String otherPath, String field, String format, boolean hasDocValues) {
+        if (false == this.path.equals(otherPath)) {
             // I'm not at the right path so let my child query have a crack at it
-            Query rewrittenChild = child.addNestedField(path, field, format, hasDocValues);
+            Query rewrittenChild = child.addNestedField(otherPath, field, format, hasDocValues);
             if (rewrittenChild == child) {
                 return this;
             }
-            return new NestedQuery(source(), path, fields, rewrittenChild);
+            return new NestedQuery(source(), otherPath, fields, rewrittenChild);
         }
         if (fields.containsKey(field)) {
             // I already have the field, no rewriting needed
             return this;
         }
-        Map<String, Map.Entry<Boolean, String>> newFields = new HashMap<>(fields.size() + 1);
+        Map<String, Map.Entry<Boolean, String>> newFields = Maps.newMapWithExpectedSize(fields.size() + 1);
         newFields.putAll(fields);
         newFields.put(field, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format));
-        return new NestedQuery(source(), path, unmodifiableMap(newFields), child);
+        return new NestedQuery(source(), otherPath, unmodifiableMap(newFields), child);
     }
 
     @Override
@@ -93,7 +93,7 @@ public class NestedQuery extends Query {
             return;
         }
 
-        //TODO: Add all filters in nested sorting when https://github.com/elastic/elasticsearch/issues/33079 is implemented
+        // TODO: Add all filters in nested sorting when https://github.com/elastic/elasticsearch/issues/33079 is implemented
         // Adding multiple filters to sort sections makes sense for nested queries where multiple conditions belong to the same
         // nested query. The current functionality creates one nested query for each condition involving a nested field.
         QueryBuilder childAsBuilder = child.asBuilder();
@@ -118,8 +118,7 @@ public class NestedQuery extends Query {
             for (Map.Entry<String, Map.Entry<Boolean, String>> entry : fields.entrySet()) {
                 if (entry.getValue().getKey()) {
                     ihb.addFetchField(entry.getKey(), entry.getValue().getValue());
-                }
-                else {
+                } else {
                     ihb.addFetchField(entry.getKey());
                 }
             }
@@ -155,9 +154,7 @@ public class NestedQuery extends Query {
             return false;
         }
         NestedQuery other = (NestedQuery) obj;
-        return path.equals(other.path)
-                && fields.equals(other.fields)
-                && child.equals(other.child);
+        return path.equals(other.path) && fields.equals(other.fields) && child.equals(other.child);
     }
 
     @Override

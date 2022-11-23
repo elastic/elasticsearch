@@ -10,11 +10,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
@@ -27,7 +28,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
 
-public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTranslateRequest> {
+public class SqlTranslateRequestTests extends AbstractXContentSerializingTestCase<TestSqlTranslateRequest> {
 
     public Mode testMode;
 
@@ -37,14 +38,29 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     }
 
     @Override
-    protected SqlTranslateRequest createTestInstance() {
-        return new SqlTranslateRequest(randomAlphaOfLength(10), emptyList(), randomFilterOrNull(random()),
-                randomRuntimeMappings(),randomZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV(), new RequestInfo(testMode));
+    protected TestSqlTranslateRequest createXContextTestInstance(XContentType xContentType) {
+        SqlTestUtils.assumeXContentJsonOrCbor(xContentType);
+        return super.createXContextTestInstance(xContentType);
     }
 
     @Override
-    protected Writeable.Reader<SqlTranslateRequest> instanceReader() {
-        return SqlTranslateRequest::new;
+    protected TestSqlTranslateRequest createTestInstance() {
+        return new TestSqlTranslateRequest(
+            randomAlphaOfLength(10),
+            emptyList(),
+            randomFilterOrNull(random()),
+            randomRuntimeMappings(),
+            randomZone(),
+            between(1, Integer.MAX_VALUE),
+            randomTV(),
+            randomTV(),
+            new RequestInfo(testMode)
+        );
+    }
+
+    @Override
+    protected Writeable.Reader<TestSqlTranslateRequest> instanceReader() {
+        return TestSqlTranslateRequest::new;
     }
 
     private TimeValue randomTV() {
@@ -64,25 +80,38 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     }
 
     @Override
-    protected SqlTranslateRequest doParseInstance(XContentParser parser) {
-        return SqlTranslateRequest.fromXContent(parser);
+    protected TestSqlTranslateRequest doParseInstance(XContentParser parser) {
+        return SqlTestUtils.clone(TestSqlTranslateRequest.fromXContent(parser), instanceReader(), getNamedWriteableRegistry());
     }
 
     @Override
-    protected SqlTranslateRequest mutateInstance(SqlTranslateRequest instance) throws IOException {
+    protected TestSqlTranslateRequest mutateInstance(TestSqlTranslateRequest instance) throws IOException {
         @SuppressWarnings("unchecked")
         Consumer<SqlTranslateRequest> mutator = randomFrom(
-                request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
-                request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
-                request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
-                request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
-                request -> request.filter(randomValueOtherThan(request.filter(),
-                        () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))),
-                request -> request.runtimeMappings(randomValueOtherThan(request.runtimeMappings(), () -> randomRuntimeMappings()))
+            request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
+            request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
+            request -> request.catalog(randomValueOtherThan(request.catalog(), () -> randomAlphaOfLength(10))),
+            request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
+            request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
+            request -> request.filter(
+                randomValueOtherThan(
+                    request.filter(),
+                    () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random())
+                )
+            ),
+            request -> request.runtimeMappings(randomValueOtherThan(request.runtimeMappings(), () -> randomRuntimeMappings()))
         );
-        SqlTranslateRequest newRequest = new SqlTranslateRequest(instance.query(), instance.params(), instance.filter(),
-                instance.runtimeMappings(), instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(),
-                instance.requestInfo());
+        TestSqlTranslateRequest newRequest = new TestSqlTranslateRequest(
+            instance.query(),
+            instance.params(),
+            instance.filter(),
+            instance.runtimeMappings(),
+            instance.zoneId(),
+            instance.fetchSize(),
+            instance.requestTimeout(),
+            instance.pageTimeout(),
+            instance.requestInfo()
+        );
         mutator.accept(newRequest);
         return newRequest;
     }

@@ -21,9 +21,7 @@ public class PreviewDataFrameAnalyticsActionResponseTests extends AbstractWireSe
     @Override
     protected Response createTestInstance() {
         return new Response(
-            Stream.generate(() -> randomHashMap("foo", "bar", "baz"))
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toList())
+            Stream.generate(() -> randomHashMap("foo", "bar", "baz")).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
         );
     }
 

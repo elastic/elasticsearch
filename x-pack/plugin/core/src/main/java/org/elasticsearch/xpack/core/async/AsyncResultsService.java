@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -21,6 +20,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Service that is capable of retrieving and cleaning up AsyncTasks regardless of their state. It works with the TaskManager, if a task
@@ -45,12 +46,14 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
      * @param taskManager                 task manager
      * @param clusterService              cluster service
      */
-    public AsyncResultsService(AsyncTaskIndexService<Response> store,
-                               boolean updateInitialResultsInStore,
-                               Class<? extends Task> asyncTaskClass,
-                               TriConsumer<Task, ActionListener<Response>, TimeValue> addCompletionListener,
-                               TaskManager taskManager,
-                               ClusterService clusterService) {
+    public AsyncResultsService(
+        AsyncTaskIndexService<Response> store,
+        boolean updateInitialResultsInStore,
+        Class<? extends Task> asyncTaskClass,
+        TriConsumer<Task, ActionListener<Response>, TimeValue> addCompletionListener,
+        TaskManager taskManager,
+        ClusterService clusterService
+    ) {
         this.updateInitialResultsInStore = updateInitialResultsInStore;
         this.asyncTaskClass = asyncTaskClass;
         this.addCompletionListener = addCompletionListener;
@@ -82,22 +85,24 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             // EQL doesn't store initial or intermediate results so we only need to update expiration time in store for only in case of
             // async search
             if (updateInitialResultsInStore & expirationTime > 0) {
-                store.updateExpirationTime(searchId.getDocId(), expirationTime,
-                    ActionListener.wrap(
-                        p -> getSearchResponseFromTask(searchId, request, nowInMillis, expirationTime, listener),
-                        exc -> {
-                            RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
-                            if (status != RestStatus.NOT_FOUND) {
-                                logger.error(() -> new ParameterizedMessage("failed to update expiration time for async-search [{}]",
-                                    searchId.getEncoded()), exc);
-                                listener.onFailure(exc);
-                            } else {
-                                //the async search document or its index is not found.
-                                //That can happen if an invalid/deleted search id is provided.
-                                listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
-                            }
+                store.updateExpirationTime(
+                    searchId.getDocId(),
+                    expirationTime,
+                    ActionListener.wrap(p -> getSearchResponseFromTask(searchId, request, nowInMillis, expirationTime, listener), exc -> {
+                        RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
+                        if (status != RestStatus.NOT_FOUND) {
+                            logger.error(
+                                () -> format("failed to update expiration time for async-search [%s]", searchId.getEncoded()),
+                                exc
+                            );
+                            listener.onFailure(exc);
+                        } else {
+                            // the async search document or its index is not found.
+                            // That can happen if an invalid/deleted search id is provided.
+                            listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                         }
-                    ));
+                    })
+                );
             } else {
                 getSearchResponseFromTask(searchId, request, nowInMillis, expirationTime, listener);
             }
@@ -106,11 +111,13 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
         }
     }
 
-    private void getSearchResponseFromTask(AsyncExecutionId searchId,
-                                           GetAsyncResultRequest request,
-                                           long nowInMillis,
-                                           long expirationTimeMillis,
-                                           ActionListener<Response> listener) {
+    private void getSearchResponseFromTask(
+        AsyncExecutionId searchId,
+        GetAsyncResultRequest request,
+        long nowInMillis,
+        long expirationTimeMillis,
+        ActionListener<Response> listener
+    ) {
         try {
             final Task task = store.getTaskAndCheckAuthentication(taskManager, searchId, asyncTaskClass);
             if (task == null) {
@@ -126,24 +133,26 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             if (expirationTimeMillis != -1) {
                 task.setExpirationTime(expirationTimeMillis);
             }
-            addCompletionListener.apply(task, listener.delegateFailure((l, response) ->
-                    sendFinalResponse(request, response, nowInMillis, l)), request.getWaitForCompletionTimeout());
+            addCompletionListener.apply(
+                task,
+                listener.delegateFailure((l, response) -> sendFinalResponse(request, response, nowInMillis, l)),
+                request.getWaitForCompletionTimeout()
+            );
         } catch (Exception exc) {
             listener.onFailure(exc);
         }
     }
 
-    private void getSearchResponseFromIndex(AsyncExecutionId searchId,
-                                            GetAsyncResultRequest request,
-                                            long nowInMillis,
-                                            ActionListener<Response> listener) {
+    private void getSearchResponseFromIndex(
+        AsyncExecutionId searchId,
+        GetAsyncResultRequest request,
+        long nowInMillis,
+        ActionListener<Response> listener
+    ) {
         store.getResponse(searchId, true, listener.delegateFailure((l, response) -> sendFinalResponse(request, response, nowInMillis, l)));
     }
 
-    private void sendFinalResponse(GetAsyncResultRequest request,
-                                   Response response,
-                                   long nowInMillis,
-                                   ActionListener<Response> listener) {
+    private void sendFinalResponse(GetAsyncResultRequest request, Response response, long nowInMillis, ActionListener<Response> listener) {
         // check if the result has expired
         if (response.getExpirationTime() < nowInMillis) {
             listener.onFailure(new ResourceNotFoundException(request.getId()));

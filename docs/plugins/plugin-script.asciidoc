@@ -1,7 +1,7 @@
 [[plugin-management]]
 == Plugin Management
 
-The `plugin` script is used to install, list, and remove plugins. It is
+Use the `elasticsearch-plugin` command line tool to install, list, and remove plugins. It is
 located in the `$ES_HOME/bin` directory by default but it may be in a
 different location depending on which Elasticsearch package you installed:
 
@@ -25,6 +25,13 @@ If Elasticsearch was installed using the deb or rpm package then run
 Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the Elasticsearch
 files.
 =====================
+
+[discrete]
+[[plugin-management-docker]]
+=== Docker
+
+If you run {es} using Docker, you can manage plugins using a
+<<manage-plugins-using-configuration-file,configuration file>>.
 
 [[installation]]
 === Installing Plugins
@@ -102,7 +109,7 @@ to a local Java truststore and pass the location to the script as follows:
 +
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
+sudo CLI_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
 -----------------------------------
 --
 
@@ -119,12 +126,11 @@ sudo bin/elasticsearch-plugin install [plugin_id] [plugin_id] ... [plugin_id]
 Each `plugin_id` can be any valid form for installing a single plugin (e.g., the
 name of a core plugin, or a custom URL).
 
-For instance, to install the core <<analysis-icu,ICU plugin>>, and
-<<repository-s3,S3 repository plugin>> run the following command:
+For instance, to install the core <<analysis-icu,ICU plugin>>, run the following command:
 
 [source,shell]
 -----------------------------------
-sudo bin/elasticsearch-plugin install analysis-icu repository-s3
+sudo bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 This command will install the versions of the plugins that matches your
@@ -255,19 +261,19 @@ sudo ES_PATH_CONF=/path/to/conf/dir bin/elasticsearch-plugin install <plugin nam
 === Proxy settings
 
 To install a plugin via a proxy, you can add the proxy details to the
-`ES_JAVA_OPTS` environment variable with the Java settings `http.proxyHost`
+`CLI_JAVA_OPTS` environment variable with the Java settings `http.proxyHost`
 and `http.proxyPort` (or `https.proxyHost` and `https.proxyPort`):
 
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install analysis-icu
+sudo CLI_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 Or on Windows:
 
 [source,shell]
 ------------------------------------
-set ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
+set CLI_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
 bin\elasticsearch-plugin install analysis-icu
 ------------------------------------
 
@@ -279,3 +285,52 @@ The default location of the `plugins` directory depends on which package you ins
 * {ref}/zip-windows.html#windows-layout[Directory layout of Windows `.zip` archives]
 * {ref}/deb.html#deb-layout[Directory layout of Debian package]
 * {ref}/rpm.html#rpm-layout[Directory layout of RPM]
+
+
+[[manage-plugins-using-configuration-file]]
+=== Manage plugins using a configuration file
+
+[IMPORTANT]
+.Docker only
+=====================
+This feature is only available for https://www.docker.elastic.co/[official {es}
+Docker images]. Other {es} distributions will not start with a
+plugin configuration file.
+=====================
+
+If you run {es} using Docker, you can manage plugins using a declarative configuration file.
+When {es} starts up, it will compare the plugins in the file with those
+that are currently installed, and add or remove plugins as required. {es}
+will also upgrade official plugins when you upgrade {es} itself.
+
+The file is called `elasticsearch-plugins.yml`, and must be placed in the
+Elasticsearch configuration directory, alongside `elasticsearch.yml`. Here
+is an example:
+
+[source,yaml]
+----
+plugins:
+  - id: analysis-icu
+  - id: repository-azure
+  - id: custom-mapper
+    location: https://example.com/archive/custom-mapper-1.0.0.zip
+----
+
+This example installs the official `analysis-icu` and
+`repository-azure` plugins, and one unofficial plugin. Every plugin must provide
+an `id`. Unofficial plugins must also provide a `location`. This is
+typically a URL, but Maven coordinates are also supported. The downloaded
+plugin's name must match the ID in the configuration file.
+
+While {es} will respect the
+https://docs.oracle.com/javase/8/docs/technotes/guides/net/proxies.html[standard
+Java proxy system properties] when downloading plugins, you can also configure an
+HTTP proxy to use explicitly in the configuration file. For example:
+
+[source,yaml]
+----
+plugins:
+  - id: custom-mapper
+    location: https://example.com/archive/custom-mapper-1.0.0.zip
+proxy: proxy.example.com:8443
+----

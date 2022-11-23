@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -80,7 +80,7 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
             systemIndices.getFeatures().size()
         );
 
-        for (SystemIndices.Feature feature : systemIndices.getFeatures().values()) {
+        for (SystemIndices.Feature feature : systemIndices.getFeatures()) {
             feature.getCleanUpFunction().apply(clusterService, client, groupedActionListener);
         }
     }

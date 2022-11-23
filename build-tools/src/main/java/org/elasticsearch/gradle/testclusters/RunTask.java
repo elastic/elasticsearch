@@ -17,21 +17,27 @@ import org.gradle.api.tasks.options.Option;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class RunTask extends DefaultTestClustersTask {
 
-    private static final Logger logger = Logging.getLogger(RunTask.class);
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";
+    private static final Logger logger = Logging.getLogger(RunTask.class);
+    private static final String tlsCertificateAuthority = "public-ca.pem";
+    private static final String httpsCertificate = "private-cert1.p12";
+    private static final String transportCertificate = "private-cert2.p12";
 
     private Boolean debug = false;
 
@@ -40,6 +46,14 @@ public class RunTask extends DefaultTestClustersTask {
     private Path dataDir = null;
 
     private String keystorePassword = "";
+
+    private Boolean useHttps = false;
+
+    private Boolean useTransportTls = false;
+
+    private final Path tlsBasePath = Path.of(
+        new File(getProject().getRootDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
+    );
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
@@ -86,9 +100,30 @@ public class RunTask extends DefaultTestClustersTask {
         return dataDir.toString();
     }
 
+    @Option(option = "https", description = "Helper option to enable HTTPS")
+    public void setUseHttps(boolean useHttps) {
+        this.useHttps = useHttps;
+    }
+
+    @Input
+    @Optional
+    public Boolean getUseHttps() {
+        return useHttps;
+    }
+
+    @Option(option = "transport-tls", description = "Helper option to enable TLS on transport port")
+    public void setUseTransportTls(boolean useTransportTls) {
+        this.useTransportTls = useTransportTls;
+    }
+
+    @Input
+    @Optional
+    public Boolean getUseTransportTls() {
+        return useTransportTls;
+    }
+
     @Override
     public void beforeStart() {
-        int debugPort = 5005;
         int httpPort = 9200;
         int transportPort = 9300;
         Map<String, String> additionalSettings = System.getProperties()
@@ -110,25 +145,37 @@ public class RunTask extends DefaultTestClustersTask {
         }
 
         for (ElasticsearchCluster cluster : getClusters()) {
-            cluster.getFirstNode().setHttpPort(String.valueOf(httpPort));
-            httpPort++;
-            cluster.getFirstNode().setTransportPort(String.valueOf(transportPort));
-            transportPort++;
             cluster.setPreserveDataDir(preserveData);
             for (ElasticsearchNode node : cluster.getNodes()) {
+                node.setHttpPort(String.valueOf(httpPort++));
+                node.setTransportPort(String.valueOf(transportPort++));
                 additionalSettings.forEach(node::setting);
                 if (dataDir != null) {
                     node.setDataPath(getDataPath.apply(node));
                 }
-                if (debug) {
-                    logger.lifecycle("Running elasticsearch in debug mode, {} expecting running debug server on port {}", node, debugPort);
-                    node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
-                    debugPort += 1;
-                }
                 if (keystorePassword.length() > 0) {
                     node.keystorePassword(keystorePassword);
                 }
+                if (useHttps) {
+                    validateHelperOption("--https", "xpack.security.http.ssl", node);
+                    node.setting("xpack.security.http.ssl.enabled", "true");
+                    node.extraConfigFile("https.keystore", tlsBasePath.resolve(httpsCertificate).toFile());
+                    node.extraConfigFile("https.ca", tlsBasePath.resolve(tlsCertificateAuthority).toFile());
+                    node.setting("xpack.security.http.ssl.keystore.path", "https.keystore");
+                    node.setting("xpack.security.http.ssl.certificate_authorities", "https.ca");
+                }
+                if (useTransportTls) {
+                    node.setting("xpack.security.transport.ssl.enabled", "true");
+                    node.setting("xpack.security.transport.ssl.client_authentication", "required");
+                    node.extraConfigFile("transport.keystore", tlsBasePath.resolve(transportCertificate).toFile());
+                    node.extraConfigFile("transport.ca", tlsBasePath.resolve(tlsCertificateAuthority).toFile());
+                    node.setting("xpack.security.transport.ssl.keystore.path", "transport.keystore");
+                    node.setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca");
+                }
             }
+        }
+        if (debug) {
+            enableDebug();
         }
     }
 
@@ -143,8 +190,9 @@ public class RunTask extends DefaultTestClustersTask {
 
         try {
             for (ElasticsearchCluster cluster : getClusters()) {
+                cluster.writeUnicastHostsFiles();
                 for (ElasticsearchNode node : cluster.getNodes()) {
-                    BufferedReader reader = Files.newBufferedReader(node.getEsLogFile());
+                    BufferedReader reader = Files.newBufferedReader(node.getEsOutputFile());
                     toRead.add(reader);
                     aliveChecks.add(node::isProcessAlive);
                 }
@@ -195,5 +243,24 @@ public class RunTask extends DefaultTestClustersTask {
                 logger.debug("exception occurred during close of stdout file readers", thrown);
             }
         }
+    }
+
+    /**
+     * Disallow overlap between helper options and explicit configuration
+     */
+    private void validateHelperOption(String option, String prefix, ElasticsearchNode node) {
+        Set<String> preConfigured = findConfiguredSettingsByPrefix(prefix, node);
+        if (preConfigured.isEmpty() == false) {
+            throw new IllegalArgumentException("Can not use " + option + " with " + String.join(",", preConfigured));
+        }
+    }
+
+    /**
+     * Find any settings configured with a given prefix
+     */
+    private Set<String> findConfiguredSettingsByPrefix(String prefix, ElasticsearchNode node) {
+        Set<String> preConfigured = new HashSet<>();
+        node.getSettingKeys().stream().filter(key -> key.startsWith(prefix)).forEach(k -> preConfigured.add(prefix));
+        return preConfigured;
     }
 }

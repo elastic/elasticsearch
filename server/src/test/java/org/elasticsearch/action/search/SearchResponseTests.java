@@ -15,12 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -29,18 +24,22 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationsTests;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
-import org.elasticsearch.search.profile.SearchProfileShardResultsTests;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -58,7 +57,8 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+        new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables()
+    );
     private AggregationsTests aggregationsTests = new AggregationsTests();
 
     @Before
@@ -104,15 +104,30 @@ public class SearchResponseTests extends ESTestCase {
             SearchHits hits = SearchHitsTests.createTestItem(true, true);
             InternalAggregations aggregations = aggregationsTests.createTestInstance();
             Suggest suggest = SuggestTests.createTestItem();
-            SearchProfileShardResults profileShardResults = SearchProfileShardResultsTests.createTestItem();
-            internalSearchResponse = new InternalSearchResponse(hits, aggregations, suggest, profileShardResults,
-                timedOut, terminatedEarly, numReducePhases);
+            SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
+            internalSearchResponse = new InternalSearchResponse(
+                hits,
+                aggregations,
+                suggest,
+                profileResults,
+                timedOut,
+                terminatedEarly,
+                numReducePhases
+            );
         } else {
-            internalSearchResponse = InternalSearchResponse.empty();
+            internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         }
 
-        return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, skippedShards, tookInMillis,
-            shardSearchFailures, randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY);
+        return new SearchResponse(
+            internalSearchResponse,
+            null,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardSearchFailures,
+            randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY
+        );
     }
 
     static SearchResponse.Clusters randomClusters() {
@@ -184,84 +199,109 @@ public class SearchResponseTests extends ESTestCase {
                 assertEquals(originalFailure.shard(), parsedFailure.shard());
                 assertEquals(originalFailure.shardId(), parsedFailure.shardId());
                 String originalMsg = originalFailure.getCause().getMessage();
-                assertEquals(parsedFailure.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" +
-                        originalMsg + "]");
+                assertEquals(
+                    parsedFailure.getCause().getMessage(),
+                    "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]"
+                );
                 String nestedMsg = originalFailure.getCause().getCause().getMessage();
-                assertEquals(parsedFailure.getCause().getCause().getMessage(),
-                        "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
+                assertEquals(
+                    parsedFailure.getCause().getCause().getMessage(),
+                    "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
+                );
             }
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
     }
 
-    public void testToXContent() {
-        SearchHit hit = new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap());
+    public void testToXContent() throws IOException {
+        SearchHit hit = new SearchHit(1, "id1");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         {
             SearchResponse response = new SearchResponse(
-                    new InternalSearchResponse(new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null,
-                        null, false, null, 1),
-                        null, 0
-            , 0, 0, 0,
-                    ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
-            StringBuilder expectedString = new StringBuilder();
-            expectedString.append("{");
-            {
-                expectedString.append("\"took\":0,");
-                expectedString.append("\"timed_out\":false,");
-                expectedString.append("\"_shards\":");
+                new InternalSearchResponse(
+                    new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                    null,
+                    null,
+                    null,
+                    false,
+                    null,
+                    1
+                ),
+                null,
+                0,
+                0,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            );
+            String expectedString = XContentHelper.stripWhitespace("""
                 {
-                    expectedString.append("{\"total\":0,");
-                    expectedString.append("\"successful\":0,");
-                    expectedString.append("\"skipped\":0,");
-                    expectedString.append("\"failed\":0},");
-                }
-                expectedString.append("\"hits\":");
-                {
-                    expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
-                    expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
-                }
-            }
-            expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(response));
+                  "took": 0,
+                  "timed_out": false,
+                  "_shards": {
+                    "total": 0,
+                    "successful": 0,
+                    "skipped": 0,
+                    "failed": 0
+                  },
+                  "hits": {
+                    "total": {
+                      "value": 100,
+                      "relation": "eq"
+                    },
+                    "max_score": 1.5,
+                    "hits": [ { "_id": "id1", "_score": 2.0 } ]
+                  }
+                }""");
+            assertEquals(expectedString, Strings.toString(response));
         }
         {
             SearchResponse response = new SearchResponse(
-                    new InternalSearchResponse(
-                        new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1
-                    ),
-                null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
-                new SearchResponse.Clusters(5, 3, 2));
-            StringBuilder expectedString = new StringBuilder();
-            expectedString.append("{");
-            {
-                expectedString.append("\"took\":0,");
-                expectedString.append("\"timed_out\":false,");
-                expectedString.append("\"_shards\":");
+                new InternalSearchResponse(
+                    new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                    null,
+                    null,
+                    null,
+                    false,
+                    null,
+                    1
+                ),
+                null,
+                0,
+                0,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                new SearchResponse.Clusters(5, 3, 2)
+            );
+            String expectedString = XContentHelper.stripWhitespace("""
                 {
-                    expectedString.append("{\"total\":0,");
-                    expectedString.append("\"successful\":0,");
-                    expectedString.append("\"skipped\":0,");
-                    expectedString.append("\"failed\":0},");
-                }
-                expectedString.append("\"_clusters\":");
-                {
-                    expectedString.append("{\"total\":5,");
-                    expectedString.append("\"successful\":3,");
-                    expectedString.append("\"skipped\":2},");
-                }
-                expectedString.append("\"hits\":");
-                {
-                    expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
-                    expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
-                }
-            }
-            expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(response));
+                  "took": 0,
+                  "timed_out": false,
+                  "_shards": {
+                    "total": 0,
+                    "successful": 0,
+                    "skipped": 0,
+                    "failed": 0
+                  },
+                  "_clusters": {
+                    "total": 5,
+                    "successful": 3,
+                    "skipped": 2
+                  },
+                  "hits": {
+                    "total": {
+                      "value": 100,
+                      "relation": "eq"
+                    },
+                    "max_score": 1.5,
+                    "hits": [ { "_id": "id1", "_score": 2.0 } ]
+                  }
+                }""");
+            assertEquals(expectedString, Strings.toString(response));
         }
     }
 
@@ -283,8 +323,16 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContentEmptyClusters() throws IOException {
-        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, 1,
-            ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        SearchResponse searchResponse = new SearchResponse(
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+            null,
+            1,
+            1,
+            0,
+            1,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
         SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);

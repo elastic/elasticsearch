@@ -24,12 +24,12 @@ final class FollowingEngineAssertions {
          * that we also prevent issues in production code.
          */
         assert operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
-        assert (operation.origin() == Engine.Operation.Origin.PRIMARY) == (operation.versionType() == VersionType.EXTERNAL) :
-            "invalid version_type in a following engine; version_type=" + operation.versionType() + "origin=" + operation.origin();
+        assert (operation.origin() == Engine.Operation.Origin.PRIMARY) == (operation.versionType() == VersionType.EXTERNAL)
+            : "invalid version_type in a following engine; version_type=" + operation.versionType() + "origin=" + operation.origin();
         return true;
     }
 
-    static boolean assertPrimaryIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
+    static boolean assertPrimaryIncomingSequenceNumber(final long seqNo) {
         // sequence number should be set when operation origin is primary
         assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations on a following index must have an assigned sequence number";
         return true;

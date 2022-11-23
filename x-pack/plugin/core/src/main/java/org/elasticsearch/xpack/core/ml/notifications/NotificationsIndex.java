@@ -19,7 +19,10 @@ public final class NotificationsIndex {
     private NotificationsIndex() {}
 
     public static String mapping() {
-        return TemplateUtils.loadTemplate(RESOURCE_PATH + "notifications_index_mappings.json",
-            Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            RESOURCE_PATH + "notifications_index_mappings.json",
+            Version.CURRENT.toString(),
+            MAPPINGS_VERSION_VARIABLE
+        );
     }
 }

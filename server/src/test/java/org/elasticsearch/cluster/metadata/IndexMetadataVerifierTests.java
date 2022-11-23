@@ -26,36 +26,73 @@ public class IndexMetadataVerifierTests extends ESTestCase {
     public void testArchiveBrokenIndexSettings() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newIndexMeta("foo", Settings.EMPTY);
-        IndexMetadata indexMetadata = service.archiveBrokenIndexSettings(src);
+        IndexMetadata indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
         assertSame(indexMetadata, src);
 
         src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
-        indexMetadata = service.archiveBrokenIndexSettings(src);
+        indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
         assertNotSame(indexMetadata, src);
         assertEquals("-200", indexMetadata.getSettings().get("archived.index.refresh_interval"));
 
         src = newIndexMeta("foo", Settings.builder().put("index.codec", "best_compression1").build());
-        indexMetadata = service.archiveBrokenIndexSettings(src);
+        indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
         assertNotSame(indexMetadata, src);
         assertEquals("best_compression1", indexMetadata.getSettings().get("archived.index.codec"));
 
         src = newIndexMeta("foo", Settings.builder().put("index.refresh.interval", "-1").build());
-        indexMetadata = service.archiveBrokenIndexSettings(src);
+        indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
         assertNotSame(indexMetadata, src);
         assertEquals("-1", indexMetadata.getSettings().get("archived.index.refresh.interval"));
 
         src = newIndexMeta("foo", indexMetadata.getSettings()); // double archive?
-        indexMetadata = service.archiveBrokenIndexSettings(src);
+        indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
+        assertSame(indexMetadata, src);
+    }
+
+    public void testDeleteBrokenSystemIndexSettings() {
+        IndexMetadataVerifier service = getIndexMetadataVerifier();
+        IndexMetadata src = newSystemIndexMeta("foo", Settings.EMPTY);
+        IndexMetadata indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
+        assertSame(indexMetadata, src);
+
+        src = newSystemIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
+        indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
+        assertNotSame(indexMetadata, src);
+        assertNull(indexMetadata.getSettings().get("archived.index.refresh_interval"));
+        assertNull(indexMetadata.getSettings().get("index.refresh_interval"));
+
+        // previously archived settings are removed
+        src = newSystemIndexMeta("foo", Settings.builder().put("archived.index.refresh_interval", "200").build());
+        indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
+        assertNotSame(indexMetadata, src);
+        assertNull(indexMetadata.getSettings().get("archived.index.refresh_interval"));
+
+        src = newSystemIndexMeta("foo", Settings.builder().put("index.codec", "best_compression1").build());
+        indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
+        assertNotSame(indexMetadata, src);
+        assertNull(indexMetadata.getSettings().get("archived.index.codec"));
+        assertNull(indexMetadata.getSettings().get("index.codec"));
+
+        src = newSystemIndexMeta("foo", Settings.builder().put("index.refresh.interval", "-1").build());
+        indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
+        assertNotSame(indexMetadata, src);
+        assertNull(indexMetadata.getSettings().get("archived.index.refresh.interval"));
+        assertNull(indexMetadata.getSettings().get("index.refresh.interval"));
+
+        src = newSystemIndexMeta("foo", indexMetadata.getSettings()); // double archive?
+        indexMetadata = service.archiveOrDeleteBrokenIndexSettings(src);
         assertSame(indexMetadata, src);
     }
 
     public void testCustomSimilarity() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
-        IndexMetadata src = newIndexMeta("foo",
+        IndexMetadata src = newIndexMeta(
+            "foo",
             Settings.builder()
                 .put("index.similarity.my_similarity.type", "DFR")
                 .put("index.similarity.my_similarity.after_effect", "l")
-                .build());
+                .build()
+        );
         service.verifyIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
@@ -63,19 +100,35 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
         Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
         Version indexCreated = Version.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
-        final IndexMetadata metadata = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
-            .build());
-        String message = expectThrows(IllegalStateException.class, () -> service.verifyIndexMetadata(metadata,
-            Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
-        assertThat(message, equalTo("The index [foo/" + metadata.getIndexUUID() + "] was created with version [" + indexCreated + "] " +
-             "but the minimum compatible version is [" + minCompat + "]." +
-            " It should be re-indexed in Elasticsearch " + minCompat.major + ".x before upgrading to " + Version.CURRENT.toString() + "."));
+        final IndexMetadata metadata = newIndexMeta(
+            "foo",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build()
+        );
+        String message = expectThrows(
+            IllegalStateException.class,
+            () -> service.verifyIndexMetadata(metadata, Version.CURRENT.minimumIndexCompatibilityVersion())
+        ).getMessage();
+        assertThat(
+            message,
+            equalTo(
+                "The index [foo/"
+                    + metadata.getIndexUUID()
+                    + "] has current compatibility version ["
+                    + indexCreated
+                    + "] "
+                    + "but the minimum compatible version is ["
+                    + minCompat
+                    + "]."
+                    + " It should be re-indexed in Elasticsearch "
+                    + minCompat.major
+                    + ".x before upgrading to "
+                    + Version.CURRENT.toString()
+                    + "."
+            )
+        );
 
         indexCreated = VersionUtils.randomVersionBetween(random(), minCompat, Version.CURRENT);
-        IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
-            .build());
+        IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build());
         service.verifyIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
@@ -83,13 +136,21 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         return new IndexMetadataVerifier(
             Settings.EMPTY,
             xContentRegistry(),
-            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                MapperPlugin.NOOP_FIELD_FILTER), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             null
         );
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
+        return newIndexMetaBuilder(name, indexSettings).build();
+    }
+
+    public static IndexMetadata newSystemIndexMeta(String name, Settings indexSettings) {
+        return newIndexMetaBuilder(name, indexSettings).system(true).build();
+    }
+
+    private static IndexMetadata.Builder newIndexMetaBuilder(String name, Settings indexSettings) {
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, randomIndexCompatibleVersion(random()))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
@@ -102,6 +163,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         if (randomBoolean()) {
             indexMetadataBuilder.state(IndexMetadata.State.CLOSE);
         }
-        return indexMetadataBuilder.build();
+        return indexMetadataBuilder;
     }
+
 }

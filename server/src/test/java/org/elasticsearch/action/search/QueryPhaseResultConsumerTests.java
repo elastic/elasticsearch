@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -21,7 +20,8 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -39,6 +39,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.mockito.Mockito.mock;
+
 public class QueryPhaseResultConsumerTests extends ESTestCase {
 
     private SearchPhaseController searchPhaseController;
@@ -47,22 +49,32 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        searchPhaseController = new SearchPhaseController(
-            s -> new InternalAggregation.ReduceContextBuilder() {
-                @Override
-                public InternalAggregation.ReduceContext forPartialReduction() {
-                    return InternalAggregation.ReduceContext.forPartialReduction(
-                        BigArrays.NON_RECYCLING_INSTANCE, null, () -> PipelineAggregator.PipelineTree.EMPTY);
-                }
+        searchPhaseController = new SearchPhaseController((t, s) -> new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction() {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, mock(AggregationBuilder.class));
+            }
 
-                public InternalAggregation.ReduceContext forFinalReduction() {
-                    return InternalAggregation.ReduceContext.forFinalReduction(
-                        BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineAggregator.PipelineTree.EMPTY);
-                };
-            });
+            public AggregationReduceContext forFinalReduction() {
+                return new AggregationReduceContext.ForFinal(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    null,
+                    t,
+                    mock(AggregationBuilder.class),
+                    b -> {},
+                    PipelineAggregator.PipelineTree.EMPTY
+                );
+            };
+        });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
-        executor = EsExecutors.newFixed("test", 1, 10,
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), randomBoolean());
+        executor = EsExecutors.newFixed(
+            "test",
+            1,
+            10,
+            EsExecutors.daemonThreadFactory("test"),
+            threadPool.getThreadContext(),
+            randomBoolean()
+        );
     }
 
     @After
@@ -84,18 +96,24 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.setBatchedReduceSize(2);
         AtomicReference<Exception> onPartialMergeFailure = new AtomicReference<>();
-        QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(searchRequest, executor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), searchPhaseController, searchProgressListener,
-            10, e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
+        QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            searchPhaseController,
+            () -> false,
+            searchProgressListener,
+            10,
+            e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
                 curr.addSuppressed(prev);
                 return curr;
-            }));
+            })
+        );
 
         CountDownLatch partialReduceLatch = new CountDownLatch(10);
 
         for (int i = 0; i < 10; i++) {
-            SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i),
-                null, OriginalIndices.NONE);
+            SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
             QuerySearchResult querySearchResult = new QuerySearchResult();
             TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
             querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);
@@ -119,8 +137,12 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         private final AtomicInteger onFinalReduce = new AtomicInteger(0);
 
         @Override
-        protected void onListShards(List<SearchShard> shards, List<SearchShard> skippedShards, SearchResponse.Clusters clusters,
-                                    boolean fetchPhase) {
+        protected void onListShards(
+            List<SearchShard> shards,
+            List<SearchShard> skippedShards,
+            SearchResponse.Clusters clusters,
+            boolean fetchPhase
+        ) {
             throw new UnsupportedOperationException();
         }
 
@@ -131,8 +153,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         }
 
         @Override
-        protected void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
-                                       InternalAggregations aggs, int reducePhase) {
+        protected void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
             onPartialReduce.incrementAndGet();
             throw new UnsupportedOperationException();
         }

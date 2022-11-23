@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.Streams;
@@ -17,20 +16,20 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -72,7 +71,7 @@ public class RestTable {
             builder.endObject();
         }
         builder.endArray();
-        return new BytesRestResponse(RestStatus.OK, builder);
+        return new RestResponse(RestStatus.OK, builder);
     }
 
     public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
@@ -99,7 +98,7 @@ public class RestTable {
 
         List<Integer> rowOrder = getRowOrder(table, request);
 
-        for (Integer row: rowOrder) {
+        for (Integer row : rowOrder) {
             for (int col = 0; col < headers.size(); col++) {
                 DisplayHeader header = headers.get(col);
                 boolean isLastColumn = col == lastHeader;
@@ -111,7 +110,7 @@ public class RestTable {
             out.append("\n");
         }
         out.close();
-        return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+        return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
     }
 
     static List<Integer> getRowOrder(Table table, RestRequest request) {
@@ -135,10 +134,11 @@ public class RestTable {
                     columnHeader = columnHeader.substring(0, columnHeader.length() - ":asc".length());
                 }
                 if (headerAliasMap.containsKey(columnHeader)) {
-                        ordering.add(new ColumnOrderElement(headerAliasMap.get(columnHeader), reverse));
+                    ordering.add(new ColumnOrderElement(headerAliasMap.get(columnHeader), reverse));
                 } else {
                     throw new UnsupportedOperationException(
-                        String.format(Locale.ROOT, "Unable to sort by unknown sort key `%s`", columnHeader));
+                        String.format(Locale.ROOT, "Unable to sort by unknown sort key `%s`", columnHeader)
+                    );
                 }
             }
             Collections.sort(rowOrder, new TableIndexComparator(table, ordering));
@@ -198,7 +198,6 @@ public class RestTable {
         return display;
     }
 
-
     static boolean checkOutputTimestamp(DisplayHeader dispHeader, RestRequest request) {
         return checkOutputTimestamp(dispHeader.name, request);
     }
@@ -211,7 +210,6 @@ public class RestTable {
         }
     }
 
-
     /**
      * Extracts all the required fields from the RestRequest 'h' parameter. In order to support wildcards like
      * 'bulk.*' this needs potentially parse all the configured headers and its aliases and needs to ensure
@@ -219,7 +217,7 @@ public class RestTable {
      * or some headers are contained twice due to matching aliases
      */
     private static Set<String> expandHeadersFromRequest(Table table, RestRequest request) {
-        Set<String> headers = new LinkedHashSet<>(table.getHeaders().size());
+        Set<String> headers = Sets.newLinkedHashSetWithExpectedSize(table.getHeaders().size());
 
         // check headers and aliases
         for (String header : Strings.splitStringByCommaToArray(request.param("h"))) {
@@ -300,7 +298,7 @@ public class RestTable {
     }
 
     public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out) throws IOException {
-      pad(cell, width, request, out, false);
+        pad(cell, width, request, out, false);
     }
 
     public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out, boolean isLast) throws IOException {
@@ -335,8 +333,7 @@ public class RestTable {
         if (value == null) {
             return null;
         }
-        if (value instanceof ByteSizeValue) {
-            ByteSizeValue v = (ByteSizeValue) value;
+        if (value instanceof ByteSizeValue v) {
             String resolution = request.param("bytes");
             if ("b".equals(resolution)) {
                 return Long.toString(v.getBytes());
@@ -354,8 +351,7 @@ public class RestTable {
                 return v.toString();
             }
         }
-        if (value instanceof SizeValue) {
-            SizeValue v = (SizeValue) value;
+        if (value instanceof SizeValue v) {
             String resolution = request.param("size");
             if ("".equals(resolution)) {
                 return Long.toString(v.singles());
@@ -373,8 +369,7 @@ public class RestTable {
                 return v.toString();
             }
         }
-        if (value instanceof TimeValue) {
-            TimeValue v = (TimeValue) value;
+        if (value instanceof TimeValue v) {
             String resolution = request.param("time");
             if ("nanos".equals(resolution)) {
                 return Long.toString(v.nanos());
@@ -420,7 +415,7 @@ public class RestTable {
         }
 
         @SuppressWarnings("unchecked")
-        private int compareCell(Object o1, Object o2) {
+        private static int compareCell(Object o1, Object o2) {
             if (o1 == null && o2 == null) {
                 return 0;
             } else if (o1 == null) {
@@ -443,8 +438,7 @@ public class RestTable {
                 for (ColumnOrderElement orderingElement : ordering) {
                     String column = orderingElement.getColumn();
                     if (tableMap.containsKey(column)) {
-                        int comparison = compareCell(tableMap.get(column).get(rowIndex1).value,
-                            tableMap.get(column).get(rowIndex2).value);
+                        int comparison = compareCell(tableMap.get(column).get(rowIndex1).value, tableMap.get(column).get(rowIndex2).value);
                         if (comparison != 0) {
                             return orderingElement.isReversed() ? -1 * comparison : comparison;
                         }
@@ -452,8 +446,15 @@ public class RestTable {
                 }
                 return 0;
             } else {
-                throw new AssertionError(String.format(Locale.ENGLISH, "Invalid comparison of indices (%s, %s): Table has %s rows.",
-                    rowIndex1, rowIndex2, table.getRows().size()));
+                throw new AssertionError(
+                    String.format(
+                        Locale.ENGLISH,
+                        "Invalid comparison of indices (%s, %s): Table has %s rows.",
+                        rowIndex1,
+                        rowIndex2,
+                        table.getRows().size()
+                    )
+                );
             }
         }
     }

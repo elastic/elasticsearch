@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
@@ -42,16 +43,13 @@ public final class ApplicationPrivilege extends Privilege {
      */
     private static final Pattern VALID_NAME_OR_ACTION = Pattern.compile("^\\p{Graph}*$");
 
-    public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, "none", new String[0]);
+    public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, Collections.singleton("none"));
 
     private final String application;
     private final String[] patterns;
 
-    public ApplicationPrivilege(String application, String privilegeName, String... patterns) {
-        this(application, Collections.singleton(privilegeName), patterns);
-    }
-
-    public ApplicationPrivilege(String application, Set<String> name, String... patterns) {
+    // TODO make this private once ApplicationPrivilegeTests::createPrivilege uses ApplicationPrivilege::get
+    ApplicationPrivilege(String application, Set<String> name, String... patterns) {
         super(name, patterns);
         this.application = application;
         this.patterns = patterns;
@@ -109,8 +107,9 @@ public final class ApplicationPrivilege extends Privilege {
                 return;
             }
             if (asterisk != application.length() - 1) {
-                throw new IllegalArgumentException("Application name patterns only support trailing wildcards (found '" + application
-                    + "')");
+                throw new IllegalArgumentException(
+                    "Application name patterns only support trailing wildcards (found '" + application + "')"
+                );
             }
         }
         if (WHITESPACE.matcher(application).find()) {
@@ -123,8 +122,9 @@ public final class ApplicationPrivilege extends Privilege {
             prefix = prefix.substring(0, prefix.length() - 1);
         }
         if (VALID_APPLICATION_PREFIX.matcher(prefix).matches() == false) {
-            throw new IllegalArgumentException("An application name prefix must match the pattern " + VALID_APPLICATION_PREFIX.pattern()
-                + " (found '" + prefix + "')");
+            throw new IllegalArgumentException(
+                "An application name prefix must match the pattern " + VALID_APPLICATION_PREFIX.pattern() + " (found '" + prefix + "')"
+            );
         }
         if (prefix.length() < 3 && asterisk == -1) {
             throw new IllegalArgumentException("An application name prefix must be at least 3 characters long (found '" + prefix + "')");
@@ -136,8 +136,13 @@ public final class ApplicationPrivilege extends Privilege {
                 suffix = suffix.substring(0, suffix.length() - 1);
             }
             if (Strings.validFileName(suffix) == false) {
-                throw new IllegalArgumentException("An application name suffix may not contain any of the characters '" +
-                    Strings.collectionToDelimitedString(Strings.INVALID_FILENAME_CHARS, "") + "' (found '" + suffix + "')");
+                throw new IllegalArgumentException(
+                    "An application name suffix may not contain any of the characters '"
+                        + Strings.INVALID_FILENAME_CHARS
+                        + "' (found '"
+                        + suffix
+                        + "')"
+                );
             }
         }
     }
@@ -149,13 +154,29 @@ public final class ApplicationPrivilege extends Privilege {
      */
     public static void validatePrivilegeName(String name) {
         if (isValidPrivilegeName(name) == false) {
-            throw new IllegalArgumentException("Application privilege names must match the pattern " + VALID_NAME.pattern()
-                + " (found '" + name + "')");
+            throw new IllegalArgumentException(
+                "Application privilege names must match the pattern " + VALID_NAME.pattern() + " (found '" + name + "')"
+            );
         }
     }
 
-    private static boolean isValidPrivilegeName(String name) {
+    public static boolean isValidPrivilegeName(String name) {
         return VALID_NAME.matcher(name).matches();
+    }
+
+    public static void validateActionName(String action) {
+        if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
+            throw new IllegalArgumentException("action [" + action + "] must contain one of [ '/' , '*' , ':' ]");
+        }
+        if (false == isValidPrivilegeOrActionName(action)) {
+            throw new IllegalArgumentException(
+                "Application privilege names and actions must match the pattern "
+                    + VALID_NAME_OR_ACTION.pattern()
+                    + " (found '"
+                    + action
+                    + "')"
+            );
+        }
     }
 
     /**
@@ -164,10 +185,19 @@ public final class ApplicationPrivilege extends Privilege {
      * @throws IllegalArgumentException if the name is not valid
      */
     public static void validatePrivilegeOrActionName(String name) {
-        if (VALID_NAME_OR_ACTION.matcher(name).matches() == false) {
-            throw new IllegalArgumentException("Application privilege names and actions must match the pattern "
-                + VALID_NAME_OR_ACTION.pattern() + " (found '" + name + "')");
+        if (isValidPrivilegeOrActionName(name) == false) {
+            throw new IllegalArgumentException(
+                "Application privilege names and actions must match the pattern "
+                    + VALID_NAME_OR_ACTION.pattern()
+                    + " (found '"
+                    + name
+                    + "')"
+            );
         }
+    }
+
+    private static boolean isValidPrivilegeOrActionName(String name) {
+        return VALID_NAME_OR_ACTION.matcher(name).matches();
     }
 
     /**
@@ -179,18 +209,15 @@ public final class ApplicationPrivilege extends Privilege {
         if (name.isEmpty()) {
             return Collections.singleton(NONE.apply(application));
         } else if (application.contains("*")) {
-            Predicate<String> predicate = Automatons.predicate(application);
-            final Set<ApplicationPrivilege> result = stored.stream()
+            final Set<ApplicationPrivilege> result = Sets.newHashSet(resolve(application, name, Collections.emptyMap()));
+            final Predicate<String> predicate = Automatons.predicate(application);
+            stored.stream()
                 .map(ApplicationPrivilegeDescriptor::getApplication)
                 .filter(predicate)
                 .distinct()
                 .map(appName -> resolve(appName, name, stored))
-                .collect(Collectors.toSet());
-            if (result.isEmpty()) {
-                return Collections.singleton(resolve(application, name, Collections.emptyMap()));
-            } else {
-                return result;
-            }
+                .forEach(result::add);
+            return result;
         } else {
             return Collections.singleton(resolve(application, name, stored));
         }

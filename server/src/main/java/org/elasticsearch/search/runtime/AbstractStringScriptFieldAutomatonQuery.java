@@ -11,8 +11,8 @@ package org.elasticsearch.search.runtime;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.StringFieldScript;
 
 import java.util.List;
 

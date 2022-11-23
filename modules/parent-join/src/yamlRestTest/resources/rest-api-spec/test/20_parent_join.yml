@@ -37,7 +37,7 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.allow_expensive_queries: null
 
 ---
@@ -86,7 +86,7 @@ teardown:
             query:
               parent_id:
                 type: child
-                id: 1
+                id: "1"
 
     - match: { hits.total: 2 }
     - match: { hits.hits.0._index: "test" }
@@ -129,11 +129,11 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.allow_expensive_queries: "false"
         flat_settings: true
 
-  - match: {transient: {search.allow_expensive_queries: "false"}}
+  - match: {persistent: {search.allow_expensive_queries: "false"}}
 
   - do:
       catch: /\[joining\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
@@ -143,4 +143,4 @@ teardown:
           query:
             parent_id:
               type: child
-              id: 1
+              id: "1"

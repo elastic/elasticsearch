@@ -20,8 +20,10 @@ public class MockSearchServiceTests extends ESTestCase {
         MockSearchService.addActiveContext(reader);
         try {
             Throwable e = expectThrows(AssertionError.class, () -> MockSearchService.assertNoInFlightContext());
-            assertEquals("There are still [1] in-flight contexts. The first one's creation site is listed as the cause of this exception.",
-                    e.getMessage());
+            assertEquals(
+                "There are still [1] in-flight contexts. The first one's creation site is listed as the cause of this exception.",
+                e.getMessage()
+            );
             e = e.getCause();
             assertEquals(MockSearchService.class.getName(), e.getStackTrace()[0].getClassName());
             assertEquals(MockSearchServiceTests.class.getName(), e.getStackTrace()[1].getClassName());

@@ -9,7 +9,6 @@ package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.core.Nullable;
@@ -22,6 +21,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Represents a executor node operation that corresponds to a persistent task
@@ -37,8 +38,14 @@ public class AllocatedPersistentTask extends CancellableTask {
     private volatile PersistentTasksService persistentTasksService;
     private volatile TaskManager taskManager;
 
-    public AllocatedPersistentTask(long id, String type, String action, String description, TaskId parentTask,
-                                   Map<String, String> headers) {
+    public AllocatedPersistentTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTask,
+        Map<String, String> headers
+    ) {
         super(id, type, action, description, parentTask, headers);
         this.state = new AtomicReference<>(State.STARTED);
     }
@@ -53,8 +60,10 @@ public class AllocatedPersistentTask extends CancellableTask {
      * <p>
      * This doesn't affect the status of this allocated task.
      */
-    public void updatePersistentTaskState(final PersistentTaskState state,
-                                          final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
+    public void updatePersistentTaskState(
+        final PersistentTaskState state,
+        final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener
+    ) {
         persistentTasksService.sendUpdateStateRequest(persistentTaskId, allocationId, state, listener);
     }
 
@@ -62,8 +71,12 @@ public class AllocatedPersistentTask extends CancellableTask {
         return persistentTaskId;
     }
 
-    protected void init(PersistentTasksService persistentTasksService, TaskManager taskManager,
-                        String persistentTaskId, long allocationId) {
+    protected void init(
+        PersistentTasksService persistentTasksService,
+        TaskManager taskManager,
+        String persistentTaskId,
+        long allocationId
+    ) {
         this.persistentTasksService = persistentTasksService;
         this.taskManager = taskManager;
         this.persistentTaskId = persistentTaskId;
@@ -85,9 +98,11 @@ public class AllocatedPersistentTask extends CancellableTask {
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
-    public void waitForPersistentTask(final Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate,
-                                      final @Nullable TimeValue timeout,
-                                      final PersistentTasksService.WaitForPersistentTaskListener<?> listener) {
+    public void waitForPersistentTask(
+        final Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate,
+        final @Nullable TimeValue timeout,
+        final PersistentTasksService.WaitForPersistentTaskListener<?> listener
+    ) {
         persistentTasksService.waitForPersistentTaskCondition(persistentTaskId, predicate, timeout, listener);
     }
 
@@ -135,27 +150,44 @@ public class AllocatedPersistentTask extends CancellableTask {
             : "completion notification has both exception " + failure + " and local abort reason " + localAbortReason;
         final State desiredState = (localAbortReason == null) ? State.COMPLETED : State.LOCAL_ABORTED;
         final State prevState = state.getAndUpdate(
-            currentState -> (currentState != State.COMPLETED && currentState != State.LOCAL_ABORTED) ? desiredState : currentState);
+            currentState -> (currentState != State.COMPLETED && currentState != State.LOCAL_ABORTED) ? desiredState : currentState
+        );
         if (prevState == State.COMPLETED || prevState == State.LOCAL_ABORTED) {
             // To preserve old behaviour completing a task twice is not an error.
             // However, any combination of local abort with completion or failure
             // is an error, as is issuing two local aborts for the same task.
             if (desiredState == State.COMPLETED) {
                 if (prevState == State.COMPLETED) {
-                    logger.warn("attempt to complete task [{}] with id [{}] in the [{}] state",
-                        getAction(), getPersistentTaskId(), prevState);
+                    logger.warn(
+                        "attempt to complete task [{}] with id [{}] in the [{}] state",
+                        getAction(),
+                        getPersistentTaskId(),
+                        prevState
+                    );
                 } else {
-                    throw new IllegalStateException("attempt to " + (failure != null ? "fail" : "complete") + " task [" + getAction()
-                        + "] with id [" + getPersistentTaskId() + "] which has been locally aborted");
+                    throw new IllegalStateException(
+                        "attempt to "
+                            + (failure != null ? "fail" : "complete")
+                            + " task ["
+                            + getAction()
+                            + "] with id ["
+                            + getPersistentTaskId()
+                            + "] which has been locally aborted"
+                    );
                 }
             } else {
-                throw new IllegalStateException("attempt to locally abort task [" + getAction()
-                    + "] with id [" + getPersistentTaskId() + "] which has already been "
-                    + (prevState == State.COMPLETED ? "completed" : "locally aborted"));
+                throw new IllegalStateException(
+                    "attempt to locally abort task ["
+                        + getAction()
+                        + "] with id ["
+                        + getPersistentTaskId()
+                        + "] which has already been "
+                        + (prevState == State.COMPLETED ? "completed" : "locally aborted")
+                );
             }
         } else {
             if (failure != null) {
-                logger.warn(() -> new ParameterizedMessage("task [{}] failed with an exception", getPersistentTaskId()), failure);
+                logger.warn(() -> "task [" + getPersistentTaskId() + "] failed with an exception", failure);
             } else if (localAbortReason != null) {
                 logger.debug("task [{}] aborted locally: [{}]", getPersistentTaskId(), localAbortReason);
             }
@@ -163,20 +195,26 @@ public class AllocatedPersistentTask extends CancellableTask {
                 this.failure = failure;
                 if (prevState == State.STARTED) {
                     logger.trace("sending notification for completed task [{}] with id [{}]", getAction(), getPersistentTaskId());
-                    persistentTasksService.sendCompletionRequest(getPersistentTaskId(), getAllocationId(), failure, localAbortReason, new
-                            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                                @Override
-                                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
-                                    logger.trace("notification for task [{}] with id [{}] was successful", getAction(),
-                                            getPersistentTaskId());
-                                }
+                    persistentTasksService.sendCompletionRequest(
+                        getPersistentTaskId(),
+                        getAllocationId(),
+                        failure,
+                        localAbortReason,
+                        new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
+                            @Override
+                            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+                                logger.trace("notification for task [{}] with id [{}] was successful", getAction(), getPersistentTaskId());
+                            }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    logger.warn(() -> new ParameterizedMessage(
-                                        "notification for task [{}] with id [{}] failed", getAction(), getPersistentTaskId()), e);
-                                }
-                            });
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn(
+                                    () -> format("notification for task [%s] with id [%s] failed", getAction(), getPersistentTaskId()),
+                                    e
+                                );
+                            }
+                        }
+                    );
                 }
             } finally {
                 taskManager.unregister(this);

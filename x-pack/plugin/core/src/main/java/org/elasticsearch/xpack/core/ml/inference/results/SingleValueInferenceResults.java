@@ -17,7 +17,6 @@ public abstract class SingleValueInferenceResults implements InferenceResults {
 
     private final double value;
 
-
     SingleValueInferenceResults(StreamInput in) throws IOException {
         value = in.readDouble();
     }
@@ -29,7 +28,6 @@ public abstract class SingleValueInferenceResults implements InferenceResults {
     public Double value() {
         return value;
     }
-
 
     public String valueAsString() {
         return String.valueOf(value);

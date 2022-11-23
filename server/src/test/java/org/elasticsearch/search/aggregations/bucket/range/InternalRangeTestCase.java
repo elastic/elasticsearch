@@ -37,6 +37,11 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
     protected abstract T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations, boolean keyed);
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected void assertReduced(T reduced, List<T> inputs) {
         final Map<String, Long> expectedCounts = new TreeMap<>();
         for (T input : inputs) {

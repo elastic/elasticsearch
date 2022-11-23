@@ -52,11 +52,12 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     protected Map<String, FuzzyQueryBuilder> getAlternateVersions() {
         Map<String, FuzzyQueryBuilder> alternateVersions = new HashMap<>();
         FuzzyQueryBuilder fuzzyQuery = new FuzzyQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
-        String contentString = "{\n" +
-                "    \"fuzzy\" : {\n" +
-                "        \"" + fuzzyQuery.fieldName() + "\" : \"" + fuzzyQuery.value() + "\"\n" +
-                "    }\n" +
-                "}";
+        String contentString = formatted("""
+            {
+                "fuzzy" : {
+                    "%s" : "%s"
+                }
+            }""", fuzzyQuery.fieldName(), fuzzyQuery.value());
         alternateVersions.put(contentString, fuzzyQuery);
         return alternateVersions;
     }
@@ -83,16 +84,17 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringField() throws IOException {
-        String query = "{\n" +
-                "    \"fuzzy\":{\n" +
-                "        \"" + TEXT_FIELD_NAME + "\":{\n" +
-                "            \"value\":\"sh\",\n" +
-                "            \"fuzziness\": \"AUTO\",\n" +
-                "            \"prefix_length\":1,\n" +
-                "            \"boost\":2.0\n" +
-                "        }\n" +
-                "    }\n" +
-                "}";
+        String query = formatted("""
+            {
+                "fuzzy":{
+                    "%s":{
+                        "value":"sh",
+                        "fuzziness": "AUTO",
+                        "prefix_length":1,
+                        "boost":2.0
+                    }
+                }
+            }""", TEXT_FIELD_NAME);
         Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(BoostQuery.class));
         BoostQuery boostQuery = (BoostQuery) parsedQuery;
@@ -105,16 +107,17 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringFieldDefinedFuzziness() throws IOException {
-        String query = "{\n" +
-            "    \"fuzzy\":{\n" +
-            "        \"" + TEXT_FIELD_NAME + "\":{\n" +
-            "            \"value\":\"sh\",\n" +
-            "            \"fuzziness\": \"AUTO:2,5\",\n" +
-            "            \"prefix_length\":1,\n" +
-            "            \"boost\":2.0\n" +
-            "        }\n" +
-            "    }\n" +
-            "}";
+        String query = formatted("""
+            {
+                "fuzzy":{
+                    "%s":{
+                        "value":"sh",
+                        "fuzziness": "AUTO:2,5",
+                        "prefix_length":1,
+                        "boost":2.0
+                    }
+                }
+            }""", TEXT_FIELD_NAME);
         Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(BoostQuery.class));
         BoostQuery boostQuery = (BoostQuery) parsedQuery;
@@ -127,96 +130,113 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringFieldDefinedWrongFuzziness() throws IOException {
-        String queryMissingFuzzinessUpLimit = "{\n" +
-            "    \"fuzzy\":{\n" +
-            "        \"" + TEXT_FIELD_NAME + "\":{\n" +
-            "            \"value\":\"sh\",\n" +
-            "            \"fuzziness\": \"AUTO:2\",\n" +
-            "            \"prefix_length\":1,\n" +
-            "            \"boost\":2.0\n" +
-            "        }\n" +
-            "    }\n" +
-            "}";
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> parseQuery(queryMissingFuzzinessUpLimit).toQuery(createSearchExecutionContext()));
+        String queryMissingFuzzinessUpLimit = formatted("""
+            {
+                "fuzzy":{
+                    "%s":{
+                        "value":"sh",
+                        "fuzziness": "AUTO:2",
+                        "prefix_length":1,
+                        "boost":2.0
+                    }
+                }
+            }""", TEXT_FIELD_NAME);
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> parseQuery(queryMissingFuzzinessUpLimit).toQuery(createSearchExecutionContext())
+        );
         String msg = "failed to find low and high distance values";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String queryHavingNegativeFuzzinessLowLimit = "{\n" +
-            "    \"fuzzy\":{\n" +
-            "        \"" + TEXT_FIELD_NAME + "\":{\n" +
-            "            \"value\":\"sh\",\n" +
-            "            \"fuzziness\": \"AUTO:-1,6\",\n" +
-            "            \"prefix_length\":1,\n" +
-            "            \"boost\":2.0\n" +
-            "        }\n" +
-            "    }\n" +
-            "}";
+        String queryHavingNegativeFuzzinessLowLimit = formatted("""
+            {
+                "fuzzy":{
+                    "%s":{
+                        "value":"sh",
+                        "fuzziness": "AUTO:-1,6",
+                        "prefix_length":1,
+                        "boost":2.0
+                    }
+                }
+            }""", TEXT_FIELD_NAME);
         String msg2 = "fuzziness wrongly configured";
-        ElasticsearchParseException e2 = expectThrows(ElasticsearchParseException.class,
-            () -> parseQuery(queryHavingNegativeFuzzinessLowLimit).toQuery(createSearchExecutionContext()));
-        assertTrue(e2.getMessage() + " didn't contain: " + msg2 + " but: " + e.getMessage(), e.getMessage().contains
-            (msg));
+        ElasticsearchParseException e2 = expectThrows(
+            ElasticsearchParseException.class,
+            () -> parseQuery(queryHavingNegativeFuzzinessLowLimit).toQuery(createSearchExecutionContext())
+        );
+        assertTrue(e2.getMessage() + " didn't contain: " + msg2 + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String queryMissingFuzzinessUpLimit2 = "{\n" +
-            "    \"fuzzy\":{\n" +
-            "        \"" + TEXT_FIELD_NAME + "\":{\n" +
-            "            \"value\":\"sh\",\n" +
-            "            \"fuzziness\": \"AUTO:1,\",\n" +
-            "            \"prefix_length\":1,\n" +
-            "            \"boost\":2.0\n" +
-            "        }\n" +
-            "    }\n" +
-            "}";
-        e = expectThrows(ElasticsearchParseException.class,
-            () -> parseQuery(queryMissingFuzzinessUpLimit2).toQuery(createSearchExecutionContext()));
+        String queryMissingFuzzinessUpLimit2 = formatted("""
+            {
+                "fuzzy":{
+                    "%s":{
+                        "value":"sh",
+                        "fuzziness": "AUTO:1,",
+                        "prefix_length":1,
+                        "boost":2.0
+                    }
+                }
+            }""", TEXT_FIELD_NAME);
+        e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> parseQuery(queryMissingFuzzinessUpLimit2).toQuery(createSearchExecutionContext())
+        );
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String queryMissingFuzzinessLowLimit = "{\n" +
-            "    \"fuzzy\":{\n" +
-            "        \"" + TEXT_FIELD_NAME + "\":{\n" +
-            "            \"value\":\"sh\",\n" +
-            "            \"fuzziness\": \"AUTO:,5\",\n" +
-            "            \"prefix_length\":1,\n" +
-            "            \"boost\":2.0\n" +
-            "        }\n" +
-            "    }\n" +
-            "}";
-        e = expectThrows(ElasticsearchParseException.class,
-            () -> parseQuery(queryMissingFuzzinessLowLimit).toQuery(createSearchExecutionContext()));
+        String queryMissingFuzzinessLowLimit = formatted("""
+            {
+                "fuzzy":{
+                    "%s":{
+                        "value":"sh",
+                        "fuzziness": "AUTO:,5",
+                        "prefix_length":1,
+                        "boost":2.0
+                    }
+                }
+            }""", TEXT_FIELD_NAME);
+        e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> parseQuery(queryMissingFuzzinessLowLimit).toQuery(createSearchExecutionContext())
+        );
         msg = "failed to parse [AUTO:,5] as a \"auto:int,int\"";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
     }
 
     public void testToQueryWithNumericField() throws IOException {
-        String query = "{\n" +
-                "    \"fuzzy\":{\n" +
-                "        \"" + INT_FIELD_NAME + "\":{\n" +
-                "            \"value\":12,\n" +
-                "            \"fuzziness\":2\n" +
-                "        }\n" +
-                "    }\n" +
-                "}\n";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parseQuery(query).toQuery(createSearchExecutionContext()));
-        assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
-                e.getMessage());
+        String query = formatted("""
+            {
+                "fuzzy":{
+                    "%s":{
+                        "value":12,
+                        "fuzziness":2
+                    }
+                }
+            }
+            """, INT_FIELD_NAME);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseQuery(query).toQuery(createSearchExecutionContext())
+        );
+        assertEquals(
+            "Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+            e.getMessage()
+        );
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"fuzzy\" : {\n" +
-                "    \"user\" : {\n" +
-                "      \"value\" : \"ki\",\n" +
-                "      \"fuzziness\" : \"2\",\n" +
-                "      \"prefix_length\" : 0,\n" +
-                "      \"max_expansions\" : 100,\n" +
-                "      \"transpositions\" : false,\n" +
-                "      \"boost\" : 42.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String json = """
+            {
+              "fuzzy" : {
+                "user" : {
+                  "value" : "ki",
+                  "fuzziness" : "2",
+                  "prefix_length" : 0,
+                  "max_expansions" : 100,
+                  "transpositions" : false,
+                  "boost" : 42.0
+                }
+              }
+            }""";
         FuzzyQueryBuilder parsed = (FuzzyQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.00001);
@@ -225,48 +245,52 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json1 = "{\n" +
-                "  \"fuzzy\" : {\n" +
-                "    \"message1\" : {\n" +
-                "      \"value\" : \"this is a test\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String json1 = """
+            {
+              "fuzzy" : {
+                "message1" : {
+                  "value" : "this is a test"
+                }
+              }
+            }""";
         parseQuery(json1); // should be all good
 
-        String json2 = "{\n" +
-                "  \"fuzzy\" : {\n" +
-                "    \"message1\" : {\n" +
-                "      \"value\" : \"this is a test\"\n" +
-                "    },\n" +
-                "    \"message2\" : {\n" +
-                "      \"value\" : \"this is a test\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String json2 = """
+            {
+              "fuzzy" : {
+                "message1" : {
+                  "value" : "this is a test"
+                },
+                "message2" : {
+                  "value" : "this is a test"
+                }
+              }
+            }""";
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json2));
         assertEquals("[fuzzy] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
-        String shortJson = "{\n" +
-                "  \"fuzzy\" : {\n" +
-                "    \"message1\" : \"this is a test\",\n" +
-                "    \"message2\" : \"value\" : \"this is a test\"\n" +
-                "  }\n" +
-                "}";
+        String shortJson = """
+            {
+              "fuzzy" : {
+                "message1" : "this is a test",
+                "message2" : "value" : "this is a test"
+              }
+            }""";
 
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[fuzzy] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
     public void testParseFailsWithValueArray() {
-        String query = "{\n" +
-                "  \"fuzzy\" : {\n" +
-                "    \"message1\" : {\n" +
-                "      \"value\" : [ \"one\", \"two\", \"three\"]\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String query = """
+            {
+              "fuzzy" : {
+                "message1" : {
+                  "value" : [ "one", "two", "three"]
+                }
+              }
+            }""";
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertEquals("[fuzzy] unexpected token [START_ARRAY] after [value]", e.getMessage());
@@ -275,14 +299,14 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     public void testToQueryWithTranspositions() throws Exception {
         Query query = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text").toQuery(createSearchExecutionContext());
         assertThat(query, instanceOf(FuzzyQuery.class));
-        assertEquals(FuzzyQuery.defaultTranspositions, ((FuzzyQuery)query).getTranspositions());
+        assertEquals(FuzzyQuery.defaultTranspositions, ((FuzzyQuery) query).getTranspositions());
 
         query = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text").transpositions(true).toQuery(createSearchExecutionContext());
         assertThat(query, instanceOf(FuzzyQuery.class));
-        assertEquals(true, ((FuzzyQuery)query).getTranspositions());
+        assertEquals(true, ((FuzzyQuery) query).getTranspositions());
 
         query = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text").transpositions(false).toQuery(createSearchExecutionContext());
         assertThat(query, instanceOf(FuzzyQuery.class));
-        assertEquals(false, ((FuzzyQuery)query).getTranspositions());
+        assertEquals(false, ((FuzzyQuery) query).getTranspositions());
     }
 }

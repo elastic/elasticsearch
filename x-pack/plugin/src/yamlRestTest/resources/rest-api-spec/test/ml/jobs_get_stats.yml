@@ -103,7 +103,7 @@ setup:
   - match:  { jobs.0.state: opened }
   - is_true:  jobs.0.node.name
   - is_true:  jobs.0.node.transport_address
-  - match:  { jobs.0.node.attributes.ml\.max_open_jobs: "512"}
+  - is_true:  jobs.0.node.attributes.ml\.machine_memory
   - is_true:  jobs.0.open_time
   - match:  { jobs.0.timing_stats.job_id: job-stats-test }
   - match:  { jobs.0.timing_stats.bucket_count: 1 }  # Records are 1h apart and bucket span is 1h so 1 bucket is produced
@@ -229,14 +229,6 @@ setup:
         allow_no_match: true
   - match: { count: 0 }
 
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      ml.get_job_stats:
-        job_id: "missing-*"
-        allow_no_jobs: true
-  - match: { count: 0 }
-
 ---
 "Test get job stats given pattern and not allow_no_match":
   - skip:
@@ -248,14 +240,6 @@ setup:
       ml.get_job_stats:
         job_id: "missing-*"
         allow_no_match: false
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.get_job_stats:
-        job_id: "missing-*"
-        allow_no_jobs: false
 
 ---
 "Test reading v54 data counts and model size stats":

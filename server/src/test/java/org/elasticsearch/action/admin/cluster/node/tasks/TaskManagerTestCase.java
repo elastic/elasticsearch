@@ -26,11 +26,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -39,10 +39,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -50,7 +53,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -76,8 +78,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public void setupTestNodes(Settings settings) {
         nodesCount = randomIntBetween(2, 10);
         testNodes = new TestNode[nodesCount];
+        final Settings reservedPortRangeSettings = Settings.builder()
+            .put(TransportSettings.PORT.getKey(), getPortRange())
+            .put(settings)
+            .build();
         for (int i = 0; i < testNodes.length; i++) {
-            testNodes[i] = new TestNode("node" + i, threadPool, settings);
+            testNodes[i] = new TestNode("node" + i, threadPool, reservedPortRangeSettings);
         }
     }
 
@@ -92,7 +98,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
     }
-
 
     static class NodeResponse extends BaseNodeResponse {
 
@@ -130,14 +135,27 @@ public abstract class TaskManagerTestCase extends ESTestCase {
      * Simulates node-based task that can be used to block node tasks so they are guaranteed to be registered by task manager
      */
     abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends TransportRequest>
-            extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
+        extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
-        AbstractTestNodesAction(String actionName, ThreadPool threadPool,
-                                ClusterService clusterService, TransportService transportService, Writeable.Reader<NodesRequest> request,
-                                Writeable.Reader<NodeRequest> nodeRequest) {
-            super(actionName, threadPool, clusterService, transportService,
-                    new ActionFilters(new HashSet<>()),
-                request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
+        AbstractTestNodesAction(
+            String actionName,
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            Writeable.Reader<NodesRequest> request,
+            Writeable.Reader<NodeRequest> nodeRequest
+        ) {
+            super(
+                actionName,
+                threadPool,
+                clusterService,
+                transportService,
+                new ActionFilters(new HashSet<>()),
+                request,
+                nodeRequest,
+                ThreadPool.Names.GENERIC,
+                NodeResponse.class
+            );
         }
 
         @Override
@@ -146,7 +164,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
 
         @Override
-        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+        protected NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             return new NodeResponse(in);
         }
 
@@ -156,27 +174,36 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
-            final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction =
-                address -> {
-                 discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
-                 return discoveryNode.get();
-                };
-            transportService = new TransportService(settings,
-                new MockNioTransport(settings, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
-                    PageCacheRecycler.NON_RECYCLING_INSTANCE, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    new NoneCircuitBreakerService()),
-                threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null,
-                Collections.emptySet()) {
-                @Override
-                protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-                    if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-                        return new MockTaskManager(settings, threadPool, taskHeaders);
-                    } else {
-                        return super.createTaskManager(settings, threadPool, taskHeaders);
-                    }
-                }
+            final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction = address -> {
+                discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
+                return discoveryNode.get();
             };
-            transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
+            TaskManager taskManager;
+            if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
+                taskManager = new MockTaskManager(settings, threadPool, emptySet());
+            } else {
+                taskManager = new TaskManager(settings, threadPool, emptySet());
+            }
+            transportService = new TransportService(
+                settings,
+                new Netty4Transport(
+                    settings,
+                    Version.CURRENT,
+                    threadPool,
+                    new NetworkService(Collections.emptyList()),
+                    PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                    new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                    new NoneCircuitBreakerService(),
+                    new SharedGroupFactory(settings)
+                ),
+                threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                boundTransportAddressDiscoveryNodeFunction,
+                null,
+                taskManager,
+                Tracer.NOOP
+            );
+            taskManager.setTaskCancellationService(new TaskCancellationService(transportService));
             transportService.start();
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
@@ -202,7 +229,9 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             return discoveryNode().getId();
         }
 
-        public DiscoveryNode discoveryNode() { return  discoveryNode.get(); }
+        public DiscoveryNode discoveryNode() {
+            return discoveryNode.get();
+        }
     }
 
     public static void connectNodes(TestNode... nodes) {

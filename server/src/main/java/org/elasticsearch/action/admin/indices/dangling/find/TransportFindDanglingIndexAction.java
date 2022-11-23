@@ -75,7 +75,7 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeFindDanglingIndexResponse newNodeResponse(StreamInput in) throws IOException {
+    protected NodeFindDanglingIndexResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeFindDanglingIndexResponse(in);
     }
 

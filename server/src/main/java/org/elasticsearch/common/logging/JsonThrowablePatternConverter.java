@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -16,7 +17,6 @@
  */
 package org.elasticsearch.common.logging;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
@@ -25,6 +25,7 @@ import org.apache.logging.log4j.core.pattern.ExtendedThrowablePatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.logging.log4j.core.pattern.ThrowablePatternConverter;
 import org.apache.logging.log4j.util.Strings;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.nio.charset.Charset;
 import java.util.StringJoiner;
@@ -38,7 +39,7 @@ import java.util.StringJoiner;
  * LoggingEvent into a multiline string
  */
 @Plugin(name = "JsonThrowablePatternConverter", category = PatternConverter.CATEGORY)
-@ConverterKeys({"exceptionAsJson"})
+@ConverterKeys({ "exceptionAsJson" })
 public final class JsonThrowablePatternConverter extends ThrowablePatternConverter {
     private final ExtendedThrowablePatternConverter throwablePatternConverter;
 
@@ -93,7 +94,7 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
         return stringJoiner.toString();
     }
 
-    private String wrapAsJson(String line) {
+    private static String wrapAsJson(String line) {
         byte[] bytes = JsonStringEncoder.getInstance().quoteAsUTF8(line);
         return "\"" + new String(bytes, Charset.defaultCharset()) + "\"";
     }

@@ -1,24 +1,30 @@
 [[size-your-shards]]
 == Size your shards
 
-To protect against hardware failure and increase capacity, {es} stores copies of
-an index’s data across multiple shards on multiple nodes. The number and size of
-these shards can have a significant impact on your cluster's health. One common
-problem is _oversharding_, a situation in which a cluster with a large number of
-shards becomes unstable.
+Each index in {es} is divided into one or more shards, each of which may be
+replicated across multiple nodes to protect against hardware failures. If you
+are using <<data-streams>> then each data stream is backed by a sequence of
+indices. There is a limit to the amount of data you can store on a single node
+so you can increase the capacity of your cluster by adding nodes and increasing
+the number of indices and shards to match. However, each index and shard has
+some overhead and if you divide your data across too many shards then the
+overhead can become overwhelming. A cluster with too many indices or shards is
+said to suffer from _oversharding_. An oversharded cluster will be less
+efficient at responding to searches and in extreme cases it may even become
+unstable.
 
 [discrete]
 [[create-a-sharding-strategy]]
 === Create a sharding strategy
 
-The best way to prevent oversharding and other shard-related issues
-is to create a sharding strategy. A sharding strategy helps you determine and
+The best way to prevent oversharding and other shard-related issues is to
+create a sharding strategy. A sharding strategy helps you determine and
 maintain the optimal number of shards for your cluster while limiting the size
 of those shards.
 
 Unfortunately, there is no one-size-fits-all sharding strategy. A strategy that
-works in one environment may not scale in another. A good sharding strategy must
-account for your infrastructure, use case, and performance expectations.
+works in one environment may not scale in another. A good sharding strategy
+must account for your infrastructure, use case, and performance expectations.
 
 The best way to create a sharding strategy is to benchmark your production data
 on production hardware using the same queries and indexing loads you'd see in
@@ -28,9 +34,9 @@ cluster sizing video]. As you test different shard configurations, use {kib}'s
 {kibana-ref}/elasticsearch-metrics.html[{es} monitoring tools] to track your
 cluster's stability and performance.
 
-The following sections provide some reminders and guidelines you should consider
-when designing your sharding strategy. If your cluster has shard-related
-problems, see <<fix-an-oversharded-cluster>>.
+The following sections provide some reminders and guidelines you should
+consider when designing your sharding strategy. If your cluster is already
+oversharded, see <<reduce-cluster-shard-count>>.
 
 [discrete]
 [[shard-sizing-considerations]]
@@ -49,17 +55,29 @@ thread pool>>. This can result in low throughput and slow search speeds.
 
 [discrete]
 [[each-shard-has-overhead]]
-==== Each shard has overhead
+==== Each index, shard, segment and field has overhead
 
-Every shard uses memory and CPU resources. In most cases, a small
-set of large shards uses fewer resources than many small shards.
+Every index and every shard requires some memory and CPU resources. In most
+cases, a small set of large shards uses fewer resources than many small shards.
 
 Segments play a big role in a shard's resource usage. Most shards contain
-several segments, which store its index data. {es} keeps segment metadata in
-JVM heap memory so it can be quickly retrieved for searches. As a
-shard grows, its segments are <<index-modules-merge,merged>> into fewer, larger
-segments. This decreases the number of segments, which means less metadata is
-kept in heap memory.
+several segments, which store its index data. {es} keeps some segment metadata
+in heap memory so it can be quickly retrieved for searches. As a shard grows,
+its segments are <<index-modules-merge,merged>> into fewer, larger segments.
+This decreases the number of segments, which means less metadata is kept in
+heap memory.
+
+Every mapped field also carries some overhead in terms of memory usage and disk
+space. By default {es} will automatically create a mapping for every field in
+every document it indexes, but you can switch off this behaviour to
+<<explicit-mapping,take control of your mappings>>.
+
+Moreover every segment requires a small amount of heap memory for each mapped
+field. This per-segment-per-field heap overhead includes a copy of the field
+name, encoded using ISO-8859-1 if applicable or UTF-16 otherwise. Usually this
+is not noticeable, but you may need to account for this overhead if your shards
+have high segment counts and the corresponding mappings contain high field
+counts and/or very long field names.
 
 [discrete]
 [[shard-auto-balance]]
@@ -110,7 +128,7 @@ Change the <<index-number-of-shards,`index.number_of_shards`>> setting in the
 data stream's <<data-streams-change-mappings-and-settings,matching index
 template>>.
 
-* *Want larger shards?* +
+* *Want larger shards or fewer backing indices?* +
 Increase your {ilm-init} policy's <<ilm-rollover,rollover threshold>>.
 
 * *Need indices that span shorter intervals?* +
@@ -124,13 +142,18 @@ Every new backing index is an opportunity to further tune your strategy.
 [[shard-size-recommendation]]
 ==== Aim for shard sizes between 10GB and 50GB
 
-Large shards may make a cluster less likely to recover from failure. When a node
-fails, {es} rebalances the node's shards across the data tier's remaining nodes.
-Large shards can be harder to move across a network and may tax node resources.
+Larger shards take longer to recover after a failure. When a node fails, {es}
+rebalances the node's shards across the data tier's remaining nodes. This
+recovery process typically involves copying the shard contents across the
+network, so a 100GB shard will take twice as long to recover than a 50GB shard.
+In contrast, small shards carry proportionally more overhead and are less
+efficient to search. Searching fifty 1GB shards will take substantially more
+resources than searching a single 50GB shard containing the same data.
 
-While not a hard limit, shards between 10GB and 50GB tend to work well for logs
-and time series data. You may be able to use larger shards depending on
-your network and use case. Smaller shards may be appropriate for
+There are no hard limits on shard size, but experience shows that shards
+between 10GB and 50GB typically work well for logs and time series data. You
+may be able to use larger shards depending on your network and use case.
+Smaller shards may be appropriate for
 {enterprise-search-ref}/index.html[Enterprise Search] and similar use cases.
 
 If you use {ilm-init}, set the <<ilm-rollover,rollover action>>'s
@@ -159,24 +182,32 @@ index                                 prirep shard store
 
 [discrete]
 [[shard-count-recommendation]]
-==== Aim for 20 shards or fewer per GB of heap memory
+==== Master-eligible nodes should have at least 1GB of heap per 3000 indices
 
-The number of shards a node can hold is proportional to the node's
-heap memory. For example, a node with 30GB of heap memory should
-have at most 600 shards. The further below this limit you can keep your nodes,
-the better. If you find your nodes exceeding more than 20 shards per GB,
-consider adding another node.
+The number of indices a master node can manage is proportional to its heap
+size. The exact amount of heap memory needed for each index depends on various
+factors such as the size of the mapping and the number of shards per index.
 
-Some system indices for {enterprise-search-ref}/index.html[Enterprise Search]
-are nearly empty and rarely used. Due to their low overhead, you shouldn't count
-shards for these indices toward a node's shard limit.
+As a general rule of thumb, you should have fewer than 3000 indices per GB of
+heap on master nodes. For example, if your cluster has dedicated master nodes
+with 4GB of heap each then you should have fewer than 12000 indices. If your
+master nodes are not dedicated master nodes then the same sizing guidance
+applies: you should reserve at least 1GB of heap on each master-eligible node
+for every 3000 indices in your cluster.
 
-To check the current size of each node's heap, use the <<cat-nodes,cat nodes
+Note that this rule defines the absolute maximum number of indices that a
+master node can manage, but does not guarantee the performance of searches or
+indexing involving this many indices. You must also ensure that your data nodes
+have adequate resources for your workload and that your overall sharding
+strategy meets all your performance requirements. See also
+<<single-thread-per-shard>> and <<each-shard-has-overhead>>.
+
+To check the configured size of each node's heap, use the <<cat-nodes,cat nodes
 API>>.
 
 [source,console]
 ----
-GET _cat/nodes?v=true&h=heap.current
+GET _cat/nodes?v=true&h=heap.max
 ----
 // TEST[setup:my_index]
 
@@ -188,6 +219,131 @@ node.
 GET _cat/shards?v=true
 ----
 // TEST[setup:my_index]
+
+[discrete]
+[[field-count-recommendation]]
+==== Allow enough heap for field mappers and overheads
+
+Mapped fields consume some heap memory on each node, and require extra
+heap on data nodes.
+Ensure each node has enough heap for mappings, and also allow
+extra space for overheads associated with its workload. The following sections
+show how to determine these heap requirements.
+
+[discrete]
+===== Mapping metadata in the cluster state
+
+Each node in the cluster has a copy of the <<cluster-state-api-desc,cluster state>>.
+The cluster state includes information about the field mappings for
+each index. This information has heap overhead. You can use the
+<<cluster-stats,Cluster stats API>> to get the heap overhead of the total size of
+all mappings after deduplication and compression.
+
+[source,console]
+----
+GET _cluster/stats?human&filter_path=indices.mappings.total_deduplicated_mapping_size*
+----
+// TEST[setup:node]
+
+This will show you information like in this example output:
+
+[source,console-result]
+----
+{
+  "indices": {
+    "mappings": {
+      "total_deduplicated_mapping_size": "1gb",
+      "total_deduplicated_mapping_size_in_bytes": 1073741824
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"total_deduplicated_mapping_size": "1gb"/"total_deduplicated_mapping_size": $body.$_path/]
+// TESTRESPONSE[s/"total_deduplicated_mapping_size_in_bytes": 1073741824/"total_deduplicated_mapping_size_in_bytes": $body.$_path/]
+
+[discrete]
+===== Retrieving heap size and field mapper overheads
+
+You can use the <<cluster-nodes-stats,Nodes stats API>> to get two relevant metrics
+for each node:
+
+* The size of the heap on each node.
+
+* Any additional estimated heap overhead for the fields per node. This is specific to
+data nodes, where apart from the cluster state field information mentioned above,
+there is additional heap overhead for each mapped field of an index held by the data
+node. For nodes which are not data nodes, this field may be zero.
+
+[source,console]
+----
+GET _nodes/stats?human&filter_path=nodes.*.name,nodes.*.indices.mappings.total_estimated_overhead*,nodes.*.jvm.mem.heap_max*
+----
+// TEST[setup:node]
+
+For each node, this will show you information like in this example output:
+
+[source,console-result]
+----
+{
+  "nodes": {
+    "USpTGYaBSIKbgSUJR2Z9lg": {
+      "name": "node-0",
+      "indices": {
+        "mappings": {
+          "total_estimated_overhead": "1gb",
+          "total_estimated_overhead_in_bytes": 1073741824
+        }
+      },
+      "jvm": {
+        "mem": {
+          "heap_max": "4gb",
+          "heap_max_in_bytes": 4294967296
+        }
+      }
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"USpTGYaBSIKbgSUJR2Z9lg"/\$node_name/]
+// TESTRESPONSE[s/"name": "node-0"/"name": $body.$_path/]
+// TESTRESPONSE[s/"total_estimated_overhead": "1gb"/"total_estimated_overhead": $body.$_path/]
+// TESTRESPONSE[s/"total_estimated_overhead_in_bytes": 1073741824/"total_estimated_overhead_in_bytes": $body.$_path/]
+// TESTRESPONSE[s/"heap_max": "4gb"/"heap_max": $body.$_path/]
+// TESTRESPONSE[s/"heap_max_in_bytes": 4294967296/"heap_max_in_bytes": $body.$_path/]
+
+[discrete]
+===== Consider additional heap overheads
+
+Apart from the two field overhead metrics above, you must additionally allow
+enough heap for {es}'s baseline usage as well as your workload such as indexing,
+searches and aggregations. 0.5GB of extra heap will suffice for many reasonable
+workloads, and you may need even less if your workload is very light while heavy
+workloads may require more.
+
+[discrete]
+===== Example
+
+As an example, consider the outputs above for a data node. The heap of the node
+will need at least:
+
+* 1 GB for the cluster state field information.
+
+* 1 GB for the additional estimated heap overhead for the fields of the data node.
+
+* 0.5 GB of extra heap for other overheads.
+
+Since the node has a 4GB heap max size in the example, it is thus sufficient
+for the total required heap of 2.5GB.
+
+If the heap max size for a node is not sufficient, consider
+<<avoid-unnecessary-fields,avoiding unnecessary fields>>,
+or scaling up the cluster, or redistributing index shards.
+
+Note that the above rules do not necessarily guarantee the performance of
+searches or indexing involving a very high number of indices. You must also
+ensure that your data nodes have adequate resources for your workload and
+that your overall sharding strategy meets all your performance requirements.
+See also <<single-thread-per-shard>> and <<each-shard-has-overhead>>.
 
 [discrete]
 [[avoid-node-hotspots]]
@@ -214,13 +370,32 @@ PUT my-index-000001/_settings
 --------------------------------------------------
 // TEST[setup:my_index]
 
+[discrete]
+[[avoid-unnecessary-fields]]
+==== Avoid unnecessary mapped fields
+
+By default {es} <<dynamic-mapping,automatically creates a mapping>> for every
+field in every document it indexes. Every mapped field corresponds to some data
+structures on disk which are needed for efficient search, retrieval, and
+aggregations on this field. Details about each mapped field are also held in
+memory. In many cases this overhead is unnecessary because a field is not used
+in any searches or aggregations. Use <<explicit-mapping>> instead of dynamic
+mapping to avoid creating fields that are never used. If a collection of fields
+are typically used together, consider using <<copy-to>> to consolidate them at
+index time. If a field is only rarely used, it may be better to make it a
+<<runtime,Runtime field>> instead.
+
+You can get information about which fields are being used with the
+<<field-usage-stats>> API, and you can analyze the disk usage of mapped fields
+using the <<indices-disk-usage>> API. Note however that unnecessary mapped
+fields also carry some memory overhead as well as their disk usage.
 
 [discrete]
-[[fix-an-oversharded-cluster]]
-=== Fix an oversharded cluster
+[[reduce-cluster-shard-count]]
+=== Reduce a cluster's shard count
 
-If your cluster is experiencing stability issues due to oversharded indices,
-you can use one or more of the following methods to fix them.
+If your cluster is already oversharded, you can use one or more of the following
+methods to reduce its shard count.
 
 [discrete]
 [[create-indices-that-cover-longer-time-periods]]
@@ -256,7 +431,7 @@ unneeded indices.
 
 [source,console]
 ----
-DELETE my-index-*
+DELETE my-index-000001
 ----
 // TEST[setup:my_index]
 
@@ -282,12 +457,6 @@ POST my-index-000001/_forcemerge
 If you no longer write to an index, you can use the
 <<indices-shrink-index,shrink index API>> to reduce its shard count.
 
-[source,console]
-----
-POST my-index-000001/_shrink/my-shrunken-index-000001
-----
-// TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards":2,"blocks.write":true}}\n/]
-
 {ilm-init} also has a <<ilm-shrink,shrink action>> for indices in the
 warm phase.
 
@@ -311,6 +480,57 @@ POST _reindex
   },
   "dest": {
     "index": "my-index-2099.10"
+  }
+}
+----
+
+[discrete]
+[[troubleshoot-shard-related-errors]]
+=== Troubleshoot shard-related errors
+
+Here’s how to resolve common shard-related errors.
+
+[discrete]
+==== this action would add [x] total shards, but this cluster currently has [y]/[z] maximum shards open;
+
+The <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> cluster
+setting limits the maximum number of open shards for a cluster. This error
+indicates an action would exceed this limit.
+
+If you're confident your changes won't destabilize the cluster, you can
+temporarily increase the limit using the <<cluster-update-settings,cluster
+update settings API>> and retry the action.
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.max_shards_per_node": 1200
+  }
+}
+----
+
+This increase should only be temporary. As a long-term solution, we recommend
+you add nodes to the oversharded data tier or
+<<reduce-cluster-shard-count,reduce your cluster's shard count>>. To get a
+cluster's current shard count after making changes, use the
+<<cluster-stats,cluster stats API>>.
+
+[source,console]
+----
+GET _cluster/stats?filter_path=indices.shards.total
+----
+
+When a long-term solution is in place, we recommend you reset the
+`cluster.max_shards_per_node` limit.
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.max_shards_per_node": null
   }
 }
 ----

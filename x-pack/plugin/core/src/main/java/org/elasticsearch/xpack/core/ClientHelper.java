@@ -6,20 +6,27 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -34,8 +41,10 @@ import java.util.stream.Collectors;
  */
 public final class ClientHelper {
 
-    private static Pattern authorizationHeaderPattern = Pattern.compile("\\s*" + Pattern.quote("Authorization") + "\\s*",
-            Pattern.CASE_INSENSITIVE);
+    private static final Pattern authorizationHeaderPattern = Pattern.compile(
+        "\\s*" + Pattern.quote("Authorization") + "\\s*",
+        Pattern.CASE_INSENSITIVE
+    );
 
     public static void assertNoAuthorizationHeader(Map<String, String> headers) {
         if (org.elasticsearch.Assertions.ENABLED) {
@@ -50,11 +59,11 @@ public final class ClientHelper {
     /**
      * List of headers that are related to security
      */
-    public static final Set<String> SECURITY_HEADER_FILTERS =
-        Sets.newHashSet(
-            AuthenticationServiceField.RUN_AS_USER_HEADER,
-            AuthenticationField.AUTHENTICATION_KEY,
-            SecondaryAuthentication.THREAD_CTX_KEY);
+    public static final Set<String> SECURITY_HEADER_FILTERS = Set.of(
+        AuthenticationServiceField.RUN_AS_USER_HEADER,
+        AuthenticationField.AUTHENTICATION_KEY,
+        SecondaryAuthentication.THREAD_CTX_KEY
+    );
 
     /**
      * Leaves only headers that are related to security and filters out the rest.
@@ -67,10 +76,95 @@ public final class ClientHelper {
             // fast-track to skip the artifice below
             return headers;
         } else {
-            return Objects.requireNonNull(headers).entrySet().stream()
-                    .filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            return Objects.requireNonNull(headers)
+                .entrySet()
+                .stream()
+                .filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
+    }
+
+    /**
+     * In addition to {@link #filterSecurityHeaders}, also check the version of Authentication objects
+     * and rewrite them using minNodeVersion so that they are safe to be persisted as index data
+     * and loaded by all nodes in the cluster.
+     */
+    public static Map<String, String> getPersistableSafeSecurityHeaders(ThreadContext threadContext, ClusterState clusterState) {
+        return maybeRewriteAuthenticationHeadersForVersion(
+            filterSecurityHeaders(threadContext.getHeaders()),
+            key -> new AuthenticationContextSerializer(key).readFromContext(threadContext),
+            clusterState.nodes().getMinNodeVersion()
+        );
+    }
+
+    /**
+     * Similar to {@link #getPersistableSafeSecurityHeaders(ThreadContext, ClusterState)},
+     * but works on a Map of headers instead of ThreadContext.
+     */
+    public static Map<String, String> getPersistableSafeSecurityHeaders(Map<String, String> headers, ClusterState clusterState) {
+        final CheckedFunction<String, Authentication, IOException> authenticationReader = key -> {
+            final String authHeader = headers.get(key);
+            return authHeader == null ? null : AuthenticationContextSerializer.decode(authHeader);
+        };
+        return maybeRewriteAuthenticationHeadersForVersion(
+            filterSecurityHeaders(headers),
+            authenticationReader,
+            clusterState.nodes().getMinNodeVersion()
+        );
+    }
+
+    private static Map<String, String> maybeRewriteAuthenticationHeadersForVersion(
+        Map<String, String> filteredHeaders,
+        CheckedFunction<String, Authentication, IOException> authenticationReader,
+        Version minNodeVersion
+    ) {
+        Map<String, String> newHeaders = null;
+
+        final String authHeader = maybeRewriteSingleAuthenticationHeaderForVersion(
+            authenticationReader,
+            AuthenticationField.AUTHENTICATION_KEY,
+            minNodeVersion
+        );
+        if (authHeader != null) {
+            newHeaders = new HashMap<>();
+            newHeaders.put(AuthenticationField.AUTHENTICATION_KEY, authHeader);
+        }
+
+        final String secondaryHeader = maybeRewriteSingleAuthenticationHeaderForVersion(
+            authenticationReader,
+            SecondaryAuthentication.THREAD_CTX_KEY,
+            minNodeVersion
+        );
+        if (secondaryHeader != null) {
+            if (newHeaders == null) {
+                newHeaders = new HashMap<>();
+            }
+            newHeaders.put(SecondaryAuthentication.THREAD_CTX_KEY, secondaryHeader);
+        }
+
+        if (newHeaders != null) {
+            final HashMap<String, String> mutableHeaders = new HashMap<>(filteredHeaders);
+            mutableHeaders.putAll(newHeaders);
+            return Map.copyOf(mutableHeaders);
+        } else {
+            return filteredHeaders;
+        }
+    }
+
+    private static String maybeRewriteSingleAuthenticationHeaderForVersion(
+        CheckedFunction<String, Authentication, IOException> authenticationReader,
+        String authenticationHeaderKey,
+        Version minNodeVersion
+    ) {
+        try {
+            final Authentication authentication = authenticationReader.apply(authenticationHeaderKey);
+            if (authentication != null && authentication.getEffectiveSubject().getVersion().after(minNodeVersion)) {
+                return authentication.maybeRewriteForOlderVersion(minNodeVersion).encode();
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to read authentication with key [" + authenticationHeaderKey + "]", e);
+        }
+        return null;
     }
 
     /**
@@ -80,6 +174,7 @@ public final class ClientHelper {
     @Deprecated
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
     public static final String SECURITY_ORIGIN = "security";
+    public static final String SECURITY_PROFILE_ORIGIN = "security_profile";
     public static final String WATCHER_ORIGIN = "watcher";
     public static final String ML_ORIGIN = "ml";
     public static final String INDEX_LIFECYCLE_ORIGIN = "index_lifecycle";
@@ -110,8 +205,12 @@ public final class ClientHelper {
      * Executes a consumer after setting the origin and wrapping the listener so that the proper context is restored
      */
     public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
-            ThreadContext threadContext, String origin, Request request, ActionListener<Response> listener,
-            BiConsumer<Request, ActionListener<Response>> consumer) {
+        ThreadContext threadContext,
+        String origin,
+        Request request,
+        ActionListener<Response> listener,
+        BiConsumer<Request, ActionListener<Response>> consumer
+    ) {
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {
             consumer.accept(request, new ContextPreservingActionListener<>(supplier, listener));
@@ -122,10 +221,16 @@ public final class ClientHelper {
      * Executes an asynchronous action using the provided client. The origin is set in the context and the listener
      * is wrapped to ensure the proper context is restored
      */
-    public static <Request extends ActionRequest, Response extends ActionResponse,
-            RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
-        Client client, String origin, ActionType<Response> action, Request request,
-        ActionListener<Response> listener) {
+    public static <
+        Request extends ActionRequest,
+        Response extends ActionResponse,
+        RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
+            Client client,
+            String origin,
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {
@@ -147,8 +252,13 @@ public final class ClientHelper {
      *            The action to run
      * @return An instance of the response class
      */
-    public static <T extends ActionResponse> T executeWithHeaders(Map<String, String> headers, String origin, Client client,
-            Supplier<T> supplier) {
+    public static <T extends ActionResponse> T executeWithHeaders(
+        Map<String, String> headers,
+        String origin,
+        Client client,
+        Supplier<T> supplier
+    ) {
+        // No need to rewrite authentication header because it will be handled by Security Interceptor
         Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
 
         // no security headers, we will have to use the xpack internal user for
@@ -180,9 +290,15 @@ public final class ClientHelper {
      * @param listener
      *            The listener to call when the action is complete
      */
-    public static <Request extends ActionRequest, Response extends ActionResponse>
-    void executeWithHeadersAsync(Map<String, String> headers, String origin, Client client, ActionType<Response> action, Request request,
-                                 ActionListener<Response> listener) {
+    public static <Request extends ActionRequest, Response extends ActionResponse> void executeWithHeadersAsync(
+        Map<String, String> headers,
+        String origin,
+        Client client,
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        // No need to rewrite authentication header because it will be handled by Security Interceptor
         final Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         // No headers (e.g. security not installed/in use) so execute as origin

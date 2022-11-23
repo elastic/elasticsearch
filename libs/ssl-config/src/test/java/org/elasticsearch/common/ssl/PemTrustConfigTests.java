@@ -12,7 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -27,6 +26,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 public class PemTrustConfigTests extends ESTestCase {
 
@@ -113,7 +114,7 @@ public class PemTrustConfigTests extends ESTestCase {
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         final X509Certificate[] issuers = trustManager.getAcceptedIssuers();
         final Set<String> issuerNames = Stream.of(issuers)
-            .map(X509Certificate::getSubjectDN)
+            .map(X509Certificate::getSubjectX500Principal)
             .map(Principal::getName)
             .collect(Collectors.toSet());
 
@@ -165,7 +166,7 @@ public class PemTrustConfigTests extends ESTestCase {
          * ArrayIndexOutOfBoundsException. This check ensures that when we create random stream of bytes we do not create ASN.1 SEQUENCE
          * followed by zero length which fails the test intermittently.
          */
-        while(checkRandomGeneratedBytesRepresentZeroLengthDerSequenceCausingArrayIndexOutOfBound(bytes)) {
+        while (checkRandomGeneratedBytesRepresentZeroLengthDerSequenceCausingArrayIndexOutOfBound(bytes)) {
             bytes = randomByteArrayOfLength(length);
         }
         return bytes;

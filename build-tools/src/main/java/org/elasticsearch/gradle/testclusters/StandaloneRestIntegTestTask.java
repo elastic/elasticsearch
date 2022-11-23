@@ -15,6 +15,7 @@ import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.WorkResult;
+import org.gradle.api.tasks.options.Option;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.resources.ResourceLock;
 import org.gradle.internal.resources.SharedResource;
@@ -36,6 +37,7 @@ import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_
 public class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
 
     private Collection<ElasticsearchCluster> clusters = new HashSet<>();
+    private boolean debugServer = false;
 
     public StandaloneRestIntegTestTask() {
         this.getOutputs()
@@ -62,6 +64,11 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
             );
     }
 
+    @Option(option = "debug-server-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
+    public void setDebugServer(boolean enabled) {
+        this.debugServer = enabled;
+    }
+
     @Override
     public int getMaxParallelForks() {
         return 1;
@@ -83,12 +90,21 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
 
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
-            locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
+            for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {
+                locks.add(resource.getResourceLock());
+            }
         }
         return Collections.unmodifiableList(locks);
     }
 
     public WorkResult delete(Object... objects) {
         return getFileSystemOperations().delete(d -> d.delete(objects));
+    }
+
+    @Override
+    public void beforeStart() {
+        if (debugServer) {
+            enableDebug();
+        }
     }
 }

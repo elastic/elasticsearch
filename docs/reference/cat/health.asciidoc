@@ -4,6 +4,13 @@
 <titleabbrev>cat health</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<cluster-health,cluster health API>>.
+====
+
 Returns the health status of a cluster, similar to the <<cluster-health,cluster
 health>> API.
 

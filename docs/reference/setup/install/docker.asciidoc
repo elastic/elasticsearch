@@ -1,20 +1,30 @@
 [[docker]]
 === Install {es} with Docker
 
-{es} is also available as Docker images. Starting with version 8.0.0, these
-are based upon a tiny core of essential files. Prior versions used
-https://hub.docker.com/_/centos/[centos:8] as the base image.
-
-A list of all published Docker images and tags is available at
-https://www.docker.elastic.co[www.docker.elastic.co]. The source files
-are in
+{es} is also available as Docker images. A list of all published Docker
+images and tags is available at
+https://www.docker.elastic.co[www.docker.elastic.co]. The source files are
+in
 https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
 include::license.asciidoc[]
 
-==== Pulling the image
+Starting in {es} 8.0, security is enabled by default. With security enabled,
+{stack} {security-features} require TLS encryption for the transport networking
+layer, or your cluster will fail to start.
 
-Obtaining {es} for Docker is as simple as issuing a +docker pull+ command
+==== Install Docker Desktop or Docker Engine
+
+Install the appropriate https://docs.docker.com/get-docker/[Docker application]
+for your operating system.
+
+NOTE: Make sure that Docker is allotted at least 4GiB of memory. In Docker
+Desktop, you configure resource usage on the Advanced tab in Preference (macOS)
+or Settings (Windows).
+
+==== Pull the {es} Docker image
+
+Obtaining {es} for Docker is as simple as issuing a `docker pull` command
 against the Elastic Docker registry.
 
 ifeval::["{release-state}"=="unreleased"]
@@ -27,14 +37,18 @@ endif::[]
 ifeval::["{release-state}"!="unreleased"]
 
 [source,sh,subs="attributes"]
---------------------------------------------
+----
 docker pull {docker-repo}:{version}
---------------------------------------------
+----
 
 endif::[]
 
+Now that you have the {es} Docker image, you can start a
+<<docker-cli-run-dev-mode,single-node>> or <<docker-compose-file,multi-node>>
+cluster.
+
 [[docker-cli-run-dev-mode]]
-==== Starting a single node cluster with Docker
+==== Start a single-node cluster with Docker
 
 ifeval::["{release-state}"=="unreleased"]
 
@@ -42,97 +56,289 @@ WARNING: Version {version} of the {es} Docker image has not yet been released.
 
 endif::[]
 
-ifeval::["{release-state}"!="unreleased"]
+If you're starting a single-node {es} cluster in a Docker container, security
+will be automatically enabled and configured for you. When you start {es} for
+the first time, the following security configuration occurs automatically:
 
-To start a single-node {es} cluster for development or testing, specify
-<<single-node-discovery,single-node discovery>> to bypass the <<bootstrap-checks,bootstrap checks>>:
+* <<elasticsearch-security-certificates,Certificates and keys>> are generated
+for the transport and HTTP layers.
+* The Transport Layer Security (TLS) configuration settings are written to
+`elasticsearch.yml`.
+* A password is generated for the `elastic` user.
+* An enrollment token is generated for {kib}.
 
-[source,sh,subs="attributes"]
---------------------------------------------
-docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" {docker-image}
---------------------------------------------
+You can then {kibana-ref}/docker.html[start {kib}] and enter the enrollment
+token, which is valid for 30 minutes. This token automatically applies the
+security settings from your {es} cluster, authenticates to {es} with the
+`kibana_system` user, and writes the security configuration to `kibana.yml`.
 
-endif::[]
+The following commands start a single-node {es} cluster for development or
+testing.
 
-[[docker-compose-file]]
-==== Starting a multi-node cluster with Docker Compose
-
-To get a three-node {es} cluster up and running in Docker,
-you can use Docker Compose:
-
-. Create a `docker-compose.yml` file:
-ifeval::["{release-state}"=="unreleased"]
-+
---
-WARNING: Version {version} of {es} has not yet been released, so a
-`docker-compose.yml` is not available for this version.
-
-endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
-[source,yaml,subs="attributes"]
---------------------------------------------
-include::docker-compose.yml[]
---------------------------------------------
-endif::[]
-
-NOTE: This sample `docker-compose.yml` file uses the `ES_JAVA_OPTS`
-environment variable to manually set the heap size to 512MB. We do not recommend
-using `ES_JAVA_OPTS` in production. See <<docker-set-heap-size>>.
-
-This sample Docker Compose file brings up a three-node {es} cluster.
-Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
-
-Please note that this configuration exposes port 9200 on all network interfaces, and given how
-Docker manipulates `iptables` on Linux, this means that your {es} cluster is publicly accessible,
-potentially ignoring any firewall settings. If you don't want to expose port 9200 and instead use
-a reverse proxy, replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
-{es} will then only be accessible from the host machine itself.
-
-The https://docs.docker.com/storage/volumes[Docker named volumes]
-`data01`, `data02`, and `data03` store the node data directories so the data persists across restarts.
-If they don't already exist, `docker-compose` creates them when you bring up the cluster.
---
-. Make sure Docker Engine is allotted at least 4GiB of memory.
-In Docker Desktop, you configure resource usage on the Advanced tab in Preference (macOS)
-or Settings (Windows).
-+
-NOTE: Docker Compose is not pre-installed with Docker on Linux.
-See docs.docker.com for installation instructions:
-https://docs.docker.com/compose/install[Install Compose on Linux]
-
-. Run `docker-compose` to bring up the cluster:
-+
-[source,sh,subs="attributes"]
---------------------------------------------
-docker-compose up
---------------------------------------------
-
-. Submit a `_cat/nodes` request to see that the nodes are up and running:
+. Create a new docker network for {es} and {kib}
 +
 [source,sh]
---------------------------------------------------
-curl -X GET "localhost:9200/_cat/nodes?v=true&pretty"
---------------------------------------------------
+----
+docker network create elastic
+----
+
+. Start {es} in Docker. A password is generated for the `elastic` user and
+output to the terminal, plus an enrollment token for enrolling {kib}.
++
+--
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of {es} has not yet been released, so no
+Docker image is currently available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+[source,sh,subs="attributes"]
+----
+docker run --name es01 --net elastic -p 9200:9200 -it {docker-image}
+----
+
+endif::[]
+--
++
+TIP: You might need to scroll back a bit in the terminal to view the password
+and enrollment token.
+
+. Copy the generated password and enrollment token and save them in a secure
+location. These values are shown only when you start {es} for the first time.
++
+[NOTE]
+====
+If you need to reset the password for the `elastic` user or other
+built-in users, run the <<reset-password,`elasticsearch-reset-password`>> tool.
+This tool is available in the {es} `/bin` directory of the Docker container.
+For example:
+
+[source,sh]
+----
+docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password
+----
+====
+
+. Copy the `http_ca.crt` security certificate from your Docker container to
+your local machine.
++
+[source,sh]
+----
+docker cp es01:/usr/share/elasticsearch/config/certs/http_ca.crt .
+----
+
+. Open a new terminal and verify that you can connect to your {es} cluster by
+making an authenticated call, using the `http_ca.crt` file that you copied from
+your Docker container. Enter the password for the `elastic` user when prompted.
++
+[source,sh]
+----
+curl --cacert http_ca.crt -u elastic https://localhost:9200
+----
 // NOTCONSOLE
 
-Log messages go to the console and are handled by the configured Docker logging driver.
-By default you can access logs with `docker logs`. If you would prefer the {es}
-container to write logs to disk, set the `ES_LOG_STYLE` environment variable to `file`.
-This causes {es} to use the same logging configuration as other {es} distribution formats.
+==== Enroll additional nodes
 
-To stop the cluster, run `docker-compose down`.
-The data in the Docker volumes is preserved and loaded
-when you restart the cluster with `docker-compose up`.
-To **delete the data volumes** when you bring down the cluster,
-specify the `-v` option: `docker-compose down -v`.
+When you start {es} for the first time, the installation process configures a single-node cluster by default. This process also generates an enrollment token
+and prints it to your terminal. If you want a node to join an existing cluster,
+start the new node with the generated enrollment token.
 
+--
+.Generating enrollment tokens
+****
+The enrollment token is valid for 30 minutes. If you need to generate a
+new enrollment token, run the
+<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool on your
+existing node. This tool is available in the {es} `bin` directory of the Docker
+container.
 
-[[next-getting-started-tls-docker]]
-===== Start a multi-node cluster with TLS enabled
+For example, run the following command on the existing `es01` node to
+generate an enrollment token for new {es} nodes:
 
-See <<configuring-tls-docker>> and
-{stack-gs}/get-started-docker.html#get-started-docker-tls[Run the {stack} in Docker with TLS enabled].
+[source,sh]
+----
+docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node
+----
+****
+--
+
+. In the terminal where you started your first node, copy the generated
+enrollment token for adding new {es} nodes.
+
+. On your new node, start {es} and include the generated enrollment token.
++
+--
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of {es} has not yet been released, so no
+Docker image is currently available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+[source,sh,subs="attributes"]
+----
+docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it {docker-image}
+----
+
+endif::[]
+
+{es} is now configured to join the existing cluster.
+--
+
+===== Setting JVM heap size
+If you experience issues where the container where your first node is running
+exits when your second node starts, explicitly set values for the JVM heap size.
+To <<set-jvm-heap-size,manually configure the heap size>>, include the
+`ES_JAVA_OPTS` variable and set values for `-Xms` and `-Xmx` when starting each
+node. For example, the following command starts node `es02` and sets the
+minimum and maximum JVM heap size to 1 GB:
+
+[source,sh,subs="attributes"]
+----
+docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es02 -p 9201:9200 --net elastic -it {docker-image}
+----
+
+===== Next steps
+
+You now have a test {es} environment set up. Before you start
+serious development or go into production with {es}, review the
+<<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
+
+[[elasticsearch-security-certificates]]
+include::security-files-reference.asciidoc[]
+
+[[docker-compose-file]]
+==== Start a multi-node cluster with Docker Compose
+
+To get a multi-node {es} cluster and {kib} up and running in Docker with
+security enabled, you can use Docker Compose.
+
+This configuration provides a simple method of starting a secured cluster that
+you can use for development before building a distributed deployment with
+multiple hosts.
+
+===== Prerequisites
+
+Install the appropriate https://docs.docker.com/get-docker/[Docker application]
+for your operating system.
+
+If you're running on Linux, install https://docs.docker.com/compose/install/[Docker Compose].
+
+[NOTE]
+====
+Make sure that Docker is allotted at least 4GB of memory. In Docker Desktop,
+you configure resource usage on the Advanced tab in Preferences (macOS) or
+Settings (Windows).
+====
+
+===== Prepare the environment
+
+Create the following configuration files in a new, empty directory. These files
+are also available from the
+https://github.com/elastic/elasticsearch/tree/master/docs/reference/setup/install/docker[elasticsearch]
+repository on GitHub.
+
+--
+ifeval::["{release-state}"=="unreleased"]
+NOTE: Version {version} of {es} has not been released,
+so the sample Docker Compose and configuration files are not yet available for
+this version. See the {stack-gs-current}/get-started-docker.html[current version]
+for the latest sample files.
+endif::[]
+--
+
+--
+ifeval::["{release-state}"!="unreleased"]
+
+[discrete]
+[[docker-env-file]]
+===== `.env`
+
+The `.env` file sets environment variables that are used when you run the
+`docker-compose.yml` configuration file. Ensure that you specify a strong
+password for the `elastic` and `kibana_system` users with the
+`ELASTIC_PASSWORD` and `KIBANA_PASSWORD` variables. These variable are
+referenced by the `docker-compose.yml` file.
+
+IMPORTANT: Your passwords must be alphanumeric, and cannot contain special
+characters such as `!` or `@`. The `bash` script included in the
+`docker-compose.yml` file only operates on alphanumeric characters.
+
+["source","txt",subs="attributes"]
+----
+include::docker/.env[]
+----
+
+[discrete]
+[[docker-file]]
+===== `docker-compose.yml`
+
+This `docker-compose.yml` file creates a three-node secure {es} cluster with authentication and network encryption enabled, and a {kib} instance securely connected to it.
+
+.Exposing ports
+****
+This configuration exposes port `9200` on all network interfaces. Because
+of how Docker handles ports, a port that isn't bound to `localhost` leaves your
+{es} cluster publicly accessible, potentially ignoring any firewall settings.
+If you don't want to expose port `9200` to external hosts, set the value for
+`ES_PORT` in the `.env` file to something like `127.0.0.1:9200`. {es} will
+then only be accessible from the host machine itself.
+****
+
+[source,yaml,subs="attributes"]
+----
+include::docker/docker-compose.yml[]
+----
+
+endif::[]
+--
+
+===== Start your cluster with security enabled and configured
+
+. Modify the `.env` file and enter strong password values for both the
+`ELASTIC_PASSWORD` and `KIBANA_PASSWORD` variables.
++
+NOTE: You must use the `ELASTIC_PASSWORD` value for further interactions with
+the cluster. The `KIBANA_PASSWORD` value is only used internally when
+configuring {kib}.
+
+. Create and start the three-node {es} cluster and {kib} instance:
++
+["source","sh"]
+----
+docker-compose up -d
+----
+
+. When the deployment has started, open a browser and navigate to http://localhost:5601[http://localhost:5601] to
+access {kib}, where you can load sample data and interact with your cluster.
+
+===== Stop and remove the deployment
+To stop the cluster, run `docker-compose down`. The data in the Docker volumes
+is preserved and loaded when you restart the cluster with `docker-compose up`.
+
+--
+["source","sh"]
+----
+docker-compose down
+----
+--
+
+To **delete** the network, containers, and volumes when you stop the cluster,
+specify the `-v` option:
+
+["source","sh"]
+----
+docker-compose down -v
+----
+
+===== Next steps
+
+You now have a test {es} environment set up. Before you start
+serious development or go into production with {es}, review the
+<<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
 
 [[docker-prod-prerequisites]]
 ==== Using the Docker images in production
@@ -143,12 +349,12 @@ The following requirements and recommendations apply when running {es} in Docker
 
 The `vm.max_map_count` kernel setting must be set to at least `262144` for production use.
 
-How you set `vm.max_map_count` depends on your platform:
+How you set `vm.max_map_count` depends on your platform.
 
-* Linux
-+
---
-The `vm.max_map_count` setting should be set permanently in `/etc/sysctl.conf`:
+====== Linux
+
+To view the current value for the `vm.max_map_count` setting, run:
+
 [source,sh]
 --------------------------------------------
 grep vm.max_map_count /etc/sysctl.conf
@@ -161,11 +367,12 @@ To apply the setting on a live system, run:
 --------------------------------------------
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
---
 
-* macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
-+
---
+To permanently change the value for the `vm.max_map_count` setting, update the
+value in `/etc/sysctl.conf`.
+
+====== macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
+
 The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 
 . From the command line, run:
@@ -175,7 +382,7 @@ The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 --------------------------------------------
 
-. Press enter and use`sysctl` to configure `vm.max_map_count`:
+. Press enter and use `sysctl` to configure `vm.max_map_count`:
 +
 [source,sh]
 --------------------------------------------
@@ -183,11 +390,9 @@ sysctl -w vm.max_map_count=262144
 --------------------------------------------
 
 . To exit the `screen` session, type `Ctrl a d`.
---
 
-* Windows and macOS with https://www.docker.com/products/docker-desktop[Docker Desktop]
-+
---
+====== Windows and macOS with https://www.docker.com/products/docker-desktop[Docker Desktop]
+
 The `vm.max_map_count` setting must be set via docker-machine:
 
 [source,sh]
@@ -195,11 +400,9 @@ The `vm.max_map_count` setting must be set via docker-machine:
 docker-machine ssh
 sudo sysctl -w vm.max_map_count=262144
 --------------------------------------------
---
 
-* Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
-+
---
+====== Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
+
 The `vm.max_map_count` setting must be set in the docker-desktop container:
 
 [source,sh]
@@ -207,7 +410,7 @@ The `vm.max_map_count` setting must be set in the docker-desktop container:
 wsl -d docker-desktop
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
---
+
 
 ===== Configuration files must be readable by the `elasticsearch` user
 
@@ -232,11 +435,17 @@ chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
 
-You can also run an {es} container using both a custom UID and GID. Unless you
-bind-mount each of the `config`, `data` and `logs` directories, you must pass
-the command line option `--group-add 0` to `docker run`. This ensures that the user
-under which {es} is running is also a member of the `root` (GID 0) group inside the
-container.
+You can also run an {es} container using both a custom UID and GID. You
+must ensure that file permissions will not prevent {es} from executing. You
+can use one of two options:
+
+* Bind-mount the `config`, `data` and `logs`
+  directories. If you intend to install plugins and prefer not to
+  <<_c_customized_image, create a custom Docker image>>, you must also
+  bind-mount the `plugins` directory.
+* Pass the `--group-add 0` command line option to `docker run`. This
+  ensures that the user under which {es} is running is also a member of the
+  `root` (GID 0) group inside the container.
 
 ===== Increase ulimits for nofile and nproc
 
@@ -249,7 +458,7 @@ To check the Docker daemon defaults for ulimits, run:
 
 [source,sh]
 --------------------------------------------
-docker run --rm centos:8 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
+docker run --rm docker.elastic.co/elasticsearch/elasticsearch:{version} /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
 --------------------------------------------
 
 If needed, adjust them in the Daemon or override them per container.
@@ -271,7 +480,10 @@ https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimits[Do
 or explicitly set for the container as shown in the  <<docker-compose-file, sample compose file>>.
 When using `docker run`, you can specify:
 
-  -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
+[source,sh]
+----
+-e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
+----
 
 ===== Randomize published ports
 
@@ -295,9 +507,9 @@ includes your desired <<set-jvm-heap-size,heap size>> settings.
 For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
 environment variable. For example, to use 16GB, specify `-e
 ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
-overrides all other JVM options. The `ES_JAVA_OPTS` variable overrides all other
-JVM options. We do not recommend using `ES_JAVA_OPTS` in production. The
-`docker-compose.yml` file above sets the heap size to 512MB.
+overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in
+production. The `docker-compose.yml` file above sets the heap size to 512MB.
+
 
 ===== Pin deployments to a specific image version
 
@@ -390,28 +602,68 @@ For example, to bind-mount `custom_elasticsearch.yml` with `docker run`, specify
 -v full_path_to/custom_elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 --------------------------------------------
 
+If you bind-mount a custom `elasticsearch.yml` file, ensure it includes the
+`network.host: 0.0.0.0` setting. This setting ensures the node is reachable for
+HTTP and transport traffic, provided its ports are exposed. The Docker image's
+built-in `elasticsearch.yml` file includes this setting by default.
+
 IMPORTANT: The container **runs {es} as user `elasticsearch` using
 uid:gid `1000:0`**. Bind mounted host directories and files must be accessible by this user,
 and the data and log directories must be writable by this user.
 
 [[docker-keystore-bind-mount]]
-===== Mounting an {es} keystore
+===== Create an encrypted {es} keystore
 
-By default, {es} will auto-generate a keystore file for secure settings. This
-file is obfuscated but not encrypted. If you want to encrypt your
-<<secure-settings,secure settings>> with a password, you must use the
-`elasticsearch-keystore` utility to create a password-protected keystore and
-bind-mount it to the container as
-`/usr/share/elasticsearch/config/elasticsearch.keystore`. In order to provide
-the Docker container with the password at startup, set the Docker environment
-value `KEYSTORE_PASSWORD` to the value of your password. For example, a `docker
-run` command might have the following options:
+By default, {es} will auto-generate a keystore file for <<secure-settings,secure
+settings>>. This file is obfuscated but not encrypted.
 
-[source, sh]
---------------------------------------------
--v full_path_to/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore
--E KEYSTORE_PASSWORD=mypassword
---------------------------------------------
+To encrypt your secure settings with a password and have them persist outside
+the container, use a `docker run` command to manually create the keystore
+instead. The command must:
+
+* Bind-mount the `config` directory. The command will create an
+  `elasticsearch.keystore` file in this directory. To avoid errors, do
+  not directly bind-mount the `elasticsearch.keystore` file.
+* Use the `elasticsearch-keystore` tool with the `create -p` option. You'll be
+  prompted to enter a password for the keystore.
+
+ifeval::["{release-state}"!="unreleased"]
+For example:
+
+[source,sh,subs="attributes"]
+----
+docker run -it --rm \
+-v full_path_to/config:/usr/share/elasticsearch/config \
+docker.elastic.co/elasticsearch/elasticsearch:{version} \
+bin/elasticsearch-keystore create -p
+----
+
+You can also use a `docker run` command to add or update secure settings in the
+keystore. You'll be prompted to enter the setting values. If the keystore is
+encrypted, you'll also be prompted to enter the keystore password.
+
+[source,sh,subs="attributes"]
+----
+docker run -it --rm \
+-v full_path_to/config:/usr/share/elasticsearch/config \
+docker.elastic.co/elasticsearch/elasticsearch:{version} \
+bin/elasticsearch-keystore \
+add my.secure.setting \
+my.other.secure.setting
+----
+endif::[]
+
+If you've already created the keystore and don't need to update it, you can
+bind-mount the `elasticsearch.keystore` file directly. You can use the
+`KEYSTORE_PASSWORD` environment variable to provide the keystore password to the
+container at startup. For example, a `docker run` command might have the
+following options:
+
+[source,sh]
+----
+-v full_path_to/config/elasticsearch.keystore:/usr/share/elasticsearch/config/elasticsearch.keystore
+-e KEYSTORE_PASSWORD=mypassword
+----
 
 [[_c_customized_image]]
 ===== Using custom Docker images
@@ -441,23 +693,47 @@ You must explicitly accept them either by:
 See {plugins}/_other_command_line_parameters.html[Plugin management]
 for more information.
 
-The {es} Docker image only includes what is required to run {es}, and does
-not provide a package manager. It is possible to add additional utilities
-with a multi-phase Docker build. You must also copy any dependencies, for
-example shared libraries.
+[discrete]
+[[troubleshoot-docker-errors]]
+==== Troubleshoot Docker errors for {es}
 
-[source,sh,subs="attributes"]
---------------------------------------------
-FROM centos:8 AS builder
-yum install -y some-package
+Here’s how to resolve common errors when running {es} with Docker.
 
-FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
-COPY --from=builder /usr/bin/some-utility /usr/bin/
-COPY --from=builder /usr/lib/some-lib.so /usr/lib/
---------------------------------------------
+===== elasticsearch.keystore is a directory
 
-You should use `centos:8` as a base in order to avoid incompatibilities.
-Use http://man7.org/linux/man-pages/man1/ldd.1.html[`ldd`] to list the
-shared libraries required by a utility.
+[source,txt]
+----
+Exception in thread "main" org.elasticsearch.bootstrap.BootstrapException: java.io.IOException: Is a directory: SimpleFSIndexInput(path="/usr/share/elasticsearch/config/elasticsearch.keystore") Likely root cause: java.io.IOException: Is a directory
+----
 
-include::next-steps.asciidoc[]
+A <<docker-keystore-bind-mount,keystore-related>> `docker run` command attempted
+to directly bind-mount an `elasticsearch.keystore` file that doesn't exist. If
+you use the `-v` or `--volume` flag to mount a file that doesn't exist, Docker
+instead creates a directory with the same name.
+
+To resolve this error:
+
+. Delete the `elasticsearch.keystore` directory in the `config` directory.
+. Update the `-v` or `--volume` flag to point to the `config` directory path
+  rather than the keystore file's path. For an example, see
+  <<docker-keystore-bind-mount>>.
+. Retry the command.
+
+===== elasticsearch.keystore: Device or resource busy
+
+[source,txt]
+----
+Exception in thread "main" java.nio.file.FileSystemException: /usr/share/elasticsearch/config/elasticsearch.keystore.tmp -> /usr/share/elasticsearch/config/elasticsearch.keystore: Device or resource busy
+----
+
+A `docker run` command attempted to <<docker-keystore-bind-mount,update the
+keystore>> while directly bind-mounting the `elasticsearch.keystore` file. To
+update the keystore, the container requires access to other files in the
+`config` directory, such as `keystore.tmp`.
+
+To resolve this error:
+
+. Update the `-v` or `--volume` flag to point to the `config` directory
+  path rather than the keystore file's path. For an example, see
+  <<docker-keystore-bind-mount>>.
+. Retry the command.

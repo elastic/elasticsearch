@@ -25,7 +25,7 @@ final class SizeEstimatorHelper {
 
     static long sizeOfString(int stringLength) {
         // Technically, each value counted in a String.length is 2 bytes. But, this is how `RamUsageEstimator` calculates it
-        return alignObjectSize(STRING_SIZE + (long)NUM_BYTES_ARRAY_HEADER + (long)(Character.BYTES) * stringLength);
+        return alignObjectSize(STRING_SIZE + (long) NUM_BYTES_ARRAY_HEADER + (long) (Character.BYTES) * stringLength);
     }
 
     static long sizeOfStringCollection(int[] stringSizes) {

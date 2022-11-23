@@ -126,6 +126,20 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     }
 
     /**
+     * Helper method for creating NodesInfoRequests with desired metrics
+     * @param metrics the metrics to include in the request
+     * @return
+     */
+    public static NodesInfoRequest requestWithMetrics(Metric... metrics) {
+        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+        nodesInfoRequest.clear();
+        for (var metric : metrics) {
+            nodesInfoRequest.addMetric(metric.metricName());
+        }
+        return nodesInfoRequest;
+    }
+
+    /**
      * An enumeration of the "core" sections of metrics that may be requested
      * from the nodes information endpoint. Eventually this list list will be
      * pluggable.
@@ -143,7 +157,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         AGGREGATIONS("aggregations"),
         INDICES("indices");
 
-        private String metricName;
+        private final String metricName;
 
         Metric(String name) {
             this.metricName = name;
@@ -151,10 +165,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
         public String metricName() {
             return this.metricName;
-        }
-
-        boolean containedIn(Set<String> metricNames) {
-            return metricNames.contains(this.metricName());
         }
 
         public static Set<String> allMetrics() {

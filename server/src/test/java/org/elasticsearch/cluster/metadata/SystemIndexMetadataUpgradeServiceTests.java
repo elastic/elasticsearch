@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -29,9 +28,11 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
     private static final String MAPPINGS = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
     private static final String SYSTEM_INDEX_NAME = ".myindex-1";
+    private static final String SYSTEM_ALIAS_NAME = ".myindex-alias";
     private static final SystemIndexDescriptor DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(".myindex-*")
         .setPrimaryIndex(SYSTEM_INDEX_NAME)
+        .setAliasName(SYSTEM_ALIAS_NAME)
         .setSettings(getSettingsBuilder().build())
         .setMappings(MAPPINGS)
         .setVersionMetaKey("version")
@@ -44,52 +45,194 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
     public void setUpTest() {
         // set up a system index upgrade service
         this.service = new SystemIndexMetadataUpgradeService(
-            new SystemIndices(
-                Map.of("MyIndex", new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
+            new SystemIndices(List.of(new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
             mock(ClusterService.class)
-            );
+        );
     }
 
     /**
      * When we upgrade Elasticsearch versions, existing indices may be newly
-     * defined as system indices. If such indices are set to "hidden," we need
-     * to remove that setting.
+     * defined as system indices. If such indices are set without "hidden," we need
+     * to update that setting.
      */
-    public void testUpgradeHiddenIndexToSystemIndex() throws Exception {
+    public void testUpgradeVisibleIndexToSystemIndex() throws Exception {
         // create an initial cluster state with a hidden index that matches the system index descriptor
-        IndexMetadata.Builder hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+        IndexMetadata hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
             .system(false)
-            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false))
+            .build();
 
-        assertSystemUpgradeRemovesHiddenSetting(hiddenIndexMetadata);
+        assertSystemUpgradeAppliesHiddenSetting(hiddenIndexMetadata);
     }
 
     /**
-     * If a system index erroneously is set to hidden, we should remedy that situation.
+     * If a system index erroneously is set to visible, we should remedy that situation.
      */
     public void testHiddenSettingRemovedFromSystemIndices() throws Exception {
         // create an initial cluster state with a hidden index that matches the system index descriptor
-        IndexMetadata.Builder hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+        IndexMetadata hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
             .system(true)
-            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false))
+            .build();
 
-        assertSystemUpgradeRemovesHiddenSetting(hiddenIndexMetadata);
+        assertSystemUpgradeAppliesHiddenSetting(hiddenIndexMetadata);
     }
 
-    private void assertSystemUpgradeRemovesHiddenSetting(IndexMetadata.Builder hiddenIndexMetadata) throws Exception {
+    public void testUpgradeIndexWithVisibleAlias() throws Exception {
+        IndexMetadata visibleAliasMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(false)
+            .settings(getSettingsBuilder())
+            .putAlias(AliasMetadata.builder(SYSTEM_ALIAS_NAME).isHidden(false))
+            .build();
+
+        assertSystemUpgradeHidesAlias(visibleAliasMetadata);
+    }
+
+    public void testSystemAliasesBecomeHidden() throws Exception {
+        IndexMetadata visibleAliasMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(true)
+            .settings(getSettingsBuilder())
+            .putAlias(AliasMetadata.builder(SYSTEM_ALIAS_NAME).isHidden(false))
+            .build();
+
+        assertSystemUpgradeHidesAlias(visibleAliasMetadata);
+    }
+
+    public void testHasVisibleAliases() {
+        IndexMetadata nonSystemHiddenAlias = IndexMetadata.builder("user-index")
+            .system(false)
+            .settings(getSettingsBuilder().put(SystemIndexDescriptor.DEFAULT_SETTINGS))
+            .putAlias(AliasMetadata.builder("user-alias").isHidden(true).build())
+            .build();
+        IndexMetadata nonSystemVisibleAlias = IndexMetadata.builder("user-index")
+            .system(false)
+            .settings(getSettingsBuilder().put(SystemIndexDescriptor.DEFAULT_SETTINGS))
+            .putAlias(AliasMetadata.builder("user-alias").isHidden(false).build())
+            .build();
+        IndexMetadata systemHiddenAlias = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(true)
+            .settings(getSettingsBuilder().put(SystemIndexDescriptor.DEFAULT_SETTINGS))
+            .putAlias(AliasMetadata.builder(SYSTEM_ALIAS_NAME).isHidden(true).build())
+            .build();
+        IndexMetadata systemVisibleAlias = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(true)
+            .settings(getSettingsBuilder().put(SystemIndexDescriptor.DEFAULT_SETTINGS))
+            .putAlias(AliasMetadata.builder(SYSTEM_ALIAS_NAME).isHidden(false).build())
+            .build();
+
+        // non-system indices should not require update
+        assertThat(service.hasVisibleAlias(nonSystemHiddenAlias), equalTo(false));
+        assertThat(service.requiresUpdate(nonSystemHiddenAlias), equalTo(false));
+        assertThat(service.hasVisibleAlias(nonSystemVisibleAlias), equalTo(true));
+        assertThat(service.requiresUpdate(nonSystemVisibleAlias), equalTo(false));
+
+        // hidden system alias should not require update
+        assertThat(service.hasVisibleAlias(systemHiddenAlias), equalTo(false));
+        assertThat(service.requiresUpdate(systemHiddenAlias), equalTo(false));
+
+        // visible system alias should require update
+        assertThat(service.hasVisibleAlias(systemVisibleAlias), equalTo(true));
+        assertThat(service.requiresUpdate(systemVisibleAlias), equalTo(true));
+    }
+
+    public void testShouldBeSystem() {
+        IndexMetadata shouldNotBeSystem = IndexMetadata.builder("user-index")
+            .system(true)
+            .settings(getSettingsBuilder().put(SystemIndexDescriptor.DEFAULT_SETTINGS))
+            .build();
+        IndexMetadata shouldBeSystem = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(false)
+            .settings(getSettingsBuilder().put(SystemIndexDescriptor.DEFAULT_SETTINGS))
+            .build();
+        IndexMetadata correctlySystem = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(true)
+            .settings(getSettingsBuilder().put(SystemIndexDescriptor.DEFAULT_SETTINGS))
+            .build();
+        IndexMetadata correctlyNonSystem = IndexMetadata.builder("user-index")
+            .system(false)
+            .settings(getSettingsBuilder().put(SystemIndexDescriptor.DEFAULT_SETTINGS))
+            .build();
+
+        // indices that should be toggled from system to non-system
+        assertThat(service.shouldBeSystem(shouldNotBeSystem), equalTo(false));
+        assertThat(service.requiresUpdate(shouldNotBeSystem), equalTo(true));
+
+        assertThat(service.shouldBeSystem(shouldBeSystem), equalTo(true));
+        assertThat(service.requiresUpdate(shouldBeSystem), equalTo(true));
+
+        // indices whose system flag needs no update
+        assertThat(service.shouldBeSystem(correctlySystem), equalTo(true));
+        assertThat(service.requiresUpdate(correctlySystem), equalTo(false));
+
+        assertThat(service.shouldBeSystem(correctlyNonSystem), equalTo(false));
+        assertThat(service.requiresUpdate(correctlyNonSystem), equalTo(false));
+    }
+
+    public void testIsVisible() {
+        IndexMetadata nonSystemHiddenIndex = IndexMetadata.builder("user-index")
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, "true"))
+            .build();
+        IndexMetadata nonSystemVisibleIndex = IndexMetadata.builder("user-index")
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, "false"))
+            .build();
+        IndexMetadata systemHiddenIndex = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(true)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, "true"))
+            .build();
+        IndexMetadata systemVisibleIndex = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(true)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, "false"))
+            .build();
+
+        // non-system indices should not require update
+        assertThat(service.isVisible(nonSystemHiddenIndex), equalTo(false));
+        assertThat(service.requiresUpdate(nonSystemHiddenIndex), equalTo(false));
+        assertThat(service.isVisible(nonSystemVisibleIndex), equalTo(true));
+        assertThat(service.requiresUpdate(nonSystemVisibleIndex), equalTo(false));
+
+        // hidden system index should not require update
+        assertThat(service.isVisible(systemHiddenIndex), equalTo(false));
+        assertThat(service.requiresUpdate(systemHiddenIndex), equalTo(false));
+
+        // visible system index should require update
+        assertThat(service.isVisible(systemVisibleIndex), equalTo(true));
+        assertThat(service.requiresUpdate(systemVisibleIndex), equalTo(true));
+    }
+
+    private void assertSystemUpgradeAppliesHiddenSetting(IndexMetadata hiddenIndexMetadata) throws Exception {
+        assertTrue("Metadata should require update but does not", service.requiresUpdate(hiddenIndexMetadata));
         Metadata.Builder clusterMetadata = new Metadata.Builder();
-        clusterMetadata.put(hiddenIndexMetadata);
+        clusterMetadata.put(IndexMetadata.builder(hiddenIndexMetadata));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
             .metadata(clusterMetadata.build())
-            .customs(ImmutableOpenMap.of()).build();
+            .customs(Map.of())
+            .build();
 
         // Get a metadata upgrade task and execute it on the initial cluster state
         ClusterState newState = service.getTask().execute(clusterState);
 
         IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));
-        assertThat(result.getSettings().get(IndexMetadata.SETTING_INDEX_HIDDEN), equalTo("false"));
+        assertThat(result.isHidden(), equalTo(true));
+    }
+
+    private void assertSystemUpgradeHidesAlias(IndexMetadata visibleAliasMetadata) throws Exception {
+        assertTrue("Metadata should require update but does not", service.requiresUpdate(visibleAliasMetadata));
+        Metadata.Builder clusterMetadata = new Metadata.Builder();
+        clusterMetadata.put(IndexMetadata.builder(visibleAliasMetadata));
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
+            .metadata(clusterMetadata.build())
+            .customs(Map.of())
+            .build();
+
+        // Get a metadata upgrade task and execute it on the initial cluster state
+        ClusterState newState = service.getTask().execute(clusterState);
+
+        IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
+        assertThat(result.isSystem(), equalTo(true));
+        assertThat(result.getAliases().values().stream().allMatch(AliasMetadata::isHidden), equalTo(true));
     }
 
     private static Settings.Builder getSettingsBuilder() {

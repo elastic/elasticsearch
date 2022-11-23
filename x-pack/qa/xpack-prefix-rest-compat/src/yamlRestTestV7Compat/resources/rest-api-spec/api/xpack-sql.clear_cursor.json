@@ -1,0 +1,28 @@
+{
+  "xpack-sql.clear_cursor":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/clear-sql-cursor-api.html",
+      "description":"Clears the SQL cursor"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
+      "content_type": ["application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/sql/close",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"Specify the cursor value in the `cursor` element to clean the cursor.",
+      "required":true
+    }
+  }
+}

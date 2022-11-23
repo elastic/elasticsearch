@@ -79,7 +79,7 @@ If you use an index alias for time series data, you can use
 date. For example, you can create an alias that points to an index named
 `<my-index-{now/d}-000001>`. If you create the index on May 6, 2099, the index's
 name is `my-index-2099.05.06-000001`. If you roll over the alias on May 7, 2099,
-the new index's name is `my-index-2099.05.07-000002`. For an example, see 
+the new index's name is `my-index-2099.05.07-000002`. For an example, see
 <<roll-over-index-alias-with-write-index>>.
 ****
 
@@ -111,7 +111,7 @@ include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 
 `dry_run`::
 (Optional, Boolean)
-If `true`, checks whether the current index matches one or more specified
+If `true`, checks whether the current index satisfies the specified
 `conditions` but does not perform a rollover. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
@@ -132,10 +132,14 @@ include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 `conditions`::
 (Optional, object)
 Conditions for the rollover. If specified, {es} only performs the rollover if
-the current index meets one or more of these conditions. If this parameter is
+the current index satisfies these conditions. If this parameter is
 not specified, {es} performs the rollover unconditionally.
 +
-IMPORTANT: To trigger a rollover, the current index must meet these conditions
+If conditions are specified, at least one of them must be a max_* condition.
+The index will rollover if any max_* condition is satisfied and all
+min_* conditions are satisfied.
++
+IMPORTANT: To trigger a rollover, the current index must satisfy these conditions
 at the time of the request. {es} does not monitor the index after the API
 response. To automate rollover, use {ilm-init}'s <<ilm-rollover,`rollover`>>
 instead.
@@ -156,7 +160,7 @@ Data streams do not support this parameter.
 
 [role="child_attributes"]
 [[rollover-index-api-response-body]]
-==== {api-request-body-title}
+==== {api-response-body-title}
 
 `acknowledged`::
 (Boolean)
@@ -197,7 +201,7 @@ conditions were specified, this is an empty object.
 ====
 `<condition>`::
 (Boolean) The key is each condition. The value is its result. If `true`, the
-index met the condition at rollover.
+index met the condition.
 ====
 
 [[rollover-index-api-example]]
@@ -233,7 +237,8 @@ POST my-data-stream/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_primary_shard_size": "50gb"
+    "max_primary_shard_size": "50gb",
+    "max_primary_shard_docs": "2000"
   }
 }
 ----
@@ -255,7 +260,8 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_primary_shard_size: 50gb]": false
+    "[max_primary_shard_size: 50gb]": false,
+    "[max_primary_shard_docs: 2000]": false
   }
 }
 ----
@@ -302,7 +308,8 @@ POST my-alias/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_primary_shard_size": "50gb"
+    "max_primary_shard_size": "50gb",
+    "max_primary_shard_docs": "2000"
   }
 }
 ----
@@ -324,7 +331,8 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_primary_shard_size: 50gb]": false
+    "[max_primary_shard_size: 50gb]": false,
+    "[max_primary_shard_docs: 2000]": false
   }
 }
 ----
@@ -371,7 +379,8 @@ POST my-write-alias/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_primary_shard_size": "50gb"
+    "max_primary_shard_size": "50gb",
+    "max_primary_shard_docs": "2000"
   }
 }
 ----
@@ -393,7 +402,8 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_primary_shard_size: 50gb]": false
+    "[max_primary_shard_size: 50gb]": false,
+    "[max_primary_shard_docs: 2000]": false
   }
 }
 ----

@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
 
@@ -40,32 +42,32 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
 
     @After
-    public void cleanup(){
+    public void cleanup() {
         cleanUp();
     }
 
     public void testRealtime() throws Exception {
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-        aggs.addAggregator(AggregationBuilders.dateHistogram("time").field("time")
-            .fixedInterval(new DateHistogramInterval("1000ms"))
-            .subAggregation(AggregationBuilders.max("time").field("time")));
-        testDfWithAggs(
-            aggs,
-            new Detector.Builder("count", null),
-            "datafeed-with-aggs-rt-job",
-            "datafeed-with-aggs-rt-data"
+        aggs.addAggregator(
+            AggregationBuilders.dateHistogram("time")
+                .field("time")
+                .fixedInterval(new DateHistogramInterval("1000ms"))
+                .subAggregation(AggregationBuilders.max("time").field("time"))
         );
+        testDfWithAggs(aggs, new Detector.Builder("count", null), "datafeed-with-aggs-rt-job", "datafeed-with-aggs-rt-data");
     }
 
     public void testRealtimeComposite() throws Exception {
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-        aggs.addAggregator(AggregationBuilders.composite("buckets",
-            Arrays.asList(
-                new DateHistogramValuesSourceBuilder("time").field("time").fixedInterval(new DateHistogramInterval("1000ms")),
-                new TermsValuesSourceBuilder("field").field("field")
-            ))
-            .size(1000)
-            .subAggregation(AggregationBuilders.max("time").field("time")));
+        aggs.addAggregator(
+            AggregationBuilders.composite(
+                "buckets",
+                Arrays.asList(
+                    new DateHistogramValuesSourceBuilder("time").field("time").fixedInterval(new DateHistogramInterval("1000ms")),
+                    new TermsValuesSourceBuilder("field").field("field")
+                )
+            ).size(1000).subAggregation(AggregationBuilders.max("time").field("time"))
+        );
         testDfWithAggs(
             aggs,
             new Detector.Builder("count", null).setByFieldName("field"),
@@ -107,9 +109,7 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         openJob(jobId);
 
         // Now let's index the data
-        client().admin().indices().prepareCreate(dfId)
-            .setMapping("time", "type=date", "field", "type=keyword")
-            .get();
+        client().admin().indices().prepareCreate(dfId).setMapping("time", "type=date", "field", "type=keyword").get();
 
         // Index a doc per second from a minute ago to a minute later
         long now = System.currentTimeMillis();
@@ -123,9 +123,7 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
             bulkRequestBuilder.add(indexRequest);
             curTime += TimeValue.timeValueSeconds(1).millis();
         }
-        BulkResponse bulkResponse = bulkRequestBuilder
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         if (bulkResponse.hasFailures()) {
             fail("Failed to index docs: " + bulkResponse.buildFailureMessage());
         }
@@ -159,9 +157,30 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         getBucketsRequest.setExcludeInterim(true);
         List<Bucket> buckets = getBuckets(getBucketsRequest);
         for (Bucket bucket : buckets) {
-            if (bucket.getEventCount() != 2) {
-                fail("Bucket [" + bucket.getTimestamp().getTime() + "] has [" + bucket.getEventCount() + "] when 2 were expected");
-            }
+            assertEquals(
+                "Bucket [" + bucket.getTimestamp().getTime() + "] has [" + bucket.getEventCount() + "] when 2 were expected",
+                2L,
+                bucket.getEventCount()
+            );
+            // Confirm that it's possible to search for the same buckets by @timestamp - proves that @timestamp works as a field alias
+            assertThat(
+                client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+                    .setQuery(
+                        QueryBuilders.boolQuery()
+                            .filter(QueryBuilders.termQuery("job_id", jobId))
+                            .filter(QueryBuilders.termQuery("result_type", "bucket"))
+                            .filter(
+                                QueryBuilders.rangeQuery("@timestamp")
+                                    .gte(bucket.getTimestamp().getTime())
+                                    .lte(bucket.getTimestamp().getTime())
+                            )
+                    )
+                    .setTrackTotalHits(true)
+                    .get()
+                    .getHits()
+                    .getTotalHits().value,
+                equalTo(1L)
+            );
         }
     }
 }

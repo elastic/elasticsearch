@@ -11,8 +11,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 
 public final class TriggerBuilders {
 
-    private TriggerBuilders() {
-    }
+    private TriggerBuilders() {}
 
     public static ScheduleTrigger.Builder schedule(Schedule schedule) {
         return ScheduleTrigger.builder(schedule);

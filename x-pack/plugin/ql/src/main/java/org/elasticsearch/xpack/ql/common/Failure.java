@@ -67,8 +67,13 @@ public class Failure {
         return failures.stream().map(f -> {
             Location l = f.node().source().source();
             return "line " + l.getLineNumber() + ":" + l.getColumnNumber() + ": " + f.message();
-        }).collect(Collectors.joining(StringUtils.NEW_LINE,
-                format("Found {} problem{}\n", failures.size(), failures.size() > 1 ? "s" : StringUtils.EMPTY),
-                StringUtils.EMPTY));
+        })
+            .collect(
+                Collectors.joining(
+                    StringUtils.NEW_LINE,
+                    format("Found {} problem{}\n", failures.size(), failures.size() > 1 ? "s" : StringUtils.EMPTY),
+                    StringUtils.EMPTY
+                )
+            );
     }
 }

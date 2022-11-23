@@ -11,10 +11,10 @@ package org.elasticsearch.common;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -38,8 +38,8 @@ public class ParsingException extends ElasticsearchException {
         int lineNumber = UNKNOWN_POSITION;
         int columnNumber = UNKNOWN_POSITION;
         if (contentLocation != null) {
-            lineNumber = contentLocation.lineNumber;
-            columnNumber = contentLocation.columnNumber;
+            lineNumber = contentLocation.lineNumber();
+            columnNumber = contentLocation.columnNumber();
         }
         this.columnNumber = columnNumber;
         this.lineNumber = lineNumber;
@@ -55,7 +55,7 @@ public class ParsingException extends ElasticsearchException {
         this.columnNumber = col;
     }
 
-    public ParsingException(StreamInput in) throws IOException{
+    public ParsingException(StreamInput in) throws IOException {
         super(in);
         lineNumber = in.readInt();
         columnNumber = in.readInt();

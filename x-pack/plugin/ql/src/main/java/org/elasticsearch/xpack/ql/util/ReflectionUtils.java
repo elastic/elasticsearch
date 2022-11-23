@@ -21,8 +21,11 @@ public class ReflectionUtils {
             if (type instanceof ParameterizedType) {
                 Type[] typeArguments = ((ParameterizedType) type).getActualTypeArguments();
                 if (typeArguments.length != 2 && typeArguments.length != 1) {
-                    throw new QlIllegalArgumentException("Unexpected number of type arguments {} for {}", Arrays.toString(typeArguments),
-                            c);
+                    throw new QlIllegalArgumentException(
+                        "Unexpected number of type arguments {} for {}",
+                        Arrays.toString(typeArguments),
+                        c
+                    );
                 }
 
                 Type tp = typeArguments[0];
@@ -49,8 +52,7 @@ public class ReflectionUtils {
         if (parentPackage > 0) {
             int grandParentPackage = className.substring(0, parentPackage).lastIndexOf(".");
             return (grandParentPackage > 0 ? className.substring(grandParentPackage + 1) : className.substring(parentPackage));
-        }
-        else {
+        } else {
             return className;
         }
     }

@@ -10,12 +10,14 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -103,24 +105,46 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
             context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
             return;
         }
-        // Need to find the first agg name in the buckets path to check its a
-        // multi bucket agg: aggs are split with '>' and can optionally have a
-        // metric name after them by using '.' so need to split on both to get
-        // just the agg name
-        final String firstAgg = bucketsPaths[0].split("[>\\.]")[0];
+        // find the first agg name in the buckets path to check its a multi bucket agg
+        List<AggregationPath.PathElement> path = AggregationPath.parse(bucketsPaths[0]).getPathElements();
+        int pathPos = 0;
+        AggregationPath.PathElement currentAgg = path.get(pathPos++);
+        final String aggName = currentAgg.name();
         Optional<AggregationBuilder> aggBuilder = context.getSiblingAggregations()
             .stream()
-            .filter(builder -> builder.getName().equals(firstAgg))
+            .filter(builder -> builder.getName().equals(aggName))
             .findAny();
         if (aggBuilder.isEmpty()) {
             context.addBucketPathValidationError("aggregation does not exist for aggregation [" + name + "]: " + bucketsPaths[0]);
             return;
         }
+
+        // Dig through the aggregation tree to find the first aggregation specified by the path.
+        // The path may have many single bucket aggs (with sub-aggs) or many multi-bucket aggs specified by bucket keys
+        while (aggBuilder.isPresent()
+            && pathPos < path.size()
+            && ((aggBuilder.get().bucketCardinality() == AggregationBuilder.BucketCardinality.MANY
+                && AggregationPath.pathElementContainsBucketKey(currentAgg))
+                || (aggBuilder.get().bucketCardinality() == AggregationBuilder.BucketCardinality.ONE
+                    && aggBuilder.get().getSubAggregations().isEmpty() == false))) {
+            currentAgg = path.get(pathPos++);
+            final String subAggName = currentAgg.name();
+            aggBuilder = aggBuilder.get().getSubAggregations().stream().filter(b -> b.getName().equals(subAggName)).findAny();
+        }
+        if (aggBuilder.isEmpty()) {
+            context.addBucketPathValidationError(
+                "aggregation does not exist for aggregation ["
+                    + name
+                    + "]: "
+                    + AggregationPath.pathElementsAsStringList(path.subList(0, pathPos))
+            );
+            return;
+        }
         if (aggBuilder.get().bucketCardinality() != AggregationBuilder.BucketCardinality.MANY) {
             context.addValidationError(
-                "The first aggregation in "
+                "Unable to find unqualified multi-bucket aggregation in "
                     + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                    + " must be a multi-bucket aggregation for aggregation ["
+                    + ". Path must include a multi-bucket aggregation for aggregation ["
                     + name
                     + "] found :"
                     + aggBuilder.get().getClass().getName()

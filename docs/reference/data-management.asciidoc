@@ -30,6 +30,7 @@ for your older indices while reducing operating costs and maintaining search per
 * Perform <<async-search-intro, asynchronous searches>> of data stored on less-performant hardware.
 --
 
+include::ilm/index.asciidoc[]
+
 include::datatiers.asciidoc[]
 
-include::indices/index-mgmt.asciidoc[]

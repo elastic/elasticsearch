@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesActi
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -37,32 +37,33 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return "admin:\n" +
-                "  cluster: [ all ] \n" +
-                "  indices:\n" +
-                "    - names: '*'\n" +
-                "      privileges: [ all ]" +
-                "\n" +
-                "user:\n" +
-                "  indices:\n" +
-                "    - names: 'test_*'\n" +
-                "      privileges: [ all ]";
+        return """
+            admin:
+              cluster: [ all ]\s
+              indices:
+                - names: '*'
+                  privileges: [ all ]
+            user:
+              indices:
+                - names: 'test_*'
+                  privileges: [ all ]""";
     }
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed =
-            new String(getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
-        return "admin:" + usersPasswdHashed + "\n" +
-            "client:" + usersPasswdHashed + "\n" +
-            "user:" + usersPasswdHashed + "\n";
+        final String usersPasswdHashed = new String(
+            getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
+        return "admin:" + usersPasswdHashed + "\n" + "client:" + usersPasswdHashed + "\n" + "user:" + usersPasswdHashed + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
-        return "admin:admin\n" +
-                "transport_client:client\n" +
-                "user:user\n";
+        return """
+            admin:admin
+            transport_client:client
+            user:user
+            """;
     }
 
     @Override
@@ -80,29 +81,42 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
         // first lets try with "admin"... all should work
 
-        AcknowledgedResponse putResponse = client
-            .filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword())))
-            .admin().indices().preparePutTemplate("template1")
-            .setPatterns(Collections.singletonList("test_*"))
-            .get();
+        AcknowledgedResponse putResponse = client.filterWithHeader(
+            Collections.singletonMap(
+                UsernamePasswordToken.BASIC_AUTH_HEADER,
+                basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword())
+            )
+        ).admin().indices().preparePutTemplate("template1").setPatterns(Collections.singletonList("test_*")).get();
         assertAcked(putResponse);
 
-        GetIndexTemplatesResponse getResponse = client.admin().indices().prepareGetTemplates("template1")
-                .get();
+        GetIndexTemplatesResponse getResponse = client.admin().indices().prepareGetTemplates("template1").get();
         List<IndexTemplateMetadata> templates = getResponse.getIndexTemplates();
         assertThat(templates, hasSize(1));
 
         // now lets try with "user"
 
-        Map<String, String> auth = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
-                nodeClientPassword()));
-        assertThrowsAuthorizationException(client.filterWithHeader(auth).admin().indices().preparePutTemplate("template1")
-                .setPatterns(Collections.singletonList("test_*"))::get, PutIndexTemplateAction.NAME, "user");
+        Map<String, String> auth = Collections.singletonMap(
+            UsernamePasswordToken.BASIC_AUTH_HEADER,
+            basicAuthHeaderValue("user", nodeClientPassword())
+        );
+        assertThrowsAuthorizationException(
+            client.filterWithHeader(auth)
+                .admin()
+                .indices()
+                .preparePutTemplate("template1")
+                .setPatterns(Collections.singletonList("test_*"))::get,
+            PutIndexTemplateAction.NAME,
+            "user"
+        );
 
-        Map<String, String> headers = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
-            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
-        assertThrowsAuthorizationException(client.filterWithHeader(headers).admin().indices().prepareGetTemplates("template1")::get,
-                GetIndexTemplatesAction.NAME, "user");
+        Map<String, String> headers = Collections.singletonMap(
+            UsernamePasswordToken.BASIC_AUTH_HEADER,
+            basicAuthHeaderValue("user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
+        assertThrowsAuthorizationException(
+            client.filterWithHeader(headers).admin().indices().prepareGetTemplates("template1")::get,
+            GetIndexTemplatesAction.NAME,
+            "user"
+        );
     }
 }

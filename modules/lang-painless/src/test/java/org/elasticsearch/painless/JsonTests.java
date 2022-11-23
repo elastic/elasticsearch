@@ -23,7 +23,10 @@ public class JsonTests extends ScriptTestCase {
 
         // pretty print
         output = exec("Json.dump(params.data, true)", singletonMap("data", singletonMap("hello", "world")), true);
-        assertEquals("{\n  \"hello\" : \"world\"\n}", output);
+        assertEquals("""
+            {
+              "hello" : "world"
+            }""", output);
     }
 
     public void testLoad() {

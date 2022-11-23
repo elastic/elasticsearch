@@ -29,6 +29,20 @@ To create an index lifecycle policy in {kib}, open the main menu and go to
 
 You can also use the <<ilm-put-lifecycle,create lifecycle policy API>>.
 
+////
+[source,console]
+--------------------------------------------------
+PUT /_snapshot/found-snapshots
+{
+ "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+////
+
 // tag::ilm-policy-api-ex[]
 [source,console]
 ----

@@ -13,8 +13,8 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.List;
@@ -74,7 +74,7 @@ public class ParsedDocument {
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);
-        document.add(IdFieldMapper.idField(id));
+        document.add(IdFieldMapper.standardIdField(id));
         return new ParsedDocument(
             versionField,
             seqIdFields,
@@ -87,14 +87,16 @@ public class ParsedDocument {
         );
     }
 
-    public ParsedDocument(Field version,
-                          SeqNoFieldMapper.SequenceIDFields seqID,
-                          String id,
-                          String routing,
-                          List<LuceneDocument> documents,
-                          BytesReference source,
-                          XContentType xContentType,
-                          Mapping dynamicMappingsUpdate) {
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String routing,
+        List<LuceneDocument> documents,
+        BytesReference source,
+        XContentType xContentType,
+        Mapping dynamicMappingsUpdate
+    ) {
         this.version = version;
         this.seqID = seqID;
         this.id = id;
@@ -113,10 +115,12 @@ public class ParsedDocument {
         return version;
     }
 
-    public void updateSeqID(long sequenceNumber, long primaryTerm) {
-        this.seqID.seqNo.setLongValue(sequenceNumber);
-        this.seqID.seqNoDocValue.setLongValue(sequenceNumber);
-        this.seqID.primaryTerm.setLongValue(primaryTerm);
+    /**
+     * Update the values of the {@code _seq_no} and {@code primary_term} fields
+     * to the specified value. Called in the engine long after parsing.
+     */
+    public void updateSeqID(long seqNo, long primaryTerm) {
+        seqID.set(seqNo, primaryTerm);
     }
 
     public String routing() {
@@ -165,4 +169,7 @@ public class ParsedDocument {
         return "Document id[" + id + "] doc [" + documents + ']';
     }
 
+    public String documentDescription() {
+        return "id";
+    }
 }

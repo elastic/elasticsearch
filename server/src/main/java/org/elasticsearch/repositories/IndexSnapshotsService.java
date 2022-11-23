@@ -95,8 +95,7 @@ public class IndexSnapshotsService {
         }, listener::onFailure);
 
         snapshotInfoStepListener.whenComplete(fetchSnapshotContext -> {
-            assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT_META + ']')
-                : "Expected current thread [" + Thread.currentThread() + "] to be a snapshot meta thread.";
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
             final SnapshotInfo snapshotInfo = fetchSnapshotContext.getSnapshotInfo();
 
             if (snapshotInfo == null || snapshotInfo.state() != SnapshotState.SUCCESS) {

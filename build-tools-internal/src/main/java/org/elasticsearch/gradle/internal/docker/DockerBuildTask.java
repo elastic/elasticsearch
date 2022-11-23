@@ -7,10 +7,12 @@
  */
 package org.elasticsearch.gradle.internal.docker;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -29,10 +31,18 @@ import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
 
-import javax.inject.Inject;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.List;
 
+import javax.inject.Inject;
+
+/**
+ * This task wraps up the details of building a Docker image, including adding a pull
+ * mechanism that can retry, and emitting the image SHA as a task output.
+ */
 public class DockerBuildTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
 
@@ -45,15 +55,16 @@ public class DockerBuildTask extends DefaultTask {
     private boolean noCache = true;
     private String[] baseImages;
     private MapProperty<String, String> buildArgs;
+    private Property<String> platform;
 
     @Inject
-    public DockerBuildTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory) {
+    public DockerBuildTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
         this.workerExecutor = workerExecutor;
         this.markerFile = objectFactory.fileProperty();
         this.dockerContext = objectFactory.directoryProperty();
         this.buildArgs = objectFactory.mapProperty(String.class, String.class);
-
-        this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
+        this.platform = objectFactory.property(String.class).convention(Architecture.current().dockerPlatform);
+        this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
     @TaskAction
@@ -66,6 +77,7 @@ public class DockerBuildTask extends DefaultTask {
             params.getNoCache().set(noCache);
             params.getBaseImages().set(Arrays.asList(baseImages));
             params.getBuildArgs().set(buildArgs);
+            params.getPlatform().set(platform);
         });
     }
 
@@ -116,8 +128,9 @@ public class DockerBuildTask extends DefaultTask {
         return buildArgs;
     }
 
-    public void setBuildArgs(MapProperty<String, String> buildArgs) {
-        this.buildArgs = buildArgs;
+    @Input
+    public Property<String> getPlatform() {
+        return platform;
     }
 
     @OutputFile
@@ -167,25 +180,51 @@ public class DockerBuildTask extends DefaultTask {
                 parameters.getBaseImages().get().forEach(this::pullBaseImage);
             }
 
+            final List<String> tags = parameters.getTags().get();
+            final boolean isCrossPlatform = parameters.getPlatform().get().equals(Architecture.current().dockerPlatform) == false;
+
             LoggedExec.exec(execOperations, spec -> {
                 spec.executable("docker");
 
+                if (isCrossPlatform) {
+                    spec.args("buildx");
+                }
+
                 spec.args("build", parameters.getDockerContext().get().getAsFile().getAbsolutePath());
+
+                if (isCrossPlatform) {
+                    spec.args("--platform", parameters.getPlatform().get());
+                }
 
                 if (parameters.getNoCache().get()) {
                     spec.args("--no-cache");
                 }
 
-                parameters.getTags().get().forEach(tag -> spec.args("--tag", tag));
+                tags.forEach(tag -> spec.args("--tag", tag));
 
                 parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
             });
 
+            // Fetch the Docker image's hash, and write it to desk as the task's output. Doing this allows us
+            // to do proper up-to-date checks in Gradle.
             try {
-                parameters.getMarkerFile().getAsFile().get().createNewFile();
+                final String checksum = getImageChecksum(tags.get(0));
+                Files.writeString(parameters.getMarkerFile().getAsFile().get().toPath(), checksum + "\n");
             } catch (IOException e) {
-                throw new RuntimeException("Failed to create marker file", e);
+                throw new RuntimeException("Failed to write marker file", e);
             }
+        }
+
+        private String getImageChecksum(String imageTag) {
+            final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+            execOperations.exec(spec -> {
+                spec.setCommandLine("docker", "inspect", "--format", "{{ .Id }}", imageTag);
+                spec.setStandardOutput(stdout);
+                spec.setIgnoreExitValue(false);
+            });
+
+            return stdout.toString().trim();
         }
     }
 
@@ -203,5 +242,7 @@ public class DockerBuildTask extends DefaultTask {
         ListProperty<String> getBaseImages();
 
         MapProperty<String, String> getBuildArgs();
+
+        Property<String> getPlatform();
     }
 }

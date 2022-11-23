@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.condition;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -14,7 +14,7 @@ public class AlwaysCondition implements Condition {
     public static final String TYPE = "always";
     public static final Condition INSTANCE = new AlwaysCondition();
 
-    protected AlwaysCondition() { }
+    protected AlwaysCondition() {}
 
     @Override
     public boolean equals(Object obj) {

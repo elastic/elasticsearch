@@ -9,16 +9,20 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 
 public class FlushResponseTests extends AbstractBroadcastResponseTestCase<FlushResponse> {
 
     @Override
-    protected FlushResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                               List<DefaultShardOperationFailedException> failures) {
+    protected FlushResponse createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    ) {
         return new FlushResponse(totalShards, successfulShards, failedShards, failures);
     }
 

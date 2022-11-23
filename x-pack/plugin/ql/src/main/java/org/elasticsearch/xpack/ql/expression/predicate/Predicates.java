@@ -20,8 +20,7 @@ import static java.util.Collections.singletonList;
 public abstract class Predicates {
 
     public static List<Expression> splitAnd(Expression exp) {
-        if (exp instanceof And) {
-            And and = (And) exp;
+        if (exp instanceof And and) {
             List<Expression> list = new ArrayList<>();
             list.addAll(splitAnd(and.left()));
             list.addAll(splitAnd(and.right()));
@@ -31,8 +30,7 @@ public abstract class Predicates {
     }
 
     public static List<Expression> splitOr(Expression exp) {
-        if (exp instanceof Or) {
-            Or or = (Or) exp;
+        if (exp instanceof Or or) {
             List<Expression> list = new ArrayList<>();
             list.addAll(splitOr(or.left()));
             list.addAll(splitOr(or.right()));

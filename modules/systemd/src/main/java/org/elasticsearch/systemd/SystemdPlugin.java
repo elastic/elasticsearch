@@ -12,12 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -26,7 +26,9 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.List;
@@ -87,7 +89,10 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry namedWriteableRegistry,
         final IndexNameExpressionResolver expressionResolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
+    ) {
         if (enabled == false) {
             extender.set(null);
             return List.of();
@@ -99,15 +104,12 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
          * Therefore, every fifteen seconds we send systemd a message via sd_notify to extend the timeout by thirty seconds. We will cancel
          * this scheduled task after we successfully notify systemd that we are ready.
          */
-        extender.set(threadPool.scheduleWithFixedDelay(
-            () -> {
-                final int rc = sd_notify(0, "EXTEND_TIMEOUT_USEC=30000000");
-                if (rc < 0) {
-                    logger.warn("extending startup timeout via sd_notify failed with [{}]", rc);
-                }
-            },
-            TimeValue.timeValueSeconds(15),
-            ThreadPool.Names.SAME));
+        extender.set(threadPool.scheduleWithFixedDelay(() -> {
+            final int rc = sd_notify(0, "EXTEND_TIMEOUT_USEC=30000000");
+            if (rc < 0) {
+                logger.warn("extending startup timeout via sd_notify failed with [{}]", rc);
+            }
+        }, TimeValue.timeValueSeconds(15), ThreadPool.Names.SAME));
         return List.of();
     }
 

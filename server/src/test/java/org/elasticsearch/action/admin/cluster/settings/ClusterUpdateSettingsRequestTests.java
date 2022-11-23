@@ -8,19 +8,29 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.mockito.Mockito.mock;
 
 public class ClusterUpdateSettingsRequestTests extends ESTestCase {
 
@@ -40,12 +50,20 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
 
         if (addRandomFields) {
             String unsupportedField = "unsupported_field";
-            BytesReference mutated = BytesReference.bytes(XContentTestUtils.insertIntoXContent(xContentType.xContent(), originalBytes,
-                    Collections.singletonList(""), () -> unsupportedField, () -> randomAlphaOfLengthBetween(3, 10)));
-            XContentParseException iae = expectThrows(XContentParseException.class,
-                    () -> ClusterUpdateSettingsRequest.fromXContent(createParser(xContentType.xContent(), mutated)));
-            assertThat(iae.getMessage(),
-                    containsString("[cluster_update_settings_request] unknown field [" + unsupportedField + "]"));
+            BytesReference mutated = BytesReference.bytes(
+                XContentTestUtils.insertIntoXContent(
+                    xContentType.xContent(),
+                    originalBytes,
+                    Collections.singletonList(""),
+                    () -> unsupportedField,
+                    () -> randomAlphaOfLengthBetween(3, 10)
+                )
+            );
+            XContentParseException iae = expectThrows(
+                XContentParseException.class,
+                () -> ClusterUpdateSettingsRequest.fromXContent(createParser(xContentType.xContent(), mutated))
+            );
+            assertThat(iae.getMessage(), containsString("[cluster_update_settings_request] unknown field [" + unsupportedField + "]"));
         } else {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
                 ClusterUpdateSettingsRequest parsedRequest = ClusterUpdateSettingsRequest.fromXContent(parser);
@@ -62,5 +80,44 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
         request.persistentSettings(ClusterUpdateSettingsResponseTests.randomClusterSettings(0, 2));
         request.transientSettings(ClusterUpdateSettingsResponseTests.randomClusterSettings(0, 2));
         return request;
+    }
+
+    public void testOperatorHandler() throws IOException {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        TransportClusterUpdateSettingsAction action = new TransportClusterUpdateSettingsAction(
+            mock(TransportService.class),
+            mock(ClusterService.class),
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class),
+            clusterSettings
+        );
+
+        assertEquals(ReservedClusterSettingsAction.NAME, action.reservedStateHandlerName().get());
+
+        String oneSettingJSON = """
+            {
+                "persistent": {
+                    "indices.recovery.max_bytes_per_sec": "25mb",
+                    "cluster": {
+                         "remote": {
+                             "cluster_one": {
+                                 "seeds": [
+                                     "127.0.0.1:9300"
+                                 ]
+                             }
+                         }
+                    }
+                }
+            }""";
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), oneSettingJSON)) {
+            ClusterUpdateSettingsRequest parsedRequest = ClusterUpdateSettingsRequest.fromXContent(parser);
+            assertThat(
+                action.modifiedKeys(parsedRequest),
+                containsInAnyOrder("indices.recovery.max_bytes_per_sec", "cluster.remote.cluster_one.seeds")
+            );
+        }
     }
 }

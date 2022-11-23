@@ -92,7 +92,7 @@ public class Murmur3Hasher {
         return hash;
     }
 
-    public String getAlgorithm() {
+    public static String getAlgorithm() {
         return METHOD;
     }
 

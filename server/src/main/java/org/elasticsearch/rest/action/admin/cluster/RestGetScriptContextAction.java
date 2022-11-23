@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -27,13 +27,17 @@ public class RestGetScriptContextAction extends BaseRestHandler {
         return List.of(new Route(GET, "/_script_context"));
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return "script_context_action";
     }
 
-    @Override protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return channel -> client.execute(GetScriptContextAction.INSTANCE,
+    @Override
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        return channel -> client.execute(
+            GetScriptContextAction.INSTANCE,
             new GetScriptContextRequest(),
-            new RestToXContentListener<>(channel));
+            new RestToXContentListener<>(channel)
+        );
     }
 }

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authc.support;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -58,7 +58,7 @@ public class SecondaryAuthentication {
     }
 
     public User getUser() {
-        return authentication.getUser();
+        return authentication.getEffectiveSubject().getUser();
     }
 
     public <T> T execute(Function<ThreadContext.StoredContext, T> body) {

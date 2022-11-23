@@ -7,6 +7,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
@@ -27,6 +28,7 @@ tasks.named("dependencyLicenses").configure {
 
 dependencies {
   compileOnly project(":server")
+  api project(':libs:elasticsearch-grok')
   api project(":libs:elasticsearch-ssl-config")
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -38,9 +40,8 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // security deps
-  api 'com.unboundid:unboundid-ldapsdk:4.0.8'
+  api 'com.unboundid:unboundid-ldapsdk:6.0.3'
 
-  testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
   testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -56,11 +57,8 @@ dependencies {
     transitive = false
   }
 
-  // Needed for usage API cancellation test. TODO: do this another way or at least isolate!
-  internalClusterTestImplementation project(path: ':plugins:transport-nio')
-
   yamlRestTestImplementation project(':x-pack:plugin:core')
-
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 ext.expansions = [
@@ -77,7 +75,7 @@ tasks.named("processResources").configure {
     inputs.properties(expansions)
     filter("tokens" : expansions, ReplaceTokens.class)
   }
-  String licenseKey = providers.systemProperty("license.key").forUseAtConfigurationTime().getOrNull()
+  String licenseKey = providers.systemProperty("license.key").getOrNull()
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
   } else if (BuildParams.isSnapshotBuild()) {
@@ -119,7 +117,8 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.log.Logger',
           //commons-logging provided dependencies
           'javax.servlet.ServletContextEvent',
-          'javax.servlet.ServletContextListener'
+          'javax.servlet.ServletContextListener',
+          'javax.jms.Message'
   )
 }
 
@@ -129,10 +128,23 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'default'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+  //disabling ILM history as it disturbs testDSXpackUsage test
+  setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.untrusted_remote_cluster_feature_flag_registered', 'true'
+  }
 }

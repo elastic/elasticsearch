@@ -17,6 +17,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 
 public final class MatchedQueriesPhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
         Map<String, Query> namedQueries = new HashMap<>();
@@ -40,8 +40,10 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
         }
         Map<String, Weight> weights = new HashMap<>();
         for (Map.Entry<String, Query> entry : namedQueries.entrySet()) {
-            weights.put(entry.getKey(),
-                context.searcher().createWeight(context.searcher().rewrite(entry.getValue()), ScoreMode.COMPLETE_NO_SCORES, 1));
+            weights.put(
+                entry.getKey(),
+                context.searcher().createWeight(context.searcher().rewrite(entry.getValue()), ScoreMode.COMPLETE_NO_SCORES, 1)
+            );
         }
         return new FetchSubPhaseProcessor() {
 
@@ -70,7 +72,11 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
                 }
                 hitContext.hit().matchedQueries(matches.toArray(String[]::new));
             }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
         };
     }
-
 }

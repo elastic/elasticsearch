@@ -9,7 +9,7 @@
 package org.elasticsearch.ingest;
 
 /**
- * A srapping processor is one that encapsulates an inner processor, or a processor that the wrapped processor enacts upon. All processors
+ * A srapping processor is one that encapsulates an inner processor, or a processor that the wrapped processor acts upon. All processors
  * that contain an "inner" processor should implement this interface, such that the actual processor can be obtained.
  */
 public interface WrappingProcessor extends Processor {
@@ -19,4 +19,8 @@ public interface WrappingProcessor extends Processor {
      * @return the inner processor
      */
     Processor getInnerProcessor();
+
+    default boolean isAsync() {
+        return getInnerProcessor().isAsync();
+    }
 }

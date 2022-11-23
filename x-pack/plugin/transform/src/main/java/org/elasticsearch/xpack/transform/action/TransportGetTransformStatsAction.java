@@ -16,13 +16,13 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -34,12 +34,14 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Req
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHealth;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.TransformHealthChecker;
 import org.elasticsearch.xpack.transform.transforms.TransformNodeAssignments;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
@@ -72,19 +74,16 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         Client client,
         Settings settings
     ) {
-        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices, client, settings);
-    }
-
-    protected TransportGetTransformStatsAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService,
-        TransformServices transformServices,
-        Client client,
-        Settings settings
-    ) {
-        super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
+        super(
+            GetTransformStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            Request::new,
+            Response::new,
+            Response::new,
+            ThreadPool.Names.SAME
+        );
         this.transformConfigManager = transformServices.getConfigManager();
         this.transformCheckpointService = transformServices.getCheckpointService();
         this.client = client;
@@ -108,7 +107,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     }
 
     @Override
-    protected void taskOperation(Request request, TransformTask task, ActionListener<Response> listener) {
+    protected void taskOperation(Task actionTask, Request request, TransformTask task, ActionListener<Response> listener) {
         // Little extra insurance, make sure we only return transforms that aren't cancelled
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();
@@ -149,14 +148,25 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             ActionListener.wrap(hitsAndIds -> {
                 boolean hasAnyTransformNode = TransformNodes.hasAnyTransformNode(clusterState.getNodes());
                 boolean requiresRemote = hitsAndIds.v2().v2().stream().anyMatch(config -> config.getSource().requiresRemoteCluster());
-                if (hasAnyTransformNode && TransformNodes.redirectToAnotherNodeIfNeeded(
-                        clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, finalListener)) {
+                if (hasAnyTransformNode
+                    && TransformNodes.redirectToAnotherNodeIfNeeded(
+                        clusterState,
+                        nodeSettings,
+                        requiresRemote,
+                        transportService,
+                        actionName,
+                        request,
+                        Response::new,
+                        finalListener
+                    )) {
                     return;
                 }
 
                 request.setExpandedIds(hitsAndIds.v2().v1());
-                final TransformNodeAssignments transformNodeAssignments =
-                    TransformNodes.transformTaskNodes(hitsAndIds.v2().v1(), clusterState);
+                final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
+                    hitsAndIds.v2().v1(),
+                    clusterState
+                );
 
                 ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
                     PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
@@ -189,16 +199,14 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                 } else {
                     doExecuteListener.onResponse(new Response(Collections.emptyList(), 0L));
                 }
-            },
-                e -> {
-                    // If the index to search, or the individual config is not there, just return empty
-                    if (e instanceof ResourceNotFoundException) {
-                        finalListener.onResponse(new Response(Collections.emptyList(), 0L));
-                    } else {
-                        finalListener.onFailure(e);
-                    }
+            }, e -> {
+                // If the index to search, or the individual config is not there, just return empty
+                if (e instanceof ResourceNotFoundException) {
+                    finalListener.onResponse(new Response(Collections.emptyList(), 0L));
+                } else {
+                    finalListener.onFailure(e);
                 }
-            )
+            })
         );
     }
 
@@ -232,7 +240,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             reason,
             null,
             task.getStats(),
-            checkpointingInfo == null ? TransformCheckpointingInfo.EMPTY : checkpointingInfo
+            checkpointingInfo == null ? TransformCheckpointingInfo.EMPTY : checkpointingInfo,
+            TransformHealthChecker.checkTransform(task)
         );
     }
 
@@ -335,7 +344,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             assignment.getExplanation(),
                             null,
                             stat.getTransformStats(),
-                            checkpointingInfo
+                            checkpointingInfo,
+                            TransformHealthChecker.checkUnassignedTransform(stat.getId(), clusterState)
                         )
                     );
                 } else {
@@ -346,7 +356,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             null,
                             null,
                             stat.getTransformStats(),
-                            checkpointingInfo
+                            checkpointingInfo,
+                            TransformHealth.GREEN
                         )
                     );
                 }

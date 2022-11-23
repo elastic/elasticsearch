@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.enrich.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.AbstractEnrichTestCase;
@@ -60,7 +60,7 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
 
         // fail if the state of this is left locked
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
     }
 
     public void testListPolicies() throws InterruptedException {

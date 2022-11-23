@@ -11,9 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -21,7 +22,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -32,7 +32,9 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
@@ -78,17 +80,26 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     private static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("xpack.idp.enabled", false, Setting.Property.NodeScope);
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(IdentityProviderPlugin.class);
     private boolean enabled;
     private Settings settings;
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
+    ) {
         settings = environment.settings();
         enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {
@@ -104,10 +115,17 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         final UserPrivilegeResolver userPrivilegeResolver = new UserPrivilegeResolver(client, securityContext, actionsResolver);
 
         final SamlServiceProviderFactory serviceProviderFactory = new SamlServiceProviderFactory(serviceProviderDefaults);
-        final SamlServiceProviderResolver registeredServiceProviderResolver
-            = new SamlServiceProviderResolver(settings, index, serviceProviderFactory);
-        final WildcardServiceProviderResolver wildcardServiceProviderResolver
-            = WildcardServiceProviderResolver.create(environment, resourceWatcherService, scriptService, serviceProviderFactory);
+        final SamlServiceProviderResolver registeredServiceProviderResolver = new SamlServiceProviderResolver(
+            settings,
+            index,
+            serviceProviderFactory
+        );
+        final WildcardServiceProviderResolver wildcardServiceProviderResolver = WildcardServiceProviderResolver.create(
+            environment,
+            resourceWatcherService,
+            scriptService,
+            serviceProviderFactory
+        );
         final SamlIdentityProvider idp = SamlIdentityProvider.builder(registeredServiceProviderResolver, wildcardServiceProviderResolver)
             .fromSettings(environment)
             .serviceProviderDefaults(serviceProviderDefaults)
@@ -115,12 +133,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
         final SamlFactory factory = new SamlFactory();
 
-        return List.of(
-            index,
-            idp,
-            factory,
-            userPrivilegeResolver
-        );
+        return List.of(index, idp, factory, userPrivilegeResolver);
     }
 
     @Override
@@ -138,10 +151,15 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings unused,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         if (enabled == false) {
             return List.of();
         }
@@ -156,16 +174,16 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>();
-        settings.add(ENABLED_SETTING);
-        settings.addAll(SamlIdentityProviderBuilder.getSettings());
-        settings.addAll(ServiceProviderCacheSettings.getSettings());
-        settings.addAll(ServiceProviderDefaults.getSettings());
-        settings.addAll(WildcardServiceProviderResolver.getSettings());
-        settings.addAll(ApplicationActionsResolver.getSettings());
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getEnabledSettings());
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getEnabledSettings());
-        return Collections.unmodifiableList(settings);
+        List<Setting<?>> settingList = new ArrayList<>();
+        settingList.add(ENABLED_SETTING);
+        settingList.addAll(SamlIdentityProviderBuilder.getSettings());
+        settingList.addAll(ServiceProviderCacheSettings.getSettings());
+        settingList.addAll(ServiceProviderDefaults.getSettings());
+        settingList.addAll(WildcardServiceProviderResolver.getSettings());
+        settingList.addAll(ApplicationActionsResolver.getSettings());
+        settingList.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getEnabledSettings());
+        settingList.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getEnabledSettings());
+        return Collections.unmodifiableList(settingList);
     }
 
     protected XPackLicenseState getLicenseState() {

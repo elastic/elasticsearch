@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.plugins.BasePluginExtension;
@@ -39,8 +38,6 @@ public class InternalTestArtifactExtension {
             featureSpec.disablePublication();
         });
 
-        Configuration testApiElements = project.getConfigurations().getByName(sourceSet.getApiElementsConfigurationName());
-        testApiElements.extendsFrom(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()));
         DependencyHandler dependencies = project.getDependencies();
         project.getPlugins().withType(JavaPlugin.class, javaPlugin -> {
             Dependency projectDependency = dependencies.create(project);

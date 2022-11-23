@@ -23,9 +23,12 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
 
     public void testPredicateNextStepChange() {
         String indexName = randomAlphaOfLength(5);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT))
-                .numberOfShards(1).numberOfReplicas(0))).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            )
+            .build();
         StepKey stepKey = new StepKey(randomAlphaOfLength(5), randomAlphaOfLength(5), BranchingStep.NAME);
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(6), randomAlphaOfLength(6), BranchingStep.NAME);
         StepKey nextSkipKey = new StepKey(randomAlphaOfLength(7), randomAlphaOfLength(7), BranchingStep.NAME);
@@ -61,18 +64,14 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
         BiPredicate<Index, ClusterState> predicate = instance.getPredicate();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextStepKey = new StepKey(nextStepKey.getPhase(), nextStepKey.getAction(), nextStepKey.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                nextSkipStepKey = new StepKey(nextSkipStepKey.getPhase(), nextSkipStepKey.getAction(),
-                    nextSkipStepKey.getName() + randomAlphaOfLength(5));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextStepKey = new StepKey(nextStepKey.phase(), nextStepKey.action(), nextStepKey.name() + randomAlphaOfLength(5));
+            case 2 -> nextSkipStepKey = new StepKey(
+                nextSkipStepKey.phase(),
+                nextSkipStepKey.action(),
+                nextSkipStepKey.name() + randomAlphaOfLength(5)
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new BranchingStep(key, nextStepKey, nextSkipStepKey, predicate);
@@ -80,7 +79,11 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
 
     @Override
     public BranchingStep copyInstance(BranchingStep instance) {
-        return new BranchingStep(instance.getKey(), instance.getNextStepKeyOnFalse(), instance.getNextStepKeyOnTrue(),
-            instance.getPredicate());
+        return new BranchingStep(
+            instance.getKey(),
+            instance.getNextStepKeyOnFalse(),
+            instance.getNextStepKeyOnTrue(),
+            instance.getPredicate()
+        );
     }
 }

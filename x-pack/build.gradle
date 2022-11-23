@@ -21,10 +21,8 @@ subprojects {
   }
 
   group = 'org.elasticsearch.plugin'
-  ext.xpackRootProject = xpackRootProject
-  ext.xpackProject = { String projectName -> xpackRootProject.project(projectName) }
   // helper method to find the path to a module
-  ext.xpackModule = { String moduleName -> xpackProject("plugin:${moduleName}").path }
+  ext.xpackModule = { String moduleName -> ":x-pack:plugin:${moduleName}" }
 
   plugins.withType(PluginBuildPlugin).whenPluginAdded {
     project.esplugin.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt')
@@ -36,10 +34,12 @@ subprojects {
     additionalLicense 'ELAST', 'Elastic License 2.0', '2.0; you may not use this file except in compliance with the Elastic License'
   }
 
-  project.getPluginManager().withPlugin("elasticsearch.licensing") {
+  project.pluginManager.withPlugin("elasticsearch.licensing") {
     ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
   }
 
-  project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt')
-  project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')
+  project.pluginManager.withPlugin("elasticsearch.build") {
+    project.ext.licenseFile.set(rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt'))
+    project.ext.noticeFile.set(xpackRootProject.file('NOTICE.txt'))
+  }
 }

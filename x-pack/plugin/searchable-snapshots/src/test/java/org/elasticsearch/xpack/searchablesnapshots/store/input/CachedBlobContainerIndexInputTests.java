@@ -82,7 +82,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                     snapshotId.getName(),
                     0L,
-                    List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, new ByteSizeValue(partSize))),
+                    List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(partSize))),
                     0L,
                     0L,
                     0,
@@ -99,7 +99,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 }
 
                 final boolean recoveryFinalizedDone = randomBoolean();
-                final Path shardDir = shardPath(shardId);
+                final Path shardDir = randomShardPath(shardId);
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
                 final FrozenCacheService frozenCacheService = defaultFrozenCacheService();
@@ -200,7 +200,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                 snapshotId.getName(),
                 0L,
-                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, new ByteSizeValue(input.length + 1))),
+                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(input.length + 1))),
                 0L,
                 0L,
                 0,
@@ -208,7 +208,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-            final Path shardDir = shardPath(shardId);
+            final Path shardDir = randomShardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
             final FrozenCacheService frozenCacheService = defaultFrozenCacheService();

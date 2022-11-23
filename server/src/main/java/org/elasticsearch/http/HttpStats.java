@@ -11,8 +11,8 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -150,7 +150,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
             this.requestSizeBytes = in.readLong();
         }
 
-        @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.CLIENT_ID, id);
             if (agent != null) {

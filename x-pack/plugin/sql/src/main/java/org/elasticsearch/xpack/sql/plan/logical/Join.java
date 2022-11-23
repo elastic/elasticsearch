@@ -60,26 +60,23 @@ public class Join extends BinaryPlan {
 
     @Override
     public List<Attribute> output() {
-        switch (type) {
-            case LEFT:
+        return switch (type) {
+            case LEFT ->
                 // right side can be null
-                return combine(left().output(), makeNullable(right().output()));
-            case RIGHT:
+                combine(left().output(), makeNullable(right().output()));
+            case RIGHT ->
                 // left side can be null
-                return combine(makeNullable(left().output()), right().output());
-            case FULL:
+                combine(makeNullable(left().output()), right().output());
+            case FULL ->
                 // both sides can be null
-                return combine(makeNullable(left().output()), makeNullable(right().output()));
+                combine(makeNullable(left().output()), makeNullable(right().output()));
             // INNER
-            default:
-                return combine(left().output(), right().output());
-        }
+            default -> combine(left().output(), right().output());
+        };
     }
 
     private static List<Attribute> makeNullable(List<Attribute> output) {
-        return output.stream()
-                .map(a -> a.withNullability(Nullability.TRUE))
-                .collect(toList());
+        return output.stream().map(a -> a.withNullability(Nullability.TRUE)).collect(toList());
     }
 
     @Override
@@ -97,10 +94,10 @@ public class Join extends BinaryPlan {
         // - the children are resolved
         // - there are no conflicts in output
         // - the condition (if present) is resolved to a boolean
-        return childrenResolved() &&
-                duplicatesResolved() &&
-                expressionsResolved() &&
-                (condition == null || DataTypes.BOOLEAN == condition.dataType());
+        return childrenResolved()
+            && duplicatesResolved()
+            && expressionsResolved()
+            && (condition == null || DataTypes.BOOLEAN == condition.dataType());
     }
 
     @Override
@@ -120,8 +117,8 @@ public class Join extends BinaryPlan {
         Join other = (Join) obj;
 
         return Objects.equals(type, other.type)
-                && Objects.equals(condition, other.condition)
-                && Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right());
+            && Objects.equals(condition, other.condition)
+            && Objects.equals(left(), other.left())
+            && Objects.equals(right(), other.right());
     }
 }

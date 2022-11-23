@@ -19,9 +19,11 @@ public class VoidChainTaskExecutor extends TypedChainTaskExecutor<Void> {
         this(executorService, (a) -> true, (e) -> shortCircuit);
     }
 
-    VoidChainTaskExecutor(ExecutorService executorService,
-                          Predicate<Void> continuationPredicate,
-                          Predicate<Exception> failureShortCircuitPredicate) {
+    VoidChainTaskExecutor(
+        ExecutorService executorService,
+        Predicate<Void> continuationPredicate,
+        Predicate<Exception> failureShortCircuitPredicate
+    ) {
         super(executorService, continuationPredicate, failureShortCircuitPredicate);
     }
 }

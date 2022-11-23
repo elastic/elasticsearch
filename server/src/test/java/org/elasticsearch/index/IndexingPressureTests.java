@@ -8,9 +8,9 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
 
@@ -20,12 +20,14 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testMemoryBytesAndOpsMarkedAndReleased() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 10, false);
-             Releasable coordinating2 = indexingPressure.markCoordinatingOperationStarted(5, 50, false);
-             Releasable primary = indexingPressure.markPrimaryOperationStarted(2, 15, true);
-             Releasable primary2 = indexingPressure.markPrimaryOperationStarted(1, 5, false);
-             Releasable replica = indexingPressure.markReplicaOperationStarted(3, 25, true);
-             Releasable replica2 = indexingPressure.markReplicaOperationStarted(1, 10, false)) {
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 10, false);
+            Releasable coordinating2 = indexingPressure.markCoordinatingOperationStarted(5, 50, false);
+            Releasable primary = indexingPressure.markPrimaryOperationStarted(2, 15, true);
+            Releasable primary2 = indexingPressure.markPrimaryOperationStarted(1, 5, false);
+            Releasable replica = indexingPressure.markReplicaOperationStarted(3, 25, true);
+            Releasable replica2 = indexingPressure.markReplicaOperationStarted(1, 10, false)
+        ) {
             IndexingPressureStats stats = indexingPressure.stats();
             assertEquals(60, stats.getCurrentCoordinatingBytes());
             assertEquals(20, stats.getCurrentPrimaryBytes());
@@ -58,8 +60,10 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testAvoidDoubleMemoryAccounting() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 10, false);
-             Releasable primary = indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(1, 15)) {
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 10, false);
+            Releasable primary = indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(1, 15)
+        ) {
             IndexingPressureStats stats = indexingPressure.stats();
             assertEquals(10, stats.getCurrentCoordinatingBytes());
             assertEquals(15, stats.getCurrentPrimaryBytes());
@@ -76,12 +80,16 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testCoordinatingPrimaryRejections() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024 * 3, false);
-             Releasable primary = indexingPressure.markPrimaryOperationStarted(1, 1024 * 3, false);
-             Releasable replica = indexingPressure.markReplicaOperationStarted(1, 1024 * 3, false)) {
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024 * 3, false);
+            Releasable primary = indexingPressure.markPrimaryOperationStarted(1, 1024 * 3, false);
+            Releasable replica = indexingPressure.markReplicaOperationStarted(1, 1024 * 3, false)
+        ) {
             if (randomBoolean()) {
-                expectThrows(EsRejectedExecutionException.class,
-                    () -> indexingPressure.markCoordinatingOperationStarted(1, 1024 * 2, false));
+                expectThrows(
+                    EsRejectedExecutionException.class,
+                    () -> indexingPressure.markCoordinatingOperationStarted(1, 1024 * 2, false)
+                );
                 IndexingPressureStats stats = indexingPressure.stats();
                 assertEquals(1, stats.getCoordinatingRejections());
                 assertEquals(1024 * 6, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -112,9 +120,11 @@ public class IndexingPressureTests extends ESTestCase {
 
     public void testReplicaRejections() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
-        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024 * 3, false);
-             Releasable primary = indexingPressure.markPrimaryOperationStarted(1, 1024 * 3, false);
-             Releasable replica = indexingPressure.markReplicaOperationStarted(1, 1024 * 3, false)) {
+        try (
+            Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024 * 3, false);
+            Releasable primary = indexingPressure.markPrimaryOperationStarted(1, 1024 * 3, false);
+            Releasable replica = indexingPressure.markReplicaOperationStarted(1, 1024 * 3, false)
+        ) {
             // Replica will not be rejected until replica bytes > 15KB
             Releasable replica2 = indexingPressure.markReplicaOperationStarted(1, 1024 * 11, false);
             assertEquals(1024 * 14, indexingPressure.stats().getCurrentReplicaBytes());

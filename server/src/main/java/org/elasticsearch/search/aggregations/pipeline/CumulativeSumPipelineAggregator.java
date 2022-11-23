@@ -9,8 +9,8 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
@@ -34,7 +34,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         @SuppressWarnings("rawtypes")
         InternalMultiBucketAggregation<
             ? extends InternalMultiBucketAggregation,
@@ -55,7 +55,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
             List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                 .map((p) -> (InternalAggregation) p)
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(ArrayList::new));
             aggs.add(new InternalSimpleValue(name(), sum, formatter, metadata()));
             Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
             newBuckets.add(newBucket);

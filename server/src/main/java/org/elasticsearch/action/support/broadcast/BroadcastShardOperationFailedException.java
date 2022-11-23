@@ -35,7 +35,7 @@ public class BroadcastShardOperationFailedException extends ElasticsearchExcepti
         setShard(shardId);
     }
 
-    public BroadcastShardOperationFailedException(StreamInput in) throws IOException{
+    public BroadcastShardOperationFailedException(StreamInput in) throws IOException {
         super(in);
     }
 }

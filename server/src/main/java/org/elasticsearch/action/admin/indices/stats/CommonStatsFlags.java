@@ -18,9 +18,16 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 
+/**
+ * Contains flags that can be used to regulate the presence and calculation of different stat fields in {@link CommonStats}.
+ *
+ * The SHARD_LEVEL flags are for stat fields that can be calculated at the shard level and then may be later aggregated at the index level
+ * along with index-level flag stat fields (e.g., Mappings).
+ */
 public class CommonStatsFlags implements Writeable, Cloneable {
 
     public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
+    public static final CommonStatsFlags SHARD_LEVEL = new CommonStatsFlags().all().set(Flag.Mappings, false);
     public static final CommonStatsFlags NONE = new CommonStatsFlags().clear();
 
     private EnumSet<Flag> flags = EnumSet.allOf(Flag.class);
@@ -55,9 +62,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
         includeSegmentFileSizes = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            includeUnloadedSegments = in.readBoolean();
-        }
+        includeUnloadedSegments = in.readBoolean();
     }
 
     @Override
@@ -75,9 +80,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);
         out.writeBoolean(includeSegmentFileSizes);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeBoolean(includeUnloadedSegments);
-        }
+        out.writeBoolean(includeUnloadedSegments);
     }
 
     /**
@@ -218,7 +221,8 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         RequestCache("request_cache", 15),
         Recovery("recovery", 16),
         Bulk("bulk", 17),
-        Shards("shards", 18);
+        Shards("shard_stats", 18),
+        Mappings("mappings", 19);
 
         private final String restName;
         private final int index;

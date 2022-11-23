@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
-import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter;
 
 import java.sql.SQLException;
 
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
+import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.CLI;
 
 public class ServerQueryCliCommand extends AbstractServerCliCommand {
 
@@ -23,11 +23,12 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, String line) {
         SqlQueryResponse response = null;
         HttpClient cliClient = cliSession.getClient();
-        BasicFormatter formatter;
+        SimpleFormatter formatter;
         String data;
         try {
-            response = cliClient.basicQuery(line, cliSession.getFetchSize());
-            formatter = new BasicFormatter(response.columns(), response.rows(), CLI);
+            CliSessionConfiguration cfg = cliSession.cfg();
+            response = cliClient.basicQuery(line, cfg.getFetchSize(), cfg.isLenient(), cfg.allowPartialResults());
+            formatter = new SimpleFormatter(response.columns(), response.rows(), CLI);
             data = formatter.formatWithHeader(response.columns(), response.rows());
             while (true) {
                 handleText(terminal, data);
@@ -36,8 +37,8 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
                     terminal.flush();
                     return true;
                 }
-                if (false == cliSession.getFetchSeparator().equals("")) {
-                    terminal.println(cliSession.getFetchSeparator());
+                if (false == cliSession.cfg().getFetchSeparator().equals("")) {
+                    terminal.println(cliSession.cfg().getFetchSeparator());
                 }
                 response = cliSession.getClient().nextPage(response.cursor());
                 data = formatter.formatWithoutHeader(response.rows());

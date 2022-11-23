@@ -8,8 +8,8 @@ rem 2.0.
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set ES_MAIN_CLASS=org.elasticsearch.xpack.security.authc.file.tool.UsersTool
-set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
+set CLI_SCRIPT=%~0
+set CLI_LIBS=modules/x-pack-core,modules/x-pack-security
 call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
   || goto exit

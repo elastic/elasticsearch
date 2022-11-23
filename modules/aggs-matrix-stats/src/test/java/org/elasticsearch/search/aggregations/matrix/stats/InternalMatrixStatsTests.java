@@ -9,21 +9,24 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,6 +36,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import static org.mockito.Mockito.mock;
 
 public class InternalMatrixStatsTests extends InternalAggregationTestCase<InternalMatrixStats> {
 
@@ -59,7 +64,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         ContextParser<Object, Aggregation> parser = (p, c) -> ParsedMatrixStats.fromXContent(p, (String) c);
         return CollectionUtils.appendToCopy(
-            getDefaultNamedXContents(),
+            super.getNamedXContents(),
             new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(MatrixStatsAggregationBuilder.NAME), parser)
         );
     }
@@ -89,14 +94,14 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
                 name += randomAlphaOfLength(5);
                 break;
             case 1:
-                String[] fields = Arrays.copyOf(this.fields, this.fields.length + 1);
-                fields[fields.length - 1] = "field_" + (fields.length - 1);
-                double[] values = new double[fields.length];
-                for (int i = 0; i < fields.length; i++) {
+                String[] fieldsCopy = Arrays.copyOf(this.fields, this.fields.length + 1);
+                fieldsCopy[fieldsCopy.length - 1] = "field_" + (fieldsCopy.length - 1);
+                double[] values = new double[fieldsCopy.length];
+                for (int i = 0; i < fieldsCopy.length; i++) {
                     values[i] = randomDouble() * 200;
                 }
                 runningStats = new RunningStats();
-                runningStats.add(fields, values);
+                runningStats.add(fieldsCopy, values);
                 break;
             case 2:
                 if (matrixStatsResults == null) {
@@ -108,7 +113,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             case 3:
             default:
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
@@ -153,9 +158,11 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
 
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             b -> {},
             PipelineTree.EMPTY
         );

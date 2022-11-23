@@ -15,12 +15,12 @@ public class CIDRUtilsTests extends ESTestCase {
     public void testCIDRUtils() {
         // Missing or empty param
         assertFalse(CIDRUtils.isInRange("10.6.48.157"));
-        assertFalse(CIDRUtils.isInRange("10.6.48.157", (String)null));
+        assertFalse(CIDRUtils.isInRange("10.6.48.157", (String) null));
 
         // EQL tests matches
         assertTrue(CIDRUtils.isInRange("10.6.48.157", "10.6.48.157/8"));
         assertFalse(CIDRUtils.isInRange("10.6.48.157", "192.168.0.0/16"));
-        assertTrue(CIDRUtils.isInRange("10.6.48.157",  "192.168.0.0/16", "10.6.48.157/8"));
+        assertTrue(CIDRUtils.isInRange("10.6.48.157", "192.168.0.0/16", "10.6.48.157/8"));
         assertTrue(CIDRUtils.isInRange("10.6.48.157", "0.0.0.0/0"));
         assertFalse(CIDRUtils.isInRange("10.6.48.157", "0.0.0.0"));
 
@@ -34,7 +34,6 @@ public class CIDRUtilsTests extends ESTestCase {
         assertTrue(CIDRUtils.isInRange("fe80:0:0:0:0:0:c0a8:11", "fe80:0:0:0:0:0:c0a8:1/120"));
         assertFalse(CIDRUtils.isInRange("fe80:0:0:0:0:0:c0a8:11", "fe80:0:0:0:0:0:c0a8:1/128"));
         assertFalse(CIDRUtils.isInRange("fe80:0:0:0:0:0:c0a8:11", "192.168.2.0/32"));
-
 
         assertTrue(CIDRUtils.isInRange("2001:db8:3c0d:5b6d:0:0:42:8329", "2001:db8:3c0d:5b6d:0:0:42:8329/58"));
         assertTrue(CIDRUtils.isInRange("2001:db8:3c0d:5b40::", "2001:db8:3c0d:5b6d:0:0:42:8329/58"));

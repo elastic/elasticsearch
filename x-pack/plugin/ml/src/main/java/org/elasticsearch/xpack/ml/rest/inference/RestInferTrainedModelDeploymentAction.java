@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.ml.rest.inference;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -25,6 +27,8 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
 
+    static final String PATH = BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_infer";
+
     @Override
     public String getName() {
         return "xpack_ml_infer_trained_models_deployment_action";
@@ -33,27 +37,46 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(
-                POST,
-                BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_infer")
+            Route.builder(POST, PATH)
+                .deprecated(
+                    "["
+                        + POST.name()
+                        + " "
+                        + PATH
+                        + "] is deprecated! Use ["
+                        + POST.name()
+                        + " "
+                        + RestInferTrainedModelAction.PATH
+                        + "] instead.",
+                    RestApiVersion.V_8
+                )
+                .build()
         );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String deploymentId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
+        String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
         if (restRequest.hasContent() == false) {
             throw ExceptionsHelper.badRequestException("requires body");
         }
-        InferTrainedModelDeploymentAction.Request request =
-            InferTrainedModelDeploymentAction.Request.parseRequest(deploymentId, restRequest.contentParser());
+        InferTrainedModelDeploymentAction.Request.Builder request = InferTrainedModelDeploymentAction.Request.parseRequest(
+            modelId,
+            restRequest.contentParser()
+        );
 
         if (restRequest.hasParam(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName())) {
-            TimeValue inferTimeout = restRequest.paramAsTime(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
-                InferTrainedModelDeploymentAction.Request.DEFAULT_TIMEOUT);
-            request.setTimeout(inferTimeout);
+            TimeValue inferTimeout = restRequest.paramAsTime(
+                InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
+                InferTrainedModelDeploymentAction.Request.DEFAULT_TIMEOUT
+            );
+            request.setInferenceTimeout(inferTimeout);
         }
 
-        return channel -> client.execute(InferTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            InferTrainedModelDeploymentAction.INSTANCE,
+            request.build(),
+            new RestToXContentListener<>(channel)
+        );
     }
 }

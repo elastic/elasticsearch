@@ -11,6 +11,12 @@ Also see <<breaking-changes-8.2,Breaking changes in 8.2>>.
 
 * Test security issue
 
+[discrete]
+[[known-issues-8.2.0]]
+=== Known issues
+
+* Test known issue
+
 [[deprecation-8.2.0]]
 [float]
 === Deprecations
@@ -34,72 +40,5 @@ Indices::
 Mappings::
 * Test changelog entry 3_0 {es-pull}3000[#3000] (issue: {es-issue}3001[#3001])
 * Test changelog entry 3_1 {es-pull}3002[#3002] (issues: {es-issue}3003[#3003], {es-issue}3004[#3004])
-
-
-[[release-notes-8.1.0]]
-== {es} version 8.1.0
-
-Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
-
-[discrete]
-[[known-issues-8.1.0]]
-=== Known issues
-
-* Test known issue
-
-[[new-aggregation-8.1.0]]
-[float]
-=== New aggregation
-
-Search::
-* Test changelog entry 4_0 {es-pull}4000[#4000] (issue: {es-issue}4001[#4001])
-* Test changelog entry 4_1 {es-pull}4002[#4002] (issues: {es-issue}4003[#4003], {es-issue}4004[#4004])
-
-[[regression-8.1.0]]
-[float]
-=== Regressions
-
-Security::
-* Test changelog entry 5_0 {es-pull}5000[#5000] (issue: {es-issue}5001[#5001])
-* Test changelog entry 5_1 {es-pull}5002[#5002] (issues: {es-issue}5003[#5003], {es-issue}5004[#5004])
-
-[[upgrade-8.1.0]]
-[float]
-=== Upgrades
-
-Aggregation::
-* Test changelog entry 6_0 {es-pull}6000[#6000] (issue: {es-issue}6001[#6001])
-* Test changelog entry 6_1 {es-pull}6002[#6002] (issues: {es-issue}6003[#6003], {es-issue}6004[#6004])
-
-
-[[release-notes-8.0.0]]
-== {es} version 8.0.0
-
-Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
-
-[[bug-8.0.0]]
-[float]
-=== Bug fixes
-
-Cluster::
-* Test changelog entry 7_0 {es-pull}7000[#7000] (issue: {es-issue}7001[#7001])
-* Test changelog entry 7_1 {es-pull}7002[#7002] (issues: {es-issue}7003[#7003], {es-issue}7004[#7004])
-
-[[deprecation-8.0.0]]
-[float]
-=== Deprecations
-
-Indices::
-* Test changelog entry 8_0 {es-pull}8000[#8000] (issue: {es-issue}8001[#8001])
-* Test changelog entry 8_1 {es-pull}8002[#8002] (issues: {es-issue}8003[#8003], {es-issue}8004[#8004])
-
-[[enhancement-8.0.0]]
-[float]
-=== Enhancements
-
-Mappings::
-* Test changelog entry 9_0 {es-pull}9000[#9000] (issue: {es-issue}9001[#9001])
-* Test changelog entry 9_1 {es-pull}9002[#9002] (issues: {es-issue}9003[#9003], {es-issue}9004[#9004])
-
 
 

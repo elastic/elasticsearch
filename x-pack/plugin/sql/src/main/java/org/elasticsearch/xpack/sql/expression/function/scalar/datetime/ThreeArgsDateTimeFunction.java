@@ -82,15 +82,24 @@ public abstract class ThreeArgsDateTimeFunction extends ScalarFunction {
 
     protected ScriptTemplate asScriptFrom(ScriptTemplate firstScript, ScriptTemplate secondScript, ScriptTemplate thirdScript) {
         return new ScriptTemplate(
-            formatTemplate("{sql}." + scriptMethodName() +
-                "(" + firstScript.template() + "," + secondScript.template() + "," + thirdScript.template() + ",{})"),
-            paramsBuilder()
-                .script(firstScript.params())
+            formatTemplate(
+                "{sql}."
+                    + scriptMethodName()
+                    + "("
+                    + firstScript.template()
+                    + ","
+                    + secondScript.template()
+                    + ","
+                    + thirdScript.template()
+                    + ",{})"
+            ),
+            paramsBuilder().script(firstScript.params())
                 .script(secondScript.params())
                 .script(thirdScript.params())
                 .variable(zoneId.getId())
                 .build(),
-            dataType());
+            dataType()
+        );
     }
 
     protected String scriptMethodName() {

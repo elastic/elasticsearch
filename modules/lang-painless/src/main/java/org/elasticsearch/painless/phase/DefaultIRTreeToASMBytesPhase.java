@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
@@ -202,8 +203,16 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         String className = CLASS_TYPE.getInternalName();
         String[] classInterfaces = new String[] { interfaceBase };
 
-        ClassWriter classWriter = new ClassWriter(scriptScope.getCompilerSettings(), statements, debugStream,
-                scriptClassInfo.getBaseClass(), classFrames, classAccess, className, classInterfaces);
+        ClassWriter classWriter = new ClassWriter(
+            scriptScope.getCompilerSettings(),
+            statements,
+            debugStream,
+            scriptClassInfo.getBaseClass(),
+            classFrames,
+            classAccess,
+            className,
+            classInterfaces
+        );
         ClassVisitor classVisitor = classWriter.getClassVisitor();
         classVisitor.visitSource(Location.computeSourceName(scriptScope.getScriptName()), null);
         writeScope = writeScope.newClassScope(classWriter);
@@ -213,8 +222,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         if (scriptClassInfo.getBaseClass().getConstructors().length == 0) {
             init = new Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
         } else {
-            init = new Method("<init>", MethodType.methodType(void.class,
-                    scriptClassInfo.getBaseClass().getConstructors()[0].getParameterTypes()).toMethodDescriptorString());
+            init = new Method(
+                "<init>",
+                MethodType.methodType(void.class, scriptClassInfo.getBaseClass().getConstructors()[0].getParameterTypes())
+                    .toMethodDescriptorString()
+            );
         }
 
         // Write the constructor:
@@ -230,8 +242,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (irClinitBlockNode.getStatementsNodes().isEmpty() == false) {
             MethodWriter methodWriter = classWriter.newMethodWriter(
-                    Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
-                    new Method("<clinit>", Type.getType(void.class), new Type[0]));
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                new Method("<clinit>", Type.getType(void.class), new Type[0])
+            );
             visit(irClinitBlockNode, writeScope.newMethodScope(methodWriter).newBlockScope());
             methodWriter.returnValue();
             methodWriter.endMethod();
@@ -444,8 +457,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (irInitializerNode instanceof DeclarationBlockNode) {
             visit(irInitializerNode, writeScope);
-        } else if (irInitializerNode instanceof ExpressionNode) {
-            ExpressionNode irExpressionNode = (ExpressionNode)irInitializerNode;
+        } else if (irInitializerNode instanceof ExpressionNode irExpressionNode) {
 
             visit(irExpressionNode, writeScope);
             methodWriter.writePop(MethodWriter.getType(irExpressionNode.getDecorationValue(IRDExpressionType.class)).getSize());
@@ -495,14 +507,17 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeStatementOffset(irForEachSubArrayNode.getLocation());
 
         Variable variable = writeScope.defineVariable(
-                irForEachSubArrayNode.getDecorationValue(IRDVariableType.class),
-                irForEachSubArrayNode.getDecorationValue(IRDVariableName.class));
+            irForEachSubArrayNode.getDecorationValue(IRDVariableType.class),
+            irForEachSubArrayNode.getDecorationValue(IRDVariableName.class)
+        );
         Variable array = writeScope.defineInternalVariable(
-                irForEachSubArrayNode.getDecorationValue(IRDArrayType.class),
-                irForEachSubArrayNode.getDecorationValue(IRDArrayName.class));
+            irForEachSubArrayNode.getDecorationValue(IRDArrayType.class),
+            irForEachSubArrayNode.getDecorationValue(IRDArrayName.class)
+        );
         Variable index = writeScope.defineInternalVariable(
-                irForEachSubArrayNode.getDecorationValue(IRDIndexType.class),
-                irForEachSubArrayNode.getDecorationValue(IRDIndexName.class));
+            irForEachSubArrayNode.getDecorationValue(IRDIndexType.class),
+            irForEachSubArrayNode.getDecorationValue(IRDIndexName.class)
+        );
 
         visit(irForEachSubArrayNode.getConditionNode(), writeScope);
         methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ISTORE), array.getSlot());
@@ -538,11 +553,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeStatementOffset(irForEachSubIterableNode.getLocation());
 
         Variable variable = writeScope.defineVariable(
-                irForEachSubIterableNode.getDecorationValue(IRDVariableType.class),
-                irForEachSubIterableNode.getDecorationValue(IRDVariableName.class));
+            irForEachSubIterableNode.getDecorationValue(IRDVariableType.class),
+            irForEachSubIterableNode.getDecorationValue(IRDVariableName.class)
+        );
         Variable iterator = writeScope.defineInternalVariable(
-                irForEachSubIterableNode.getDecorationValue(IRDIterableType.class),
-                irForEachSubIterableNode.getDecorationValue(IRDIterableName.class));
+            irForEachSubIterableNode.getDecorationValue(IRDIterableType.class),
+            irForEachSubIterableNode.getDecorationValue(IRDIterableName.class)
+        );
 
         visit(irForEachSubIterableNode.getConditionNode(), writeScope);
 
@@ -595,8 +612,12 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         if (irDeclarationNode.getExpressionNode() == null) {
             Class<?> sort = variable.getType();
 
-            if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                    sort == short.class || sort == char.class || sort == int.class) {
+            if (sort == void.class
+                || sort == boolean.class
+                || sort == byte.class
+                || sort == short.class
+                || sort == char.class
+                || sort == int.class) {
                 methodWriter.push(0);
             } else if (sort == long.class) {
                 methodWriter.push(0L);
@@ -691,7 +712,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         }
 
         methodWriter.visitTryCatchBlock(
-                writeScope.getTryBeginLabel(), writeScope.getTryEndLabel(), jump, variable.getAsmType().getInternalName());
+            writeScope.getTryBeginLabel(),
+            writeScope.getTryEndLabel(),
+            jump,
+            variable.getAsmType().getInternalName()
+        );
 
         if (writeScope.getCatchesEndLabel() != null && (irBlockNode == null || irBlockNode.hasCondition(IRCAllEscape.class) == false)) {
             methodWriter.goTo(writeScope.getCatchesEndLabel());
@@ -763,8 +788,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                     } else if (unaryType == long.class) {
                         methodWriter.push(-1L);
                     } else {
-                        throw new IllegalStateException("unexpected unary math operation [" + operation + "] " +
-                                "for type [" + irUnaryMathNode.getDecorationString(IRDExpressionType.class) + "]");
+                        throw new IllegalStateException(
+                            Strings.format(
+                                "unexpected unary math operation [%s] for type [%s]",
+                                operation,
+                                irUnaryMathNode.getDecorationString(IRDExpressionType.class)
+                            )
+                        );
                     }
 
                     methodWriter.math(MethodWriter.XOR, actualType);
@@ -782,8 +812,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                     methodWriter.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, flags);
                 }
             } else {
-                throw new IllegalStateException("unexpected unary math operation [" + operation + "] " +
-                        "for type [" + irUnaryMathNode.getDecorationString(IRDExpressionType.class) + "]");
+                throw new IllegalStateException(
+                    Strings.format(
+                        "unexpected unary math operation [%s] for type [%s]",
+                        operation,
+                        irUnaryMathNode.getDecorationString(IRDExpressionType.class)
+                    )
+                );
             }
         }
     }
@@ -808,8 +843,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             } else if (operation == Operation.MATCH) {
                 methodWriter.invokeVirtual(Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
             } else {
-                throw new IllegalStateException("unexpected binary math operation [" + operation + "] " +
-                        "for type [" + irBinaryMathNode.getDecorationString(IRDExpressionType.class) + "]");
+                throw new IllegalStateException(
+                    Strings.format(
+                        "unexpected binary math operation [%s] for type [%s]",
+                        operation,
+                        irBinaryMathNode.getDecorationString(IRDExpressionType.class)
+                    )
+                );
             }
         } else {
             visit(irLeftNode, writeScope);
@@ -817,16 +857,17 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
             Class<?> expressionType = irBinaryMathNode.getDecorationValue(IRDExpressionType.class);
 
-            if (irBinaryMathNode.getDecorationValue(IRDBinaryType.class) == def.class ||
-                    (irBinaryMathNode.getDecoration(IRDShiftType.class) != null &&
-                            irBinaryMathNode.getDecorationValue(IRDShiftType.class) == def.class)) {
+            if (irBinaryMathNode.getDecorationValue(IRDBinaryType.class) == def.class
+                || (irBinaryMathNode.getDecoration(IRDShiftType.class) != null
+                    && irBinaryMathNode.getDecorationValue(IRDShiftType.class) == def.class)) {
                 methodWriter.writeDynamicBinaryInstruction(
-                        irBinaryMathNode.getLocation(),
-                        expressionType,
-                        irLeftNode.getDecorationValue(IRDExpressionType.class),
-                        irRightNode.getDecorationValue(IRDExpressionType.class),
-                        operation,
-                        irBinaryMathNode.getDecorationValueOrDefault(IRDFlags.class, 0));
+                    irBinaryMathNode.getLocation(),
+                    expressionType,
+                    irLeftNode.getDecorationValue(IRDExpressionType.class),
+                    irRightNode.getDecorationValue(IRDExpressionType.class),
+                    operation,
+                    irBinaryMathNode.getDecorationValueOrDefault(IRDFlags.class, 0)
+                );
             } else {
                 methodWriter.writeBinaryInstruction(irBinaryMathNode.getLocation(), expressionType, operation);
             }
@@ -887,8 +928,14 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.push(false);
             methodWriter.mark(end);
         } else {
-            throw new IllegalStateException("unexpected boolean operation [" + operation + "] " +
-                    "for type [" + irBooleanNode.getDecorationString(IRDExpressionType.class) + "]");
+            throw new IllegalStateException(
+                "unexpected boolean operation ["
+                    + operation
+                    + "] "
+                    + "for type ["
+                    + irBooleanNode.getDecorationString(IRDExpressionType.class)
+                    + "]"
+            );
         }
     }
 
@@ -912,9 +959,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         boolean eq = (operation == Operation.EQ || operation == Operation.EQR);
         boolean ne = (operation == Operation.NE || operation == Operation.NER);
-        boolean lt  = operation == Operation.LT;
+        boolean lt = operation == Operation.LT;
         boolean lte = operation == Operation.LTE;
-        boolean gt  = operation == Operation.GT;
+        boolean gt = operation == Operation.GT;
         boolean gte = operation == Operation.GTE;
 
         boolean writejump = true;
@@ -922,94 +969,122 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         Class<?> comparisonType = irComparisonNode.getDecorationValue(IRDComparisonType.class);
         Type type = MethodWriter.getType(comparisonType);
 
-        if (comparisonType == void.class || comparisonType == byte.class
-                || comparisonType == short.class || comparisonType == char.class) {
-            throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
-                    "for type [" + irComparisonNode.getDecorationString(IRDExpressionType.class) + "]");
+        if (comparisonType == void.class || comparisonType == byte.class || comparisonType == short.class || comparisonType == char.class) {
+            throw new IllegalStateException(
+                Strings.format(
+                    "unexpected comparison operation [%s] for type [%s]",
+                    operation,
+                    irComparisonNode.getDecorationString(IRDExpressionType.class)
+                )
+            );
         } else if (comparisonType == boolean.class) {
             if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
             else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
             else {
-                throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
-                        "for type [" + irComparisonNode.getDecorationString(IRDExpressionType.class) + "]");
+                throw new IllegalStateException(
+                    Strings.format(
+                        "unexpected comparison operation [%s] for type [%s]",
+                        operation,
+                        irComparisonNode.getDecorationString(IRDExpressionType.class)
+                    )
+                );
             }
-        } else if (comparisonType == int.class || comparisonType == long.class
-                || comparisonType == float.class || comparisonType == double.class) {
-            if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-            else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
-            else if (lt) methodWriter.ifCmp(type, MethodWriter.LT, jump);
-            else if (lte) methodWriter.ifCmp(type, MethodWriter.LE, jump);
-            else if (gt) methodWriter.ifCmp(type, MethodWriter.GT, jump);
-            else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
-            else {
-                throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
-                        "for type [" + irComparisonNode.getDecorationString(IRDExpressionType.class) + "]");
-            }
+        } else if (comparisonType == int.class
+            || comparisonType == long.class
+            || comparisonType == float.class
+            || comparisonType == double.class) {
+                if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+                else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
+                else if (lt) methodWriter.ifCmp(type, MethodWriter.LT, jump);
+                else if (lte) methodWriter.ifCmp(type, MethodWriter.LE, jump);
+                else if (gt) methodWriter.ifCmp(type, MethodWriter.GT, jump);
+                else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
+                else {
+                    throw new IllegalStateException(
+                        Strings.format(
+                            "unexpected comparison operation [%s] for type [%s]",
+                            operation,
+                            irComparisonNode.getDecorationString(IRDExpressionType.class)
+                        )
+                    );
+                }
 
-        } else if (comparisonType == def.class) {
-            Type booleanType = Type.getType(boolean.class);
-            Type descriptor = Type.getMethodType(booleanType,
+            } else if (comparisonType == def.class) {
+                Type booleanType = Type.getType(boolean.class);
+                Type descriptor = Type.getMethodType(
+                    booleanType,
                     MethodWriter.getType(irLeftNode.getDecorationValue(IRDExpressionType.class)),
-                    MethodWriter.getType(irRightNode.getDecorationValue(IRDExpressionType.class)));
+                    MethodWriter.getType(irRightNode.getDecorationValue(IRDExpressionType.class))
+                );
 
-            if (eq) {
-                if (irRightNode instanceof NullNode) {
-                    methodWriter.ifNull(jump);
-                } else if (irLeftNode instanceof NullNode == false && operation == Operation.EQ) {
-                    methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+                if (eq) {
+                    if (irRightNode instanceof NullNode) {
+                        methodWriter.ifNull(jump);
+                    } else if (irLeftNode instanceof NullNode == false && operation == Operation.EQ) {
+                        methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+                        writejump = false;
+                    } else {
+                        methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+                    }
+                } else if (ne) {
+                    if (irRightNode instanceof NullNode) {
+                        methodWriter.ifNonNull(jump);
+                    } else if (irLeftNode instanceof NullNode == false && operation == Operation.NE) {
+                        methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
+                        methodWriter.ifZCmp(MethodWriter.EQ, jump);
+                    } else {
+                        methodWriter.ifCmp(type, MethodWriter.NE, jump);
+                    }
+                } else if (lt) {
+                    methodWriter.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+                    writejump = false;
+                } else if (lte) {
+                    methodWriter.invokeDefCall("lte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+                    writejump = false;
+                } else if (gt) {
+                    methodWriter.invokeDefCall("gt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
+                    writejump = false;
+                } else if (gte) {
+                    methodWriter.invokeDefCall("gte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
                     writejump = false;
                 } else {
-                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-                }
-            } else if (ne) {
-                if (irRightNode instanceof NullNode) {
-                    methodWriter.ifNonNull(jump);
-                } else if (irLeftNode instanceof NullNode == false && operation == Operation.NE) {
-                    methodWriter.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
-                    methodWriter.ifZCmp(MethodWriter.EQ, jump);
-                } else {
-                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
-                }
-            } else if (lt) {
-                methodWriter.invokeDefCall("lt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
-                writejump = false;
-            } else if (lte) {
-                methodWriter.invokeDefCall("lte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
-                writejump = false;
-            } else if (gt) {
-                methodWriter.invokeDefCall("gt", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
-                writejump = false;
-            } else if (gte) {
-                methodWriter.invokeDefCall("gte", descriptor, DefBootstrap.BINARY_OPERATOR, 0);
-                writejump = false;
-            } else {
-                throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
-                        "for type [" + irComparisonNode.getDecorationString(IRDExpressionType.class) + "]");
-            }
-        } else {
-            if (eq) {
-                if (irRightNode instanceof NullNode) {
-                    methodWriter.ifNull(jump);
-                } else if (operation == Operation.EQ) {
-                    methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
-                    writejump = false;
-                } else {
-                    methodWriter.ifCmp(type, MethodWriter.EQ, jump);
-                }
-            } else if (ne) {
-                if (irRightNode instanceof NullNode) {
-                    methodWriter.ifNonNull(jump);
-                } else if (operation == Operation.NE) {
-                    methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
-                    methodWriter.ifZCmp(MethodWriter.EQ, jump);
-                } else {
-                    methodWriter.ifCmp(type, MethodWriter.NE, jump);
+                    throw new IllegalStateException(
+                        Strings.format(
+                            "unexpected comparison operation [%s] for type [%s]",
+                            operation,
+                            irComparisonNode.getDecorationString(IRDExpressionType.class)
+                        )
+                    );
                 }
             } else {
-                throw new IllegalStateException("unexpected comparison operation [" + operation + "] " +
-                        "for type [" + irComparisonNode.getDecorationString(IRDExpressionType.class) + "]");
+                if (eq) {
+                    if (irRightNode instanceof NullNode) {
+                        methodWriter.ifNull(jump);
+                    } else if (operation == Operation.EQ) {
+                        methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
+                        writejump = false;
+                    } else {
+                        methodWriter.ifCmp(type, MethodWriter.EQ, jump);
+                    }
+                } else if (ne) {
+                    if (irRightNode instanceof NullNode) {
+                        methodWriter.ifNonNull(jump);
+                    } else if (operation == Operation.NE) {
+                        methodWriter.invokeStatic(OBJECTS_TYPE, EQUALS);
+                        methodWriter.ifZCmp(MethodWriter.EQ, jump);
+                    } else {
+                        methodWriter.ifCmp(type, MethodWriter.NE, jump);
+                    }
+                } else {
+                    throw new IllegalStateException(
+                        Strings.format(
+                            "unexpected comparison operation [%s] for type [%s]",
+                            operation,
+                            irComparisonNode.getDecorationString(IRDExpressionType.class)
+                        )
+                    );
+                }
             }
-        }
 
         if (writejump) {
             methodWriter.push(false);
@@ -1097,8 +1172,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.newInstance(MethodWriter.getType(irListInitializationNode.getDecorationValue(IRDExpressionType.class)));
         methodWriter.dup();
         methodWriter.invokeConstructor(
-                Type.getType(painlessConstructor.javaConstructor.getDeclaringClass()),
-                Method.getMethod(painlessConstructor.javaConstructor));
+            Type.getType(painlessConstructor.javaConstructor().getDeclaringClass()),
+            Method.getMethod(painlessConstructor.javaConstructor())
+        );
 
         for (ExpressionNode irArgumentNode : irListInitializationNode.getArgumentNodes()) {
             methodWriter.dup();
@@ -1117,8 +1193,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.newInstance(MethodWriter.getType(irMapInitializationNode.getDecorationValue(IRDExpressionType.class)));
         methodWriter.dup();
         methodWriter.invokeConstructor(
-                Type.getType(painlessConstructor.javaConstructor.getDeclaringClass()),
-                Method.getMethod(painlessConstructor.javaConstructor));
+            Type.getType(painlessConstructor.javaConstructor().getDeclaringClass()),
+            Method.getMethod(painlessConstructor.javaConstructor())
+        );
 
         for (int index = 0; index < irMapInitializationNode.getArgumentsSize(); ++index) {
             methodWriter.dup();
@@ -1155,9 +1232,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             }
 
             if (irArgumentNodes.size() > 1) {
-                methodWriter.visitMultiANewArrayInsn(
-                        MethodWriter.getType(expressionType).getDescriptor(),
-                        irArgumentNodes.size());
+                methodWriter.visitMultiANewArrayInsn(MethodWriter.getType(expressionType).getDescriptor(), irArgumentNodes.size());
             } else {
                 methodWriter.newArray(MethodWriter.getType(expressionType.getComponentType()));
             }
@@ -1180,8 +1255,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         PainlessConstructor painlessConstructor = irNewObjectNode.getDecorationValue(IRDConstructor.class);
         methodWriter.invokeConstructor(
-                Type.getType(painlessConstructor.javaConstructor.getDeclaringClass()),
-                Method.getMethod(painlessConstructor.javaConstructor));
+            Type.getType(painlessConstructor.javaConstructor().getDeclaringClass()),
+            Method.getMethod(painlessConstructor.javaConstructor())
+        );
     }
 
     @Override
@@ -1189,15 +1265,15 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         Object constant = irConstantNode.getDecorationValue(IRDConstant.class);
 
-        if      (constant instanceof String)    methodWriter.push((String)constant);
-        else if (constant instanceof Double)    methodWriter.push((double)constant);
-        else if (constant instanceof Float)     methodWriter.push((float)constant);
-        else if (constant instanceof Long)      methodWriter.push((long)constant);
-        else if (constant instanceof Integer)   methodWriter.push((int)constant);
-        else if (constant instanceof Character) methodWriter.push((char)constant);
-        else if (constant instanceof Short)     methodWriter.push((short)constant);
-        else if (constant instanceof Byte)      methodWriter.push((byte)constant);
-        else if (constant instanceof Boolean)   methodWriter.push((boolean)constant);
+        if (constant instanceof String) methodWriter.push((String) constant);
+        else if (constant instanceof Double) methodWriter.push((double) constant);
+        else if (constant instanceof Float) methodWriter.push((float) constant);
+        else if (constant instanceof Long) methodWriter.push((long) constant);
+        else if (constant instanceof Integer) methodWriter.push((int) constant);
+        else if (constant instanceof Character) methodWriter.push((char) constant);
+        else if (constant instanceof Short) methodWriter.push((short) constant);
+        else if (constant instanceof Byte) methodWriter.push((byte) constant);
+        else if (constant instanceof Boolean) methodWriter.push((boolean) constant);
         else {
             /*
              * The constant doesn't properly fit into the constant pool so
@@ -1226,7 +1302,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         // place holder for functional interface receiver
         // which is resolved and replace at runtime
-        methodWriter.push((String)null);
+        methodWriter.push((String) null);
 
         if (irDefInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class)) {
             Variable capturedThis = writeScope.getInternalVariable("this");
@@ -1333,8 +1409,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irLoadDotDefNode.getLocation());
         Type methodType = Type.getMethodType(
-                MethodWriter.getType(irLoadDotDefNode.getDecorationValue(IRDExpressionType.class)),
-                MethodWriter.getType(def.class));
+            MethodWriter.getType(irLoadDotDefNode.getDecorationValue(IRDExpressionType.class)),
+            MethodWriter.getType(def.class)
+        );
         methodWriter.invokeDefCall(irLoadDotDefNode.getDecorationValue(IRDValue.class), methodType, DefBootstrap.LOAD);
     }
 
@@ -1344,10 +1421,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeDebugInfo(irLoadDotNode.getLocation());
 
         PainlessField painlessField = irLoadDotNode.getDecorationValue(IRDField.class);
-        boolean isStatic = Modifier.isStatic(painlessField.javaField.getModifiers());
-        Type asmOwnerType = Type.getType(painlessField.javaField.getDeclaringClass());
-        String fieldName = painlessField.javaField.getName();
-        Type asmFieldType = MethodWriter.getType(painlessField.typeParameter);
+        boolean isStatic = Modifier.isStatic(painlessField.javaField().getModifiers());
+        Type asmOwnerType = Type.getType(painlessField.javaField().getDeclaringClass());
+        String fieldName = painlessField.javaField().getName();
+        Type asmFieldType = MethodWriter.getType(painlessField.typeParameter());
 
         if (isStatic) {
             methodWriter.getStatic(asmOwnerType, fieldName, asmFieldType);
@@ -1364,8 +1441,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         PainlessMethod getterPainlessMethod = irDotSubShortcutNode.getDecorationValue(IRDMethod.class);
         methodWriter.invokeMethodCall(getterPainlessMethod);
 
-        if (getterPainlessMethod.returnType.equals(getterPainlessMethod.javaMethod.getReturnType()) == false) {
-            methodWriter.checkCast(MethodWriter.getType(getterPainlessMethod.returnType));
+        if (getterPainlessMethod.returnType().equals(getterPainlessMethod.javaMethod().getReturnType()) == false) {
+            methodWriter.checkCast(MethodWriter.getType(getterPainlessMethod.returnType()));
         }
     }
 
@@ -1377,8 +1454,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         PainlessMethod getterPainlessMethod = irLoadListShortcutNode.getDecorationValue(IRDMethod.class);
         methodWriter.invokeMethodCall(getterPainlessMethod);
 
-        if (getterPainlessMethod.returnType == getterPainlessMethod.javaMethod.getReturnType()) {
-            methodWriter.checkCast(MethodWriter.getType(getterPainlessMethod.returnType));
+        if (getterPainlessMethod.returnType() == getterPainlessMethod.javaMethod().getReturnType()) {
+            methodWriter.checkCast(MethodWriter.getType(getterPainlessMethod.returnType()));
         }
     }
 
@@ -1390,8 +1467,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         PainlessMethod getterPainlessMethod = irLoadMapShortcutNode.getDecorationValue(IRDMethod.class);
         methodWriter.invokeMethodCall(getterPainlessMethod);
 
-        if (getterPainlessMethod.returnType != getterPainlessMethod.javaMethod.getReturnType()) {
-            methodWriter.checkCast(MethodWriter.getType(getterPainlessMethod.returnType));
+        if (getterPainlessMethod.returnType() != getterPainlessMethod.javaMethod().getReturnType()) {
+            methodWriter.checkCast(MethodWriter.getType(getterPainlessMethod.returnType()));
         }
     }
 
@@ -1417,9 +1494,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irLoadBraceDefNode.getLocation());
         Type methodType = Type.getMethodType(
-                MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDExpressionType.class)),
-                MethodWriter.getType(def.class),
-                MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDIndexType.class)));
+            MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDExpressionType.class)),
+            MethodWriter.getType(def.class),
+            MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDIndexType.class))
+        );
         methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 
@@ -1448,9 +1526,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.writeDebugInfo(irStoreDotDefNode.getLocation());
         Type methodType = Type.getMethodType(
-                MethodWriter.getType(void.class),
-                MethodWriter.getType(def.class),
-                MethodWriter.getType(irStoreDotDefNode.getDecorationValue(IRDStoreType.class)));
+            MethodWriter.getType(void.class),
+            MethodWriter.getType(def.class),
+            MethodWriter.getType(irStoreDotDefNode.getDecorationValue(IRDStoreType.class))
+        );
         methodWriter.invokeDefCall(irStoreDotDefNode.getDecorationValue(IRDValue.class), methodType, DefBootstrap.STORE);
     }
 
@@ -1463,10 +1542,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeDebugInfo(irStoreDotNode.getLocation());
 
         PainlessField painlessField = irStoreDotNode.getDecorationValue(IRDField.class);
-        boolean isStatic = Modifier.isStatic(painlessField.javaField.getModifiers());
-        Type asmOwnerType = Type.getType(painlessField.javaField.getDeclaringClass());
-        String fieldName = painlessField.javaField.getName();
-        Type asmFieldType = MethodWriter.getType(painlessField.typeParameter);
+        boolean isStatic = Modifier.isStatic(painlessField.javaField().getModifiers());
+        Type asmOwnerType = Type.getType(painlessField.javaField().getDeclaringClass());
+        String fieldName = painlessField.javaField().getName();
+        Type asmFieldType = MethodWriter.getType(painlessField.typeParameter());
 
         if (isStatic) {
             methodWriter.putStatic(asmOwnerType, fieldName, asmFieldType);
@@ -1483,7 +1562,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.writeDebugInfo(irDotSubShortcutNode.getLocation());
         methodWriter.invokeMethodCall(irDotSubShortcutNode.getDecorationValue(IRDMethod.class));
-        methodWriter.writePop(MethodWriter.getType(irDotSubShortcutNode.getDecorationValue(IRDMethod.class).returnType).getSize());
+        methodWriter.writePop(MethodWriter.getType(irDotSubShortcutNode.getDecorationValue(IRDMethod.class).returnType()).getSize());
     }
 
     @Override
@@ -1494,7 +1573,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.writeDebugInfo(irStoreListShortcutNode.getLocation());
         methodWriter.invokeMethodCall(irStoreListShortcutNode.getDecorationValue(IRDMethod.class));
-        methodWriter.writePop(MethodWriter.getType(irStoreListShortcutNode.getDecorationValue(IRDMethod.class).returnType).getSize());
+        methodWriter.writePop(MethodWriter.getType(irStoreListShortcutNode.getDecorationValue(IRDMethod.class).returnType()).getSize());
     }
 
     @Override
@@ -1505,7 +1584,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.writeDebugInfo(irStoreMapShortcutNode.getLocation());
         methodWriter.invokeMethodCall(irStoreMapShortcutNode.getDecorationValue(IRDMethod.class));
-        methodWriter.writePop(MethodWriter.getType(irStoreMapShortcutNode.getDecorationValue(IRDMethod.class).returnType).getSize());
+        methodWriter.writePop(MethodWriter.getType(irStoreMapShortcutNode.getDecorationValue(IRDMethod.class).returnType()).getSize());
     }
 
     @Override
@@ -1540,10 +1619,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.writeDebugInfo(irStoreBraceDefNode.getLocation());
         Type methodType = Type.getMethodType(
-                MethodWriter.getType(void.class),
-                MethodWriter.getType(def.class),
-                MethodWriter.getType(irStoreBraceDefNode.getDecorationValue(IRDIndexType.class)),
-                MethodWriter.getType(irStoreBraceDefNode.getDecorationValue(IRDStoreType.class)));
+            MethodWriter.getType(void.class),
+            MethodWriter.getType(def.class),
+            MethodWriter.getType(irStoreBraceDefNode.getDecorationValue(IRDIndexType.class)),
+            MethodWriter.getType(irStoreBraceDefNode.getDecorationValue(IRDStoreType.class))
+        );
         methodWriter.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 
@@ -1584,10 +1664,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             // handle the case for unknown functional interface
             // to hint at which values are the call's arguments
             // versus which values are captures
-            if (irArgumentNode instanceof DefInterfaceReferenceNode) {
-                DefInterfaceReferenceNode defInterfaceReferenceNode = (DefInterfaceReferenceNode)irArgumentNode;
-                List<String> captureNames =
-                        defInterfaceReferenceNode.getDecorationValueOrDefault(IRDCaptureNames.class, Collections.emptyList());
+            if (irArgumentNode instanceof DefInterfaceReferenceNode defInterfaceReferenceNode) {
+                List<String> captureNames = defInterfaceReferenceNode.getDecorationValueOrDefault(
+                    IRDCaptureNames.class,
+                    Collections.emptyList()
+                );
                 boostrapArguments.add(defInterfaceReferenceNode.getDecorationValue(IRDDefReferenceEncoding.class).toString());
 
                 if (defInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class)) {
@@ -1599,7 +1680,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 // where the value is the number of current arguments plus the
                 // total number of captures for easier capture count tracking
                 // when resolved at runtime
-                char encoding = (char)(i + capturedCount);
+                char encoding = (char) (i + capturedCount);
                 defCallRecipe.append(encoding);
                 capturedCount += captureNames.size();
 
@@ -1622,8 +1703,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         }
 
         String methodName = irInvokeCallDefNode.getDecorationValue(IRDName.class);
-        Type methodType = Type.getMethodType(MethodWriter.getType(
-                irInvokeCallDefNode.getDecorationValue(IRDExpressionType.class)), asmParameterTypes);
+        Type methodType = Type.getMethodType(
+            MethodWriter.getType(irInvokeCallDefNode.getDecorationValue(IRDExpressionType.class)),
+            asmParameterTypes
+        );
 
         boostrapArguments.add(0, defCallRecipe.toString());
         methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.METHOD_CALL, boostrapArguments.toArray());
@@ -1678,21 +1761,23 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 visit(irArgumentNode, writeScope);
             }
 
-            Method asmMethod = new Method(thisMethod.javaMethod.getName(),
-                    thisMethod.methodType.dropParameterTypes(0, 1).toMethodDescriptorString());
+            Method asmMethod = new Method(
+                thisMethod.javaMethod().getName(),
+                thisMethod.methodType().dropParameterTypes(0, 1).toMethodDescriptorString()
+            );
             methodWriter.invokeVirtual(CLASS_TYPE, asmMethod);
         } else if (importedMethod != null) {
             for (ExpressionNode irArgumentNode : irArgumentNodes) {
                 visit(irArgumentNode, writeScope);
             }
 
-            Type asmType = Type.getType(importedMethod.targetClass);
-            Method asmMethod = new Method(importedMethod.javaMethod.getName(), importedMethod.methodType.toMethodDescriptorString());
+            Type asmType = Type.getType(importedMethod.targetClass());
+            Method asmMethod = new Method(importedMethod.javaMethod().getName(), importedMethod.methodType().toMethodDescriptorString());
             methodWriter.invokeStatic(asmType, asmMethod);
         } else if (classBinding != null) {
-            Type type = Type.getType(classBinding.javaConstructor.getDeclaringClass());
+            Type type = Type.getType(classBinding.javaConstructor().getDeclaringClass());
             int classBindingOffset = irInvokeCallMemberNode.hasCondition(IRCStatic.class) ? 0 : 1;
-            int javaConstructorParameterCount = classBinding.javaConstructor.getParameterCount() - classBindingOffset;
+            int javaConstructorParameterCount = classBinding.javaConstructor().getParameterCount() - classBindingOffset;
             String bindingName = irInvokeCallMemberNode.getDecorationValue(IRDName.class);
 
             Label nonNull = new Label();
@@ -1712,30 +1797,30 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 visit(irArgumentNodes.get(argument), writeScope);
             }
 
-            methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
+            methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor()));
             methodWriter.putField(CLASS_TYPE, bindingName, type);
 
             methodWriter.mark(nonNull);
             methodWriter.loadThis();
             methodWriter.getField(CLASS_TYPE, bindingName, type);
 
-            for (int argument = 0; argument < classBinding.javaMethod.getParameterCount(); ++argument) {
+            for (int argument = 0; argument < classBinding.javaMethod().getParameterCount(); ++argument) {
                 visit(irArgumentNodes.get(argument + javaConstructorParameterCount), writeScope);
             }
 
-            methodWriter.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
+            methodWriter.invokeVirtual(type, Method.getMethod(classBinding.javaMethod()));
         } else if (instanceBinding != null) {
-            Type type = Type.getType(instanceBinding.targetInstance.getClass());
+            Type type = Type.getType(instanceBinding.targetInstance().getClass());
             String bindingName = irInvokeCallMemberNode.getDecorationValue(IRDName.class);
 
             methodWriter.loadThis();
             methodWriter.getStatic(CLASS_TYPE, bindingName, type);
 
-            for (int argument = 0; argument < instanceBinding.javaMethod.getParameterCount(); ++argument) {
+            for (int argument = 0; argument < instanceBinding.javaMethod().getParameterCount(); ++argument) {
                 visit(irArgumentNodes.get(argument), writeScope);
             }
 
-            methodWriter.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod));
+            methodWriter.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod()));
         } else {
             throw new IllegalStateException("invalid unbound call");
         }

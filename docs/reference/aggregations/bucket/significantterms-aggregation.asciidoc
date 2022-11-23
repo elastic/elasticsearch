@@ -404,6 +404,10 @@ the foreground set of "ended in failure" versus "NOT ended in failure".
 `"background_is_superset": false` indicates that the background set does 
 not contain the counts of the foreground set as they are filtered out.
 
+`"normalize_above": 1000` facilitates returning consistent significance results
+at various scales. `1000` indicates that term counts greater than `1000` are
+scaled down by a factor of `1000/term_count`.
+
 [source,console]
 --------------------------------------------------
 GET /_search
@@ -466,7 +470,7 @@ GET /_search
             ]
           }
         },
-        "p_value": {"background_is_superset": false}
+        "p_value": {"background_is_superset": false, "normalize_above": 1000}
       }
     }
   }

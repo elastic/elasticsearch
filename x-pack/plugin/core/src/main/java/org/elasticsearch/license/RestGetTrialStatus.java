@@ -7,7 +7,7 @@
 
 package org.elasticsearch.license;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -24,8 +24,7 @@ public class RestGetTrialStatus extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_license/trial_status")
-                .replaces(GET, "/_xpack/license/trial_status", RestApiVersion.V_7).build()
+            Route.builder(GET, "/_license/trial_status").replaces(GET, "/_xpack/license/trial_status", RestApiVersion.V_7).build()
         );
     }
 

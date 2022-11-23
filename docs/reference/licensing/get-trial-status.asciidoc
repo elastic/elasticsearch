@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[get-trial-status]]
 === Get trial status API
 ++++

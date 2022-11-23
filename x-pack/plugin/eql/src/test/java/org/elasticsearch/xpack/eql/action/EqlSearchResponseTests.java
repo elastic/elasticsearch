@@ -9,16 +9,16 @@ package org.elasticsearch.xpack.eql.action;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.eql.AbstractBWCWireSerializingTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
@@ -120,25 +120,35 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
 
     private static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xType) {
         switch (randomIntBetween(0, 2)) {
-            case 0:
+            case 0 -> {
                 String fieldName = randomAlphaOfLengthBetween(3, 10);
                 Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xType);
                 DocumentField input = new DocumentField(fieldName, tuple.v1());
                 DocumentField expected = new DocumentField(fieldName, tuple.v2());
                 return Tuple.tuple(input, expected);
-            case 1:
+            }
+            case 1 -> {
                 List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, ESTestCase::randomInt));
                 DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
                 return Tuple.tuple(listField, listField);
-            case 2:
-                List<Object> objectValues = randomList(1, 5, () ->
-                    Map.of(randomAlphaOfLength(5), randomInt(),
-                        randomAlphaOfLength(5), randomBoolean(),
-                        randomAlphaOfLength(5), randomAlphaOfLength(10)));
+            }
+            case 2 -> {
+                List<Object> objectValues = randomList(
+                    1,
+                    5,
+                    () -> Map.of(
+                        randomAlphaOfLength(5),
+                        randomInt(),
+                        randomAlphaOfLength(6),
+                        randomBoolean(),
+                        randomAlphaOfLength(7),
+                        randomAlphaOfLength(10)
+                    )
+                );
                 DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
                 return Tuple.tuple(objectField, objectField);
-            default:
-                throw new IllegalStateException();
+            }
+            default -> throw new IllegalStateException();
         }
     }
 
@@ -168,8 +178,14 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
         if (randomBoolean()) {
             return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
         } else {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
-                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+            return new EqlSearchResponse(
+                hits,
+                randomIntBetween(0, 1001),
+                randomBoolean(),
+                randomAlphaOfLength(10),
+                randomBoolean(),
+                randomBoolean()
+            );
         }
     }
 
@@ -194,31 +210,34 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
         if (randomBoolean()) {
             return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
         } else {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
-                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+            return new EqlSearchResponse(
+                hits,
+                randomIntBetween(0, 1001),
+                randomBoolean(),
+                randomAlphaOfLength(10),
+                randomBoolean(),
+                randomBoolean()
+            );
         }
     }
 
     private static List<Supplier<Object[]>> getKeysGenerators() {
         List<Supplier<Object[]>> randoms = new ArrayList<>();
         randoms.add(() -> generateRandomStringArray(6, 11, false));
-        randoms.add(() -> randomArray(0, 6, Integer[]::new, ()-> randomInt()));
-        randoms.add(() -> randomArray(0, 6, Long[]::new, ()-> randomLong()));
-        randoms.add(() -> randomArray(0, 6, Boolean[]::new, ()-> randomBoolean()));
+        randoms.add(() -> randomArray(0, 6, Integer[]::new, () -> randomInt()));
+        randoms.add(() -> randomArray(0, 6, Long[]::new, () -> randomLong()));
+        randoms.add(() -> randomArray(0, 6, Boolean[]::new, () -> randomBoolean()));
 
         return randoms;
     }
 
     public static EqlSearchResponse createRandomInstance(TotalHits totalHits, XContentType xType) {
         int type = between(0, 1);
-        switch(type) {
-            case 0:
-                return createRandomEventsResponse(totalHits, xType);
-            case 1:
-                return createRandomSequencesResponse(totalHits, xType);
-            default:
-                return null;
-        }
+        return switch (type) {
+            case 0 -> createRandomEventsResponse(totalHits, xType);
+            case 1 -> createRandomSequencesResponse(totalHits, xType);
+            default -> null;
+        };
     }
 
     @Override
@@ -229,13 +248,19 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
         List<Sequence> mutatedSequences = null;
         if (sequences != null) {
             mutatedSequences = new ArrayList<>(sequences.size());
-            for(Sequence s : sequences) {
+            for (Sequence s : sequences) {
                 mutatedSequences.add(new Sequence(s.joinKeys(), mutateEvents(s.events(), version)));
             }
         }
 
-        return new EqlSearchResponse(new EqlSearchResponse.Hits(mutatedEvents, mutatedSequences, instance.hits().totalHits()),
-            instance.took(), instance.isTimeout(), instance.id(), instance.isRunning(), instance.isPartial());
+        return new EqlSearchResponse(
+            new EqlSearchResponse.Hits(mutatedEvents, mutatedSequences, instance.hits().totalHits()),
+            instance.took(),
+            instance.isTimeout(),
+            instance.id(),
+            instance.isRunning(),
+            instance.isPartial()
+        );
     }
 
     private List<Event> mutateEvents(List<Event> original, Version version) {
@@ -243,7 +268,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             return original;
         }
         List<Event> mutatedEvents = new ArrayList<>(original.size());
-        for(Event e : original) {
+        for (Event e : original) {
             mutatedEvents.add(new Event(e.index(), e.id(), e.source(), version.onOrAfter(Version.V_7_13_0) ? e.fetchFields() : null));
         }
         return mutatedEvents;

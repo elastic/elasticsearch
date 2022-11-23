@@ -7,25 +7,22 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.eql.SecurityUtils.secureClientSettings;
 import static org.elasticsearch.xpack.eql.SecurityUtils.setRunAsHeader;
 import static org.hamcrest.Matchers.containsString;
@@ -45,15 +42,15 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
     public void indexDocuments() throws IOException {
         createIndex("index", Settings.EMPTY);
         index("index", "0", "event_type", "my_event", "@timestamp", "2020-04-09T12:35:48Z", "val", 0);
-        refresh("index");
+        refresh(adminClient(), "index");
 
         createIndex("index-user1", Settings.EMPTY);
         index("index-user1", "0", "event_type", "my_event", "@timestamp", "2020-04-09T12:35:48Z", "val", 0);
-        refresh("index-user1");
+        refresh(adminClient(), "index-user1");
 
         createIndex("index-user2", Settings.EMPTY);
         index("index-user2", "0", "event_type", "my_event", "@timestamp", "2020-04-09T12:35:48Z", "val", 0);
-        refresh("index-user2");
+        refresh(adminClient(), "index-user2");
     }
 
     public void testWithUsers() throws Exception {
@@ -62,7 +59,7 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
     }
 
     private void testCase(String user, String other) throws Exception {
-        for (String indexName : new String[] {"index", "index-" + user}) {
+        for (String indexName : new String[] { "index", "index-" + user }) {
             Response submitResp = submitAsyncEqlSearch(indexName, "my_event where val==0", TimeValue.timeValueSeconds(10), user);
             assertOK(submitResp);
             String id = extractResponseId(submitResp);
@@ -79,22 +76,24 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
 
             // other and user cannot access the result from direct get calls
             AsyncExecutionId searchId = AsyncExecutionId.decode(id);
-            for (String runAs : new String[] {user, other}) {
+            for (String runAs : new String[] { user, other }) {
                 exc = expectThrows(ResponseException.class, () -> get(XPackPlugin.ASYNC_RESULTS_INDEX, searchId.getDocId(), runAs));
                 assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
                 assertThat(exc.getMessage(), containsString("unauthorized"));
             }
 
-             Response delResp = deleteAsyncEqlSearch(id, user);
-             assertOK(delResp);
+            Response delResp = deleteAsyncEqlSearch(id, user);
+            assertOK(delResp);
         }
-        ResponseException exc = expectThrows(ResponseException.class,
-            () -> submitAsyncEqlSearch("index-" + other, "*", TimeValue.timeValueSeconds(10), user));
+        ResponseException exc = expectThrows(
+            ResponseException.class,
+            () -> submitAsyncEqlSearch("index-" + other, "*", TimeValue.timeValueSeconds(10), user)
+        );
         assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     static String extractResponseId(Response response) throws IOException {
-        Map<String, Object> map = toMap(response);
+        var map = responseAsMap(response);
         return (String) map.get("id");
     }
 
@@ -109,10 +108,6 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
-    static void refresh(String index) throws IOException {
-        assertOK(adminClient().performRequest(new Request("POST", "/" + index + "/_refresh")));
-    }
-
     static Response get(String index, String id, String user) throws IOException {
         final Request request = new Request("GET", "/" + index + "/_doc/" + id);
         setRunAsHeader(request, user);
@@ -122,11 +117,11 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
     static Response submitAsyncEqlSearch(String indexName, String query, TimeValue waitForCompletion, String user) throws IOException {
         final Request request = new Request("POST", indexName + "/_eql/search");
         setRunAsHeader(request, user);
-        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder()
-            .startObject()
-            .field("event_category_field", "event_type")
-            .field("query", query)
-            .endObject()));
+        request.setJsonEntity(
+            Strings.toString(
+                JsonXContent.contentBuilder().startObject().field("event_category_field", "event_type").field("query", query).endObject()
+            )
+        );
         request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
         // we do the cleanup explicitly
         request.addParameter("keep_on_completion", "true");
@@ -134,23 +129,16 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
     }
 
     static Response getAsyncEqlSearch(String id, String user) throws IOException {
-        final Request request = new Request("GET",  "/_eql/search/" + id);
+        final Request request = new Request("GET", "/_eql/search/" + id);
         setRunAsHeader(request, user);
         request.addParameter("wait_for_completion_timeout", "0ms");
         return client().performRequest(request);
     }
 
     static Response deleteAsyncEqlSearch(String id, String user) throws IOException {
-        final Request request = new Request("DELETE",  "/_eql/search/" + id);
+        final Request request = new Request("DELETE", "/_eql/search/" + id);
         setRunAsHeader(request, user);
         return client().performRequest(request);
     }
 
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return toMap(EntityUtils.toString(response.getEntity()));
-    }
-
-    static Map<String, Object> toMap(String response) {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
-    }
 }

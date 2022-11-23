@@ -8,12 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
@@ -23,19 +20,11 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public MockFieldMapper(MappedFieldType fieldType) {
-        this(fieldType, Map.of());
+        this(findSimpleName(fieldType.name()), fieldType, MultiFields.empty(), CopyTo.empty());
     }
 
-    public MockFieldMapper(MappedFieldType fieldType, Map<String, NamedAnalyzer> indexAnalyzers) {
-        super(findSimpleName(fieldType.name()), fieldType, indexAnalyzers,
-            MultiFields.empty(), new CopyTo.Builder().build(), false, null);
-    }
-
-    public MockFieldMapper(String fullName,
-                           MappedFieldType fieldType,
-                           MultiFields multifields,
-                           CopyTo copyTo) {
-        super(findSimpleName(fullName), fieldType, multifields, copyTo);
+    public MockFieldMapper(String fullName, MappedFieldType fieldType, MultiFields multifields, CopyTo copyTo) {
+        super(findSimpleName(fullName), fieldType, multifields, copyTo, false, null);
     }
 
     @Override
@@ -70,8 +59,7 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(DocumentParserContext context) {
-    }
+    protected void parseCreateField(DocumentParserContext context) {}
 
     public static class Builder extends FieldMapper.Builder {
         private final MappedFieldType fieldType;
@@ -82,8 +70,8 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Collections.emptyList();
+        protected Parameter<?>[] getParameters() {
+            return FieldMapper.EMPTY_PARAMETERS;
         }
 
         public Builder addMultiField(Builder builder) {
@@ -97,8 +85,8 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
-        public MockFieldMapper build(ContentPath contentPath) {
-            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
+        public MockFieldMapper build(MapperBuilderContext context) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             return new MockFieldMapper(name(), fieldType, multiFields, copyTo.build());
         }
     }

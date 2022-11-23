@@ -39,7 +39,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         """
 
         when:
-        def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
+        def result = gradleRunner("setupDistro", '-g', gradleUserHome).build()
 
         then:
         result.task(":distribution:archives:${testArchiveProjectName}:buildExpanded").outcome == TaskOutcome.SUCCESS
@@ -56,7 +56,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
             elasticsearch_distributions {
               test_distro {
-                  version = "7.12.0"
+                  version = "8.0.0"
                   type = "archive"
                   platform = "linux"
                   architecture = Architecture.current();
@@ -86,7 +86,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
             elasticsearch_distributions {
               test_distro {
-                  version = "7.12.0"
+                  version = "8.0.0"
                   type = "archive"
                   platform = "linux"
                   architecture = Architecture.current();

@@ -23,7 +23,7 @@ import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 public class SamlServiceProviderTestUtils {
 
-    private SamlServiceProviderTestUtils(){} //utility class
+    private SamlServiceProviderTestUtils() {} // utility class
 
     public static SamlServiceProviderDocument randomDocument() {
         return randomDocument(randomIntBetween(1, 999_999));
@@ -74,7 +74,13 @@ public class SamlServiceProviderTestUtils {
     }
 
     private static String randomUri(String scheme) {
-        return scheme + "://" + randomAlphaOfLengthBetween(2, 6) + "."
-            + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(2, 4) + "/";
+        return scheme
+            + "://"
+            + randomAlphaOfLengthBetween(2, 6)
+            + "."
+            + randomAlphaOfLengthBetween(4, 8)
+            + "."
+            + randomAlphaOfLengthBetween(2, 4)
+            + "/";
     }
 }

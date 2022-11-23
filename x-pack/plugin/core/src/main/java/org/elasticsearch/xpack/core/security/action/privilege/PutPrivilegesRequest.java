@@ -34,7 +34,7 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
 
     public PutPrivilegesRequest(StreamInput in) throws IOException {
         super(in);
-        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilegeDescriptor::new));
+        privileges = in.readImmutableList(ApplicationPrivilegeDescriptor::new);
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
@@ -63,19 +63,23 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
                     validationException = addValidationError("Application privileges must have at least one action", validationException);
                 }
                 for (String action : privilege.getActions()) {
-                    if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
-                        validationException = addValidationError("action [" + action + "] must contain one of [ '/' , '*' , ':' ]",
-                            validationException);
-                    }
                     try {
-                        ApplicationPrivilege.validatePrivilegeOrActionName(action);
+                        ApplicationPrivilege.validateActionName(action);
                     } catch (IllegalArgumentException e) {
                         validationException = addValidationError(e.getMessage(), validationException);
                     }
                 }
                 if (MetadataUtils.containsReservedMetadata(privilege.getMetadata())) {
-                    validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX
-                        + "] (in privilege " + privilege.getApplication() + ' ' + privilege.getName() + ")", validationException);
+                    validationException = addValidationError(
+                        "metadata keys may not start with ["
+                            + MetadataUtils.RESERVED_PREFIX
+                            + "] (in privilege "
+                            + privilege.getApplication()
+                            + ' '
+                            + privilege.getName()
+                            + ")",
+                        validationException
+                    );
                 }
             }
         }
@@ -107,15 +111,19 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
 
     @Override
     public Collection<String> getApplicationNames() {
-        return Collections.unmodifiableSet(privileges.stream()
-            .map(ApplicationPrivilegeDescriptor::getApplication)
-            .collect(Collectors.toSet()));
+        return Collections.unmodifiableSet(
+            privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toSet())
+        );
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{[" + privileges.stream().map(Strings::toString).collect(Collectors.joining(","))
-            + "];" + refreshPolicy + "}";
+        return getClass().getSimpleName()
+            + "{["
+            + privileges.stream().map(Strings::toString).collect(Collectors.joining(","))
+            + "];"
+            + refreshPolicy
+            + "}";
     }
 
     @Override

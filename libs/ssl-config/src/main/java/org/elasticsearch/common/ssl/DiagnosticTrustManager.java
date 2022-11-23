@@ -8,10 +8,6 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.cert.CertificateException;
@@ -23,10 +19,12 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.ssl.SslDiagnostics.getTrustDiagnosticFailure;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
-
 
     /**
      * This interface exists because the ssl-config library does not depend on log4j, however the whole purpose of this class is to log
@@ -36,7 +34,6 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
     public interface DiagnosticLogger {
         void warning(String message, GeneralSecurityException cause);
     }
-
 
     private final X509ExtendedTrustManager delegate;
     private final Supplier<String> contextName;
@@ -53,13 +50,18 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
         this.contextName = contextName;
         this.logger = logger;
         this.issuers = Stream.of(delegate.getAcceptedIssuers())
-            .collect(Collectors.toMap(cert -> cert.getSubjectX500Principal().getName(), List::of,
-                (List<X509Certificate> a, List<X509Certificate> b) -> {
-                    final ArrayList<X509Certificate> list = new ArrayList<>(a.size() + b.size());
-                    list.addAll(a);
-                    list.addAll(b);
-                    return list;
-                }));
+            .collect(
+                Collectors.toMap(
+                    cert -> cert.getSubjectX500Principal().getName(),
+                    List::of,
+                    (List<X509Certificate> a, List<X509Certificate> b) -> {
+                        final ArrayList<X509Certificate> list = new ArrayList<>(a.size() + b.size());
+                        list.addAll(a);
+                        list.addAll(b);
+                        return list;
+                    }
+                )
+            );
     }
 
     @Override
@@ -128,13 +130,18 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
     }
 
     private void diagnose(CertificateException cause, X509Certificate[] chain, SslDiagnostics.PeerType peerType, SSLSession session) {
-        final String diagnostic = getTrustDiagnosticFailure(chain, peerType, session, this.contextName.get(), this.issuers);
+        final String diagnostic = SslDiagnostics.INSTANCE.getTrustDiagnosticFailure(
+            chain,
+            peerType,
+            session,
+            this.contextName.get(),
+            this.issuers
+        );
         logger.warning(diagnostic, cause);
     }
 
-    private SSLSession session(Socket socket) {
-        if (socket instanceof SSLSocket) {
-            final SSLSocket ssl = (SSLSocket) socket;
+    private static SSLSession session(Socket socket) {
+        if (socket instanceof final SSLSocket ssl) {
             final SSLSession handshakeSession = ssl.getHandshakeSession();
             if (handshakeSession == null) {
                 return ssl.getSession();
@@ -146,7 +153,7 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
         }
     }
 
-    private SSLSession session(SSLEngine engine) {
+    private static SSLSession session(SSLEngine engine) {
         return engine.getHandshakeSession();
     }
 }

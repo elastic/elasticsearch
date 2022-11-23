@@ -9,10 +9,10 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.common.CheckedSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +33,32 @@ public interface ActionListener<Response> {
      * A failure caused by an exception at some phase of the task.
      */
     void onFailure(Exception e);
+
+    @SuppressWarnings("rawtypes")
+    ActionListener NOOP = new ActionListener() {
+        @Override
+        public void onResponse(Object o) {
+
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+
+        }
+
+        @Override
+        public String toString() {
+            return "NoopActionListener";
+        }
+    };
+
+    /**
+     * @return a listener that does nothing
+     */
+    @SuppressWarnings("unchecked")
+    static <T> ActionListener<T> noop() {
+        return (ActionListener<T>) NOOP;
+    }
 
     /**
      * Creates a listener that wraps this listener, mapping response values via the given mapping function and passing along
@@ -125,8 +151,10 @@ public interface ActionListener<Response> {
      * @param <Response> the type of the response
      * @return a listener that listens for responses and invokes the consumer when received
      */
-    static <Response> ActionListener<Response> wrap(CheckedConsumer<Response, ? extends Exception> onResponse,
-            Consumer<Exception> onFailure) {
+    static <Response> ActionListener<Response> wrap(
+        CheckedConsumer<Response, ? extends Exception> onResponse,
+        Consumer<Exception> onFailure
+    ) {
         return new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
@@ -257,24 +285,6 @@ public interface ActionListener<Response> {
             @Override
             public String toString() {
                 return "RunnableWrappingActionListener{" + runnable + "}";
-            }
-        };
-    }
-
-    /**
-     * Converts a listener to a {@link BiConsumer} for compatibility with the {@link java.util.concurrent.CompletableFuture}
-     * api.
-     *
-     * @param listener that will be wrapped
-     * @param <Response> the type of the response
-     * @return a bi consumer that will complete the wrapped listener
-     */
-    static <Response> BiConsumer<Response, Exception> toBiConsumer(ActionListener<Response> listener) {
-        return (response, throwable) -> {
-            if (throwable == null) {
-                listener.onResponse(response);
-            } else {
-                listener.onFailure(throwable);
             }
         };
     }

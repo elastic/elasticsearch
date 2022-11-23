@@ -9,34 +9,36 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
+import org.elasticsearch.gradle.transform.UnzipTransform
+import org.gradle.api.internal.artifacts.ArtifactAttributes
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
-  classname 'org.elasticsearch.index.reindex.ReindexPlugin'
+  classname 'org.elasticsearch.reindex.ReindexPlugin'
 }
 
-testClusters.all {
+testClusters.configureEach {
   // Modules who's integration is explicitly tested in integration tests
   module ':modules:parent-join'
   module ':modules:lang-painless'
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
 dependencies {
   api project(":client:rest")
   api project(":libs:elasticsearch-ssl-config")
-  // for http - testing reindex from remote
-  testImplementation project(':modules:transport-netty4')
   // for parent/child testing
   testImplementation project(':modules:parent-join')
 }
@@ -44,7 +46,7 @@ dependencies {
 restResources {
   restApi {
     include '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
-                'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script'
+                'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script', 'bulk'
   }
 }
 
@@ -91,6 +93,11 @@ jdks {
   }
 }
 
+if (Os.isFamily(Os.FAMILY_MAC) && Architecture.current() == Architecture.AARCH64) {
+  jdks.legacy.vendor = 'zulu'
+  jdks.legacy.distributionVersion = '8.56.0.23'
+}
+
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
   tasks.named("javaRestTest").configure {
@@ -102,8 +109,17 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     systemProperty "tests.fromOld", "false"
   }
 } else {
-  /* Set up tasks to unzip and run the old versions of ES before running the
-   * integration tests. */
+  /* Register a gradle artifact transformation to unpack resolved elasticsearch distributions. We only resolve
+   * zip files here. Using artifact transforms allow a better caching of the downloaded distros as the
+   * transformed (unpacked) distro will be cached by gradle resulting in less unpacking
+   *
+   * To avoid testing against too many old versions, always pick first and last version per major
+   */
+  project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
+    transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
+    transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+  });
+
   def versions = ['2', '1', '090']
   if (Os.isFamily(Os.FAMILY_MAC)) {
     // 0.90 fails sometimes on mac, given that it is so old, let us disable it
@@ -111,21 +127,10 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     versions = ['2', '1']
   }
   versions.each { version ->
-    // TODO Rene: we should be able to replace these unzip tasks with gradle artifact transforms
-    TaskProvider<Sync> unzip = tasks.register("unzipEs${version}", Sync) {
-      Configuration oldEsDependency = configurations['es' + version]
-      dependsOn oldEsDependency
-      /* Use a closure here to delay resolution of the dependency until we need
-       * it */
-      from {
-        oldEsDependency.collect { zipTree(it) }
-      }
-      into temporaryDir
-    }
-
+    def oldEsDependency = configurations['es' + version]
+    oldEsDependency.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
     TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
-      dependsOn project.configurations.oldesFixture, jdks.legacy
-      dependsOn unzip
+      dependsOn project.configurations.oldesFixture, jdks.legacy, oldEsDependency
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
       // old versions of Elasticsearch need JAVA_HOME
@@ -136,7 +141,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
       args 'oldes.OldElasticsearch',
         baseDir,
-        unzip.get().temporaryDir,
+        "${ -> oldEsDependency.singleFile.getPath()}",
         version == '090'
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service
@@ -151,43 +156,34 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         /* Use a closure on the string to delay evaluation until right before we
          * run the integration tests so that we can be sure that the file is
          * ready. */
-        nonInputProperties.systemProperty "es${version}.port", "${-> fixture.get().addressAndPort}"
+        nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
     }
   }
 }
-tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
-  task.addAllowedWarningRegex("\\[types removal\\].*")
-})
 
-tasks.named("yamlRestTestV7CompatTest").configure {
-      systemProperty 'tests.rest.blacklist', [
-          'reindex/20_validation/reindex without source gives useful error message', // exception with a type. Not much benefit adding _doc there.
-          'update_by_query/20_validation/update_by_query without source gives useful error message' // exception with a type. Not much benefit adding _doc there.
-        ].join(',')
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+    task.skipTest("reindex/20_validation/reindex without source gives useful error message", "exception with a type. Not much benefit adding _doc there.")
+    task.skipTest("update_by_query/20_validation/update_by_query without source gives useful error message", "exception with a type. Not much benefit adding _doc there.")
+
+    // these tests are all relying on a call to refresh all indices, when they could easily be changed
+    // in 7.x to call the specific index they want to refresh.
+    // See https://github.com/elastic/elasticsearch/issues/81188
+    task.skipTest("delete_by_query/70_throttle/Rethrottle to -1 which turns off throttling", "test relies on system index being non-hidden")
+    task.skipTest("delete_by_query/80_slices/Multiple slices with rethrottle", "test relies on system index being non-hidden")
+    task.skipTest("delete_by_query/80_slices/Multiple slices with wait_for_completion=false", "test relies on system index being non-hidden")
+    task.skipTest("reindex/80_slices/Multiple slices with rethrottle", "test relies on system index being non-hidden")
+    task.skipTest("reindex/80_slices/Multiple slices with wait_for_completion=false", "test relies on system index being non-hidden")
+    task.skipTest("update_by_query/70_slices/Multiple slices with rethrottle", "test relies on system index being non-hidden")
+    task.skipTest("update_by_query/70_slices/Multiple slices with wait_for_completion=false", "test relies on system index being non-hidden")
+
+    task.addAllowedWarningRegex("\\[types removal\\].*")
 }
 
-tasks.named('splitPackagesAudit').configure {
-  // index is owned by server, move these to reindex specific
-  ignoreClasses 'org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction',
-    'org.elasticsearch.index.reindex.AbstractBaseReindexRestHandler',
-    'org.elasticsearch.index.reindex.AbstractBulkByQueryRestHandler',
-    'org.elasticsearch.index.reindex.AsyncDeleteByQueryAction',
-    'org.elasticsearch.index.reindex.BulkByScrollParallelizationHelper',
-    'org.elasticsearch.index.reindex.BulkIndexByScrollResponseContentListener',
-    'org.elasticsearch.index.reindex.ReindexPlugin',
-    'org.elasticsearch.index.reindex.ReindexSslConfig',
-    'org.elasticsearch.index.reindex.ReindexValidator',
-    'org.elasticsearch.index.reindex.Reindexer',
-    'org.elasticsearch.index.reindex.RestDeleteByQueryAction',
-    'org.elasticsearch.index.reindex.RestReindexAction',
-    'org.elasticsearch.index.reindex.RestRethrottleAction',
-    'org.elasticsearch.index.reindex.RestUpdateByQueryAction',
-    'org.elasticsearch.index.reindex.RethrottleAction',
-    'org.elasticsearch.index.reindex.RethrottleRequest',
-    'org.elasticsearch.index.reindex.RethrottleRequestBuilder',
-    'org.elasticsearch.index.reindex.TransportDeleteByQueryAction',
-    'org.elasticsearch.index.reindex.TransportReindexAction',
-    'org.elasticsearch.index.reindex.TransportRethrottleAction',
-    'org.elasticsearch.index.reindex.TransportUpdateByQueryAction',
-    'org.elasticsearch.index.reindex.package-info'
+tasks.named("yamlRestTestV7CompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'update_by_query/80_scripting/Can\'t change _id',
+    'update_by_query/80_scripting/Set unsupported operation type',
+    'update_by_query/80_scripting/Setting bogus context is an error',
+
+  ].join(',')
 }

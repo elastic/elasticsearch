@@ -17,18 +17,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -47,6 +48,8 @@ import java.util.Objects;
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentFragment, Writeable {
 
     public static final String INDEX_DETAILS_XCONTENT_PARAM = "index_details";
+
+    public static final String INDEX_NAMES_XCONTENT_PARAM = "index_names";
     public static final String INCLUDE_REPOSITORY_XCONTENT_PARAM = "include_repository";
 
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
@@ -369,8 +372,18 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         );
     }
 
-    public SnapshotInfo(SnapshotsInProgress.Entry entry) {
-        this(
+    public static SnapshotInfo inProgress(SnapshotsInProgress.Entry entry) {
+        int successfulShards = 0;
+        List<SnapshotShardFailure> shardFailures = new ArrayList<>();
+        for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardsByRepoShardId().entrySet()) {
+            if (c.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS) {
+                successfulShards++;
+            } else if (c.getValue().state().failed() && c.getValue().state().completed()) {
+                shardFailures.add(new SnapshotShardFailure(c.getValue().nodeId(), entry.shardId(c.getKey()), c.getValue().reason()));
+            }
+        }
+        int totalShards = entry.shardsByRepoShardId().size();
+        return new SnapshotInfo(
             entry.snapshot(),
             List.copyOf(entry.indices().keySet()),
             entry.dataStreams(),
@@ -379,9 +392,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             Version.CURRENT,
             entry.startTime(),
             0L,
-            0,
-            0,
-            Collections.emptyList(),
+            totalShards,
+            successfulShards,
+            shardFailures,
             entry.includeGlobalState(),
             entry.userMetadata(),
             SnapshotState.IN_PROGRESS,
@@ -456,6 +469,29 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         this.indexSnapshotDetails = Map.copyOf(indexSnapshotDetails);
     }
 
+    public SnapshotInfo withoutIndices() {
+        if (indices.isEmpty()) {
+            return this;
+        }
+        return new SnapshotInfo(
+            snapshot,
+            List.of(),
+            dataStreams,
+            featureStates,
+            reason,
+            version,
+            startTime,
+            endTime,
+            totalShards,
+            successfulShards,
+            shardFailures,
+            includeGlobalState,
+            userMetadata,
+            state,
+            indexSnapshotDetails
+        );
+    }
+
     /**
      * Constructs snapshot information from stream input
      */
@@ -466,20 +502,23 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         } else {
             snapshot = new Snapshot(UNKNOWN_REPO_NAME, new SnapshotId(in));
         }
-        final List<String> indices = in.readStringList();
+        final List<String> indices = in.readImmutableStringList();
         final SnapshotState state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;
         final String reason = in.readOptionalString();
         final long startTime = in.readVLong();
         final long endTime = in.readVLong();
         final int totalShards = in.readVInt();
         final int successfulShards = in.readVInt();
-        final List<SnapshotShardFailure> shardFailures = in.readList(SnapshotShardFailure::new);
+        final List<SnapshotShardFailure> shardFailures = in.readImmutableList(SnapshotShardFailure::new);
         final Version version = in.readBoolean() ? Version.readVersion(in) : null;
         final Boolean includeGlobalState = in.readOptionalBoolean();
         final Map<String, Object> userMetadata = in.readMap();
-        final List<String> dataStreams = in.readStringList();
-        final List<SnapshotFeatureInfo> featureStates = in.readList(SnapshotFeatureInfo::new);
-        final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readMap(StreamInput::readString, IndexSnapshotDetails::new);
+        final List<String> dataStreams = in.readImmutableStringList();
+        final List<SnapshotFeatureInfo> featureStates = in.readImmutableList(SnapshotFeatureInfo::new);
+        final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readImmutableMap(
+            StreamInput::readString,
+            IndexSnapshotDetails::new
+        );
         return new SnapshotInfo(
             snapshot,
             indices,
@@ -591,13 +630,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     }
 
     /**
-     * Number of failed shards; a value of {@code 0} will be returned if there were no
-     * failed shards, or if {@link #state()} returns {@code null}.
+     * Number of failed shards.
      *
      * @return number of failed shards
      */
     public int failedShards() {
-        return totalShards - successfulShards;
+        return shardFailures.size();
     }
 
     /**
@@ -737,11 +775,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             builder.field(VERSION_ID, version.id);
             builder.field(VERSION, version.toString());
         }
-        builder.startArray(INDICES);
-        for (String index : indices) {
-            builder.value(index);
+
+        if (params.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, true)) {
+            builder.stringListField(INDICES, indices);
         }
-        builder.endArray();
 
         if (params.paramAsBoolean(INDEX_DETAILS_XCONTENT_PARAM, false) && indexSnapshotDetails.isEmpty() == false) {
             builder.startObject(INDEX_DETAILS);
@@ -1006,7 +1043,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(includeGlobalState);
-        out.writeMap(userMetadata);
+        out.writeGenericMap(userMetadata);
         out.writeStringCollection(dataStreams);
         out.writeList(featureStates);
 
@@ -1099,7 +1136,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
         public IndexSnapshotDetails(StreamInput in) throws IOException {
             shardCount = in.readVInt();
-            size = new ByteSizeValue(in);
+            size = ByteSizeValue.readFrom(in);
             maxSegmentsPerShard = in.readVInt();
         }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
@@ -18,7 +17,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -50,9 +48,9 @@ public class FileBasedSeedHostsProvider implements SeedHostsProvider {
         if (Files.exists(unicastHostsFilePath)) {
             try (Stream<String> lines = Files.lines(unicastHostsFilePath)) {
                 return lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
-                    .collect(Collectors.toList());
+                    .toList();
             } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("failed to read file [{}]", unicastHostsFilePath), e);
+                logger.warn(() -> "failed to read file [" + unicastHostsFilePath + "]", e);
                 return Collections.emptyList();
             }
         }

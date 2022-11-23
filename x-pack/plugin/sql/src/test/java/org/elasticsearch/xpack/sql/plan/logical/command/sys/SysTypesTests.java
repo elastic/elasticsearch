@@ -14,11 +14,11 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
@@ -28,10 +28,18 @@ import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.JDBCType;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.VERSION_FIELD_TEST_VERSIONS;
 import static org.mockito.Mockito.mock;
 
 public class SysTypesTests extends ESTestCase {
@@ -39,8 +47,25 @@ public class SysTypesTests extends ESTestCase {
     private final SqlParser parser = new SqlParser();
 
     private Tuple<Command, SqlSession> sql(String sql, Mode mode, SqlVersion version) {
-        SqlConfiguration configuration = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE,
-            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, null, mode, null, version, null, null, false, false);
+        SqlConfiguration configuration = new SqlConfiguration(
+            DateUtils.UTC,
+            null,
+            Protocol.FETCH_SIZE,
+            Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT,
+            null,
+            null,
+            mode,
+            null,
+            version,
+            null,
+            null,
+            false,
+            false,
+            null,
+            null,
+            false
+        );
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
         Analyzer analyzer = new Analyzer(configuration, new FunctionRegistry(), IndexResolution.valid(test), null);
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), false);
@@ -49,6 +74,7 @@ public class SysTypesTests extends ESTestCase {
         SqlSession session = new SqlSession(configuration, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
+
     private Tuple<Command, SqlSession> sql(String sql) {
         return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : SqlVersion.fromId(Version.CURRENT.id));
     }
@@ -56,12 +82,46 @@ public class SysTypesTests extends ESTestCase {
     public void testSysTypes() {
         Tuple<Command, SqlSession> cmd = sql("SYS TYPES");
 
-        List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT",
-                "FLOAT", "DOUBLE", "SCALED_FLOAT", "IP", "KEYWORD", "TEXT", "BOOLEAN", "DATE", "TIME", "DATETIME",
-                "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
-                "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
-                "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
-                "GEO_POINT", "GEO_SHAPE", "SHAPE", "UNSUPPORTED", "NESTED", "OBJECT");
+        List<String> names = asList(
+            "BYTE",
+            "LONG",
+            "BINARY",
+            "NULL",
+            "UNSIGNED_LONG",
+            "INTEGER",
+            "SHORT",
+            "HALF_FLOAT",
+            "FLOAT",
+            "DOUBLE",
+            "SCALED_FLOAT",
+            "IP",
+            "KEYWORD",
+            "TEXT",
+            "VERSION",
+            "BOOLEAN",
+            "DATE",
+            "TIME",
+            "DATETIME",
+            "INTERVAL_YEAR",
+            "INTERVAL_MONTH",
+            "INTERVAL_DAY",
+            "INTERVAL_HOUR",
+            "INTERVAL_MINUTE",
+            "INTERVAL_SECOND",
+            "INTERVAL_YEAR_TO_MONTH",
+            "INTERVAL_DAY_TO_HOUR",
+            "INTERVAL_DAY_TO_MINUTE",
+            "INTERVAL_DAY_TO_SECOND",
+            "INTERVAL_HOUR_TO_MINUTE",
+            "INTERVAL_HOUR_TO_SECOND",
+            "INTERVAL_MINUTE_TO_SECOND",
+            "GEO_POINT",
+            "GEO_SHAPE",
+            "SHAPE",
+            "UNSUPPORTED",
+            "NESTED",
+            "OBJECT"
+        );
 
         cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
@@ -81,6 +141,46 @@ public class SysTypesTests extends ESTestCase {
             }
 
         }, ex -> fail(ex.getMessage())));
+    }
+
+    public void testUnsignedLongFiltering() {
+        Set<SqlVersion> versions = new HashSet<>(UNSIGNED_LONG_TEST_VERSIONS);
+        versions.add(null);
+        for (SqlVersion version : versions) {
+            for (Mode mode : Mode.values()) {
+                Tuple<Command, SqlSession> cmd = sql("SYS TYPES", mode, version);
+
+                cmd.v1().execute(cmd.v2(), wrap(p -> {
+                    SchemaRowSet r = (SchemaRowSet) p.rowSet();
+                    List<String> types = new ArrayList<>();
+                    r.forEachRow(rv -> types.add((String) rv.column(0)));
+                    assertEquals(
+                        isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(cmd.v2().configuration().version().id)),
+                        types.contains(UNSIGNED_LONG.toString())
+                    );
+                }, ex -> fail(ex.getMessage())));
+            }
+        }
+    }
+
+    public void testVersionTypeFiltering() {
+        Set<SqlVersion> versions = new HashSet<>(VERSION_FIELD_TEST_VERSIONS);
+        versions.add(null);
+        for (SqlVersion version : versions) {
+            for (Mode mode : Mode.values()) {
+                Tuple<Command, SqlSession> cmd = sql("SYS TYPES", mode, version);
+
+                cmd.v1().execute(cmd.v2(), wrap(p -> {
+                    SchemaRowSet r = (SchemaRowSet) p.rowSet();
+                    List<String> types = new ArrayList<>();
+                    r.forEachRow(rv -> types.add((String) rv.column(0)));
+                    assertEquals(
+                        isTypeSupportedInVersion(VERSION, Version.fromId(cmd.v2().configuration().version().id)),
+                        types.contains(VERSION.toString())
+                    );
+                }, ex -> fail(ex.getMessage())));
+            }
+        }
     }
 
     public void testSysTypesDefaultFiltering() {
@@ -118,12 +218,14 @@ public class SysTypesTests extends ESTestCase {
 
         cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
-            assertEquals(3, r.size());
+            assertEquals(4, r.size());
             assertEquals("IP", r.column(0));
             assertTrue(r.advanceRow());
             assertEquals("KEYWORD", r.column(0));
             assertTrue(r.advanceRow());
             assertEquals("TEXT", r.column(0));
+            assertTrue(r.advanceRow());
+            assertEquals("VERSION", r.column(0));
         }, ex -> fail(ex.getMessage())));
     }
 }

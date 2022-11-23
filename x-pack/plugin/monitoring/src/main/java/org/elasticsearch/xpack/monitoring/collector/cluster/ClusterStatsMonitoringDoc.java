@@ -12,11 +12,11 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.License;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -39,12 +39,12 @@ import java.util.Objects;
  */
 public class ClusterStatsMonitoringDoc extends MonitoringDoc {
 
-    private static final ToXContent.MapParams CLUSTER_STATS_PARAMS =
-            new ToXContent.MapParams(
-                    Collections.singletonMap("metric",
-                                ClusterState.Metric.VERSION + "," +
-                                ClusterState.Metric.MASTER_NODE + "," +
-                                ClusterState.Metric.NODES));
+    private static final ToXContent.MapParams CLUSTER_STATS_PARAMS = new ToXContent.MapParams(
+        Collections.singletonMap(
+            "metric",
+            ClusterState.Metric.VERSION + "," + ClusterState.Metric.MASTER_NODE + "," + ClusterState.Metric.NODES
+        )
+    );
 
     public static final String TYPE = "cluster_stats";
     protected static final String SETTING_DISPLAY_NAME = "cluster.metadata.display_name";
@@ -59,19 +59,21 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
     private final ClusterHealthStatus status;
     private final boolean clusterNeedsTLSEnabled;
 
-    ClusterStatsMonitoringDoc(final String cluster,
-                              final long timestamp,
-                              final long intervalMillis,
-                              final MonitoringDoc.Node node,
-                              final String clusterName,
-                              final String version,
-                              final ClusterHealthStatus status,
-                              @Nullable final License license,
-                              final boolean apmIndicesExist,
-                              @Nullable final List<XPackFeatureSet.Usage> usages,
-                              @Nullable final ClusterStatsResponse clusterStats,
-                              @Nullable final ClusterState clusterState,
-                              final boolean clusterNeedsTLSEnabled) {
+    ClusterStatsMonitoringDoc(
+        final String cluster,
+        final long timestamp,
+        final long intervalMillis,
+        final MonitoringDoc.Node node,
+        final String clusterName,
+        final String version,
+        final ClusterHealthStatus status,
+        @Nullable final License license,
+        final boolean apmIndicesExist,
+        @Nullable final List<XPackFeatureSet.Usage> usages,
+        @Nullable final ClusterStatsResponse clusterStats,
+        @Nullable final ClusterState clusterState,
+        final boolean clusterNeedsTLSEnabled
+    ) {
 
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
         this.clusterName = Objects.requireNonNull(clusterName);
@@ -137,9 +139,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         if (license != null) {
             builder.startObject("license");
             {
-                Map<String, String> extraParams = new MapBuilder<String, String>()
-                        .put(License.REST_VIEW_MODE, "true")
-                        .map();
+                Map<String, String> extraParams = new MapBuilder<String, String>().put(License.REST_VIEW_MODE, "true").map();
                 params = new ToXContent.DelegatingMapParams(extraParams, params);
                 license.toInnerXContent(builder, params);
                 if (clusterNeedsTLSEnabled) {

@@ -29,12 +29,8 @@ public class SlicedInputStreamTests extends ESTestCase {
         Random random = new Random(seed);
         for (int i = 0; i < numWriteOps; i++) {
             switch (random.nextInt(5)) {
-                case 1:
-                    stream.write(random.nextInt(Byte.MAX_VALUE));
-                    break;
-                default:
-                    stream.write(randomBytes(random));
-                    break;
+                case 1 -> stream.write(random.nextInt(Byte.MAX_VALUE));
+                default -> stream.write(randomBytes(random));
             }
         }
 
@@ -59,16 +55,14 @@ public class SlicedInputStreamTests extends ESTestCase {
         assertThat(input.available(), equalTo(streams[0].available()));
         for (int i = 0; i < numWriteOps; i++) {
             switch (random.nextInt(5)) {
-                case 1:
-                    assertThat(random.nextInt(Byte.MAX_VALUE), equalTo(input.read()));
-                    break;
-                default:
+                case 1 -> assertThat(random.nextInt(Byte.MAX_VALUE), equalTo(input.read()));
+                default -> {
                     byte[] b = randomBytes(random);
                     byte[] buffer = new byte[b.length];
                     int read = readFully(input, buffer);
                     assertThat(b.length, equalTo(read));
                     assertArrayEquals(b, buffer);
-                    break;
+                }
             }
         }
 

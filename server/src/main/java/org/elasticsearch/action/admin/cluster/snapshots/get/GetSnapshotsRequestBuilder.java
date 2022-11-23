@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.sort.SortOrder;
@@ -117,6 +117,11 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
+    public GetSnapshotsRequestBuilder setFromSortValue(@Nullable String fromSortValue) {
+        request.fromSortValue(fromSortValue);
+        return this;
+    }
+
     public GetSnapshotsRequestBuilder setSort(GetSnapshotsRequest.SortBy sort) {
         request.sort(sort);
         return this;
@@ -135,6 +140,12 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     public GetSnapshotsRequestBuilder setOrder(SortOrder order) {
         request.order(order);
         return this;
+    }
+
+    public GetSnapshotsRequestBuilder setIncludeIndexNames(boolean indices) {
+        request.includeIndexNames(indices);
+        return this;
+
     }
 
 }

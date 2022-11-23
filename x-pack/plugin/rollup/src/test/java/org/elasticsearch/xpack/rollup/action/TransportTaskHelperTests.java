@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -14,7 +15,6 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -79,7 +79,7 @@ public class TransportTaskHelperTests extends ESTestCase {
 
     private Map<Long, Task> getRandomTasks() {
         int num = randomIntBetween(1, 10);
-        Map<Long, Task> tasks = new HashMap<>(num);
+        Map<Long, Task> tasks = Maps.newMapWithExpectedSize(num);
         for (int i = 0; i < num; i++) {
             Long taskId = randomLongBetween(10, Long.MAX_VALUE);
             tasks.put(

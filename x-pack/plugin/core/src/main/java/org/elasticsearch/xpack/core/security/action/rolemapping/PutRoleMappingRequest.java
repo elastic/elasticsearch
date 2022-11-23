@@ -32,8 +32,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class PutRoleMappingRequest extends ActionRequest
-        implements WriteRequest<PutRoleMappingRequest> {
+public class PutRoleMappingRequest extends ActionRequest implements WriteRequest<PutRoleMappingRequest> {
 
     private String name = null;
     private boolean enabled = true;
@@ -56,11 +55,14 @@ public class PutRoleMappingRequest extends ActionRequest
         this.refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
-    public PutRoleMappingRequest() {
-    }
+    public PutRoleMappingRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
+        return validate(true);
+    }
+
+    public ActionRequestValidationException validate(boolean validateMetadata) {
         ActionRequestValidationException validationException = null;
         if (name == null) {
             validationException = addValidationError("role-mapping name is missing", validationException);
@@ -74,9 +76,11 @@ public class PutRoleMappingRequest extends ActionRequest
         if (rules == null) {
             validationException = addValidationError("role-mapping rules are missing", validationException);
         }
-        if (MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
-                validationException);
+        if (validateMetadata && MetadataUtils.containsReservedMetadata(metadata)) {
+            validationException = addValidationError(
+                "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
+                validationException
+            );
         }
         return validationException;
     }
@@ -155,18 +159,23 @@ public class PutRoleMappingRequest extends ActionRequest
             out.writeList(roleTemplates);
         }
         ExpressionParser.writeExpression(rules, out);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         refreshPolicy.writeTo(out);
     }
 
     public ExpressionRoleMapping getMapping() {
-        return new ExpressionRoleMapping(
-                name,
-                rules,
-                roles,
-                roleTemplates,
-                metadata,
-                enabled
-        );
+        return new ExpressionRoleMapping(name, rules, roles, roleTemplates, metadata, enabled);
+    }
+
+    public static PutRoleMappingRequest fromMapping(ExpressionRoleMapping mapping) {
+        var request = new PutRoleMappingRequest();
+        request.setName(mapping.getName());
+        request.setEnabled(mapping.isEnabled());
+        request.setRoles(mapping.getRoles());
+        request.setRoleTemplates(mapping.getRoleTemplates());
+        request.setRules(mapping.getExpression());
+        request.setMetadata(mapping.getMetadata());
+
+        return request;
     }
 }

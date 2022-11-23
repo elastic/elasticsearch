@@ -9,8 +9,10 @@
 package org.elasticsearch.painless;
 
 import junit.framework.AssertionFailedError;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -24,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -70,13 +71,11 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} */
     public Object exec(String script, Map<String, Object> vars, boolean picky) {
-        Map<String,String> compilerSettings = new HashMap<>();
-        compilerSettings.put(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10");
-        return exec(script, vars, compilerSettings, picky);
+        return exec(script, vars, Map.of(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10"), picky);
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
-    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, boolean picky) {
+    public Object exec(String script, Map<String, Object> vars, Map<String, String> compileParams, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
             CompilerSettings pickySettings = new CompilerSettings();
@@ -96,7 +95,7 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     public void assertBytecodeExists(String script, String bytecode) {
         final String asm = Debugger.toString(script);
-        assertTrue("bytecode not found, got: \n" + asm , asm.contains(bytecode));
+        assertTrue("bytecode not found, got: \n" + asm, asm.contains(bytecode));
     }
 
     /**
@@ -105,7 +104,7 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     public void assertBytecodeHasPattern(String script, String pattern) {
         final String asm = Debugger.toString(script);
-        assertTrue("bytecode not found, got: \n" + asm , asm.matches(pattern));
+        assertTrue("bytecode not found, got: \n" + asm, asm.matches(pattern));
     }
 
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
@@ -114,8 +113,11 @@ public abstract class ScriptTestCase extends ESTestCase {
     }
 
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
-    public static <T extends Throwable> T expectScriptThrows(Class<T> expectedType, boolean shouldHaveScriptStack,
-            ThrowingRunnable runnable) {
+    public static <T extends Throwable> T expectScriptThrows(
+        Class<T> expectedType,
+        boolean shouldHaveScriptStack,
+        ThrowingRunnable runnable
+    ) {
         try {
             runnable.run();
         } catch (Throwable e) {
@@ -143,8 +145,9 @@ public abstract class ScriptTestCase extends ESTestCase {
                 assertion.initCause(e);
                 throw assertion;
             }
-            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected "
-                                                                      + expectedType.getSimpleName());
+            AssertionFailedError assertion = new AssertionFailedError(
+                "Unexpected exception type, expected " + expectedType.getSimpleName()
+            );
             assertion.initCause(e);
             throw assertion;
         }

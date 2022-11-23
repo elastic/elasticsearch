@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.profile.aggregation;
 
-import io.github.nik9000.mapmatcher.MapMatcher;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -23,28 +21,29 @@ import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedOrdinalsS
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.joda.time.Instant;
+import org.elasticsearch.test.MapMatcher;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.diversifiedSampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -92,9 +91,14 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx")
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("idx")
                 .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
-                .setMapping(STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword").get());
+                .setMapping(STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword")
+                .get()
+        );
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
         String[] randomStrings = new String[randomIntBetween(2, 10)];
@@ -103,12 +107,16 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         }
 
         for (int i = 0; i < 5; i++) {
-            builders.add(client().prepareIndex("idx").setSource(
-                    jsonBuilder().startObject()
-                        .field(STRING_FIELD, randomFrom(randomStrings))
-                        .field(NUMBER_FIELD, randomIntBetween(0, 9))
-                        .field(TAG_FIELD, randomBoolean() ? "more" : "less")
-                        .endObject()));
+            builders.add(
+                client().prepareIndex("idx")
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field(STRING_FIELD, randomFrom(randomStrings))
+                            .field(NUMBER_FIELD, randomIntBetween(0, 9))
+                            .field(TAG_FIELD, randomBoolean() ? "more" : "less")
+                            .endObject()
+                    )
+            );
         }
 
         indexRandom(true, false, builders);
@@ -116,13 +124,15 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testSimpleProfile() {
-        SearchResponse response = client().prepareSearch("idx").setProfile(true)
-                .addAggregation(histogram("histo").field(NUMBER_FIELD).interval(1L)).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .setProfile(true)
+            .addAggregation(histogram("histo").field(NUMBER_FIELD).interval(1L))
+            .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -131,8 +141,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(aggProfileResultsList.size(), equalTo(1));
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
-            assertThat(histoAggResult.getQueryName(),
-                    equalTo("NumericHistogramAggregator"));
+            assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(0));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
@@ -151,23 +160,23 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testMultiLevelProfile() {
-        SearchResponse response = client().prepareSearch("idx").setProfile(true)
-                .addAggregation(
-                    histogram("histo")
-                        .field(NUMBER_FIELD)
-                        .interval(1L)
-                        .subAggregation(
-                            terms("terms")
-                                .field(TAG_FIELD)
-                                .order(BucketOrder.aggregation("avg", false))
-                                .subAggregation(avg("avg").field(NUMBER_FIELD))
-                        )
-                ).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .setProfile(true)
+            .addAggregation(
+                histogram("histo").field(NUMBER_FIELD)
+                    .interval(1L)
+                    .subAggregation(
+                        terms("terms").field(TAG_FIELD)
+                            .order(BucketOrder.aggregation("avg", false))
+                            .subAggregation(avg("avg").field(NUMBER_FIELD))
+                    )
+            )
+            .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -176,8 +185,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(aggProfileResultsList.size(), equalTo(1));
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
-            assertThat(histoAggResult.getQueryName(),
-                    equalTo("NumericHistogramAggregator"));
+            assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
@@ -219,10 +227,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(COLLECT), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertMap(
-                avgAggResult.getDebugInfo(),
-                matchesMap().entry(BUILT_BUCKETS, greaterThan(0))
-            );
+            assertMap(avgAggResult.getDebugInfo(), matchesMap().entry(BUILT_BUCKETS, greaterThan(0)));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
@@ -242,15 +247,23 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testMultiLevelProfileBreadthFirst() {
-        SearchResponse response = client().prepareSearch("idx").setProfile(true)
-                .addAggregation(histogram("histo").field(NUMBER_FIELD).interval(1L).subAggregation(terms("terms")
-                        .collectMode(SubAggCollectionMode.BREADTH_FIRST).field(TAG_FIELD).subAggregation(avg("avg").field(NUMBER_FIELD))))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .setProfile(true)
+            .addAggregation(
+                histogram("histo").field(NUMBER_FIELD)
+                    .interval(1L)
+                    .subAggregation(
+                        terms("terms").collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                            .field(TAG_FIELD)
+                            .subAggregation(avg("avg").field(NUMBER_FIELD))
+                    )
+            )
+            .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -259,8 +272,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(aggProfileResultsList.size(), equalTo(1));
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
-            assertThat(histoAggResult.getQueryName(),
-                    equalTo("NumericHistogramAggregator"));
+            assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
@@ -303,24 +315,26 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(COLLECT), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertMap(
-                avgAggResult.getDebugInfo(),
-                matchesMap().entry(BUILT_BUCKETS, greaterThan(0))
-            );
+            assertMap(avgAggResult.getDebugInfo(), matchesMap().entry(BUILT_BUCKETS, greaterThan(0)));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
 
     public void testDiversifiedAggProfile() {
-        SearchResponse response = client().prepareSearch("idx").setProfile(true)
-                .addAggregation(diversifiedSampler("diversify").shardSize(10).field(STRING_FIELD).maxDocsPerValue(2)
-                        .subAggregation(max("max").field(NUMBER_FIELD)))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .setProfile(true)
+            .addAggregation(
+                diversifiedSampler("diversify").shardSize(10)
+                    .field(STRING_FIELD)
+                    .maxDocsPerValue(2)
+                    .subAggregation(max("max").field(NUMBER_FIELD))
+            )
+            .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -329,8 +343,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(aggProfileResultsList.size(), equalTo(1));
             ProfileResult diversifyAggResult = aggProfileResultsList.get(0);
             assertThat(diversifyAggResult, notNullValue());
-            assertThat(diversifyAggResult.getQueryName(),
-                    equalTo(DiversifiedOrdinalsSamplerAggregator.class.getSimpleName()));
+            assertThat(diversifyAggResult.getQueryName(), equalTo(DiversifiedOrdinalsSamplerAggregator.class.getSimpleName()));
             assertThat(diversifyAggResult.getLuceneDescription(), equalTo("diversify"));
             assertThat(diversifyAggResult.getTime(), greaterThan(0L));
             Map<String, Long> diversifyBreakdown = diversifyAggResult.getTimeBreakdown();
@@ -364,23 +377,33 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testComplexProfile() {
-        SearchResponse response = client().prepareSearch("idx").setProfile(true)
-                .addAggregation(histogram("histo").field(NUMBER_FIELD).interval(1L)
-                        .subAggregation(terms("tags").field(TAG_FIELD)
-                                .subAggregation(avg("avg").field(NUMBER_FIELD))
-                                .subAggregation(max("max").field(NUMBER_FIELD)))
-                        .subAggregation(terms("strings").field(STRING_FIELD)
-                                .subAggregation(avg("avg").field(NUMBER_FIELD))
-                                .subAggregation(max("max").field(NUMBER_FIELD))
-                                .subAggregation(terms("tags").field(TAG_FIELD)
-                                        .subAggregation(avg("avg").field(NUMBER_FIELD))
-                                        .subAggregation(max("max").field(NUMBER_FIELD)))))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .setProfile(true)
+            .addAggregation(
+                histogram("histo").field(NUMBER_FIELD)
+                    .interval(1L)
+                    .subAggregation(
+                        terms("tags").field(TAG_FIELD)
+                            .subAggregation(avg("avg").field(NUMBER_FIELD))
+                            .subAggregation(max("max").field(NUMBER_FIELD))
+                    )
+                    .subAggregation(
+                        terms("strings").field(STRING_FIELD)
+                            .subAggregation(avg("avg").field(NUMBER_FIELD))
+                            .subAggregation(max("max").field(NUMBER_FIELD))
+                            .subAggregation(
+                                terms("tags").field(TAG_FIELD)
+                                    .subAggregation(avg("avg").field(NUMBER_FIELD))
+                                    .subAggregation(max("max").field(NUMBER_FIELD))
+                            )
+                    )
+            )
+            .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -389,8 +412,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(aggProfileResultsList.size(), equalTo(1));
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
-            assertThat(histoAggResult.getQueryName(),
-                    equalTo("NumericHistogramAggregator"));
+            assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
@@ -408,8 +430,9 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             );
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(2));
 
-            Map<String, ProfileResult> histoAggResultSubAggregations = histoAggResult.getProfiledChildren().stream()
-                    .collect(Collectors.toMap(ProfileResult::getLuceneDescription, s -> s));
+            Map<String, ProfileResult> histoAggResultSubAggregations = histoAggResult.getProfiledChildren()
+                .stream()
+                .collect(Collectors.toMap(ProfileResult::getLuceneDescription, s -> s));
 
             ProfileResult tagsAggResult = histoAggResultSubAggregations.get("tags");
             assertThat(tagsAggResult, notNullValue());
@@ -427,8 +450,9 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertRemapTermsDebugInfo(tagsAggResult);
             assertThat(tagsAggResult.getProfiledChildren().size(), equalTo(2));
 
-            Map<String, ProfileResult> tagsAggResultSubAggregations = tagsAggResult.getProfiledChildren().stream()
-                    .collect(Collectors.toMap(ProfileResult::getLuceneDescription, s -> s));
+            Map<String, ProfileResult> tagsAggResultSubAggregations = tagsAggResult.getProfiledChildren()
+                .stream()
+                .collect(Collectors.toMap(ProfileResult::getLuceneDescription, s -> s));
 
             ProfileResult avgAggResult = tagsAggResultSubAggregations.get("avg");
             assertThat(avgAggResult, notNullValue());
@@ -478,8 +502,9 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertRemapTermsDebugInfo(stringsAggResult);
             assertThat(stringsAggResult.getProfiledChildren().size(), equalTo(3));
 
-            Map<String, ProfileResult> stringsAggResultSubAggregations = stringsAggResult.getProfiledChildren().stream()
-                    .collect(Collectors.toMap(ProfileResult::getLuceneDescription, s -> s));
+            Map<String, ProfileResult> stringsAggResultSubAggregations = stringsAggResult.getProfiledChildren()
+                .stream()
+                .collect(Collectors.toMap(ProfileResult::getLuceneDescription, s -> s));
 
             avgAggResult = stringsAggResultSubAggregations.get("avg");
             assertThat(avgAggResult, notNullValue());
@@ -530,8 +555,9 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertRemapTermsDebugInfo(tagsAggResult);
             assertThat(tagsAggResult.getProfiledChildren().size(), equalTo(2));
 
-            tagsAggResultSubAggregations = tagsAggResult.getProfiledChildren().stream()
-                    .collect(Collectors.toMap(ProfileResult::getLuceneDescription, s -> s));
+            tagsAggResultSubAggregations = tagsAggResult.getProfiledChildren()
+                .stream()
+                .collect(Collectors.toMap(ProfileResult::getLuceneDescription, s -> s));
 
             avgAggResult = tagsAggResultSubAggregations.get("avg");
             assertThat(avgAggResult, notNullValue());
@@ -568,20 +594,30 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testNoProfile() {
-        SearchResponse response = client().prepareSearch("idx").setProfile(false)
-                .addAggregation(histogram("histo").field(NUMBER_FIELD).interval(1L)
-                        .subAggregation(terms("tags").field(TAG_FIELD)
-                                .subAggregation(avg("avg").field(NUMBER_FIELD))
-                                .subAggregation(max("max").field(NUMBER_FIELD)))
-                        .subAggregation(terms("strings").field(STRING_FIELD)
-                                .subAggregation(avg("avg").field(NUMBER_FIELD))
-                                .subAggregation(max("max").field(NUMBER_FIELD))
-                                .subAggregation(terms("tags").field(TAG_FIELD)
-                                        .subAggregation(avg("avg").field(NUMBER_FIELD))
-                                        .subAggregation(max("max").field(NUMBER_FIELD)))))
-                .get();
+        SearchResponse response = client().prepareSearch("idx")
+            .setProfile(false)
+            .addAggregation(
+                histogram("histo").field(NUMBER_FIELD)
+                    .interval(1L)
+                    .subAggregation(
+                        terms("tags").field(TAG_FIELD)
+                            .subAggregation(avg("avg").field(NUMBER_FIELD))
+                            .subAggregation(max("max").field(NUMBER_FIELD))
+                    )
+                    .subAggregation(
+                        terms("strings").field(STRING_FIELD)
+                            .subAggregation(avg("avg").field(NUMBER_FIELD))
+                            .subAggregation(max("max").field(NUMBER_FIELD))
+                            .subAggregation(
+                                terms("tags").field(TAG_FIELD)
+                                    .subAggregation(avg("avg").field(NUMBER_FIELD))
+                                    .subAggregation(max("max").field(NUMBER_FIELD))
+                            )
+                    )
+            )
+            .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(0));
     }
@@ -594,9 +630,14 @@ public class AggregationProfilerIT extends ESIntegTestCase {
      * documents and that is hard to express in yaml.
      */
     public void testFilterByFilter() throws InterruptedException, IOException {
-        assertAcked(client().admin().indices().prepareCreate("dateidx")
-            .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
-            .setMapping("date", "type=date").get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("dateidx")
+                .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
+                .setMapping("date", "type=date")
+                .get()
+        );
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
             String date = Instant.ofEpochSecond(i).toString();
@@ -606,15 +647,19 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("dateidx")
             .setProfile(true)
-            .addAggregation(new DateHistogramAggregationBuilder("histo").field("date").calendarInterval(DateHistogramInterval.MONTH)
-                // Add a sub-agg so we don't get to use metadata. That's great and all, but it outputs less debugging info for us to verify.
-                .subAggregation(new MaxAggregationBuilder("m").field("date")))
+            .addAggregation(
+                new DateHistogramAggregationBuilder("histo").field("date")
+                    .calendarInterval(DateHistogramInterval.MONTH)
+                    // Add a sub-agg so we don't get to use metadata. That's great and all, but it outputs less debugging info for us to
+                    // verify.
+                    .subAggregation(new MaxAggregationBuilder("m").field("date"))
+            )
             .get();
         assertSearchResponse(response);
-        Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+        Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("dateidx").numPrimaries));
-        for (ProfileShardResult profileShardResult : profileResults.values()) {
+        for (SearchProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
             assertThat(aggProfileResults, notNullValue());
@@ -651,11 +696,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                                     .entry("segments_collected", greaterThan(0))
                                     .entry(
                                         "filters",
-                                        matchesList().item(
-                                            matchesMap().entry("query", "DocValuesFieldExistsQuery [field=date]")
-                                                .entry("specialized_for", "docvalues_field_exists")
-                                                .entry("results_from_metadata", 0)
-                                        )
+                                        matchesList().item(matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 0))
                                     )
                             )
                     )
@@ -684,11 +725,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                 String date = Instant.ofEpochSecond(i).toString();
                 builders.add(
                     client().prepareIndex("date_filter_by_filter_disabled")
-                        .setSource(
-                            jsonBuilder().startObject()
-                                .field("date", date)
-                                .endObject()
-                        )
+                        .setSource(jsonBuilder().startObject().field("date", date).endObject())
                 );
             }
             indexRandom(true, false, builders);
@@ -698,10 +735,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                 .addAggregation(new DateHistogramAggregationBuilder("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
                 .get();
             assertSearchResponse(response);
-            Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+            Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
             assertThat(profileResults, notNullValue());
             assertThat(profileResults.size(), equalTo(getNumShards("date_filter_by_filter_disabled").numPrimaries));
-            for (ProfileShardResult profileShardResult : profileResults.values()) {
+            for (SearchProfileShardResult profileShardResult : profileResults.values()) {
                 assertThat(profileShardResult, notNullValue());
                 AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
                 assertThat(aggProfileResults, notNullValue());
@@ -735,7 +772,13 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     debug,
                     matchesMap().entry("delegate", "RangeAggregator.NoOverlap")
                         .entry("built_buckets", 1)
-                        .entry("delegate_debug", matchesMap().entry("ranges", 1).entry("average_docs_per_range", 10000.0))
+                        .entry(
+                            "delegate_debug",
+                            matchesMap().entry("ranges", 1)
+                                .entry("average_docs_per_range", 10000.0)
+                                .entry("singletons", greaterThan(0))
+                                .entry("non-singletons", 0)
+                        )
                 );
             }
         } finally {

@@ -87,9 +87,9 @@ public class UpdateCalendarJobAction extends ActionType<PutCalendarAction.Respon
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(calendarId, other.calendarId) && Objects.equals(jobIdsToAddExpression, other.jobIdsToAddExpression)
-                    && Objects.equals(jobIdsToRemoveExpression, other.jobIdsToRemoveExpression);
+            return Objects.equals(calendarId, other.calendarId)
+                && Objects.equals(jobIdsToAddExpression, other.jobIdsToAddExpression)
+                && Objects.equals(jobIdsToRemoveExpression, other.jobIdsToRemoveExpression);
         }
     }
 }
-

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+# Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
+# stays up-to-date with changes to Ubuntu's store)
+
+trust extract \
+  --overwrite \
+  --format=java-cacerts \
+  --filter=ca-anchors \
+  --purpose=server-auth \
+  /usr/share/elasticsearch/jdk/lib/security/cacerts

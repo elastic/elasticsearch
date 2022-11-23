@@ -26,34 +26,36 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
 public class IndexingIT extends AbstractUpgradeTestCase {
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
-        case OLD:
-            break;
-        case MIXED:
-            ensureHealth((request -> {
-                request.addParameter("timeout", "70s");
-                request.addParameter("wait_for_nodes", "3");
-                request.addParameter("wait_for_status", "yellow");
-            }));
-            break;
-        case UPGRADED:
-            ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
-                request.addParameter("wait_for_nodes", "3");
-                request.addParameter("wait_for_status", "green");
-                request.addParameter("timeout", "70s");
-                request.addParameter("level", "shards");
-            }));
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            case OLD:
+                break;
+            case MIXED:
+                ensureHealth((request -> {
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "yellow");
+                }));
+                break;
+            case UPGRADED:
+                ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "green");
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("level", "shards");
+                }));
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
 
             Request createTestIndex = new Request("PUT", "/test_index");
-            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            createTestIndex.setJsonEntity("""
+                {"settings": {"index.number_of_replicas": 0}}""");
             client().performRequest(createTestIndex);
 
-            String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
+            String recoverQuickly = """
+                {"settings": {"index.unassigned.node_left.delayed_timeout": "100ms"}}""";
             Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
             createIndexWithReplicas.setJsonEntity(recoverQuickly);
             client().performRequest(createIndexWithReplicas);
@@ -69,21 +71,21 @@ public class IndexingIT extends AbstractUpgradeTestCase {
 
         int expectedCount;
         switch (CLUSTER_TYPE) {
-        case OLD:
-            expectedCount = 5;
-            break;
-        case MIXED:
-            if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+            case OLD:
                 expectedCount = 5;
-            } else {
-                expectedCount = 10;
-            }
-            break;
-        case UPGRADED:
-            expectedCount = 15;
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+                break;
+            case MIXED:
+                if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+                    expectedCount = 5;
+                } else {
+                    expectedCount = 10;
+                }
+                break;
+            case UPGRADED:
+                expectedCount = 15;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         assertCount("test_index", expectedCount);
@@ -109,8 +111,10 @@ public class IndexingIT extends AbstractUpgradeTestCase {
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            b.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
-            b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
+            b.append(formatted("""
+                {"index": {"_index": "%s"}}
+                {"f1": "v%s%s", "f2": %s}
+                """, index, i, valueSuffix, i));
         }
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
@@ -123,7 +127,8 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
-                EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+        assertEquals(formatted("""
+            {"hits":{"total":%s}}\
+            """, count), EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
     }
 }

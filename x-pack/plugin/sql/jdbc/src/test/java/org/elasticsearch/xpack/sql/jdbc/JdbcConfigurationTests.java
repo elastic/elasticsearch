@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.SslConfig;
 import org.elasticsearch.xpack.sql.client.SuppressForbidden;
@@ -19,7 +20,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Collectors;
@@ -43,9 +43,12 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testInvalidUrl() {
         JdbcSQLException e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://localhost9200/?ssl=#5#"));
-        assertEquals("Invalid URL: Invalid connection configuration: Illegal character in fragment at index 28: "
-            + "http://localhost9200/?ssl=#5#; format should be "
-            + "[jdbc:[es|elasticsearch]://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*]", e.getMessage());
+        assertEquals(
+            "Invalid URL: Invalid connection configuration: Illegal character in fragment at index 28: "
+                + "http://localhost9200/?ssl=#5#; format should be "
+                + "[jdbc:[es|elasticsearch]://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*]",
+            e.getMessage()
+        );
     }
 
     public void testJustThePrefix() throws Exception {
@@ -179,10 +182,12 @@ public class JdbcConfigurationTests extends ESTestCase {
         e = expectThrows(JdbcSQLException.class, () -> ci(jdbcPrefix() + "test:9200?&validate.properties=true&something=some_value"));
         assertEquals("Unknown parameter [something]; did you mean []", e.getMessage());
 
-        Properties properties  = new Properties();
+        Properties properties = new Properties();
         properties.setProperty(PROPERTIES_VALIDATION, "true");
-        e = expectThrows(JdbcSQLException.class,
-            () -> JdbcConfiguration.create(jdbcPrefix() + "test:9200?something=some_value", properties, 0));
+        e = expectThrows(
+            JdbcSQLException.class,
+            () -> JdbcConfiguration.create(jdbcPrefix() + "test:9200?something=some_value", properties, 0)
+        );
         assertEquals("Unknown parameter [something]; did you mean []", e.getMessage());
     }
 
@@ -197,9 +202,19 @@ public class JdbcConfigurationTests extends ESTestCase {
         long pageTimeout = randomNonNegativeLong();
         int pageSize = randomIntBetween(0, Integer.MAX_VALUE);
 
-        ci = ci(jdbcPrefix() + "test:9200?validate.properties=false&something=some_value&query.timeout=" + queryTimeout
-                + "&connect.timeout=" + connectTimeout + "&network.timeout=" + networkTimeout + "&page.timeout=" + pageTimeout
-                + "&page.size=" + pageSize);
+        ci = ci(
+            jdbcPrefix()
+                + "test:9200?validate.properties=false&something=some_value&query.timeout="
+                + queryTimeout
+                + "&connect.timeout="
+                + connectTimeout
+                + "&network.timeout="
+                + networkTimeout
+                + "&page.timeout="
+                + pageTimeout
+                + "&page.size="
+                + pageSize
+        );
         assertEquals(false, ci.validateProperties());
         assertEquals(queryTimeout, ci.queryTimeout());
         assertEquals(connectTimeout, ci.connectTimeout());
@@ -208,7 +223,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertEquals(pageSize, ci.pageSize());
 
         // Properties test
-        Properties properties  = new Properties();
+        Properties properties = new Properties();
         properties.setProperty(PROPERTIES_VALIDATION, "false");
         properties.put(QUERY_TIMEOUT, Long.toString(queryTimeout));
         properties.put(PAGE_TIMEOUT, Long.toString(pageTimeout));
@@ -227,7 +242,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     public void testTimoutOverride() throws Exception {
-        Properties properties  = new Properties();
+        Properties properties = new Properties();
         properties.setProperty(CONNECT_TIMEOUT, "3"); // Should be overridden
         properties.setProperty(PAGE_TIMEOUT, "4");
 
@@ -260,13 +275,13 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     public void testSSLPropertiesInUrlAndProperties() throws Exception {
-        Map<String, String> urlPropMap = new HashMap<>(4);
+        Map<String, String> urlPropMap = Maps.newMapWithExpectedSize(4);
         urlPropMap.put("ssl", "false");
         urlPropMap.put("ssl.protocol", "SSLv3");
         urlPropMap.put("ssl.keystore.location", "/abc/xyz");
         urlPropMap.put("ssl.keystore.pass", "mypass");
 
-        Map<String, String> propMap = new HashMap<>(4);
+        Map<String, String> propMap = Maps.newMapWithExpectedSize(4);
         propMap.put("ssl.keystore.type", "PKCS12");
         propMap.put("ssl.truststore.location", "/foo/bar");
         propMap.put("ssl.truststore.pass", "anotherpass");
@@ -284,7 +299,7 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testSSLPropertiesOverride() throws Exception {
         Map<String, String> urlPropMap = sslProperties();
-        Map<String, String> propMap = new HashMap<>(8);
+        Map<String, String> propMap = Maps.newMapWithExpectedSize(8);
         propMap.put("ssl", "false");
         propMap.put("ssl.protocol", "TLS");
         propMap.put("ssl.keystore.location", "/xyz");
@@ -322,7 +337,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         }
     }
 
-    public void testTyposInSslConfigInUrl(){
+    public void testTyposInSslConfigInUrl() {
         assertJdbcSqlExceptionFromUrl("ssl.protocl", "ssl.protocol");
         assertJdbcSqlExceptionFromUrl("sssl", "ssl");
         assertJdbcSqlExceptionFromUrl("ssl.keystore.lction", "ssl.keystore.location");
@@ -345,7 +360,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     static Map<String, String> sslProperties() {
-        Map<String, String> sslPropertiesMap = new HashMap<>(8);
+        Map<String, String> sslPropertiesMap = Maps.newMapWithExpectedSize(8);
         // always using "false" so that the SSLContext doesn't actually start verifying the keystore and trustore
         // locations, as we don't have file permissions to access them.
         sslPropertiesMap.put("ssl", "false");
@@ -380,8 +395,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     private void assertJdbcSqlException(String wrongSetting, String correctSetting, String url, Properties props) {
-        JdbcSQLException ex = expectThrows(JdbcSQLException.class,
-                () -> JdbcConfiguration.create(url, props, 0));
+        JdbcSQLException ex = expectThrows(JdbcSQLException.class, () -> JdbcConfiguration.create(url, props, 0));
         assertEquals("Unknown parameter [" + wrongSetting + "]; did you mean [" + correctSetting + "]", ex.getMessage());
     }
 }

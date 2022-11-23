@@ -11,8 +11,8 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.CacheIndexInputStats;
 
@@ -94,10 +94,10 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
         if ("indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level)) {
             builder.startObject("indices");
             final List<Index> indices = getStats().stream()
-                .filter(stats -> stats.getStats().isEmpty() == false)
+                .filter(shardStats -> shardStats.getStats().isEmpty() == false)
                 .map(SearchableSnapshotShardStats::getShardRouting)
                 .map(ShardRouting::index)
-                .sorted(Comparator.comparing(Index::getName))
+                .sorted(Index.COMPARE_BY_NAME)
                 .distinct()
                 .collect(toList());
 

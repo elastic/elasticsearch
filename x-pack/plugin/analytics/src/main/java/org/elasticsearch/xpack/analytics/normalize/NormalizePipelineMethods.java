@@ -91,17 +91,17 @@ class NormalizePipelineMethods {
     static class Softmax implements DoubleUnaryOperator {
         static final String NAME = "softmax";
 
-        private double sumExp;
+        private final double sumExp;
 
         Softmax(double[] values) {
-            double sumExp = 0.0;
+            double _sumExp = 0.0;
             for (Double value : values) {
                 if (value.isNaN() == false) {
-                    sumExp += Math.exp(value);
+                    _sumExp += Math.exp(value);
                 }
             }
 
-            this.sumExp = sumExp;
+            this.sumExp = _sumExp;
         }
 
         @Override
@@ -117,6 +117,7 @@ class NormalizePipelineMethods {
         protected final double mean;
         protected final int count;
 
+        @SuppressWarnings("HiddenField")
         SinglePassSimpleStatisticsMethod(double[] values) {
             int count = 0;
             double sum = 0.0;

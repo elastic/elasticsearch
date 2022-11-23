@@ -17,9 +17,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 
 import java.io.IOException;
@@ -116,8 +116,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         }
 
         public EnumCounters<Item> getStats() {
-            List<EnumCounters<Item>> countersPerNode = getNodes()
-                .stream()
+            List<EnumCounters<Item>> countersPerNode = getNodes().stream()
                 .map(AnalyticsStatsAction.NodeResponse::getStats)
                 .collect(Collectors.toList());
             return EnumCounters.merge(Item.class, countersPerNode);
@@ -186,8 +185,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse that = (NodeResponse) o;
-            return counters.equals(that.counters) &&
-                getNode().equals(that.getNode());
+            return counters.equals(that.counters) && getNode().equals(that.getNode());
         }
 
         @Override

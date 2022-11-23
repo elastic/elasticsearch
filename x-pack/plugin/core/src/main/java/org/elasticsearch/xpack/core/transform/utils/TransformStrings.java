@@ -25,8 +25,7 @@ public final class TransformStrings {
 
     public static final int ID_LENGTH_LIMIT = 64;
 
-    private TransformStrings() {
-    }
+    private TransformStrings() {}
 
     public static boolean isValidId(String id) {
         return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches() && Metadata.ALL.equals(id) == false;

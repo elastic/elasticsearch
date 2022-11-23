@@ -24,7 +24,10 @@ public class DataAttachmentTests extends ESTestCase {
         Attachment attachment = DataAttachment.JSON.create("data", data);
         InputStream input = attachment.bodyPart().getDataHandler().getInputStream();
         String content = Streams.copyToString(new InputStreamReader(input, StandardCharsets.UTF_8));
-        assertThat(content, is("{\n  \"key\" : \"value\"\n}"));
+        assertThat(content, is("""
+            {
+              "key" : "value"
+            }"""));
     }
 
     public void testCreateYaml() throws Exception {
@@ -34,6 +37,9 @@ public class DataAttachmentTests extends ESTestCase {
         String content = Streams.copyToString(new InputStreamReader(input, StandardCharsets.UTF_8));
         // the yaml factory in es always emits unix line breaks
         // this seems to be a bug in jackson yaml factory that doesn't default to the platform line break
-        assertThat(content, is("---\nkey: \"value\"\n"));
+        assertThat(content, is("""
+            ---
+            key: "value"
+            """));
     }
 }

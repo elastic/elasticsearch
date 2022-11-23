@@ -28,8 +28,8 @@ public class IndexFeatureStatsTests extends AbstractWireSerializingTestCase<Inde
 
     public void testToXContent() {
         IndexFeatureStats testInstance = createTestInstance();
-        assertEquals("{\"name\":\"" + testInstance.name +
-            "\",\"count\":" + testInstance.count +
-            ",\"index_count\":" + testInstance.indexCount + "}", Strings.toString(testInstance));
+        assertEquals(formatted("""
+            {"name":"%s","count":%s,"index_count":%s}\
+            """, testInstance.name, testInstance.count, testInstance.indexCount), Strings.toString(testInstance));
     }
 }

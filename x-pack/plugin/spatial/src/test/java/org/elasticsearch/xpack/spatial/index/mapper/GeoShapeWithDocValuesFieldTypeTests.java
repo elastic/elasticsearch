@@ -9,13 +9,15 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.xpack.vectortile.SpatialGeometryFormatterExtension;
 import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 import org.hamcrest.Matchers;
@@ -27,11 +29,18 @@ import java.util.Map;
 public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper
-            = new GeoShapeFieldMapper.Builder("field", true, true).build(new ContentPath()).fieldType();
+        final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
+            new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
+        );
+        final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
+            "field",
+            Version.CURRENT,
+            false,
+            false,
+            geoFormatterFactory
+        ).build(MapperBuilderContext.root(false)).fieldType();
 
-        Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates",
-            List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
+        Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
         Map<String, Object> jsonMalformed = Map.of("type", "Point", "coordinates", "foo");
         String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
@@ -91,28 +100,37 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
     private void fetchVectorTile(Geometry geometry) throws IOException {
         final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
-            new SpatialGeometryFormatterExtension().getGeometryFormatterFactories());
-        final MappedFieldType mapper
-            = new GeoShapeWithDocValuesFieldMapper.Builder("field", Version.CURRENT, false, false, geoFormatterFactory)
-            .build(new ContentPath()).fieldType();
+            new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
+        );
+        final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
+            "field",
+            Version.CURRENT,
+            false,
+            false,
+            geoFormatterFactory
+        ).build(MapperBuilderContext.root(false)).fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
-        final FeatureFactory featureFactory;
-        final String mvtString;
+        final StringBuilder mvtString = new StringBuilder("mvt(");
+        mvtString.append(z).append("/").append(x).append("/").append(y);
+        int extent = SimpleVectorTileFormatter.DEFAULT_EXTENT;
+        int padPixels = SimpleVectorTileFormatter.DEFAULT_BUFFER_PIXELS;
         if (randomBoolean()) {
-            int extent = randomIntBetween(1 << 8, 1 << 14);
-            mvtString = "mvt(" + z + "/" + x + "/" + y + "@" + extent + ")";
-            featureFactory = new FeatureFactory(z, x, y, extent);
-        } else {
-            mvtString = "mvt(" + z + "/" + x + "/" + y + ")";
-            featureFactory = new FeatureFactory(z, x, y, 4096);
+            extent = randomIntBetween(1 << 8, 1 << 14);
+            mvtString.append(SimpleVectorTileFormatter.EXTENT_PREFIX).append(extent);
         }
+        if (randomBoolean()) {
+            padPixels = randomIntBetween(0, extent);
+            mvtString.append(SimpleVectorTileFormatter.BUFFER_PREFIX).append(padPixels);
+        }
+        mvtString.append(")");
+        final FeatureFactory featureFactory = new FeatureFactory(z, x, y, extent, padPixels);
 
-        final List<?> sourceValue = fetchSourceValue(mapper, WellKnownText.toWKT(geometry), mvtString);
+        final List<?> sourceValue = fetchSourceValue(mapper, WellKnownText.toWKT(geometry), mvtString.toString());
         List<byte[]> features;
         try {
-            features = featureFactory.getFeatures(geometry);
+            features = featureFactory.getFeatures(normalize(geometry));
         } catch (IllegalArgumentException iae) {
             // if parsing fails means that we must be ignoring malformed values. In case of mvt might
             // happen that the geometry is out of range (close to the poles).
@@ -122,5 +140,92 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         for (int i = 0; i < features.size(); i++) {
             assertThat(sourceValue.get(i), Matchers.equalTo(features.get(i)));
         }
+    }
+
+    private Geometry normalize(Geometry geometry) {
+        if (GeometryNormalizer.needsNormalize(Orientation.CCW, geometry)) {
+            return GeometryNormalizer.apply(Orientation.CCW, geometry);
+        } else {
+            return geometry;
+        }
+    }
+
+    public void testFetchSourcePolygonDateLine() throws IOException {
+        assertFetchSourceGeometry(
+            "POLYGON((170 -10, -170 -10, -170 10, 170 10, 170 -10))",
+            "MULTIPOLYGON (((180.0 -10.0, 180.0 10.0, 170.0 10.0, 170.0 -10.0, 180.0 -10.0)),"
+                + "((-180.0 10.0, -180.0 -10.0, -170.0 -10.0, -170.0 10.0, -180.0 10.0)))",
+            Map.of(
+                "type",
+                "MultiPolygon",
+                "coordinates",
+                List.of(
+                    List.of(
+                        List.of(
+                            List.of(180.0, -10.0),
+                            List.of(180.0, 10.0),
+                            List.of(170.0, 10.0),
+                            List.of(170.0, -10.0),
+                            List.of(180.0, -10.0)
+                        )
+                    ),
+                    List.of(
+                        List.of(
+                            List.of(-180.0, 10.0),
+                            List.of(-180.0, -10.0),
+                            List.of(-170.0, -10.0),
+                            List.of(-170.0, 10.0),
+                            List.of(-180.0, 10.0)
+                        )
+                    )
+                )
+            ),
+            "MULTIPOLYGON (((180.0 -10.0, 180.0 10.0, 170.0 10.0, 170.0 -10.0, 180.0 -10.0)),"
+                + "((-180.0 10.0, -180.0 -10.0, -170.0 -10.0, -170.0 10.0, -180.0 10.0)))"
+        );
+    }
+
+    public void testFetchSourceEnvelope() throws IOException {
+        assertFetchSourceGeometry(
+            "BBOX(-10, 10, 10, -10)",
+            "BBOX (-10.0, 10.0, 10.0, -10.0)",
+            Map.of("type", "Envelope", "coordinates", List.of(List.of(-10.0, 10.0), List.of(10.0, -10.0))),
+            "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10)))"
+        );
+    }
+
+    public void testFetchSourceEnvelopeDateLine() throws IOException {
+        assertFetchSourceGeometry(
+            "BBOX(10, -10, 10, -10)",
+            "BBOX (10.0, -10.0, 10.0, -10.0)",
+            Map.of("type", "Envelope", "coordinates", List.of(List.of(10.0, 10.0), List.of(-10.0, -10.0))),
+            "MULTIPOLYGON (((-180 -10, -10 -10, -10 10, -180 10, -180 -10)), ((10 -10, 180 -10, 180 10, 10 10, 10 -10)))"
+        );
+    }
+
+    private void assertFetchSourceGeometry(Object sourceValue, String wktValue, Map<String, Object> jsonValue, String mvtEquivalentAsWKT)
+        throws IOException {
+        final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
+            new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
+        );
+        final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
+            "field",
+            Version.CURRENT,
+            false,
+            false,
+            geoFormatterFactory
+        ).build(MapperBuilderContext.root(false)).fieldType();
+
+        assertEquals(List.of(jsonValue), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktValue), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        final int extent = randomIntBetween(256, 4096);
+        List<?> mvtExpected = fetchSourceValue(mapper, mvtEquivalentAsWKT, "mvt(0/0/0@" + extent + ")");
+        List<?> mvt = fetchSourceValue(mapper, sourceValue, "mvt(0/0/0@" + extent + ")");
+        assertThat(mvt.size(), Matchers.equalTo(1));
+        assertThat(mvt.size(), Matchers.equalTo(mvtExpected.size()));
+        assertThat(mvtExpected.get(0), Matchers.instanceOf(byte[].class));
+        assertThat(mvt.get(0), Matchers.instanceOf(byte[].class));
+        assertThat((byte[]) mvt.get(0), Matchers.equalTo((byte[]) mvtExpected.get(0)));
     }
 }

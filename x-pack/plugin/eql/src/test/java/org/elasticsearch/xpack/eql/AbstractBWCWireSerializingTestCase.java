@@ -24,8 +24,9 @@ public abstract class AbstractBWCWireSerializingTestCase<T extends Writeable> ex
     private static final List<Version> ALL_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
 
     private static List<Version> getAllBWCVersions(Version version) {
-        return ALL_VERSIONS.stream().filter(v -> v.onOrAfter(EQL_GA_VERSION) && v.before(version) && version.isCompatible(v)).collect(
-            Collectors.toList());
+        return ALL_VERSIONS.stream()
+            .filter(v -> v.onOrAfter(EQL_GA_VERSION) && v.before(version) && version.isCompatible(v))
+            .collect(Collectors.toList());
     }
 
     private static final List<Version> DEFAULT_BWC_VERSIONS = getAllBWCVersions(Version.CURRENT);

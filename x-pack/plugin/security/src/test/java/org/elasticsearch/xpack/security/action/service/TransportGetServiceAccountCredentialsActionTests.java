@@ -26,7 +26,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
 
-import static org.mockito.Matchers.eq;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,9 +42,7 @@ public class TransportGetServiceAccountCredentialsActionTests extends ESTestCase
     @Before
     @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws UnknownHostException {
-        final Settings.Builder builder = Settings.builder()
-            .put("node.name", "node_name")
-            .put("xpack.security.enabled", true);
+        final Settings.Builder builder = Settings.builder().put("node.name", "node_name").put("xpack.security.enabled", true);
         transport = mock(Transport.class);
         final TransportAddress transportAddress;
         if (randomBoolean()) {
@@ -53,19 +53,23 @@ public class TransportGetServiceAccountCredentialsActionTests extends ESTestCase
         if (randomBoolean()) {
             builder.put("xpack.security.http.ssl.enabled", true);
         } else {
-            builder.put("discovery.type", "single-node");
+            builder.put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE);
         }
-        when(transport.boundAddress()).thenReturn(
-            new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
+        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
         final Settings settings = builder.build();
         serviceAccountService = mock(ServiceAccountService.class);
         transportGetServiceAccountCredentialsAction = new TransportGetServiceAccountCredentialsAction(
-            mock(TransportService.class), new ActionFilters(Collections.emptySet()), serviceAccountService);
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet()),
+            serviceAccountService
+        );
     }
 
     public void testDoExecuteWillDelegate() {
-        final GetServiceAccountCredentialsRequest request =
-            new GetServiceAccountCredentialsRequest(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+        final GetServiceAccountCredentialsRequest request = new GetServiceAccountCredentialsRequest(
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8)
+        );
         @SuppressWarnings("unchecked")
         final ActionListener<GetServiceAccountCredentialsResponse> listener = mock(ActionListener.class);
         transportGetServiceAccountCredentialsAction.doExecute(mock(Task.class), request, listener);

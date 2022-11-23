@@ -8,7 +8,7 @@ setup:
   - do:
       index:
         index: my_test_index
-        id: 1
+        id: "1"
         refresh: true
         body: >
           {
@@ -333,7 +333,7 @@ teardown:
   - do:
       get:
         index: my_test_index
-        id: 1
+        id: "1"
   - match: { _id: "1" }
 
 
@@ -382,6 +382,6 @@ teardown:
   - do:
       get:
         index: index_not_allowed_to_read
-        id: 1
+        id: "1"
       catch: forbidden
 

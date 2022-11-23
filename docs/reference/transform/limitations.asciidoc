@@ -23,6 +23,14 @@ categories:
 == Configuration limitations
 
 [discrete]
+[[transforms-underscore-limitation]]
+=== Field names prefixed with underscores are omitted from latest {transforms}
+
+If you use the `latest` type of {transform} and the source index has field names
+that start with an underscore (_) character, they are assumed to be internal
+fields. Those fields are omitted from the documents in the destination index.
+
+[discrete]
 [[transforms-ccs-limitation]]
 === {transforms-cap} support {ccs} if the remote cluster is configured properly
 
@@ -49,7 +57,18 @@ in {transforms}:
 * {transforms-cap} cannot optimize queries when you use scripts for all the 
   groupings defined in `group_by`, you will receive a warning message when you 
   use scripts this way.
-  
+
+[discrete]
+[[transform-painless-warning-limitation]]
+=== Deprecation warnings for Painless scripts in {transforms}
+
+If a {transform} contains Painless scripts that use deprecated syntax, 
+deprecation warnings are displayed when the {transform} is previewed or started. 
+However, it is not possible to check for deprecation warnings across all 
+{transforms} as a bulk action because running the required queries might be a 
+resource intensive process. Therefore any deprecation warnings due to deprecated 
+Painless syntax are not available in the Upgrade Assistant.
+
 [discrete]
 [[transform-runtime-field-limitation]]
 === {transforms-cap} perform better on indexed fields
@@ -76,15 +95,6 @@ occur at `frequency` interval.
 [discrete]
 [[transform-operational-limitations]]
 == Operational limitations
-
-[discrete]
-[[transform-rolling-upgrade-limitation]]
-=== {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
-
-If your cluster contains mixed version nodes, for example during a rolling
-upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped 
-will not be reassigned until the upgrade is complete. After the upgrade is done, 
-{transforms} resume automatically; no action is required.
 
 [discrete]
 [[transform-aggresponse-limitations]]
@@ -278,20 +288,22 @@ documents if your {transform} contains a `group_by` based on `date_histogram`.
 
 {kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and 
 destination indices and other saved objects in {kib} and to see only the objects 
-that belong to your space. However, this limited scope does not apply to 
-{transforms}; they are visible in all spaces.
-
-[discrete]
-[[transform-rolling-upgrade-ui-limitation]]
-=== {transforms-cap} UI will not work during a rolling upgrade from 7.2
-
-If your cluster contains mixed version nodes, for example during a rolling 
-upgrade from 7.2 to a newer version, and {transforms} have been created in 7.2, 
-the {transforms} UI (earler {dataframe} UI) will not work. Please wait until all 
-nodes have been upgraded to the newer version before using the {transforms} UI.
+that belong to your space. However, a {transform} is a long running task which 
+is managed on cluster level and therefore not limited in scope to certain 
+spaces. Space awareness can be implemented for a {data-source} under 
+**Stack Management > Kibana** which allows privileges to the {transform} 
+destination index.
 
 [discrete]
 [[transform-kibana-limitations]]
 === Up to 1,000 {transforms} are listed in {kib}
 
 The {transforms} management page in {kib} lists up to 1000 {transforms}.
+
+[discrete]
+[[transform-ui-support]]
+=== {kib} might not support every {transform} configuration option
+
+There might be configuration options available via the {transform} APIs that are 
+not supported in {kib}. For an exhaustive list of configuration options, refer 
+to the <<transform-apis,documentation>>.

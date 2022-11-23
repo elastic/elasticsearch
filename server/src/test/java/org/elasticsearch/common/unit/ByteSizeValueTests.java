@@ -45,12 +45,14 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     public void testToIntBytes() {
         assertThat(ByteSizeUnit.BYTES.toIntBytes(4), equalTo(4));
         assertThat(ByteSizeUnit.KB.toIntBytes(4), equalTo(4096));
-        assertThat(expectThrows(AssertionError.class, () -> ByteSizeUnit.GB.toIntBytes(4)).getMessage(),
-            containsString("could not convert [4 GB] to an int"));
+        assertThat(
+            expectThrows(AssertionError.class, () -> ByteSizeUnit.GB.toIntBytes(4)).getMessage(),
+            containsString("could not convert [4 GB] to an int")
+        );
     }
 
     public void testEquality() {
-        String[] equalValues = new String[]{"1GB", "1024MB", "1048576KB", "1073741824B"};
+        String[] equalValues = new String[] { "1GB", "1024MB", "1048576KB", "1073741824B" };
         ByteSizeValue value1 = ByteSizeValue.parseBytesSizeValue(randomFrom(equalValues), "equalTest");
         ByteSizeValue value2 = ByteSizeValue.parseBytesSizeValue(randomFrom(equalValues), "equalTest");
         assertThat(value1, equalTo(value2));
@@ -129,14 +131,18 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testFailOnEmptyParsing() {
-        Exception e = expectThrows(ElasticsearchParseException.class,
-                () -> assertThat(ByteSizeValue.parseBytesSizeValue("", "emptyParsing").toString(), is("23kb")));
+        Exception e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> assertThat(ByteSizeValue.parseBytesSizeValue("", "emptyParsing").toString(), is("23kb"))
+        );
         assertThat(e.getMessage(), containsString("failed to parse setting [emptyParsing]"));
     }
 
     public void testFailOnEmptyNumberParsing() {
-        Exception e = expectThrows(ElasticsearchParseException.class,
-                () -> assertThat(ByteSizeValue.parseBytesSizeValue("g", "emptyNumberParsing").toString(), is("23b")));
+        Exception e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> assertThat(ByteSizeValue.parseBytesSizeValue("g", "emptyNumberParsing").toString(), is("23b"))
+        );
         assertThat(e.getMessage(), containsString("failed to parse setting [emptyNumberParsing] with value [g]"));
     }
 
@@ -164,8 +170,8 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testCompareUnits() {
-        long number = randomLongBetween(1, Long.MAX_VALUE/ ByteSizeUnit.PB.toBytes(1));
-        ByteSizeUnit randomUnit = randomValueOtherThan(ByteSizeUnit.PB, ()->randomFrom(ByteSizeUnit.values()));
+        long number = randomLongBetween(1, Long.MAX_VALUE / ByteSizeUnit.PB.toBytes(1));
+        ByteSizeUnit randomUnit = randomValueOtherThan(ByteSizeUnit.PB, () -> randomFrom(ByteSizeUnit.values()));
         ByteSizeValue firstByteValue = new ByteSizeValue(number, randomUnit);
         ByteSizeValue secondByteValue = new ByteSizeValue(number, ByteSizeUnit.PB);
         assertTrue(firstByteValue.compareTo(secondByteValue) < 0);
@@ -177,8 +183,10 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         ByteSizeUnit unit = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
         long size = (long) randomDouble() * unit.toBytes(1) + (Long.MAX_VALUE - unit.toBytes(1));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size, unit));
-        assertEquals("Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix(),
-                exception.getMessage());
+        assertEquals(
+            "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix(),
+            exception.getMessage()
+        );
 
         // Make sure for units other than BYTES a size of -1 throws an exception
         ByteSizeUnit unit2 = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
@@ -209,13 +217,13 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             }
             return new ByteSizeValue(size, unit);
         } else {
-            return new ByteSizeValue(randomNonNegativeLong());
+            return ByteSizeValue.ofBytes(randomNonNegativeLong());
         }
     }
 
     @Override
     protected Reader<ByteSizeValue> instanceReader() {
-        return ByteSizeValue::new;
+        return ByteSizeValue::readFrom;
     }
 
     @Override
@@ -225,29 +233,30 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         final long mutateSize;
         final ByteSizeUnit mutateUnit;
         switch (between(0, 1)) {
-        case 0:
-            final long unitBytes = instanceUnit.toBytes(1);
-            mutateSize = randomValueOtherThan(instanceSize, () -> randomNonNegativeLong() / unitBytes);
-            mutateUnit = instanceUnit;
-            break;
-        case 1:
-            mutateUnit = randomValueOtherThan(instanceUnit, () -> randomFrom(ByteSizeUnit.values()));
-            final long newUnitBytes = mutateUnit.toBytes(1);
-            /*
-             * If size is zero we can not reuse zero because zero with any unit will be equal to zero with any other
-             * unit so in this case we need to randomize a new size. Additionally, if the size unit pair is such that
-             * the representation would be such that the number of represented bytes would exceed Long.Max_VALUE, we
-             * have to randomize a new size too.
-             */
-            if (instanceSize == 0 || instanceSize >= Long.MAX_VALUE / newUnitBytes) {
-                mutateSize = randomValueOtherThanMany(
-                        v -> v == instanceSize && v >= Long.MAX_VALUE / newUnitBytes, () -> randomNonNegativeLong() / newUnitBytes);
-            } else {
-                mutateSize = instanceSize;
+            case 0 -> {
+                final long unitBytes = instanceUnit.toBytes(1);
+                mutateSize = randomValueOtherThan(instanceSize, () -> randomNonNegativeLong() / unitBytes);
+                mutateUnit = instanceUnit;
             }
-            break;
-        default:
-            throw new AssertionError("Invalid randomisation branch");
+            case 1 -> {
+                mutateUnit = randomValueOtherThan(instanceUnit, () -> randomFrom(ByteSizeUnit.values()));
+                final long newUnitBytes = mutateUnit.toBytes(1);
+                /*
+                 * If size is zero we can not reuse zero because zero with any unit will be equal to zero with any other
+                 * unit so in this case we need to randomize a new size. Additionally, if the size unit pair is such that
+                 * the representation would be such that the number of represented bytes would exceed Long.Max_VALUE, we
+                 * have to randomize a new size too.
+                 */
+                if (instanceSize == 0 || instanceSize >= Long.MAX_VALUE / newUnitBytes) {
+                    mutateSize = randomValueOtherThanMany(
+                        v -> v == instanceSize && v >= Long.MAX_VALUE / newUnitBytes,
+                        () -> randomNonNegativeLong() / newUnitBytes
+                    );
+                } else {
+                    mutateSize = instanceSize;
+                }
+            }
+            default -> throw new AssertionError("Invalid randomisation branch");
         }
         return new ByteSizeValue(mutateSize, mutateUnit);
     }
@@ -264,8 +273,10 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     public void testParseInvalidValue() {
         String unitSuffix = (randomBoolean() ? " " : "") + randomFrom(ByteSizeUnit.values()).getSuffix();
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
-                () -> ByteSizeValue.parseBytesSizeValue("-6" + unitSuffix, "test_setting"));
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ByteSizeValue.parseBytesSizeValue("-6" + unitSuffix, "test_setting")
+        );
         assertEquals("failed to parse setting [test_setting] with value [-6" + unitSuffix + "] as a size in bytes", exception.getMessage());
         assertNotNull(exception.getCause());
         assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
@@ -277,24 +288,30 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testParseSpecialValues() throws IOException {
-        ByteSizeValue instance = new ByteSizeValue(-1);
+        ByteSizeValue instance = ByteSizeValue.ofBytes(-1);
         assertEquals(instance, ByteSizeValue.parseBytesSizeValue(instance.getStringRep(), null, "test"));
         assertSerialization(instance);
 
-        instance = new ByteSizeValue(0);
+        instance = ByteSizeValue.ofBytes(0);
         assertEquals(instance, ByteSizeValue.parseBytesSizeValue(instance.getStringRep(), null, "test"));
         assertSerialization(instance);
     }
 
     public void testParseInvalidNumber() throws IOException {
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
-                () -> ByteSizeValue.parseBytesSizeValue("notANumber", "test"));
-        assertEquals("failed to parse setting [test] with value [notANumber] as a size in bytes: unit is missing or unrecognized",
-                exception.getMessage());
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ByteSizeValue.parseBytesSizeValue("notANumber", "test")
+        );
+        assertEquals(
+            "failed to parse setting [test] with value [notANumber] as a size in bytes: unit is missing or unrecognized",
+            exception.getMessage()
+        );
 
         String unitSuffix = (randomBoolean() ? " " : "") + randomFrom(ByteSizeUnit.values()).getSuffix();
-        exception = expectThrows(ElasticsearchParseException.class,
-            () -> ByteSizeValue.parseBytesSizeValue("notANumber" + unitSuffix, "test"));
+        exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ByteSizeValue.parseBytesSizeValue("notANumber" + unitSuffix, "test")
+        );
         assertEquals("failed to parse setting [test] with value [notANumber" + unitSuffix + "]", exception.getMessage());
     }
 
@@ -303,8 +320,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         String fractionalValue = "23.5" + unit.getSuffix();
         ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
         assertEquals(fractionalValue, instance.toString());
-        assertWarnings("Fractional bytes values are deprecated. Use non-fractional bytes values instead: [" + fractionalValue
-                + "] found for setting [test]");
+        assertWarnings(
+            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: ["
+                + fractionalValue
+                + "] found for setting [test]"
+        );
     }
 
     public void testGetBytesAsInt() {
@@ -351,5 +371,164 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ByteSizeValue actual = byteSizeValueFunction.apply(size);
             assertThat(actual, equalTo(expected));
         }
+    }
+
+    public void testAddition() {
+        assertThat(ByteSizeValue.add(ByteSizeValue.ZERO, ByteSizeValue.ZERO), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.add(ByteSizeValue.ZERO, ByteSizeValue.ONE), is(ByteSizeValue.ONE));
+        assertThat(ByteSizeValue.add(ByteSizeValue.ONE, ByteSizeValue.ONE), is(ByteSizeValue.ofBytes(2L)));
+        assertThat(ByteSizeValue.add(ByteSizeValue.ofBytes(100L), ByteSizeValue.ONE), is(ByteSizeValue.ofBytes(101L)));
+        assertThat(ByteSizeValue.add(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(2L)), is(ByteSizeValue.ofBytes(102L)));
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.KB), new ByteSizeValue(4, ByteSizeUnit.KB)),
+            is(ByteSizeValue.ofBytes(12288L))
+        );
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.MB), new ByteSizeValue(4, ByteSizeUnit.MB)),
+            is(ByteSizeValue.ofBytes(12582912L))
+        );
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.GB), new ByteSizeValue(4, ByteSizeUnit.GB)),
+            is(ByteSizeValue.ofBytes(12884901888L))
+        );
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.TB), new ByteSizeValue(4, ByteSizeUnit.TB)),
+            is(ByteSizeValue.ofBytes(13194139533312L))
+        );
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.PB), new ByteSizeValue(4, ByteSizeUnit.PB)),
+            is(ByteSizeValue.ofBytes(13510798882111488L))
+        );
+        assertThat(
+            ByteSizeValue.add(new ByteSizeValue(8, ByteSizeUnit.PB), new ByteSizeValue(4, ByteSizeUnit.GB)),
+            is(ByteSizeValue.ofBytes(9007203549708288L))
+        );
+
+        Exception e = expectThrows(
+            ArithmeticException.class,
+            () -> ByteSizeValue.add(ByteSizeValue.ofBytes(Long.MAX_VALUE), ByteSizeValue.ONE)
+        );
+        assertThat(e.getMessage(), containsString("long overflow"));
+
+        String exceptionMessage = "one of the arguments has -1 bytes";
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.add(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.add(ByteSizeValue.ZERO, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.add(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+    }
+
+    public void testSubtraction() {
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.ZERO), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ONE, ByteSizeValue.ZERO), is(ByteSizeValue.ONE));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ONE, ByteSizeValue.ONE), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ofBytes(100L), ByteSizeValue.ONE), is(ByteSizeValue.ofBytes(99L)));
+        assertThat(ByteSizeValue.subtract(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(2L)), is(ByteSizeValue.ofBytes(98L)));
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.KB), new ByteSizeValue(4, ByteSizeUnit.KB)),
+            is(ByteSizeValue.ofBytes(4096L))
+        );
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.MB), new ByteSizeValue(4, ByteSizeUnit.MB)),
+            is(ByteSizeValue.ofBytes(4194304L))
+        );
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.GB), new ByteSizeValue(4, ByteSizeUnit.GB)),
+            is(ByteSizeValue.ofBytes(4294967296L))
+        );
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.TB), new ByteSizeValue(4, ByteSizeUnit.TB)),
+            is(ByteSizeValue.ofBytes(4398046511104L))
+        );
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.PB), new ByteSizeValue(4, ByteSizeUnit.PB)),
+            is(ByteSizeValue.ofBytes(4503599627370496L))
+        );
+        assertThat(
+            ByteSizeValue.subtract(new ByteSizeValue(8, ByteSizeUnit.PB), new ByteSizeValue(4, ByteSizeUnit.GB)),
+            is(ByteSizeValue.ofBytes(9007194959773696L))
+        );
+
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ByteSizeValue.subtract(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(102L))
+        );
+        assertThat(e.getMessage(), containsString("Values less than -1 bytes are not supported: -2b"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.ONE));
+        assertThat(e.getMessage(), containsString("subtraction result has -1 bytes"));
+
+        String exceptionMessage = "one of the arguments has -1 bytes";
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.subtract(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.subtract(ByteSizeValue.ZERO, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.subtract(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+    }
+
+    public void testMinimum() {
+        assertThat(ByteSizeValue.min(ByteSizeValue.ZERO, ByteSizeValue.ZERO), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ZERO, ByteSizeValue.ONE), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ONE, ByteSizeValue.ZERO), is(ByteSizeValue.ZERO));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ONE, ByteSizeValue.ONE), is(ByteSizeValue.ONE));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ofBytes(100L), ByteSizeValue.ONE), is(ByteSizeValue.ONE));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ONE, ByteSizeValue.ofBytes(100L)), is(ByteSizeValue.ONE));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ofBytes(100L), ByteSizeValue.ofBytes(2L)), is(ByteSizeValue.ofBytes(2L)));
+        assertThat(ByteSizeValue.min(ByteSizeValue.ofBytes(2L), ByteSizeValue.ofBytes(100L)), is(ByteSizeValue.ofBytes(2L)));
+
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(8, ByteSizeUnit.KB), new ByteSizeValue(4, ByteSizeUnit.KB)),
+            is(new ByteSizeValue(4, ByteSizeUnit.KB))
+        );
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(4, ByteSizeUnit.MB), new ByteSizeValue(8, ByteSizeUnit.MB)),
+            is(new ByteSizeValue(4, ByteSizeUnit.MB))
+        );
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(16, ByteSizeUnit.GB), new ByteSizeValue(15, ByteSizeUnit.GB)),
+            is(new ByteSizeValue(15, ByteSizeUnit.GB))
+        );
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(90, ByteSizeUnit.TB), new ByteSizeValue(91, ByteSizeUnit.TB)),
+            is(new ByteSizeValue(90, ByteSizeUnit.TB))
+        );
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(2, ByteSizeUnit.PB), new ByteSizeValue(1, ByteSizeUnit.PB)),
+            is(new ByteSizeValue(1, ByteSizeUnit.PB))
+        );
+        assertThat(
+            ByteSizeValue.min(new ByteSizeValue(1, ByteSizeUnit.PB), new ByteSizeValue(1, ByteSizeUnit.GB)),
+            is(new ByteSizeValue(1, ByteSizeUnit.GB))
+        );
+
+        ByteSizeValue equalityResult = ByteSizeValue.min(new ByteSizeValue(1024, ByteSizeUnit.MB), new ByteSizeValue(1, ByteSizeUnit.GB));
+        assertThat(equalityResult, is(new ByteSizeValue(1024, ByteSizeUnit.MB)));
+        assertThat(equalityResult.getUnit(), is(ByteSizeUnit.MB));
+
+        equalityResult = ByteSizeValue.min(new ByteSizeValue(1, ByteSizeUnit.GB), new ByteSizeValue(1024, ByteSizeUnit.MB));
+        assertThat(equalityResult, is(new ByteSizeValue(1, ByteSizeUnit.GB)));
+        assertThat(equalityResult.getUnit(), is(ByteSizeUnit.GB));
+
+        String exceptionMessage = "one of the arguments has -1 bytes";
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.ONE, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+
+        e = expectThrows(IllegalArgumentException.class, () -> ByteSizeValue.min(ByteSizeValue.MINUS_ONE, ByteSizeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString(exceptionMessage));
+    }
+
+    @Override
+    protected void assertEqualInstances(ByteSizeValue expectedInstance, ByteSizeValue newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 }

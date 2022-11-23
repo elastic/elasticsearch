@@ -22,8 +22,7 @@ public class MlStandardTokenizer extends AbstractMlTokenizer {
 
     private int putBackChar = -1;
 
-    MlStandardTokenizer() {
-    }
+    MlStandardTokenizer() {}
 
     /**
      * Basically tokenize into [a-zA-Z0-9]+ strings, but also allowing forward slashes, and underscores, dots and dashes in the middle.
@@ -50,8 +49,12 @@ public class MlStandardTokenizer extends AbstractMlTokenizer {
         while ((curChar = getNextChar()) >= 0) {
             ++nextOffset;
             if (Character.isLetterOrDigit(curChar)
-                || (length > 0 && (curChar == '_' || curChar == '.' || curChar == '-' || curChar == '@' ||
-                    (curChar == ':' && lettersBeforeColon == length)))
+                || (length > 0
+                    && (curChar == '_'
+                        || curChar == '.'
+                        || curChar == '-'
+                        || curChar == '@'
+                        || (curChar == ':' && lettersBeforeColon == length)))
                 || curChar == '/'
                 || (curChar == '\\' && (length == 0 || (haveColon && lettersBeforeColon == 1) || firstBackslashPos == 0))) {
                 if (length == 0) {
@@ -91,7 +94,7 @@ public class MlStandardTokenizer extends AbstractMlTokenizer {
 
                 // We don't return tokens that are hex numbers, and it's most efficient to keep a running note of this
                 haveNonHex = haveNonHex ||
-                    // Count dots, dashes, at symbols and colons as numeric
+                // Count dots, dashes, at symbols and colons as numeric
                     (Character.digit(curChar, 16) == -1 && curChar != '.' && curChar != '-' && curChar != '@' && curChar != ':');
             } else if (length > 0) {
                 // If we get here, we've found a separator character having built up a candidate token

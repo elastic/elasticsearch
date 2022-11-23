@@ -21,6 +21,7 @@ import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -37,12 +38,25 @@ final class ESPolicy extends Policy {
     final Policy system;
     final PermissionCollection dynamic;
     final PermissionCollection dataPathPermission;
-    final Map<String,Policy> plugins;
+    final Map<String, Policy> plugins;
 
-    ESPolicy(Map<String, URL> codebases, PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults,
-             PermissionCollection dataPathPermission) {
+    ESPolicy(
+        Map<String, URL> codebases,
+        PermissionCollection dynamic,
+        Map<String, Policy> plugins,
+        boolean filterBadDefaults,
+        List<FilePermission> dataPathPermissions
+    ) {
         this.template = PolicyUtil.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
-        this.dataPathPermission = dataPathPermission;
+        PermissionCollection dpPermissions = null;
+        for (FilePermission permission : dataPathPermissions) {
+            if (dpPermissions == null) {
+                dpPermissions = permission.newPermissionCollection();
+            }
+            dpPermissions.add(permission);
+        }
+        this.dataPathPermission = dpPermissions == null ? new Permissions() : dpPermissions;
+        this.dataPathPermission.setReadOnly();
         this.untrusted = PolicyUtil.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
         if (filterBadDefaults) {
             this.system = new SystemPolicy(Policy.getPolicy());
@@ -53,7 +67,8 @@ final class ESPolicy extends Policy {
         this.plugins = plugins;
     }
 
-    @Override @SuppressForbidden(reason = "fast equals check is desired")
+    @Override
+    @SuppressForbidden(reason = "fast equals check is desired")
     public boolean implies(ProtectionDomain domain, Permission permission) {
         CodeSource codeSource = domain.getCodeSource();
         // codesource can be null when reducing privileges via doPrivileged()
@@ -77,27 +92,31 @@ final class ESPolicy extends Policy {
             }
         }
 
-        // Special handling for broken Hadoop code: "let me execute or my classes will not load"
-        // yeah right, REMOVE THIS when hadoop is fixed
-        if (permission instanceof FilePermission && "<<ALL FILES>>".equals(permission.getName())) {
-            for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
-                if ("org.apache.hadoop.util.Shell".equals(element.getClassName()) &&
-                      "runCommand".equals(element.getMethodName())) {
-                    // we found the horrible method: the hack begins!
-                    // force the hadoop code to back down, by throwing an exception that it catches.
-                    rethrow(new IOException("no hadoop, you cannot do this."));
-                }
+        if (permission instanceof FilePermission) {
+            // The FilePermission to check access to the path.data is the hottest permission check in
+            // Elasticsearch, so we check it first.
+            if (dataPathPermission.implies(permission)) {
+                return true;
             }
-        }
-
-        // The FilePermission to check access to the path.data is the hottest permission check in
-        // Elasticsearch, so we check it first.
-        if (permission instanceof FilePermission && dataPathPermission.implies(permission)) {
-            return true;
+            // Special handling for broken Hadoop code: "let me execute or my classes will not load"
+            // yeah right, REMOVE THIS when hadoop is fixed
+            if ("<<ALL FILES>>".equals(permission.getName())) {
+                hadoopHack();
+            }
         }
 
         // otherwise defer to template + dynamic file permissions
         return template.implies(domain, permission) || dynamic.implies(permission) || system.implies(domain, permission);
+    }
+
+    private static void hadoopHack() {
+        for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+            if ("org.apache.hadoop.util.Shell".equals(element.getClassName()) && "runCommand".equals(element.getMethodName())) {
+                // we found the horrible method: the hack begins!
+                // force the hadoop code to back down, by throwing an exception that it catches.
+                rethrow(new IOException("no hadoop, you cannot do this."));
+            }
+        }
     }
 
     /**
@@ -113,7 +132,7 @@ final class ESPolicy extends Policy {
     /**
      * Rethrows <code>t</code> (identical object).
      */
-    private void rethrow(Throwable t) {
+    private static void rethrow(Throwable t) {
         new Rethrower<Error>().rethrow(t);
     }
 
@@ -123,8 +142,7 @@ final class ESPolicy extends Policy {
         // https://bugs.openjdk.java.net/browse/JDK-8014008
         // return them a new empty permissions object so jvisualvm etc work
         for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
-            if ("sun.rmi.server.LoaderHandler".equals(element.getClassName()) &&
-                    "loadClass".equals(element.getMethodName())) {
+            if ("sun.rmi.server.LoaderHandler".equals(element.getClassName()) && "loadClass".equals(element.getMethodName())) {
                 return new Permissions();
             }
         }
@@ -180,8 +198,8 @@ final class ESPolicy extends Policy {
 
     // default policy file states:
     // "It is strongly recommended that you either remove this permission
-    //  from this policy file or further restrict it to code sources
-    //  that you specify, because Thread.stop() is potentially unsafe."
+    // from this policy file or further restrict it to code sources
+    // that you specify, because Thread.stop() is potentially unsafe."
     // not even sure this method still works...
     private static final Permission BAD_DEFAULT_NUMBER_ONE = new BadDefaultPermission(new RuntimePermission("stopThread"), p -> true);
 
@@ -189,11 +207,11 @@ final class ESPolicy extends Policy {
     // "allows anyone to listen on dynamic ports"
     // specified exactly because that is what we want, and fastest since it won't imply any
     // expensive checks for the implicit "resolve"
-    private static final Permission BAD_DEFAULT_NUMBER_TWO =
-        new BadDefaultPermission(
-            new SocketPermission("localhost:0", "listen"),
-            // we apply this pre-implies test because some SocketPermission#implies calls do expensive reverse-DNS resolves
-            p -> p instanceof SocketPermission && p.getActions().contains("listen"));
+    private static final Permission BAD_DEFAULT_NUMBER_TWO = new BadDefaultPermission(
+        new SocketPermission("localhost:0", "listen"),
+        // we apply this pre-implies test because some SocketPermission#implies calls do expensive reverse-DNS resolves
+        p -> p instanceof SocketPermission && p.getActions().contains("listen")
+    );
 
     /**
      * Wraps the Java system policy, filtering out bad default permissions that

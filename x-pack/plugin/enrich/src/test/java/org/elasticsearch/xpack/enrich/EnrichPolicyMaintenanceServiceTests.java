@@ -15,13 +15,13 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
@@ -41,6 +41,10 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.enrich.AbstractEnrichTestCase.createSourceIndices;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
 
@@ -104,6 +108,32 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
         maintenanceService.cleanUpEnrichIndices();
         expectedIndices.remove(policy1Index2);
         assertEnrichIndicesExist(expectedIndices);
+    }
+
+    public void testOnlyOneLifecycleListenerAdded() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        // Extend the maintenance service to do no work on the schedule call.
+        EnrichPolicyMaintenanceService service = new EnrichPolicyMaintenanceService(
+            Settings.EMPTY,
+            client(),
+            clusterService,
+            threadPool,
+            new EnrichPolicyLocks()
+        ) {
+            @Override
+            protected void scheduleNext() {
+                // Do nothing
+            }
+        };
+
+        // Execute the onMaster operation which should "schedule" the runnable and set the lifecycle listener.
+        service.onMaster();
+        // Since it doesn't actually schedule the runnable, we can just run it again to check if it sets the listener twice.
+        service.onMaster();
+
+        // Only set the listener once, despite multiple master swaps.
+        verify(clusterService, times(1)).addLifecycleListener(any());
     }
 
     private void assertEnrichIndicesExist(Set<String> activeIndices) {
@@ -175,7 +205,7 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
         String enrichIndexBase = EnrichPolicy.getBaseName(forPolicy);
         GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest(enrichIndexBase)).actionGet();
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
-        String[] indices = getAliasesResponse.getAliases().keys().toArray(String.class);
+        String[] indices = getAliasesResponse.getAliases().keySet().toArray(new String[0]);
         if (indices.length > 0) {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));
         }

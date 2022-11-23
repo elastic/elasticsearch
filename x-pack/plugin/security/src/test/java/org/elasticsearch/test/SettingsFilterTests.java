@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
@@ -56,24 +57,31 @@ public class SettingsFilterTests extends ESTestCase {
         // active directory filtering
         configureUnfilteredSetting("xpack.security.authc.realms.active_directory.ad1.enabled", "false");
         configureUnfilteredSetting("xpack.security.authc.realms.active_directory.ad1.url", "ldap://host.domain");
-        configureFilteredSetting("xpack.security.authc.realms.active_directory.ad1.hostname_verification",
-                Boolean.toString(randomBoolean()));
+        configureFilteredSetting(
+            "xpack.security.authc.realms.active_directory.ad1.hostname_verification",
+            Boolean.toString(randomBoolean())
+        );
 
         // pki filtering
         configureUnfilteredSetting("xpack.security.authc.realms.pki.pki1.order", "0");
         if (inFipsJvm() == false) {
-            configureFilteredSetting("xpack.security.authc.realms.pki.pki1.truststore.path",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks").toString());
-            configureFilteredSetting("xpack.security.transport.ssl.keystore.path",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString());
+            configureFilteredSetting(
+                "xpack.security.authc.realms.pki.pki1.truststore.path",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks").toString()
+            );
+            configureFilteredSetting(
+                "xpack.security.transport.ssl.keystore.path",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString()
+            );
         }
         configureSecureSetting("xpack.security.authc.realms.pki.pki1.truststore.secure_password", "truststore-testnode-only");
         configureFilteredSetting("xpack.security.authc.realms.pki.pki1.truststore.algorithm", "SunX509");
 
-
         configureUnfilteredSetting("xpack.security.transport.ssl.enabled", "true");
-        configureFilteredSetting("xpack.security.transport.ssl.cipher_suites",
-                Strings.arrayToCommaDelimitedString(XPackSettings.DEFAULT_CIPHERS.toArray()));
+        configureFilteredSetting(
+            "xpack.security.transport.ssl.cipher_suites",
+            Strings.arrayToCommaDelimitedString(XPackSettings.DEFAULT_CIPHERS.toArray())
+        );
         configureFilteredSetting("xpack.security.transport.ssl.supported_protocols", randomFrom("TLSv1", "TLSv1.1", "TLSv1.2"));
         configureSecureSetting("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         configureFilteredSetting("xpack.security.transport.ssl.keystore.algorithm", KeyManagerFactory.getDefaultAlgorithm());
@@ -84,20 +92,30 @@ public class SettingsFilterTests extends ESTestCase {
         // client profile
         configureUnfilteredSetting("transport.profiles.client.port", "9500-9600");
         if (inFipsJvm() == false) {
-            configureFilteredSetting("transport.profiles.client.xpack.security.ssl.keystore.path",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString());
+            configureFilteredSetting(
+                "transport.profiles.client.xpack.security.ssl.keystore.path",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString()
+            );
         }
-        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.cipher_suites",
-                Strings.arrayToCommaDelimitedString(XPackSettings.DEFAULT_CIPHERS.toArray()));
-        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.supported_protocols",
-                randomFrom("TLSv1", "TLSv1.1", "TLSv1.2"));
+        configureFilteredSetting(
+            "transport.profiles.client.xpack.security.ssl.cipher_suites",
+            Strings.arrayToCommaDelimitedString(XPackSettings.DEFAULT_CIPHERS.toArray())
+        );
+        configureFilteredSetting(
+            "transport.profiles.client.xpack.security.ssl.supported_protocols",
+            randomFrom("TLSv1", "TLSv1.1", "TLSv1.2")
+        );
         configureSecureSetting("transport.profiles.client.xpack.security.ssl.keystore.secure_password", "testnode");
-        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.keystore.algorithm",
-                KeyManagerFactory.getDefaultAlgorithm());
+        configureFilteredSetting(
+            "transport.profiles.client.xpack.security.ssl.keystore.algorithm",
+            KeyManagerFactory.getDefaultAlgorithm()
+        );
         configureSecureSetting("transport.profiles.client.xpack.security.ssl.keystore.secure_key_password", "testnode");
         configureSecureSetting("transport.profiles.client.xpack.security.ssl.truststore.secure_password", randomAlphaOfLength(5));
-        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.truststore.algorithm",
-                TrustManagerFactory.getDefaultAlgorithm());
+        configureFilteredSetting(
+            "transport.profiles.client.xpack.security.ssl.truststore.algorithm",
+            TrustManagerFactory.getDefaultAlgorithm()
+        );
 
         // custom settings, potentially added by a plugin
         configureFilteredSetting("foo.bar", "_secret");
@@ -107,10 +125,10 @@ public class SettingsFilterTests extends ESTestCase {
         configureFilteredSetting("xpack.security.hide_settings", "foo.*,bar.baz");
 
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .put(configuredSettingsBuilder.build())
-                .setSecureSettings(mockSecureSettings)
-                .build();
+            .put("path.home", createTempDir())
+            .put(configuredSettingsBuilder.build())
+            .setSecureSettings(mockSecureSettings)
+            .build();
 
         LocalStateSecurity securityPlugin = new LocalStateSecurity(settings, null);
 
@@ -134,9 +152,11 @@ public class SettingsFilterTests extends ESTestCase {
         }
 
         if (useLegacyLdapBindPassword) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD
-                    .apply(LdapRealmSettings.LDAP_TYPE)
-                    .getConcreteSettingForNamespace("ldap1")});
+            assertSettingDeprecationsAndWarnings(
+                new Setting<?>[] {
+                    PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD.apply(LdapRealmSettings.LDAP_TYPE)
+                        .getConcreteSettingForNamespace("ldap1") }
+            );
         }
     }
 

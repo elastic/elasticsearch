@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InitializePolicyContextStepTests extends AbstractStepTestCase<InitializePolicyContextStep> {
@@ -34,14 +34,9 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new InitializePolicyContextStep(key, nextKey);
@@ -57,7 +52,9 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
             .creationDate(creationDate)
-            .numberOfShards(1).numberOfReplicas(0).build();
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .put(IndexMetadata.builder(indexMetadata))
@@ -77,7 +74,9 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
             .settings(settings(Version.CURRENT))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .creationDate(creationDate)
-            .numberOfShards(1).numberOfReplicas(0).build();
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .put(IndexMetadata.builder(indexMetadata))
@@ -90,6 +89,6 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
     }
 
     private long getIndexLifecycleDate(Index index, ClusterState clusterState) {
-        return LifecycleExecutionState.fromIndexMetadata(clusterState.getMetadata().index(index)).getLifecycleDate();
+        return clusterState.getMetadata().index(index).getLifecycleExecutionState().lifecycleDate();
     }
 }

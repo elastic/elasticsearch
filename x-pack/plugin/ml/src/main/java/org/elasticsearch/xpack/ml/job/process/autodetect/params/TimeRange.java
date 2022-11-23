@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.util.Objects;
 
@@ -46,8 +46,7 @@ public class TimeRange {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TimeRange timeRange = (TimeRange) o;
-        return Objects.equals(start, timeRange.start) &&
-                Objects.equals(end, timeRange.end);
+        return Objects.equals(start, timeRange.start) && Objects.equals(end, timeRange.end);
     }
 
     @Override
@@ -60,8 +59,7 @@ public class TimeRange {
         private String start = "";
         private String end = "";
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder startTime(String start) {
             this.start = ExceptionsHelper.requireNonNull(start, "start");

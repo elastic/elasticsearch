@@ -28,22 +28,25 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
         super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
-    public static class TransportDeleteCcrRestoreSessionAction
-        extends HandledTransportAction<ClearCcrRestoreSessionRequest, ActionResponse.Empty> {
+    public static class TransportDeleteCcrRestoreSessionAction extends HandledTransportAction<
+        ClearCcrRestoreSessionRequest,
+        ActionResponse.Empty> {
 
         private final CcrRestoreSourceService ccrRestoreService;
 
         @Inject
-        public TransportDeleteCcrRestoreSessionAction(ActionFilters actionFilters, TransportService transportService,
-                                                      CcrRestoreSourceService ccrRestoreService) {
+        public TransportDeleteCcrRestoreSessionAction(
+            ActionFilters actionFilters,
+            TransportService transportService,
+            CcrRestoreSourceService ccrRestoreService
+        ) {
             super(NAME, transportService, actionFilters, ClearCcrRestoreSessionRequest::new, ThreadPool.Names.GENERIC);
             TransportActionProxy.registerProxyAction(transportService, NAME, false, in -> ActionResponse.Empty.INSTANCE);
             this.ccrRestoreService = ccrRestoreService;
         }
 
         @Override
-        protected void doExecute(Task task, ClearCcrRestoreSessionRequest request,
-                                 ActionListener<ActionResponse.Empty> listener) {
+        protected void doExecute(Task task, ClearCcrRestoreSessionRequest request, ActionListener<ActionResponse.Empty> listener) {
             ccrRestoreService.closeSession(request.getSessionUUID());
             listener.onResponse(ActionResponse.Empty.INSTANCE);
         }

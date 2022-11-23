@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -51,7 +50,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, "test1UUID");
             IndexMetadata dangledIndex = IndexMetadata.builder("test1").settings(settings).build();
-            metaStateService.writeIndex("test_write", dangledIndex);
+            MetaStateWriterUtils.writeIndex(env, "test_write", dangledIndex);
 
             Map<Index, IndexMetadata> newDanglingIndices = danglingState.getDanglingIndices();
             assertTrue(newDanglingIndices.containsKey(dangledIndex.getIndex()));
@@ -68,10 +67,11 @@ public class DanglingIndicesStateTests extends ESTestCase {
             final String uuid = "test1UUID";
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, uuid);
             IndexMetadata dangledIndex = IndexMetadata.builder("test1").settings(settings).build();
-            metaStateService.writeIndex("test_write", dangledIndex);
-            Path path = env.resolveIndexFolder(uuid);
-            if (Files.exists(path)) {
-                Files.move(path, path.resolveSibling("invalidUUID"), StandardCopyOption.ATOMIC_MOVE);
+            MetaStateWriterUtils.writeIndex(env, "test_write", dangledIndex);
+            for (Path path : env.resolveIndexFolder(uuid)) {
+                if (Files.exists(path)) {
+                    Files.move(path, path.resolveSibling("invalidUUID"), StandardCopyOption.ATOMIC_MOVE);
+                }
             }
 
             final IllegalStateException e = expectThrows(IllegalStateException.class, danglingState::getDanglingIndices);
@@ -85,7 +85,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, "test1UUID");
             IndexMetadata dangledIndex = IndexMetadata.builder("test1").settings(settings).build();
-            metaStateService.writeIndex("test_write", dangledIndex);
+            MetaStateWriterUtils.writeIndex(env, "test_write", dangledIndex);
 
             final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(dangledIndex.getIndex()).build();
             final Metadata metadata = Metadata.builder().indexGraveyard(graveyard).build();
@@ -105,18 +105,16 @@ public class DanglingIndicesStateTests extends ESTestCase {
                 .put(indexSettings)
                 .put(IndexMetadata.SETTING_INDEX_UUID, "test1UUID");
             IndexMetadata dangledIndex = IndexMetadata.builder("test_index").settings(danglingSettings).build();
-            metaStateService.writeIndex("test_write", dangledIndex);
+            MetaStateWriterUtils.writeIndex(env, "test_write", dangledIndex);
 
             // Build another index with the same name but a different UUID
             final Settings.Builder existingSettings = Settings.builder()
                 .put(indexSettings)
                 .put(IndexMetadata.SETTING_INDEX_UUID, "test2UUID");
             IndexMetadata existingIndex = IndexMetadata.builder("test_index").settings(existingSettings).build();
-            metaStateService.writeIndex("test_write", existingIndex);
+            MetaStateWriterUtils.writeIndex(env, "test_write", existingIndex);
 
-            final ImmutableOpenMap<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-                .fPut(dangledIndex.getIndex().getName(), existingIndex)
-                .build();
+            Map<String, IndexMetadata> indices = Map.of(dangledIndex.getIndex().getName(), existingIndex);
             final Metadata metadata = Metadata.builder().indices(indices).build();
 
             DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService, metadata);
@@ -136,7 +134,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
                 .settings(settings)
                 .putAlias(AliasMetadata.newAliasMetadataBuilder("test_aliasd").build())
                 .build();
-            metaStateService.writeIndex("test_write", dangledIndex);
+            MetaStateWriterUtils.writeIndex(env, "test_write", dangledIndex);
             assertThat(dangledIndex.getAliases().size(), equalTo(1));
 
             final Metadata metadata = Metadata.builder().build();

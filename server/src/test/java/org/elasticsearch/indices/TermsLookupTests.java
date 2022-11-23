@@ -10,9 +10,9 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -37,17 +37,10 @@ public class TermsLookupTests extends ESTestCase {
         String path = randomAlphaOfLength(5);
         String index = randomAlphaOfLength(5);
         switch (randomIntBetween(0, 2)) {
-            case 0:
-                id = null;
-                break;
-            case 1:
-                path = null;
-                break;
-            case 2:
-                index = null;
-                break;
-            default:
-                fail("unknown case");
+            case 0 -> id = null;
+            case 1 -> path = null;
+            case 2 -> index = null;
+            default -> fail("unknown case");
         }
         try {
             new TermsLookup(index, id, path);
@@ -70,8 +63,8 @@ public class TermsLookupTests extends ESTestCase {
     }
 
     public void testXContentParsing() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-            "{ \"index\" : \"index\", \"id\" : \"id\", \"path\" : \"path\", \"routing\" : \"routing\" }");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            { "index" : "index", "id" : "id", "path" : "path", "routing" : "routing" }""");
 
         TermsLookup tl = TermsLookup.parseTermsLookup(parser);
         assertEquals("index", tl.index());
@@ -81,11 +74,9 @@ public class TermsLookupTests extends ESTestCase {
     }
 
     public static TermsLookup randomTermsLookup() {
-        return new TermsLookup(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10).replace('.', '_')
-        ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+        return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10).replace('.', '_')).routing(
+            randomBoolean() ? randomAlphaOfLength(10) : null
+        );
     }
 
 }

@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.net.ssl.HandshakeCompletedEvent;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -38,7 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class EllipticCurveSSLTests extends SecurityIntegTestCase {
-     private static String CURVE;
+    private static String CURVE;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -67,19 +68,18 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         final X509ExtendedKeyManager x509ExtendedKeyManager = CertParsingUtils.getKeyManagerFromPEM(certPath, keyPath, new char[0]);
         final X509ExtendedTrustManager trustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(certPath));
         SSLContext sslContext = SSLContext.getInstance("TLS");
-        sslContext.init(new X509ExtendedKeyManager[]{x509ExtendedKeyManager},
-            new TrustManager[]{trustManager},
-            new SecureRandom());
+        sslContext.init(new X509ExtendedKeyManager[] { x509ExtendedKeyManager }, new TrustManager[] { trustManager }, new SecureRandom());
         SSLSocketFactory socketFactory = sslContext.getSocketFactory();
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().setTransport(true).get();
         TransportAddress address = randomFrom(response.getNodes()).getInfo(TransportInfo.class).getAddress().publishAddress();
 
         final CountDownLatch latch = new CountDownLatch(1);
         try (SSLSocket sslSocket = AccessController.doPrivileged(new PrivilegedExceptionAction<SSLSocket>() {
-              @Override
-              public SSLSocket run() throws Exception {
-                  return (SSLSocket) socketFactory.createSocket(address.address().getAddress(), address.address().getPort());
-              }})) {
+            @Override
+            public SSLSocket run() throws Exception {
+                return (SSLSocket) socketFactory.createSocket(address.address().getAddress(), address.address().getPort());
+            }
+        })) {
             final AtomicReference<HandshakeCompletedEvent> reference = new AtomicReference<>();
             sslSocket.addHandshakeCompletedListener((event) -> {
                 reference.set(event);
@@ -94,8 +94,10 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
             Certificate[] peerChain = session.getPeerCertificates();
             assertEquals(1, peerChain.length);
             assertEquals(CertParsingUtils.readX509Certificate(certPath), peerChain[0]);
-            assertThat(session.getCipherSuite(),
-                anyOf(containsString("ECDSA"), is("TLS_AES_256_GCM_SHA384"), is("TLS_AES_128_GCM_SHA256")));
+            assertThat(
+                session.getCipherSuite(),
+                anyOf(containsString("ECDSA"), is("TLS_AES_256_GCM_SHA384"), is("TLS_AES_128_GCM_SHA256"))
+            );
         }
     }
 
@@ -105,9 +107,12 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
         sslContext.init(null, null, null);
         SSLEngine sslEngine = sslContext.createSSLEngine();
-        assumeTrue("ECDSA ciphers must be supported for this test to run. Enabled ciphers: " +
-                        Arrays.toString(sslEngine.getEnabledCipherSuites()) + ", supported ciphers: " +
-                        Arrays.toString(sslEngine.getSupportedCipherSuites()),
-                Arrays.stream(sslEngine.getEnabledCipherSuites()).anyMatch(s -> s.contains("ECDSA")));
+        assumeTrue(
+            "ECDSA ciphers must be supported for this test to run. Enabled ciphers: "
+                + Arrays.toString(sslEngine.getEnabledCipherSuites())
+                + ", supported ciphers: "
+                + Arrays.toString(sslEngine.getSupportedCipherSuites()),
+            Arrays.stream(sslEngine.getEnabledCipherSuites()).anyMatch(s -> s.contains("ECDSA"))
+        );
     }
 }

@@ -11,12 +11,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -58,8 +58,7 @@ public class GetCalendarsAction extends ActionType<GetCalendarsAction.Response> 
         private String calendarId;
         private PageParams pageParams;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -88,10 +87,16 @@ public class GetCalendarsAction extends ActionType<GetCalendarsAction.Response> 
             ActionRequestValidationException validationException = null;
 
             if (calendarId != null && pageParams != null) {
-                validationException = addValidationError("Params [" + PageParams.FROM.getPreferredName()
-                                + ", " + PageParams.SIZE.getPreferredName() + "] are incompatible with ["
-                                + Calendar.ID.getPreferredName() + "].",
-                        validationException);
+                validationException = addValidationError(
+                    "Params ["
+                        + PageParams.FROM.getPreferredName()
+                        + ", "
+                        + PageParams.SIZE.getPreferredName()
+                        + "] are incompatible with ["
+                        + Calendar.ID.getPreferredName()
+                        + "].",
+                    validationException
+                );
             }
             return validationException;
         }

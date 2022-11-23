@@ -15,6 +15,7 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
@@ -29,10 +30,19 @@ public class DebMetadataTests extends PackagingTestCase {
 
     public void test05CheckLintian() {
         String extraArgs = "";
-        if (sh.run("lintian --help").stdout.contains("fail-on-warnings")) {
-            extraArgs = "--fail-on-warnings ";
+        final String helpText = sh.run("lintian --help").stdout();
+        if (helpText.contains("--fail-on-warnings")) {
+            extraArgs = "--fail-on-warnings";
+        } else if (helpText.contains("--fail-on error")) {
+            extraArgs = "--fail-on warning";
+            // Recent lintian versions are picky about malformed or mismatched overrides.
+            // Unfortunately override syntax changes between lintian versions in a non-backwards compatible
+            // way, so we have to tolerate these (or maintain separate override files per lintian version).
+            if (helpText.contains("--suppress-tags")) {
+                extraArgs += " --suppress-tags malformed-override,mismatched-override";
+            }
         }
-        sh.run("lintian " + extraArgs + FileUtils.getDistributionFile(distribution()));
+        sh.run(String.format(Locale.ROOT, "lintian %s %s", extraArgs, FileUtils.getDistributionFile(distribution())));
     }
 
     public void test06Dependencies() {
@@ -41,9 +51,9 @@ public class DebMetadataTests extends PackagingTestCase {
 
         final Shell.Result result = sh.run("dpkg -I " + getDistributionFile(distribution()));
 
-        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(result.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(result.stdout()).find());
 
         String oppositePackageName = "elasticsearch-oss";
-        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: " + oppositePackageName + "$").matcher(result.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: " + oppositePackageName + "$").matcher(result.stdout()).find());
     }
 }

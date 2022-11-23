@@ -67,18 +67,50 @@ end::allow-no-match-transforms2[]
 tag::analyzer[]
 `analyzer`::
 (Optional, string) Analyzer to use for the query string.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::analyzer[]
 
 tag::analyze_wildcard[]
 `analyze_wildcard`::
-(Optional, Boolean) If `true`, wildcard and prefix queries are
-analyzed. Defaults to `false`.
+(Optional, Boolean) If `true`, wildcard and prefix queries are analyzed.
+Defaults to `false`.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::analyze_wildcard[]
+
+tag::bulk-id[]
+`_id`::
+(Optional, string)
+The document ID.
+If no ID is specified, a document ID is automatically generated.
+end::bulk-id[]
+
+tag::bulk-index[]
+`_index`::
+(Optional, string)
+Name of the index or index alias to perform the action on. This
+parameter is required if a `<target>` is not specified in the request path.
+end::bulk-index[]
+
+tag::bulk-index-ds[]
+`_index`::
+(Optional, string)
+Name of the data stream, index, or index alias to perform the action on. This
+parameter is required if a `<target>` is not specified in the request path.
+end::bulk-index-ds[]
 
 tag::bytes[]
 `bytes`::
 (Optional, <<byte-units,byte size units>>) Unit used to display byte values.
 end::bytes[]
+
+tag::cat-h[]
+`h`::
+(Optional, string) Comma-separated list of column names to display.
+end::cat-h[]
 
 tag::checkpointing-changes-last-detected-at[]
 The timestamp when changes were last detected in the source indices.
@@ -94,17 +126,17 @@ tag::cluster-health-status[]
 Health status of the cluster, based on the state of its primary and replica
 shards. Statuses are:
 
-  `green`:::
-  All shards are assigned.
+  * `green`:
+    All shards are assigned.
 
-  `yellow`:::
-  All primary shards are assigned, but one or more replica shards are
-  unassigned. If a node in the cluster fails, some
-  data could be unavailable until that node is repaired.
+  * `yellow`:
+    All primary shards are assigned, but one or more replica shards are 
+    unassigned. If a node in the cluster fails, some data could be unavailable 
+    until that node is repaired.
 
-  `red`:::
-  One or more primary shards are unassigned, so some data is unavailable. This
-  can occur briefly during cluster startup as primary shards are assigned.
+  * `red`:
+    One or more primary shards are unassigned, so some data is unavailable. This
+    can occur briefly during cluster startup as primary shards are assigned.
 end::cluster-health-status[]
 
 tag::committed[]
@@ -124,6 +156,13 @@ Comma-separated list or wildcard expressions of fields
 to include in `fielddata` and `suggest` statistics.
 end::completion-fields[]
 
+tag::component-template[]
+`<component-template>`::
+(Required, string)
+Comma-separated list or wildcard expression of component template names
+used to limit the request.
+end::component-template[]
+
 tag::delete-time-ms[]
 The amount of time spent deleting, in milliseconds.
 end::delete-time-ms[]
@@ -132,6 +171,9 @@ tag::default_operator[]
 `default_operator`::
 (Optional, string) The default operator for query string query: AND or OR.
 Defaults to `OR`.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::default_operator[]
 
 tag::dest[]
@@ -139,11 +181,16 @@ The destination for the {transform}.
 end::dest[]
 
 tag::dest-index[]
-The _destination index_ for the {transform}. The mappings of the destination
+The _destination index_ for the {transform}.
+
+In the case of a `pivot` transform, the mappings of the destination
 index are deduced based on the source fields when possible. If alternate
-mappings are required, use the
-https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API]
+mappings are required, use the <<indices-create-index,Create index API>>
 prior to starting the {transform}.
+
+In the case of a `latest` transform, the mappings are never deduced. If dynamic
+mappings for the destination index are undesirable, use the
+<<indices-create-index,Create index API>> prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]
@@ -160,8 +207,11 @@ end::detailed[]
 
 tag::df[]
 `df`::
-(Optional, string) Field to use as default where no field prefix is
-given in the query string.
+(Optional, string) Field to use as default where no field prefix is given in the
+query string.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::df[]
 
 tag::docs-count[]
@@ -301,9 +351,8 @@ end::http-format[]
 
 tag::frequency[]
 The interval between checks for changes in the source indices when the
-{transform} is running continuously. Also determines the retry interval in the
-event of transient failures while the {transform} is searching or indexing. The
-minimum value is `1s` and the maximum is `1h`. The default value is `1m`.
+{transform} is running continuously. The minimum value is `1s` and the maximum
+is `1h`. The default value is `1m`.
 end::frequency[]
 
 tag::from[]
@@ -348,23 +397,11 @@ Comma-separated list of search groups
 to include in the `search` statistics.
 end::groups[]
 
-tag::cat-h[]
-`h`::
-(Optional, string) Comma-separated list of column names to display.
-end::cat-h[]
-
 tag::help[]
 `help`::
 (Optional, Boolean) If `true`, the response includes help information. Defaults
 to `false`.
 end::help[]
-
-tag::bulk-id[]
-`_id`::
-(Optional, string)
-The document ID.
-If no ID is specified, a document ID is automatically generated.
-end::bulk-id[]
 
 tag::if_primary_term[]
 `if_primary_term`::
@@ -386,8 +423,8 @@ end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
 `ignore_unavailable`::
-(Optional, Boolean) If `true`, missing or closed indices are not included in the
-response. Defaults to `false`.
+(Optional, Boolean) If `false`, the request returns an error if it targets a
+missing or closed index. Defaults to `false`.
 end::index-ignore-unavailable[]
 
 tag::include-defaults[]
@@ -434,13 +471,6 @@ end::index-time-ms[]
 tag::index-total[]
 The number of index operations.
 end::index-total[]
-
-tag::bulk-index[]
-`_index`::
-(Optional, string)
-Name of the data stream, index, or index alias to perform the action on. This
-parameter is required if a `<target>` is not specified in the request path.
-end::bulk-index[]
 
 tag::index-metric[]
 `<index-metric>`::
@@ -503,9 +533,6 @@ of each Lucene index file.
 `store`::
 Size of the index in <<byte-units, byte units>>.
 
-`suggest`::
-<<search-suggesters,Suggester>> statistics.
-
 `translog`::
 <<index-modules-translog,Translog>> statistics.
 
@@ -521,17 +548,47 @@ Comma-separated list of index template names used to limit the request. Wildcard
 (`*`) expressions are supported.
 end::index-template[]
 
-tag::component-template[]
-`<component-template>`::
-(Required, string)
-Comma-separated list or wildcard expression of component template names
-used to limit the request.
-end::component-template[]
+tag::knn[]
+Defines the <<approximate-knn,kNN>> query to run.
+end::knn[]
+
+tag::knn-field[]
+The name of the vector field to search against. Must be a
+<<index-vectors-knn-search, `dense_vector` field with indexing enabled>>.
+end::knn-field[]
+
+tag::knn-filter[]
+Query to filter the documents that can match. The kNN search will return the top
+`k` documents that also match this filter. The value can be a single query or a
+list of queries. If `filter` is not provided, all documents are allowed to
+match.
+end::knn-filter[]
+
+tag::knn-k[]
+Number of nearest neighbors to return as top hits. This value must be less than
+`num_candidates`.
+end::knn-k[]
+
+tag::knn-num-candidates[]
+The number of nearest neighbor candidates to consider per shard. Cannot exceed
+10,000. {es} collects `num_candidates` results from each shard, then merges them
+to find the top `k` results. Increasing `num_candidates` tends to improve the
+accuracy of the final `k` results.
+end::knn-num-candidates[]
+
+tag::knn-query-vector[]
+Query vector. Must have the same number of dimensions as the vector field you
+are searching against.
+end::knn-query-vector[]
 
 tag::lenient[]
 `lenient`::
-(Optional, Boolean) If `true`, format-based query failures (such as
-providing text to a numeric field) will be ignored. Defaults to `false`.
+(Optional, Boolean) If `true`, format-based query failures (such as providing
+text to a numeric field) in the query string will be ignored. Defaults to
+`false`.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::lenient[]
 
 tag::level[]
@@ -575,7 +632,8 @@ end::mappings[]
 tag::max_docs[]
 `max_docs`::
 (Optional, integer) Maximum number of documents to process. Defaults to all
-documents.
+documents. When set to a value less then or equal to `scroll_size` then a
+scroll will not be used to retrieve the results for the operation.
 end::max_docs[]
 
 tag::memory[]
@@ -601,7 +659,7 @@ end::require-alias[]
 tag::bulk-dynamic-templates[]
 `dynamic_templates`::
 (Optional, map)
-A map from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
+A map from the full name of fields to the name of <<dynamic-templates,dynamic templates>>.
 Defaults to an empty map. If a name matches a dynamic template, then that template will be
 applied regardless of other match predicates defined in the template. And if a field is
 already defined in the mapping, then this parameter won't be used.
@@ -681,11 +739,14 @@ currently supported:
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-geo-line,Geo line>>
+* <<search-aggregations-metrics-cartesian-bounds-aggregation,Cartesian bounds>>
+* <<search-aggregations-metrics-cartesian-centroid-aggregation,Cartesian centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-median-absolute-deviation-aggregation,Median absolute deviation>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
 * <<search-aggregations-bucket-missing-aggregation,Missing>>
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
+* <<search-aggregations-bucket-range-aggregation,Range>>
 * <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
 * <<search-aggregations-metrics-stats-aggregation,Stats>>
@@ -708,6 +769,9 @@ The following groupings are currently supported:
 * <<_histogram,Histogram>>
 * <<_terms,Terms>>
 
+The grouping properties can optionally have a `missing_bucket` property. If
+it's `true`, documents without a value in the respective `group_by` field are
+included. Defaults to `false`.
 --
 end::pivot-group-by[]
 
@@ -899,9 +963,11 @@ pattern (for example, `"my-index-*"`), an array of indices (for example,
 `["my-index-000001", "my-index-000002"]`), or an array of index patterns (for
 example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax
 `"remote_name:index_name"`.
-
++
+--
 NOTE: If any indices are in remote clusters then the master node and at least
 one transform node must have the `remote_cluster_client` node role.
+--
 end::source-index-transforms[]
 
 tag::source-query-transforms[]
@@ -970,6 +1036,10 @@ The `latest` method transforms the data by finding the latest document for each
 unique key.
 end::transform-latest[]
 
+tag::transform-metadata[]
+Defines optional {transform} metadata.
+end::transform-metadata[]
+
 tag::transform-retention[]
 Defines a retention policy for the {transform}. Data that meets the defined
 criteria is deleted from the destination index.
@@ -977,10 +1047,13 @@ end::transform-retention[]
 
 tag::transform-retention-time[]
 Specifies that the {transform} uses a time field to set the retention policy.
+Data is deleted if `time.field` for the retention policy exists and contains
+data older than `max.age`.
 end::transform-retention-time[]
 
 tag::transform-retention-time-field[]
-The date field that is used to calculate the age of the document.
+The date field that is used to calculate the age of the document. Set
+`time.field` to an existing date field.
 end::transform-retention-time-field[]
 
 tag::transform-retention-time-max-age[]
@@ -1013,12 +1086,31 @@ destination index will be performed thus improving overall performance.
 The default value is `true`, which means the checkpoint ranges will be optimized if possible.
 end::transform-settings-align-checkpoints[]
 
+tag::transform-settings-deduce-mappings[]
+Specifies whether the transform should deduce the destination index mappings from the transform config.
+The default value is `true`, which means the destination index mappings will be deduced if possible.
+end::transform-settings-deduce-mappings[]
+
 tag::transform-settings-max-page-search-size[]
 Defines the initial page size to use for the composite aggregation for each
 checkpoint. If circuit breaker exceptions occur, the page size is dynamically
 adjusted to a lower value. The minimum value is `10` and the maximum is `65,536`.
 The default value is `500`.
 end::transform-settings-max-page-search-size[]
+
+tag::transform-settings-num-failure-retries[]
+Defines the number of retries on a recoverable failure before the {transform} task is marked as `failed`.
+The minimum value is `0` and the maximum is `100`.
+`-1` can be used to denote infinity. In this case, the {transform} never gives up on retrying a recoverable failure.
+The default value is the cluster-level setting `num_transform_failure_retries`.
+end::transform-settings-num-failure-retries[]
+
+tag::transform-settings-unattended[]
+If `true`, the {transform} runs in unattended mode. In unattended mode, the
+{transform} retries indefinitely in case of an error which means the {transform}
+never fails. Setting the number of retries other than infinite fails in
+validation. Defaults to `false`.
+end::transform-settings-unattended[]
 
 tag::transform-sort[]
 Specifies the date field that is used to identify the latest documents.
@@ -1087,9 +1179,7 @@ end::timeout[]
 end::timeoutparms[]
 
 tag::transform-id[]
-Identifier for the {transform}. This identifier can contain lowercase
-alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
-and end with alphanumeric characters.
+Identifier for the {transform}.
 end::transform-id[]
 
 tag::transform-id-wildcard[]

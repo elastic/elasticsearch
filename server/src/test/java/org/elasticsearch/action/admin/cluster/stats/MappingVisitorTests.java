@@ -20,14 +20,13 @@ import java.util.Set;
 public class MappingVisitorTests extends ESTestCase {
 
     private static void collectTypes(Map<String, ?> mapping, Set<String> types) {
-        MappingVisitor.visitMapping(mapping,
-            (f, m) -> {
-                    if (m.containsKey("type")) {
-                        types.add(m.get("type").toString());
-                    } else {
-                        types.add("object");
-                    }
-                });
+        MappingVisitor.visitMapping(mapping, (f, m) -> {
+            if (m.containsKey("type")) {
+                types.add(m.get("type").toString());
+            } else {
+                types.add("object");
+            }
+        });
     }
 
     public void testCountTopLevelFields() {

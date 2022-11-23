@@ -9,9 +9,10 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.script.ScriptLanguagesInfo;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,9 +22,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
-public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<GetScriptLanguageResponse> {
+public class GetScriptLanguageResponseTests extends AbstractXContentSerializingTestCase<GetScriptLanguageResponse> {
     private static int MAX_VALUES = 4;
     private static final int MIN_LENGTH = 1;
     private static final int MAX_LENGTH = 16;
@@ -31,9 +31,7 @@ public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<
     @Override
     protected GetScriptLanguageResponse createTestInstance() {
         if (randomBoolean()) {
-            return new GetScriptLanguageResponse(
-                new ScriptLanguagesInfo(Collections.emptySet(), Collections.emptyMap())
-            );
+            return new GetScriptLanguageResponse(new ScriptLanguagesInfo(Collections.emptySet(), Collections.emptyMap()));
         }
         return new GetScriptLanguageResponse(randomInstance());
     }
@@ -44,7 +42,9 @@ public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<
     }
 
     @Override
-    protected Writeable.Reader<GetScriptLanguageResponse> instanceReader() {  return GetScriptLanguageResponse::new; }
+    protected Writeable.Reader<GetScriptLanguageResponse> instanceReader() {
+        return GetScriptLanguageResponse::new;
+    }
 
     @Override
     protected GetScriptLanguageResponse mutateInstance(GetScriptLanguageResponse instance) throws IOException {
@@ -60,19 +60,19 @@ public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<
                     instance.info.languageContexts::containsKey,
                     () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)
                 );
-                Map<String,Set<String>> languageContexts = new HashMap<>();
+                Map<String, Set<String>> languageContexts = new HashMap<>();
                 instance.info.languageContexts.forEach(languageContexts::put);
                 languageContexts.put(language, randomStringSet(randomIntBetween(1, MAX_VALUES)));
                 return new GetScriptLanguageResponse(new ScriptLanguagesInfo(instance.info.typesAllowed, languageContexts));
             default:
                 // Mutate languageContexts
-                Map<String,Set<String>> lc = new HashMap<>();
+                Map<String, Set<String>> lc = new HashMap<>();
                 if (instance.info.languageContexts.size() == 0) {
                     lc.put(randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH), randomStringSet(randomIntBetween(1, MAX_VALUES)));
                 } else {
-                    int toModify = randomInt(instance.info.languageContexts.size()-1);
+                    int toModify = randomInt(instance.info.languageContexts.size() - 1);
                     List<String> keys = new ArrayList<>(instance.info.languageContexts.keySet());
-                    for (int i=0; i<keys.size(); i++) {
+                    for (int i = 0; i < keys.size(); i++) {
                         String key = keys.get(i);
                         Set<String> value = instance.info.languageContexts.get(keys.get(i));
                         if (i == toModify) {
@@ -86,15 +86,15 @@ public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<
     }
 
     private static ScriptLanguagesInfo randomInstance() {
-        Map<String,Set<String>> contexts = new HashMap<>();
-        for (String context: randomStringSet(randomIntBetween(1, MAX_VALUES))) {
+        Map<String, Set<String>> contexts = new HashMap<>();
+        for (String context : randomStringSet(randomIntBetween(1, MAX_VALUES))) {
             contexts.put(context, randomStringSet(randomIntBetween(1, MAX_VALUES)));
         }
         return new ScriptLanguagesInfo(randomStringSet(randomInt(MAX_VALUES)), contexts);
     }
 
     private static Set<String> randomStringSet(int numInstances) {
-        Set<String> rand = new HashSet<>(numInstances);
+        Set<String> rand = Sets.newHashSetWithExpectedSize(numInstances);
         for (int i = 0; i < numInstances; i++) {
             rand.add(randomValueOtherThanMany(rand::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)));
         }
@@ -111,7 +111,7 @@ public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<
             updated.add(randomValueOtherThanMany(updated::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)));
             return updated;
         } else {
-            List<String> sorted = strings.stream().sorted().collect(Collectors.toList());
+            List<String> sorted = strings.stream().sorted().toList();
             int toRemove = randomInt(sorted.size() - 1);
             Set<String> updated = new HashSet<>();
             for (int i = 0; i < sorted.size(); i++) {

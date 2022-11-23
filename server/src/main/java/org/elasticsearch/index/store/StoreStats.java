@@ -13,10 +13,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class StoreStats implements Writeable, ToXContentFragment {
 
@@ -63,6 +64,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
         this.totalDataSetSizeInBytes = totalDataSetSizeInBytes;
         this.reservedSize = reservedSize;
     }
+
     public void add(StoreStats stats) {
         if (stats == null) {
             return;
@@ -85,7 +87,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue size() {
-        return new ByteSizeValue(sizeInBytes);
+        return ByteSizeValue.ofBytes(sizeInBytes);
     }
 
     public ByteSizeValue getSize() {
@@ -93,7 +95,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue totalDataSetSize() {
-        return new ByteSizeValue(totalDataSetSizeInBytes);
+        return ByteSizeValue.ofBytes(totalDataSetSizeInBytes);
     }
 
     public ByteSizeValue getTotalDataSetSize() {
@@ -110,7 +112,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
      * the reserved size is unknown.
      */
     public ByteSizeValue getReservedSize() {
-        return new ByteSizeValue(reservedSize);
+        return ByteSizeValue.ofBytes(reservedSize);
     }
 
     @Override
@@ -132,6 +134,21 @@ public class StoreStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.RESERVED_IN_BYTES, Fields.RESERVED, getReservedSize());
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        StoreStats that = (StoreStats) o;
+        return sizeInBytes == that.sizeInBytes
+            && totalDataSetSizeInBytes == that.totalDataSetSizeInBytes
+            && reservedSize == that.reservedSize;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(sizeInBytes, totalDataSetSizeInBytes, reservedSize);
     }
 
     static final class Fields {

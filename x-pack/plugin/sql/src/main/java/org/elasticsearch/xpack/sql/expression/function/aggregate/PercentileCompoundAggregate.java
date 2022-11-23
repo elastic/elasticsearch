@@ -17,8 +17,7 @@ import java.util.Objects;
 public abstract class PercentileCompoundAggregate extends CompoundNumericAggregate {
     protected final PercentilesConfig percentilesConfig;
 
-    public PercentileCompoundAggregate(
-        Source source, Expression field, List<Expression> arguments, PercentilesConfig percentilesConfig) {
+    public PercentileCompoundAggregate(Source source, Expression field, List<Expression> arguments, PercentilesConfig percentilesConfig) {
         super(source, field, arguments);
         this.percentilesConfig = percentilesConfig;
     }

@@ -44,8 +44,7 @@ public class KeyAndOrdinal {
         }
 
         KeyAndOrdinal other = (KeyAndOrdinal) obj;
-        return Objects.equals(key, other.key)
-                && Objects.equals(ordinal, other.ordinal);
+        return Objects.equals(key, other.key) && Objects.equals(ordinal, other.ordinal);
     }
 
     @Override

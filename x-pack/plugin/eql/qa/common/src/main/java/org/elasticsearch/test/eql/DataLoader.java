@@ -6,21 +6,6 @@
  */
 package org.elasticsearch.test.eql;
 
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertThat;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.function.Consumer;
-
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -30,17 +15,31 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.TestUtils;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertThat;
 
 /**
  * Loads EQL dataset into ES.
@@ -49,13 +48,16 @@ import org.elasticsearch.xpack.ql.TestUtils;
  * - endgame-140       - for existing data
  * - endgame-140-nanos - same as endgame-140, but with nano-precision timestamps
  * - extra             - additional data
+ * - sample*         - data for "sample" functionality
  *
  * While the loader could be made generic, the queries are bound to each index and generalizing that would make things way too complicated.
  */
+@SuppressWarnings("removal")
 public class DataLoader {
     public static final String TEST_INDEX = "endgame-140";
     public static final String TEST_EXTRA_INDEX = "extra";
     public static final String TEST_NANOS_INDEX = "endgame-140-nanos";
+    public static final String TEST_SAMPLE = "sample1,sample2,sample3";
 
     private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
 
@@ -66,25 +68,23 @@ public class DataLoader {
     private static boolean main = false;
 
     private static Map<String, String[]> getReplacementPatterns() {
-        final Map<String, String[]> map = new HashMap<>(1);
-        map.put("[runtime_random_keyword_type]", new String[] {"keyword", "wildcard"});
+        final Map<String, String[]> map = Maps.newMapWithExpectedSize(1);
+        map.put("[runtime_random_keyword_type]", new String[] { "keyword", "wildcard" });
         return map;
     }
 
     public static void main(String[] args) throws IOException {
         main = true;
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
-            loadDatasetIntoEs(new RestHighLevelClient(
-                client,
-                ignore -> {
-                },
-                List.of()) {
+            loadDatasetIntoEs(new RestHighLevelClient(client, ignore -> {}, List.of()) {
             }, DataLoader::createParser);
         }
     }
 
-    public static void loadDatasetIntoEs(RestHighLevelClient client,
-        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p) throws IOException {
+    public static void loadDatasetIntoEs(
+        RestHighLevelClient client,
+        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p
+    ) throws IOException {
 
         //
         // Main Index
@@ -101,30 +101,35 @@ public class DataLoader {
         // chosen Windows filetime timestamps (2017+) can coincidentally also be readily used as nano-resolution unix timestamps (1973+).
         // There are mixed values with and without nanos precision so that the filtering is properly tested for both cases.
         load(client, TEST_NANOS_INDEX, TEST_INDEX, DataLoader::timestampToUnixNanos, p);
+        load(client, TEST_SAMPLE, null, null, p);
     }
 
-    private static void load(RestHighLevelClient client, String indexName, String dataName, Consumer<Map<String, Object>> datasetTransform,
-                             CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p) throws IOException {
-        String name = "/data/" + indexName + ".mapping";
-        URL mapping = DataLoader.class.getResource(name);
-        if (mapping == null) {
-            throw new IllegalArgumentException("Cannot find resource " + name);
+    private static void load(
+        RestHighLevelClient client,
+        String indexNames,
+        String dataName,
+        Consumer<Map<String, Object>> datasetTransform,
+        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p
+    ) throws IOException {
+        String[] splitNames = indexNames.split(",");
+        for (String indexName : splitNames) {
+            String name = "/data/" + indexName + ".mapping";
+            URL mapping = DataLoader.class.getResource(name);
+            if (mapping == null) {
+                throw new IllegalArgumentException("Cannot find resource " + name);
+            }
+            name = "/data/" + (dataName != null ? dataName : indexName) + ".data";
+            URL data = DataLoader.class.getResource(name);
+            if (data == null) {
+                throw new IllegalArgumentException("Cannot find resource " + name);
+            }
+            createTestIndex(client, indexName, readMapping(mapping));
+            loadData(client, indexName, datasetTransform, data, p);
         }
-        name = "/data/" + (dataName != null ? dataName : indexName) + ".data";
-        URL data = DataLoader.class.getResource(name);
-        if (data == null) {
-            throw new IllegalArgumentException("Cannot find resource " + name);
-        }
-        createTestIndex(client, indexName, readMapping(mapping));
-        loadData(client, indexName, datasetTransform, data, p);
     }
 
     private static void createTestIndex(RestHighLevelClient client, String indexName, String mapping) throws IOException {
-        CreateIndexRequest request = new CreateIndexRequest(indexName);
-        if (mapping != null) {
-            request.mapping(mapping, XContentType.JSON);
-        }
-        client.indices().create(request, RequestOptions.DEFAULT);
+        ESRestTestCase.createIndex(client.getLowLevelClient(), indexName, null, mapping, null);
     }
 
     /**
@@ -146,14 +151,18 @@ public class DataLoader {
         }
     }
 
-    private static CharSequence randomOf(String...values) {
+    private static CharSequence randomOf(String... values) {
         return main ? values[0] : ESRestTestCase.randomFrom(values);
     }
 
     @SuppressWarnings("unchecked")
-    private static void loadData(RestHighLevelClient client, String indexName, Consumer<Map<String, Object>> datasetTransform,
-                                 URL resource, CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
-        throws IOException {
+    private static void loadData(
+        RestHighLevelClient client,
+        String indexName,
+        Consumer<Map<String, Object>> datasetTransform,
+        URL resource,
+        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p
+    ) throws IOException {
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -198,7 +207,7 @@ public class DataLoader {
         String milliFraction = timestamp.substring(12);
         // strip the fractions right away if not actually present
         entry.put("@timestamp", milliFraction.equals("000000") ? millis : millis + "." + milliFraction);
-        entry.put("timestamp", ((long) object)/1_000_000L);
+        entry.put("timestamp", ((long) object) / 1_000_000L);
     }
 
     public static long winFileTimeToUnix(final long filetime) {

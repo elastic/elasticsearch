@@ -15,7 +15,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -76,8 +76,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
 
-            if (request instanceof FieldCapabilitiesRequest) {
-                FieldCapabilitiesRequest fieldCapsRequest = (FieldCapabilitiesRequest) request;
+            if (request instanceof FieldCapabilitiesRequest fieldCapsRequest) {
 
                 Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
                 for (String field : fieldCapsRequest.fields()) {
@@ -88,10 +87,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
 
                     fieldCaps.put(
                         field,
-                        Collections.singletonMap(
-                            type,
-                            new FieldCapabilities(field, type, false, true, true, null, null, null, emptyMap())
-                        )
+                        Collections.singletonMap(type, new FieldCapabilities(field, type, false, true, true, null, null, null, emptyMap()))
                     );
                 }
 
@@ -123,6 +119,16 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         // percentile produces 1 output per percentile + 1 for the parent object
         aggs.addAggregator(AggregationBuilders.percentiles("p_rating").field("long_stars").percentiles(1, 5, 10, 50, 99.9));
 
+        // range produces 1 output per range + 1 for the parent object
+        aggs.addAggregator(
+            AggregationBuilders.range("some_range")
+                .field("long_stars")
+                .addUnboundedTo(10.5)
+                .addRange(10.5, 19.5)
+                .addRange(19.5, 20)
+                .addUnboundedFrom(20)
+        );
+
         // scripted metric produces no output because its dynamic
         aggs.addAggregator(AggregationBuilders.scriptedMetric("collapsed_ratings"));
 
@@ -138,7 +144,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         this.<Map<String, String>>assertAsync(
             listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
             mappings -> {
-                assertEquals(numGroupsWithoutScripts + 10, mappings.size());
+                assertEquals("Mappings were: " + mappings, numGroupsWithoutScripts + 15, mappings.size());
                 assertEquals("long", mappings.get("max_rating"));
                 assertEquals("double", mappings.get("avg_rating"));
                 assertEquals("long", mappings.get("count_rating"));
@@ -148,6 +154,11 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 assertEquals("double", mappings.get("p_rating.5"));
                 assertEquals("double", mappings.get("p_rating.10"));
                 assertEquals("double", mappings.get("p_rating.99_9"));
+                assertEquals("object", mappings.get("some_range"));
+                assertEquals("long", mappings.get("some_range.*-10_5"));
+                assertEquals("long", mappings.get("some_range.10_5-19_5"));
+                assertEquals("long", mappings.get("some_range.19_5-20"));
+                assertEquals("long", mappings.get("some_range.20-*"));
 
                 Aggregation agg = AggregationResultUtilsTests.createSingleMetricAgg("avg_rating", 33.3, "33.3");
                 assertThat(AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""), equalTo(33.3));

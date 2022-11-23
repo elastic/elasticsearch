@@ -8,11 +8,10 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.function.Function;
 
@@ -27,7 +26,7 @@ public class RestStatusToXContentListener<Response extends StatusToXContentObjec
      */
     public RestStatusToXContentListener(RestChannel channel) {
         this(channel, r -> {
-            assert false: "Returned a 201 CREATED but not set up to support a Location header";
+            assert false : "Returned a 201 CREATED but not set up to support a Location header";
             return null;
         });
     }
@@ -42,9 +41,9 @@ public class RestStatusToXContentListener<Response extends StatusToXContentObjec
 
     @Override
     public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-        assert response.isFragment() == false; //would be nice if we could make default methods final
+        assert response.isFragment() == false; // would be nice if we could make default methods final
         response.toXContent(builder, channel.request());
-        RestResponse restResponse = new BytesRestResponse(response.status(), builder);
+        RestResponse restResponse = new RestResponse(response.status(), builder);
         if (RestStatus.CREATED == restResponse.status()) {
             final String location = extractLocation.apply(response);
             if (location != null) {

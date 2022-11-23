@@ -11,12 +11,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -36,8 +36,7 @@ import java.util.stream.Collectors;
  *
  * @param <T> The request builder type for getting data from ElasticSearch
  */
-abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<SearchRequest, SearchResponse>>
-    implements DataExtractor {
+abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<SearchRequest, SearchResponse>> implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractAggregationDataExtractor.class);
 
@@ -50,7 +49,10 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     private final ByteArrayOutputStream outputStream;
 
     AbstractAggregationDataExtractor(
-            Client client, AggregationDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
+        Client client,
+        AggregationDataExtractorContext dataExtractorContext,
+        DatafeedTimingStatsReporter timingStatsReporter
+    ) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
@@ -82,21 +84,33 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     }
 
     @Override
-    public Optional<InputStream> next() throws IOException {
+    public Result next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
+        SearchInterval searchInterval = new SearchInterval(context.start, context.end);
         if (aggregationToJsonProcessor == null) {
             Aggregations aggs = search();
             if (aggs == null) {
                 hasNext = false;
-                return Optional.empty();
+                return new Result(searchInterval, Optional.empty());
             }
             initAggregationProcessor(aggs);
         }
 
-        return Optional.of(processNextBatch());
+        outputStream.reset();
+        // We can cancel immediately as we process whole date_histogram buckets at a time
+        aggregationToJsonProcessor.writeAllDocsCancellable(_timestamp -> isCancelled, outputStream);
+        // We process the whole search. So, if we are chunking or not, we have nothing more to process given the current query
+        hasNext = false;
+
+        return new Result(
+            searchInterval,
+            aggregationToJsonProcessor.getKeyValueCount() > 0
+                ? Optional.of(new ByteArrayInputStream(outputStream.toByteArray()))
+                : Optional.empty()
+        );
     }
 
     private Aggregations search() {
@@ -104,14 +118,20 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         T searchRequest = buildSearchRequest(buildBaseSearchSource());
         assert searchRequest.request().allowPartialSearchResults() == false;
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
+        checkForSkippedClusters(searchResponse);
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         return validateAggs(searchResponse.getAggregations());
     }
 
     private void initAggregationProcessor(Aggregations aggs) throws IOException {
-        aggregationToJsonProcessor = new AggregationToJsonProcessor(context.timeField, context.fields, context.includeDocCount,
-            context.start, null);
+        aggregationToJsonProcessor = new AggregationToJsonProcessor(
+            context.timeField,
+            context.fields,
+            context.includeDocCount,
+            context.start,
+            null
+        );
         aggregationToJsonProcessor.process(aggs);
     }
 
@@ -125,8 +145,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         // in that bucket
         long histogramSearchStartTime = Math.max(0, context.start - ExtractorUtils.getHistogramIntervalMillis(context.aggs));
 
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
-            .size(0)
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
             .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
 
         if (context.runtimeMappings.isEmpty() == false) {
@@ -148,21 +167,13 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
             return null;
         }
         if (aggsAsList.size() > 1) {
-            throw new IllegalArgumentException("Multiple top level aggregations not supported; found: "
-                + aggsAsList.stream().map(Aggregation::getName).collect(Collectors.toList()));
+            throw new IllegalArgumentException(
+                "Multiple top level aggregations not supported; found: "
+                    + aggsAsList.stream().map(Aggregation::getName).collect(Collectors.toList())
+            );
         }
 
         return aggs;
-    }
-
-    private InputStream processNextBatch() throws IOException {
-        outputStream.reset();
-
-        // We can cancel immediately as we process whole date_histogram buckets at a time
-        aggregationToJsonProcessor.writeAllDocsCancellable(_timestamp -> isCancelled, outputStream);
-        // We process the whole search. So, if we are chunking or not, we have nothing more to process given the current query
-        hasNext = false;
-        return new ByteArrayInputStream(outputStream.toByteArray());
     }
 
     public AggregationDataExtractorContext getContext() {

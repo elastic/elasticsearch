@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -7,21 +9,20 @@
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.'
-  classname 'org.elasticsearch.plugin.mapper.AnnotatedTextPlugin'
+  classname 'org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextPlugin'
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }
 
 restResources {
   restApi {
     include '_common', 'indices', 'index', 'search'
   }
-}
-
-tasks.named('splitPackagesAudit').configure {
-    // TODO: rename this package to be annotated text specific
-  ignoreClasses 'org.elasticsearch.search.fetch.subphase.highlight.AnnotatedPassageFormatter',
-    'org.elasticsearch.search.fetch.subphase.highlight.AnnotatedTextHighlighter'
 }

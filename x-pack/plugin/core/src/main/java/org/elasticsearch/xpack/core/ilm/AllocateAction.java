@@ -7,17 +7,17 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -37,9 +37,16 @@ public class AllocateAction implements LifecycleAction {
     public static final ParseField REQUIRE_FIELD = new ParseField("require");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<AllocateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new AllocateAction((Integer) a[0], (Integer) a[1], (Map<String, String>) a[2], (Map<String, String>) a[3],
-                (Map<String, String>) a[4]));
+    private static final ConstructingObjectParser<AllocateAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> new AllocateAction(
+            (Integer) a[0],
+            (Integer) a[1],
+            (Map<String, String>) a[2],
+            (Map<String, String>) a[3],
+            (Map<String, String>) a[4]
+        )
+    );
 
     static {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUMBER_OF_REPLICAS_FIELD);
@@ -59,8 +66,13 @@ public class AllocateAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public AllocateAction(Integer numberOfReplicas, Integer totalShardsPerNode, Map<String, String> include, Map<String, String> exclude,
-                          Map<String, String> require) {
+    public AllocateAction(
+        Integer numberOfReplicas,
+        Integer totalShardsPerNode,
+        Map<String, String> include,
+        Map<String, String> exclude,
+        Map<String, String> require
+    ) {
         if (include == null) {
             this.include = Collections.emptyMap();
         } else {
@@ -76,10 +88,26 @@ public class AllocateAction implements LifecycleAction {
         } else {
             this.require = require;
         }
-        if (this.include.isEmpty() && this.exclude.isEmpty() && this.require.isEmpty() && numberOfReplicas == null) {
+        if (this.include.isEmpty()
+            && this.exclude.isEmpty()
+            && this.require.isEmpty()
+            && numberOfReplicas == null
+            && totalShardsPerNode == null) {
             throw new IllegalArgumentException(
-                    "At least one of " + INCLUDE_FIELD.getPreferredName() + ", " + EXCLUDE_FIELD.getPreferredName() + " or "
-                            + REQUIRE_FIELD.getPreferredName() + "must contain attributes for action " + NAME);
+                "At least one of "
+                    + INCLUDE_FIELD.getPreferredName()
+                    + ", "
+                    + EXCLUDE_FIELD.getPreferredName()
+                    + " or "
+                    + REQUIRE_FIELD.getPreferredName()
+                    + " must contain attributes for action "
+                    + NAME
+                    + ". Otherwise the "
+                    + NUMBER_OF_REPLICAS_FIELD.getPreferredName()
+                    + " or the "
+                    + TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName()
+                    + " options must be configured."
+            );
         }
         if (numberOfReplicas != null && numberOfReplicas < 0) {
             throw new IllegalArgumentException("[" + NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0");
@@ -93,9 +121,13 @@ public class AllocateAction implements LifecycleAction {
 
     @SuppressWarnings("unchecked")
     public AllocateAction(StreamInput in) throws IOException {
-        this(in.readOptionalVInt(), in.getVersion().onOrAfter(Version.V_7_16_0) ? in.readOptionalInt() : null,
-            (Map<String, String>) in.readGenericValue(), (Map<String, String>) in.readGenericValue(),
-            (Map<String, String>) in.readGenericValue());
+        this(
+            in.readOptionalVInt(),
+            in.getVersion().onOrAfter(Version.V_7_16_0) ? in.readOptionalInt() : null,
+            (Map<String, String>) in.readGenericValue(),
+            (Map<String, String>) in.readGenericValue(),
+            (Map<String, String>) in.readGenericValue()
+        );
     }
 
     public Integer getNumberOfReplicas() {
@@ -143,9 +175,9 @@ public class AllocateAction implements LifecycleAction {
         if (totalShardsPerNode != null) {
             builder.field(TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName(), totalShardsPerNode);
         }
-        builder.field(INCLUDE_FIELD.getPreferredName(), include);
-        builder.field(EXCLUDE_FIELD.getPreferredName(), exclude);
-        builder.field(REQUIRE_FIELD.getPreferredName(), require);
+        builder.stringStringMap(INCLUDE_FIELD.getPreferredName(), include);
+        builder.stringStringMap(EXCLUDE_FIELD.getPreferredName(), exclude);
+        builder.stringStringMap(REQUIRE_FIELD.getPreferredName(), require);
         builder.endObject();
         return builder;
     }
@@ -189,11 +221,11 @@ public class AllocateAction implements LifecycleAction {
             return false;
         }
         AllocateAction other = (AllocateAction) obj;
-        return Objects.equals(numberOfReplicas, other.numberOfReplicas) &&
-            Objects.equals(totalShardsPerNode, other.totalShardsPerNode) &&
-            Objects.equals(include, other.include) &&
-            Objects.equals(exclude, other.exclude) &&
-            Objects.equals(require, other.require);
+        return Objects.equals(numberOfReplicas, other.numberOfReplicas)
+            && Objects.equals(totalShardsPerNode, other.totalShardsPerNode)
+            && Objects.equals(include, other.include)
+            && Objects.equals(exclude, other.exclude)
+            && Objects.equals(require, other.require);
     }
 
     @Override

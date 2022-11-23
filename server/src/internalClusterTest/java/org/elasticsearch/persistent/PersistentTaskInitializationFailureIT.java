@@ -10,7 +10,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -19,13 +19,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -44,7 +46,8 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTasksCustomMetadata.PersistentTask<FailingInitializationTaskParams>> startPersistentTaskFuture =
             new PlainActionFuture<>();
-        persistentTasksService.sendStartRequest(UUIDs.base64UUID(),
+        persistentTasksService.sendStartRequest(
+            UUIDs.base64UUID(),
             FailingInitializationPersistentTaskExecutor.TASK_NAME,
             new FailingInitializationTaskParams(),
             startPersistentTaskFuture
@@ -52,10 +55,12 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         startPersistentTaskFuture.actionGet();
 
         assertBusy(() -> {
-            final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
-            final PersistentTasksCustomMetadata persistentTasks =
-                clusterService.state().metadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertThat(persistentTasks.tasks().toString(), persistentTasks.tasks(), empty());
+            final ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(
+                clusterService.state(),
+                FailingInitializationPersistentTaskExecutor.TASK_NAME
+            );
+            assertThat(tasks.toString(), tasks, empty());
         });
     }
 
@@ -63,29 +68,46 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         public FailingInitializationPersistentTasksPlugin(Settings settings) {}
 
         @Override
-        public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                           ThreadPool threadPool,
-                                                                           Client client,
-                                                                           SettingsModule settingsModule,
-                                                                           IndexNameExpressionResolver expressionResolver) {
+        public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            Client client,
+            SettingsModule settingsModule,
+            IndexNameExpressionResolver expressionResolver
+        ) {
             return List.of(new FailingInitializationPersistentTaskExecutor());
         }
 
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return List.of(
-                new NamedWriteableRegistry.Entry(PersistentTaskParams.class,
+                new NamedWriteableRegistry.Entry(
+                    PersistentTaskParams.class,
                     FailingInitializationPersistentTaskExecutor.TASK_NAME,
                     FailingInitializationTaskParams::new
+                )
+            );
+        }
+
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return List.of(
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskParams.class,
+                    new ParseField(FailingInitializationPersistentTaskExecutor.TASK_NAME),
+                    p -> {
+                        p.skipChildren();
+                        return new FailingInitializationTaskParams();
+                    }
                 )
             );
         }
     }
 
     public static class FailingInitializationTaskParams implements PersistentTaskParams {
-        public FailingInitializationTaskParams() { }
+        public FailingInitializationTaskParams() {}
 
-        public FailingInitializationTaskParams(StreamInput in) throws IOException { }
+        public FailingInitializationTaskParams(StreamInput in) throws IOException {}
 
         @Override
         public String getWriteableName() {
@@ -98,7 +120,7 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException { }
+        public void writeTo(StreamOutput out) throws IOException {}
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -117,19 +139,22 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         }
 
         @Override
-        protected AllocatedPersistentTask createTask(long id,
-                                                     String type,
-                                                     String action,
-                                                     TaskId parentTaskId,
-                                                     PersistentTasksCustomMetadata.PersistentTask<
-                                                         FailingInitializationTaskParams> taskInProgress,
-                                                     Map<String, String> headers) {
+        protected AllocatedPersistentTask createTask(
+            long id,
+            String type,
+            String action,
+            TaskId parentTaskId,
+            PersistentTasksCustomMetadata.PersistentTask<FailingInitializationTaskParams> taskInProgress,
+            Map<String, String> headers
+        ) {
             return new AllocatedPersistentTask(id, type, action, "", parentTaskId, headers) {
                 @Override
-                protected void init(PersistentTasksService persistentTasksService,
-                                    TaskManager taskManager,
-                                    String persistentTaskId,
-                                    long allocationId) {
+                protected void init(
+                    PersistentTasksService persistentTasksService,
+                    TaskManager taskManager,
+                    String persistentTaskId,
+                    long allocationId
+                ) {
                     throw new RuntimeException("BOOM");
                 }
             };

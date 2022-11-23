@@ -107,7 +107,8 @@ GET _cluster/allocation/explain
 ----
 // TEST[continued]
 
-The API response indicates the shard is allocated to a nonexistent node.
+The API response indicates the shard can only be allocated to a nonexistent
+node.
 
 [source,console-result]
 ----
@@ -122,7 +123,7 @@ The API response indicates the shard is allocated to a nonexistent node.
     "last_allocation_status" : "no"
   },
   "can_allocate" : "no",                          <3>
-  "allocate_explanation" : "cannot allocate because allocation is not permitted to any of the nodes",
+  "allocate_explanation" : "Elasticsearch isn't allowed to allocate this shard to any of the nodes in the cluster. Choose a node to which you expect this shard to be allocated, find this node in the node-by-node explanation, and address the reasons which prevent Elasticsearch from allocating this shard there.",
   "node_allocation_decisions" : [
     {
       "node_id" : "8qt2rY-pT6KNZB3-hGfLnw",
@@ -171,7 +172,7 @@ primary shard that was previously allocated.
     "last_allocation_status" : "no_valid_shard_copy"
   },
   "can_allocate" : "no_valid_shard_copy",
-  "allocate_explanation" : "cannot allocate because a previous copy of the primary shard existed but can no longer be found on the nodes in the cluster"
+  "allocate_explanation" : "Elasticsearch can't allocate this shard because there are no copies of its data in the cluster. Elasticsearch will allocate this shard when a node holding a good copy of its data joins the cluster. If no such node is available, restore this index from a recent snapshot."
 }
 ----
 // NOTCONSOLE
@@ -195,7 +196,7 @@ unassigned due to <<delayed-allocation,delayed allocation>>.
     "last_allocation_status" : "no_attempt"
   },
   "can_allocate" : "allocation_delayed",
-  "allocate_explanation" : "cannot allocate because the cluster is still waiting 59.8s for the departed node holding a replica to rejoin, despite being allowed to allocate the shard to at least one other node",
+  "allocate_explanation" : "The node containing this shard copy recently left the cluster. Elasticsearch is waiting for it to return. If the node does not return within [%s] then Elasticsearch will allocate this shard to another node. Please wait.",
   "configured_delay" : "1m",                      <1>
   "configured_delay_in_millis" : 60000,
   "remaining_delay" : "59.8s",                    <2>
@@ -260,7 +261,7 @@ and must be reallocated.
     }
   ],
   "can_move_to_other_node" : "no",                <3>
-  "move_explanation" : "cannot move shard to another node, even though it is not allowed to remain on its current node",
+  "move_explanation" : "This shard may not remain on its current node, but Elasticsearch isn't allowed to move it to another node. Choose a node to which you expect this shard to be allocated, find this node in the node-by-node explanation, and address the reasons which prevent Elasticsearch from allocating this shard there.",
   "node_allocation_decisions" : [
     {
       "node_id" : "_P8olZS8Twax9u6ioN-GGA",
@@ -305,7 +306,7 @@ cluster balance.
   "can_remain_on_current_node" : "yes",
   "can_rebalance_cluster" : "yes",                <1>
   "can_rebalance_to_other_node" : "no",           <2>
-  "rebalance_explanation" : "cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
+  "rebalance_explanation" : "Elasticsearch cannot rebalance this shard to another node since there is no node to which allocation is permitted which would improve the cluster balance. If you expect this shard to be rebalanced to another node, find this node in the node-by-node explanation and address the reasons which prevent Elasticsearch from rebalancing this shard there.",
   "node_allocation_decisions" : [
     {
       "node_id" : "oE3EGFc8QN-Tdi5FFEprIA",

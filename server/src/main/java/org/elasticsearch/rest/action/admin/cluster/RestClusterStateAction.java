@@ -13,34 +13,35 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterStateAction extends BaseRestHandler {
+
+    private static final Set<String> RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, "metric");
 
     private final SettingsFilter settingsFilter;
 
@@ -61,7 +62,8 @@ public class RestClusterStateAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_cluster/state"),
             new Route(GET, "/_cluster/state/{metric}"),
-            new Route(GET, "/_cluster/state/{metric}/{indices}"));
+            new Route(GET, "/_cluster/state/{metric}/{indices}")
+        );
     }
 
     @Override
@@ -95,7 +97,8 @@ public class RestClusterStateAction extends BaseRestHandler {
              * flag to ask for it
              */
             clusterStateRequest.routingTable(
-                    metrics.contains(ClusterState.Metric.ROUTING_TABLE) || metrics.contains(ClusterState.Metric.ROUTING_NODES));
+                metrics.contains(ClusterState.Metric.ROUTING_TABLE) || metrics.contains(ClusterState.Metric.ROUTING_NODES)
+            );
             clusterStateRequest.metadata(metrics.contains(ClusterState.Metric.METADATA));
             clusterStateRequest.blocks(metrics.contains(ClusterState.Metric.BLOCKS));
             clusterStateRequest.customs(metrics.contains(ClusterState.Metric.CUSTOMS));
@@ -103,34 +106,24 @@ public class RestClusterStateAction extends BaseRestHandler {
         settingsFilter.addFilterSettingParams(request);
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
-                ClusterStateAction.INSTANCE,
-                clusterStateRequest,
-                new DispatchingRestToXContentListener<RestClusterStateResponse>(
-                        // Process serialization on MANAGEMENT pool since the serialization of the cluster state to XContent
-                        // can be too slow to execute on an IO thread
-                        threadPool.executor(ThreadPool.Names.MANAGEMENT),
-                        channel,
-                        request) {
-                    @Override
-                    protected ToXContent.Params getParams() {
-                        return new ToXContent.DelegatingMapParams(
-                                singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
-                                request);
-                    }
+            ClusterStateAction.INSTANCE,
+            clusterStateRequest,
+            new DispatchingRestToXContentListener<RestClusterStateResponse>(
+                // Process serialization on MANAGEMENT pool since the serialization of the cluster state to XContent
+                // can be too slow to execute on an IO thread
+                threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                channel,
+                request
+            ) {
+                @Override
+                protected ToXContent.Params getParams() {
+                    return new ToXContent.DelegatingMapParams(
+                        singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
+                        request
+                    );
                 }
-                        .map(response -> new RestClusterStateResponse(
-                                clusterStateRequest,
-                                response,
-                                threadPool::relativeTimeInMillis)));
-    }
-
-    private static final Set<String> RESPONSE_PARAMS;
-
-    static {
-        final Set<String> responseParams = new HashSet<>();
-        responseParams.add("metric");
-        responseParams.addAll(Settings.FORMAT_PARAMS);
-        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+            }.map(response -> new RestClusterStateResponse(clusterStateRequest, response, threadPool::relativeTimeInMillis))
+        );
     }
 
     @Override
@@ -164,9 +157,8 @@ public class RestClusterStateAction extends BaseRestHandler {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (request.local() == false &&
-                    currentTimeMillisSupplier.getAsLong() - startTimeMillis >
-                            request.masterNodeTimeout().millis()) {
+            if (request.local() == false
+                && currentTimeMillisSupplier.getAsLong() - startTimeMillis > request.masterNodeTimeout().millis()) {
                 throw new ElasticsearchTimeoutException("Timed out getting cluster state");
             }
             builder.startObject();

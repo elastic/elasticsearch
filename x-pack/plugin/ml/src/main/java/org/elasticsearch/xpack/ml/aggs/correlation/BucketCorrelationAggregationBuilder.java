@@ -7,17 +7,17 @@
 
 package org.elasticsearch.xpack.ml.aggs.correlation;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
@@ -38,9 +38,9 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
         false,
         (args, context) -> new BucketCorrelationAggregationBuilder(
             context,
-            (String)args[0],
-            (CorrelationFunction)args[1],
-            (BucketHelpers.GapPolicy)args[2]
+            (String) args[0],
+            (CorrelationFunction) args[1],
+            (BucketHelpers.GapPolicy) args[2]
         )
     );
     static {
@@ -58,14 +58,6 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
         }, GAP_POLICY, ObjectParser.ValueType.STRING);
     }
 
-    public static SearchPlugin.PipelineAggregationSpec buildSpec() {
-        return new SearchPlugin.PipelineAggregationSpec(
-            NAME,
-            BucketCorrelationAggregationBuilder::new,
-            BucketCorrelationAggregationBuilder.PARSER
-        );
-    }
-
     private final CorrelationFunction correlationFunction;
 
     public BucketCorrelationAggregationBuilder(String name, String bucketsPath, CorrelationFunction correlationFunction) {
@@ -81,7 +73,7 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
         super(
             name,
             NAME.getPreferredName(),
-            new String[] {bucketsPath},
+            new String[] { bucketsPath },
             null,
             gapPolicy == null ? BucketHelpers.GapPolicy.INSERT_ZEROS : gapPolicy
         );
@@ -141,5 +133,10 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), correlationFunction);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_14_0;
     }
 }

@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.monitoring.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequestParser;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 
 import java.io.IOException;
@@ -74,33 +74,43 @@ public class MonitoringBulkRequest extends ActionRequest {
     /**
      * Parses a monitoring bulk request and builds the list of documents to be indexed.
      */
-    public MonitoringBulkRequest add(final MonitoredSystem system,
-                                     final BytesReference content,
-                                     final XContentType xContentType,
-                                     final long timestamp,
-                                     final long intervalMillis) throws IOException {
+    public MonitoringBulkRequest add(
+        final MonitoredSystem system,
+        final BytesReference content,
+        final XContentType xContentType,
+        final long timestamp,
+        final long intervalMillis
+    ) throws IOException {
 
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest
-        new BulkRequestParser(false, RestApiVersion.current())
-            .parse(content, null, null, null, null, null, true, xContentType,
+        new BulkRequestParser(false, RestApiVersion.current()).parse(
+            content,
+            null,
+            null,
+            null,
+            null,
+            null,
+            true,
+            xContentType,
             (indexRequest, type) -> {
-                    // we no longer accept non-timestamped indexes from Kibana, LS, or Beats because we do not use the data
-                    // and it was duplicated anyway; by simply dropping it, we allow BWC for older clients that still send it
-                    if (MonitoringIndex.from(indexRequest.index()) != MonitoringIndex.TIMESTAMPED) {
-                        return;
-                    }
-                    final BytesReference source = indexRequest.source();
-                    if (source.length() == 0) {
-                        throw new IllegalArgumentException("source is missing for monitoring document ["
-                                + indexRequest.index() + "][" + type + "][" + indexRequest.id() + "]");
-                    }
+                // we no longer accept non-timestamped indexes from Kibana, LS, or Beats because we do not use the data
+                // and it was duplicated anyway; by simply dropping it, we allow BWC for older clients that still send it
+                if (MonitoringIndex.from(indexRequest.index()) != MonitoringIndex.TIMESTAMPED) {
+                    return;
+                }
+                final BytesReference source = indexRequest.source();
+                if (source.length() == 0) {
+                    throw new IllegalArgumentException(
+                        "source is missing for monitoring document [" + indexRequest.index() + "][" + type + "][" + indexRequest.id() + "]"
+                    );
+                }
 
-                    // builds a new monitoring document based on the index request
-                    add(new MonitoringBulkDoc(system, type, indexRequest.id(), timestamp, intervalMillis, source,
-                            xContentType));
-                },
-                updateRequest -> { throw new IllegalArgumentException("monitoring bulk requests should only contain index requests"); },
-                deleteRequest -> { throw new IllegalArgumentException("monitoring bulk requests should only contain index requests"); });
+                // builds a new monitoring document based on the index request
+                add(new MonitoringBulkDoc(system, type, indexRequest.id(), timestamp, intervalMillis, source, xContentType));
+            },
+            updateRequest -> { throw new IllegalArgumentException("monitoring bulk requests should only contain index requests"); },
+            deleteRequest -> { throw new IllegalArgumentException("monitoring bulk requests should only contain index requests"); }
+        );
 
         return this;
     }

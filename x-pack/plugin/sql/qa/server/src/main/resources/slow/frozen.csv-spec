@@ -7,15 +7,17 @@
 showTables
 SHOW TABLES INCLUDE FROZEN;
 
-       name        | type  |  kind
-empty_mapping      |TABLE  |INDEX
-frozen_emp         |TABLE  |FROZEN INDEX
-logs               |TABLE  |INDEX
-logs_nanos         |TABLE  |INDEX
-test_alias         |VIEW   |ALIAS
-test_alias_emp     |VIEW   |ALIAS
-test_emp           |TABLE  |INDEX
-test_emp_copy      |TABLE  |INDEX
+ catalog          |       name        | type  |  kind
+javaRestTest      |apps               |TABLE  |INDEX
+javaRestTest      |empty_mapping      |TABLE  |INDEX
+javaRestTest      |frozen_emp         |TABLE  |FROZEN INDEX
+javaRestTest      |logs               |TABLE  |INDEX
+javaRestTest      |logs_nanos         |TABLE  |INDEX
+javaRestTest      |logs_unsigned_long |TABLE  |INDEX
+javaRestTest      |test_alias         |VIEW   |ALIAS
+javaRestTest      |test_alias_emp     |VIEW   |ALIAS
+javaRestTest      |test_emp           |TABLE  |INDEX
+javaRestTest      |test_emp_copy      |TABLE  |INDEX
 ;
 
 columnFromFrozen

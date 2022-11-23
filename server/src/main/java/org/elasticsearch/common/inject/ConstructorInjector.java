@@ -20,10 +20,8 @@ import org.elasticsearch.common.inject.internal.ConstructionContext;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.lang.reflect.InvocationTargetException;
-import java.util.Set;
 
 /**
  * Creates instances using an injectable constructor. After construction, all injectable fields and
@@ -33,36 +31,25 @@ import java.util.Set;
  */
 class ConstructorInjector<T> {
 
-    private final Set<InjectionPoint> injectableMembers;
     private final SingleParameterInjector<?>[] parameterInjectors;
     private final ConstructionProxy<T> constructionProxy;
     private final MembersInjectorImpl<T> membersInjector;
 
-    ConstructorInjector(Set<InjectionPoint> injectableMembers,
-                        ConstructionProxy<T> constructionProxy,
-                        SingleParameterInjector<?>[] parameterInjectors,
-                        MembersInjectorImpl<T> membersInjector)
-            throws ErrorsException {
-        this.injectableMembers = injectableMembers;
+    ConstructorInjector(
+        ConstructionProxy<T> constructionProxy,
+        SingleParameterInjector<?>[] parameterInjectors,
+        MembersInjectorImpl<T> membersInjector
+    ) {
         this.constructionProxy = constructionProxy;
         this.parameterInjectors = parameterInjectors;
         this.membersInjector = membersInjector;
-    }
-
-    public Set<InjectionPoint> getInjectableMembers() {
-        return injectableMembers;
-    }
-
-    ConstructionProxy<T> getConstructionProxy() {
-        return constructionProxy;
     }
 
     /**
      * Construct an instance. Returns {@code Object} instead of {@code T} because
      * it may return a proxy.
      */
-    Object construct(Errors errors, InternalContext context, Class<?> expectedType)
-            throws ErrorsException {
+    Object construct(Errors errors, InternalContext context, Class<?> expectedType) throws ErrorsException {
         ConstructionContext<T> constructionContext = context.getConstructionContext(this);
 
         // We have a circular reference between constructors. Return a proxy.
@@ -97,11 +84,8 @@ class ConstructorInjector<T> {
 
             return t;
         } catch (InvocationTargetException userException) {
-            Throwable cause = userException.getCause() != null
-                    ? userException.getCause()
-                    : userException;
-            throw errors.withSource(constructionProxy.getInjectionPoint())
-                    .errorInjectingConstructor(cause).toException();
+            Throwable cause = userException.getCause() != null ? userException.getCause() : userException;
+            throw errors.withSource(constructionProxy.getInjectionPoint()).errorInjectingConstructor(cause).toException();
         } finally {
             constructionContext.removeCurrentReference();
         }

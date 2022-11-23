@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -15,16 +16,24 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
+import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,12 +45,12 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -96,7 +105,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
         ClientHelper.executeAsyncWithOrigin(client, origin, ClusterHealthAction.INSTANCE, new ClusterHealthRequest(), listener);
@@ -122,14 +131,13 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
         }, e -> fail(e.getMessage()));
 
-
         doAnswer(invocationOnMock -> {
             assertEquals(origin, threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getHeader(headerName));
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
         Client clientWithOrigin = ClientHelper.clientWithOrigin(client, origin);
@@ -155,7 +163,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
 
@@ -183,10 +191,10 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
-        Map<String, String> headers = new HashMap<>(1);
+        Map<String, String> headers = Maps.newMapWithExpectedSize(1);
         headers.put("foo", "foo");
         headers.put("bar", "bar");
 
@@ -216,10 +224,10 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
             ((ActionListener<?>) invocationOnMock.getArguments()[2]).onResponse(null);
             return null;
-        }).when(client).execute(anyObject(), anyObject(), anyObject());
+        }).when(client).execute(any(), any(), any());
 
         SearchRequest request = new SearchRequest("foo");
-        Map<String, String> headers = new HashMap<>(1);
+        Map<String, String> headers = Maps.newMapWithExpectedSize(1);
         headers.put("es-security-runas-user", "foo");
         headers.put("_xpack_security_authentication", "bar");
 
@@ -237,8 +245,18 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+        searchFuture.onResponse(
+            new SearchResponse(
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                null,
+                0,
+                0,
+                0,
+                0L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
         when(client.search(any())).thenReturn(searchFuture);
         assertExecutionWithOrigin(Collections.emptyMap(), client);
     }
@@ -251,11 +269,25 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+        searchFuture.onResponse(
+            new SearchResponse(
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                null,
+                0,
+                0,
+                0,
+                0L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
         when(client.search(any())).thenReturn(searchFuture);
-        Map<String, String> headers = MapBuilder.<String, String> newMapBuilder().put(AuthenticationField.AUTHENTICATION_KEY, "anything")
-                .put(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything").map();
+        Map<String, String> headers = Map.of(
+            AuthenticationField.AUTHENTICATION_KEY,
+            "anything",
+            AuthenticationServiceField.RUN_AS_USER_HEADER,
+            "anything"
+        );
 
         assertRunAsExecution(headers, h -> {
             assertThat(h.keySet(), hasSize(2));
@@ -272,10 +304,20 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+        searchFuture.onResponse(
+            new SearchResponse(
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                null,
+                0,
+                0,
+                0,
+                0L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
         when(client.search(any())).thenReturn(searchFuture);
-        Map<String, String> unrelatedHeaders = MapBuilder.<String, String> newMapBuilder().put(randomAlphaOfLength(10), "anything").map();
+        Map<String, String> unrelatedHeaders = Map.of(randomAlphaOfLength(10), "anything");
 
         assertExecutionWithOrigin(unrelatedHeaders, client);
     }
@@ -325,7 +367,8 @@ public class ClientHelperTests extends ESTestCase {
         {  // Singleton map with a security-related header
             assertThat(
                 ClientHelper.filterSecurityHeaders(Collections.singletonMap(AuthenticationServiceField.RUN_AS_USER_HEADER, "value")),
-                hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "value"));
+                hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "value")
+            );
         }
         {  // Map with 3 headers out of which only 1 is security-related
             Map<String, String> headers = new HashMap<>();
@@ -338,6 +381,89 @@ public class ClientHelperTests extends ESTestCase {
         }
         {  // null
             expectThrows(NullPointerException.class, () -> ClientHelper.filterSecurityHeaders(null));
+        }
+    }
+
+    public void testGetPersistableSafeSecurityHeaders() throws IOException {
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT));
+        // No security header
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final String nonSecurityHeaderKey = "not-a-security-header";
+        if (randomBoolean()) {
+            threadContext.putHeader(nonSecurityHeaderKey, randomAlphaOfLength(8));
+        }
+        assertThat(ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState), anEmptyMap());
+
+        final boolean hasRunAsHeader = randomBoolean();
+        if (hasRunAsHeader) {
+            threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as_header");
+        }
+
+        final Authentication authentication = Authentication.newRealmAuthentication(
+            new User(randomAlphaOfLength(8)),
+            new Authentication.RealmRef("name", "type", "node")
+        );
+
+        final boolean hasAuthHeader = randomBoolean();
+        // There maybe a secondary header
+        final boolean hasSecondaryAuthHeader = randomFrom(hasAuthHeader == false, true);
+        if (hasAuthHeader) {
+            new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
+        }
+        if (hasSecondaryAuthHeader) {
+            new AuthenticationContextSerializer(SecondaryAuthentication.THREAD_CTX_KEY).writeToContext(authentication, threadContext);
+        }
+
+        // No rewriting for current version
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
+        final Map<String, String> headers1;
+        if (randomBoolean()) {
+            headers1 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
+        } else {
+            headers1 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext.getHeaders(), clusterState);
+        }
+        assertThat(headers1, not(hasKey(nonSecurityHeaderKey)));
+        if (hasAuthHeader) {
+            assertThat(headers1, hasKey(AuthenticationField.AUTHENTICATION_KEY));
+            assertThat(
+                headers1.get(AuthenticationField.AUTHENTICATION_KEY),
+                equalTo(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY))
+            );
+        }
+        if (hasSecondaryAuthHeader) {
+            assertThat(headers1, hasKey(SecondaryAuthentication.THREAD_CTX_KEY));
+            assertThat(
+                headers1.get(SecondaryAuthentication.THREAD_CTX_KEY),
+                equalTo(threadContext.getHeader(SecondaryAuthentication.THREAD_CTX_KEY))
+            );
+        }
+
+        // Rewritten for older version
+        final Version previousVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(previousVersion);
+        final Map<String, String> headers2;
+        if (randomBoolean()) {
+            headers2 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
+        } else {
+            headers2 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext.getHeaders(), clusterState);
+        }
+        assertThat(headers2, not(hasKey(nonSecurityHeaderKey)));
+        if (hasAuthHeader) {
+            final Authentication rewrittenAuth = AuthenticationContextSerializer.decode(
+                headers2.get(AuthenticationField.AUTHENTICATION_KEY)
+            );
+            assertThat(rewrittenAuth.getEffectiveSubject().getVersion(), equalTo(previousVersion));
+            assertThat(rewrittenAuth.getEffectiveSubject().getUser(), equalTo(authentication.getEffectiveSubject().getUser()));
+        }
+        if (hasSecondaryAuthHeader) {
+            final Authentication rewrittenSecondaryAuth = AuthenticationContextSerializer.decode(
+                headers2.get(SecondaryAuthentication.THREAD_CTX_KEY)
+            );
+            assertThat(rewrittenSecondaryAuth.getEffectiveSubject().getVersion(), equalTo(previousVersion));
+            assertThat(rewrittenSecondaryAuth.getEffectiveSubject().getUser(), equalTo(authentication.getEffectiveSubject().getUser()));
         }
     }
 }

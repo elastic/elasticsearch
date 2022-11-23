@@ -1,11 +1,10 @@
 
 include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 
-:lucene_version:        8.9.0
-:lucene_version_path:   8_9_0
+:lucene_version:        9.4.2
+:lucene_version_path:   9_4_2
 :jdk:                   11.0.2
 :jdk_major:             11
-:build_flavor:          default
 :build_type:            tar
 
 :docker-repo:     docker.elastic.co/elasticsearch/elasticsearch
@@ -21,10 +20,8 @@ Javadoc roots used to generate links from Painless's API reference
 
 ifeval::["{release-state}"=="unreleased"]
 :elasticsearch-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/elasticsearch/{version}-SNAPSHOT
-:transport-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/client/transport/{version}-SNAPSHOT
 :rest-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-client/{version}-SNAPSHOT
 :rest-client-sniffer-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-client-sniffer/{version}-SNAPSHOT
-:rest-high-level-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-high-level-client/{version}-SNAPSHOT
 :mapper-extras-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/mapper-extras-client/{version}-SNAPSHOT
 :painless-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}-SNAPSHOT
 :parent-join-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/parent-join-client/{version}-SNAPSHOT
@@ -36,10 +33,8 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 :elasticsearch-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/elasticsearch/{version}
-:transport-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/client/transport/{version}
 :rest-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-client/{version}
 :rest-client-sniffer-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-client-sniffer/{version}
-:rest-high-level-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-high-level-client/{version}
 :mapper-extras-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/mapper-extras-client/{version}
 :painless-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}
 :parent-join-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/parent-join-client/{version}
@@ -49,32 +44,11 @@ ifeval::["{release-state}"!="unreleased"]
 :version_qualified: {bare_version}
 endif::[]
 
-:javadoc-client: {rest-high-level-client-javadoc}/org/elasticsearch/client
-:javadoc-xpack: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack
 :javadoc-license: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/license
 :javadoc-watcher: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/watcher
-
-///////
-Permanently unreleased branches (master, n.X)
-///////
-ifeval::["{source_branch}"=="master"]
-:permanently-unreleased-branch:
-endif::[]
-ifeval::["{source_branch}"=="{major-version}"]
-:permanently-unreleased-branch:
-endif::[]
 
 ///////
 Shared attribute values are pulled from elastic/docs
 ///////
 
 include::{docs-root}/shared/attributes.asciidoc[]
-
-///////
-APM does not build n.x documentation. Links from .x branches should point to master instead
-///////
-ifeval::["{source_branch}"=="7.x"]
-:apm-server-ref:       {apm-server-ref-m}
-:apm-server-ref-v:     {apm-server-ref-m}
-:apm-overview-ref-v:   {apm-overview-ref-m}
-endif::[]

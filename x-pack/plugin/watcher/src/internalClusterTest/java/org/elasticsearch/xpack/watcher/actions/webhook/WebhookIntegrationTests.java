@@ -15,7 +15,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -73,28 +73,29 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
     public void testWebhook() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())
-                .path(new TextTemplate("/test/_id"))
-                .putParam("param1", new TextTemplate("value1"))
-                .putParam("watch_id", new TextTemplate("_id"))
-                .body(new TextTemplate("_body"))
-                .auth(new BasicAuth("user", "pass".toCharArray()))
-                .method(HttpMethod.POST);
+            .path(new TextTemplate("/test/_id"))
+            .putParam("param1", new TextTemplate("value1"))
+            .putParam("watch_id", new TextTemplate("_id"))
+            .body(new TextTemplate("_body"))
+            .auth(new BasicAuth("user", "pass".toCharArray()))
+            .method(HttpMethod.POST);
 
-        new PutWatchRequestBuilder(client(), "_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("5s")))
-                        .input(simpleInput("key", "value"))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("_id", ActionBuilders.webhookAction(builder)))
-                .get();
+        new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("5s")))
+                .input(simpleInput("key", "value"))
+                .condition(InternalAlwaysCondition.INSTANCE)
+                .addAction("_id", ActionBuilders.webhookAction(builder))
+        ).get();
 
         timeWarp().trigger("_id");
         refresh();
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         assertThat(webServer.requests(), hasSize(1));
-        assertThat(webServer.requests().get(0).getUri().getQuery(),
-                anyOf(equalTo("watch_id=_id&param1=value1"), equalTo("param1=value1&watch_id=_id")));
+        assertThat(
+            webServer.requests().get(0).getUri().getQuery(),
+            anyOf(equalTo("watch_id=_id&param1=value1"), equalTo("param1=value1&watch_id=_id"))
+        );
 
         assertThat(webServer.requests().get(0).getBody(), is("_body"));
 
@@ -113,20 +114,19 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
     public void testWebhookWithBasicAuth() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())
-                .auth(new BasicAuth("_username", "_password".toCharArray()))
-                .path(new TextTemplate("/test/_id"))
-                .putParam("param1", new TextTemplate("value1"))
-                .putParam("watch_id", new TextTemplate("_id"))
-                .body(new TextTemplate("_body"))
-                .method(HttpMethod.POST);
+            .auth(new BasicAuth("_username", "_password".toCharArray()))
+            .path(new TextTemplate("/test/_id"))
+            .putParam("param1", new TextTemplate("value1"))
+            .putParam("watch_id", new TextTemplate("_id"))
+            .body(new TextTemplate("_body"))
+            .method(HttpMethod.POST);
 
-        new PutWatchRequestBuilder(client(), "_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("5s")))
-                        .input(simpleInput("key", "value"))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("_id", ActionBuilders.webhookAction(builder)))
-                .get();
+        new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("5s")))
+                .input(simpleInput("key", "value"))
+                .condition(InternalAlwaysCondition.INSTANCE)
+                .addAction("_id", ActionBuilders.webhookAction(builder))
+        ).get();
 
         timeWarp().trigger("_id");
         refresh();
@@ -134,8 +134,10 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
 
         assertThat(webServer.requests(), hasSize(1));
-        assertThat(webServer.requests().get(0).getUri().getQuery(),
-                anyOf(equalTo("watch_id=_id&param1=value1"), equalTo("param1=value1&watch_id=_id")));
+        assertThat(
+            webServer.requests().get(0).getUri().getQuery(),
+            anyOf(equalTo("watch_id=_id&param1=value1"), equalTo("param1=value1&watch_id=_id"))
+        );
         assertThat(webServer.requests().get(0).getBody(), is("_body"));
         assertThat(webServer.requests().get(0).getHeader("Authorization"), is(("Basic X3VzZXJuYW1lOl9wYXNzd29yZA==")));
     }
@@ -148,18 +150,17 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         String host = publishAddress.address().getHostString();
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder(host, publishAddress.getPort())
-                .path(new TextTemplate("/%3Clogstash-%7Bnow%2Fd%7D%3E/_doc/1"))
-                .body(new TextTemplate("{\"foo\":\"bar\"}"))
-                .putHeader("Content-Type", new TextTemplate("application/json"))
-                .method(HttpMethod.PUT);
+            .path(new TextTemplate("/%3Clogstash-%7Bnow%2Fd%7D%3E/_doc/1"))
+            .body(new TextTemplate("{\"foo\":\"bar\"}"))
+            .putHeader("Content-Type", new TextTemplate("application/json"))
+            .method(HttpMethod.PUT);
 
-        new PutWatchRequestBuilder(client(), "_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("5s")))
-                        .input(simpleInput("key", "value"))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("_id", ActionBuilders.webhookAction(builder)))
-                .get();
+        new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("5s")))
+                .input(simpleInput("key", "value"))
+                .condition(InternalAlwaysCondition.INSTANCE)
+                .addAction("_id", ActionBuilders.webhookAction(builder))
+        ).get();
 
         new ExecuteWatchRequestBuilder(client(), "_id").get();
 

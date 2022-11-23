@@ -4,14 +4,6 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.search.TotalHits;
@@ -50,6 +42,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
+import org.elasticsearch.xpack.snapshotbasedrecoveries.SnapshotBasedRecoveriesPlugin;
 import org.junit.After;
 
 import java.io.IOException;
@@ -57,6 +50,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -73,6 +67,8 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedByt
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numClientNodes = 0)
 public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnapshotIntegTestCase {
@@ -83,7 +79,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateSearchableSnapshots.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(LocalStateSearchableSnapshots.class);
+        plugins.add(LicensedSnapshotBasedRecoveriesPlugin.class);
+        return Collections.unmodifiableList(plugins);
     }
 
     @Override
@@ -107,10 +106,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         if (DiscoveryNode.canContainData(otherSettings) && randomBoolean()) {
-            builder.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO.getStringRep());
+            builder.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO.getStringRep());
         }
         builder.put(
-            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
+            FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()
                 ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                 : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
@@ -125,7 +124,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
         if (randomBoolean()) {
             builder.put(
-                FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
+                FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
                 rarely()
                     ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                     : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
@@ -242,15 +241,31 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, customDataPath);
             if (shardPath != null && Files.exists(shardPath.getDataPath())) {
                 shardFolderFound = true;
-                assertEquals(snapshotDirectory, Files.notExists(shardPath.resolveIndex()));
-
-                assertTrue(Files.exists(shardPath.resolveTranslog()));
+                final boolean indexExists = Files.exists(shardPath.resolveIndex());
+                final boolean translogExists = Files.exists(shardPath.resolveTranslog());
+                logger.info(
+                    "--> [{}] verifying shard data path [{}] (index exists: {}, translog exists: {})",
+                    node,
+                    shardPath.getDataPath(),
+                    indexExists,
+                    translogExists
+                );
+                assertThat(
+                    snapshotDirectory ? "Index file should not exist" : "Index file should exist",
+                    indexExists,
+                    not(snapshotDirectory)
+                );
+                assertThat("Translog should exist", translogExists, is(true));
                 try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
                     final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
                     if (snapshotDirectory) {
-                        assertEquals(2L, translogFiles);
+                        assertThat("There should be 2 translog files for a snapshot directory", translogFiles, equalTo(2L));
                     } else {
-                        assertThat(translogFiles, greaterThanOrEqualTo(2L));
+                        assertThat(
+                            "There should be 2+ translog files for a non-snapshot directory",
+                            translogFiles,
+                            greaterThanOrEqualTo(2L)
+                        );
                     }
                 }
             }
@@ -333,5 +348,12 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
             }
         });
+    }
+
+    public static class LicensedSnapshotBasedRecoveriesPlugin extends SnapshotBasedRecoveriesPlugin {
+        @Override
+        public boolean isLicenseEnabled() {
+            return true;
+        }
     }
 }

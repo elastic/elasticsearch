@@ -1,10 +1,11 @@
-import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(xpackModule('ilm'))
+  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 File repoDir = file("$buildDir/testclusters/repo")
@@ -12,15 +13,15 @@ File repoDir = file("$buildDir/testclusters/repo")
 tasks.named("javaRestTest").configure {
   /* To support taking index snapshots, we have to set path.repo setting */
   systemProperty 'tests.path.repo', repoDir
-  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
 
   setting 'path.repo', repoDir.absolutePath
-  setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
@@ -36,7 +37,6 @@ testClusters.all {
    * cached time. So the policy's action date is always after the snapshot's start.
    */
   setting 'thread_pool.estimated_time_interval', '0'
-  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }
 
 if (BuildParams.inFipsJvm){

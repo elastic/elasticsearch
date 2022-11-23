@@ -1,0 +1,190 @@
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.routing.allocation.total_shards_per_node" : null
+  }
+}
+
+DELETE my-index-000001
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////
+
+// tag::cloud[]
+In order to get the shards assigned we'll need to increase the number of shards 
+that can be collocated on a node in the cluster.
+We'll achieve this by inspecting the system-wide `cluster.routing.allocation.total_shards_per_node` 
+<<cluster-get-settings, cluster setting>> and increasing the configured value.
+
+**Use {kib}**
+
+//tag::kibana-api-ex[]
+. Log in to the {ess-console}[{ecloud} console].
++
+
+. On the **Elasticsearch Service** panel, click the name of your deployment. 
++
+
+NOTE: If the name of your deployment is disabled your {kib} instances might be
+unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
+If your deployment doesn't include {kib}, all you need to do is 
+{cloud}/ec-access-kibana.html[enable it first].
+
+. Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
+and go to **Dev Tools > Console**.
++
+[role="screenshot"]
+image::images/kibana-console.png[{kib} Console,align="center"]
+
+. Inspect the `cluster.routing.allocation.total_shards_per_node` <<cluster-get-settings, cluster setting>>:
++
+[source,console]
+----
+GET /_cluster/settings?flat_settings
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+{
+  "persistent": {
+    "cluster.routing.allocation.total_shards_per_node": "300" <1>
+  },
+  "transient": {}
+}
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only as don't want to change a cluster-wide setting]
+
++
+<1> Represents the current configured value for the total number of shards
+that can reside on one node in the system.
+
+. <<cluster-update-settings,Increase>> the value for the total number of shards 
+that can be assigned on one node to a higher value:
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.routing.allocation.total_shards_per_node" : 400 <1>
+  }
+}
+----
+// TEST[continued]
+
++
+<1> The new value for the system-wide `total_shards_per_node` configuration
+is increased from the previous value of `300` to `400`. 
+The `total_shards_per_node` configuration can also be set to `null`, which 
+represents no upper bound with regards to how many shards can be 
+collocated on one node in the system. 
+
+//end::kibana-api-ex[]
+// end::cloud[]
+
+// tag::self-managed[]
+In order to get the shards assigned you can add more nodes to your {es} cluster 
+and assign the index's target tier <<assign-data-tier, node role>> to the new 
+nodes. 
+
+To inspect which tier is an index targeting for assignment, use the <<indices-get-settings, get index setting>>
+API to retrieve the configured value for the `index.routing.allocation.include._tier_preference`
+setting:
+
+[source,console]
+----
+GET /my-index-000001/_settings/index.routing.allocation.include._tier_preference?flat_settings
+----
+// TEST[continued]
+
+
+The response will look like this:
+
+[source,console-result]
+----
+{
+  "my-index-000001": {
+    "settings": {
+      "index.routing.allocation.include._tier_preference": "data_warm,data_hot" <1>
+    }
+  }
+}
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
+
+
+<1> Represents a comma separated list of data tier node roles this index is allowed
+to be allocated on, the first one in the list being the one with the higher priority
+i.e. the tier the index is targeting.
+e.g. in this example the tier preference is `data_warm,data_hot` so the index is
+targeting the `warm` tier and more nodes with the `data_warm` role are needed in
+the {es} cluster.
+
+
+Alternatively, if adding more nodes to the {es} cluster is not desired,
+inspecting the system-wide `cluster.routing.allocation.total_shards_per_node` 
+<<cluster-get-settings, cluster setting>> and increasing the configured value:
+
+
+. Inspect the `cluster.routing.allocation.total_shards_per_node` <<cluster-get-settings, cluster setting>> 
+for the index with unassigned shards:
++
+[source,console]
+----
+GET /_cluster/settings?flat_settings
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+{
+  "persistent": {
+    "cluster.routing.allocation.total_shards_per_node": "300" <1>
+  },
+  "transient": {}
+}
+----
+// TESTRESPONSE[skip:the result is for illustrating purposes only as don't want to change a cluster-wide setting]
+
++
+<1> Represents the current configured value for the total number of shards
+that can reside on one node in the system.
+
+. <<cluster-update-settings,Increase>> the value for the total number of shards 
+that can be assigned on one node to a higher value:
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.routing.allocation.total_shards_per_node" : 400 <1>
+  }
+}
+----
+// TEST[continued]
+
++
+<1> The new value for the system-wide `total_shards_per_node` configuration
+is increased from the previous value of `300` to `400`. 
+The `total_shards_per_node` configuration can also be set to `null`, which 
+represents no upper bound with regards to how many shards can be 
+collocated on one node in the system. 
+
+// end::self-managed[]
+

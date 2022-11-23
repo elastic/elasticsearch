@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -79,13 +80,14 @@ public class LogicalPlanTests extends ESTestCase {
 
     public void testJoinPlan() {
         LogicalPlan plan = parser.createStatement(
-                "join by pid " +
-                "  [process where true] " +
-                "  [network where true] " +
-                "  [registry where true] " +
-                "  [file where true] " +
-                " " +
-                "until [process where event_subtype_full == \"termination_event\"]");
+            "join by pid "
+                + "  [process where true] "
+                + "  [network where true] "
+                + "  [registry where true] "
+                + "  [file where true] "
+                + " "
+                + "until [process where event_subtype_full == \"termination_event\"]"
+        );
 
         plan = defaultPipes(plan);
         assertEquals(Join.class, plan.getClass());
@@ -110,9 +112,8 @@ public class LogicalPlanTests extends ESTestCase {
 
     public void testSequencePlan() {
         LogicalPlan plan = parser.createStatement(
-                "sequence by pid with maxspan=2s " +
-                "    [process where process_name == \"*\" ] " +
-                "    [file where file_path == \"*\"]");
+            "sequence by pid with maxspan=2s " + "    [process where process_name == \"*\" ] " + "    [file where file_path == \"*\"]"
+        );
 
         plan = defaultPipes(plan);
         assertEquals(Sequence.class, plan.getClass());
@@ -137,9 +138,10 @@ public class LogicalPlanTests extends ESTestCase {
 
     public void testQuotedEventType() {
         LogicalPlan plan = parser.createStatement(
-                "sequence by pid with maxspan=2s " +
-                        "    [\"12\\\"34!@#$\" where process_name == \"test.exe\" ] " +
-                        "    [\"\"\"!@#$%test\"\"\\)(*&^\"\"\" where file_path == \"test.exe\"]");
+            "sequence by pid with maxspan=2s "
+                + "    [\"12\\\"34!@#$\" where process_name == \"test.exe\" ] "
+                + "    [\"\"\"!@#$%test\"\"\\)(*&^\"\"\" where file_path == \"test.exe\"]"
+        );
 
         plan = defaultPipes(plan);
         assertEquals(Sequence.class, plan.getClass());
@@ -177,6 +179,52 @@ public class LogicalPlanTests extends ESTestCase {
 
         TimeValue maxSpan = seq.maxSpan();
         assertEquals(new TimeValue(2, TimeUnit.SECONDS), maxSpan);
+    }
+
+    public void testRepeatedQuery() throws Exception {
+        LogicalPlan plan = parser.createStatement("sequence " + " [any where true] with runs=2" + " [any where true]");
+        plan = defaultPipes(plan);
+        assertEquals(Sequence.class, plan.getClass());
+        Sequence seq = (Sequence) plan;
+
+        List<? extends LogicalPlan> queries = seq.queries();
+        assertEquals(3, queries.size());
+    }
+
+    public void testSamplePlan() {
+        LogicalPlan plan = parser.createStatement(
+            "sample by pid [process where process_name == \"*\" ] by host_name [file where file_path == \"*\"] by host"
+        );
+
+        assertTrue(plan instanceof LimitWithOffset);
+        plan = ((LimitWithOffset) plan).child();
+        assertEquals(Sample.class, plan.getClass());
+        Sample sample = (Sample) plan;
+        List<? extends LogicalPlan> queries = sample.queries();
+        assertEquals(2, queries.size());
+        LogicalPlan subPlan = queries.get(0);
+        assertEquals(KeyedFilter.class, subPlan.getClass());
+        KeyedFilter kf = (KeyedFilter) subPlan;
+
+        List<? extends NamedExpression> keys = kf.keys();
+        NamedExpression key = keys.get(0);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("pid", key.name());
+        key = keys.get(1);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("host_name", key.name());
+
+        subPlan = queries.get(1);
+        assertEquals(KeyedFilter.class, subPlan.getClass());
+        kf = (KeyedFilter) subPlan;
+
+        keys = kf.keys();
+        key = keys.get(0);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("pid", key.name());
+        key = keys.get(1);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("host", key.name());
     }
 
     private LogicalPlan wrapFilter(Expression exp) {

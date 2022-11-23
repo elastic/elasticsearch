@@ -7,22 +7,31 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncodeTiles;
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.stringEncode;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.encodeDecodeLat;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.encodeDecodeLon;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
@@ -42,7 +51,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
 
     @Override
     protected Rectangle getCell(double lon, double lat, int precision) {
-        return  GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(lon, lat, precision));
+        return GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(lon, lat, precision));
     }
 
     @Override
@@ -52,15 +61,14 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
 
     @Override
     protected long getCellsForDiffPrecision(int precisionDiff) {
-        return (1L << precisionDiff) *  (1L << precisionDiff);
+        return (1L << precisionDiff) * (1L << precisionDiff);
     }
 
     @Override
     protected void assertSetValuesBruteAndRecursive(Geometry geometry) throws Exception {
         int precision = randomIntBetween(1, 4);
         UnboundedGeoTileGridTiler tiler = new UnboundedGeoTileGridTiler(precision);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-        geometry = indexer.prepareForIndexing(geometry);
+        geometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
         GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
         GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, tiler, NOOP_BREAKER);
         int recursiveCount;
@@ -91,15 +99,15 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
         GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         int count = 0;
 
-       if (bounds.bottom > GeoTileUtils.NORMALIZED_LATITUDE_MASK || bounds.top < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK) {
+        if (bounds.bottom > GeoTileUtils.NORMALIZED_LATITUDE_MASK || bounds.top < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK) {
             return 0;
         }
 
-       if (bbox != null) {
-           if (bbox.bottom() > GeoTileUtils.NORMALIZED_LATITUDE_MASK || bbox.top() < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK) {
-               return 0;
-           }
-       }
+        if (bbox != null) {
+            if (bbox.bottom() > GeoTileUtils.NORMALIZED_LATITUDE_MASK || bbox.top() < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK) {
+                return 0;
+            }
+        }
 
         if (precision == 0) {
             return 1;
@@ -108,7 +116,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
         final double tiles = 1 << precision;
         int minYTile = GeoTileUtils.getYTile(bounds.maxY(), (long) tiles);
         int maxYTile = GeoTileUtils.getYTile(bounds.minY(), (long) tiles);
-        if ((bounds.posLeft >= 0 && bounds.posRight >= 0)  && (bounds.negLeft < 0 && bounds.negRight < 0)) {
+        if ((bounds.posLeft >= 0 && bounds.posRight >= 0) && (bounds.negLeft < 0 && bounds.negRight < 0)) {
             // box one
             int minXTileNeg = GeoTileUtils.getXTile(bounds.negLeft, (long) tiles);
             int maxXTileNeg = GeoTileUtils.getXTile(bounds.negRight, (long) tiles);
@@ -116,7 +124,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
             for (int x = minXTileNeg; x <= maxXTileNeg; x++) {
                 for (int y = minYTile; y <= maxYTile; y++) {
                     Rectangle r = GeoTileUtils.toBoundingBox(x, y, precision);
-                    if (tileIntersectsBounds(x, y, precision, bbox) && geoValue.relate(r) != GeoRelation.QUERY_DISJOINT) {
+                    if (tileIntersectsBounds(x, y, precision, bbox) && intersects(x, y, precision, geoValue)) {
                         count += 1;
                     }
                 }
@@ -132,8 +140,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
 
             for (int x = minXTilePos; x <= maxXTilePos; x++) {
                 for (int y = minYTile; y <= maxYTile; y++) {
-                    Rectangle r = GeoTileUtils.toBoundingBox(x, y, precision);
-                    if (tileIntersectsBounds(x, y, precision, bbox) && geoValue.relate(r) != GeoRelation.QUERY_DISJOINT) {
+                    if (tileIntersectsBounds(x, y, precision, bbox) && intersects(x, y, precision, geoValue)) {
                         count += 1;
                     }
                 }
@@ -150,7 +157,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
             for (int x = minXTile; x <= maxXTile; x++) {
                 for (int y = minYTile; y <= maxYTile; y++) {
                     Rectangle r = GeoTileUtils.toBoundingBox(x, y, precision);
-                    if (tileIntersectsBounds(x, y, precision, bbox) && geoValue.relate(r) != GeoRelation.QUERY_DISJOINT) {
+                    if (tileIntersectsBounds(x, y, precision, bbox) && intersects(x, y, precision, geoValue)) {
                         count += 1;
                     }
                 }
@@ -159,38 +166,22 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
         }
     }
 
+    private boolean intersects(int x, int y, int precision, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
+        Rectangle r = GeoGridQueryBuilder.getQueryTile(stringEncode(longEncodeTiles(precision, x, y)));
+        return geoValue.relate(
+            GeoEncodingUtils.encodeLongitude(r.getMinLon()),
+            GeoEncodingUtils.encodeLongitude(r.getMaxLon()),
+            GeoEncodingUtils.encodeLatitude(r.getMinLat()),
+            GeoEncodingUtils.encodeLatitude(r.getMaxLat())
+        ) != GeoRelation.QUERY_DISJOINT;
+    }
+
     private boolean tileIntersectsBounds(int x, int y, int precision, GeoBoundingBox bbox) {
         if (bbox == null) {
             return true;
         }
-        final int tiles = 1 << precision;
-        int minX = GeoTileUtils.getXTile(bbox.left(), tiles);
-        int minY = GeoTileUtils.getYTile(bbox.top(), tiles);
-        final Rectangle minTile = GeoTileUtils.toBoundingBox(minX, minY, precision);
-        if (minTile.getMaxX() == bbox.left()) {
-            minX++;
-        }
-        if (minTile.getMinY() == bbox.top()) {
-            minY++;
-        }
-        // compute maxX, maxY
-        int maxX = GeoTileUtils.getXTile(bbox.right(), tiles);
-        int maxY = GeoTileUtils.getYTile(bbox.bottom(), tiles);
-        final Rectangle maxTile = GeoTileUtils.toBoundingBox(maxX, maxY, precision);
-        if (maxTile.getMinX() == bbox.right()) {
-            maxX--;
-        }
-        if (maxTile.getMaxY() == bbox.bottom()) {
-            maxY--;
-        }
-        if (maxY >= y && minY <= y) {
-            if (bbox.left() > bbox.right()) {
-                return maxX >= x || minX <= x;
-            } else {
-                return maxX >= x && minX <= x;
-            }
-        }
-        return false;
+        GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision, bbox);
+        return predicate.validTile(x, y, precision);
     }
 
     public void testGeoTile() throws Exception {
@@ -201,8 +192,12 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
 
         // create rectangle within tile and check bound counts
         Rectangle tile = GeoTileUtils.toBoundingBox(1309, 3166, 13);
-        Rectangle shapeRectangle = new Rectangle(tile.getMinX() + 0.00001, tile.getMaxX() - 0.00001,
-            tile.getMaxY() - 0.00001,  tile.getMinY() + 0.00001);
+        Rectangle shapeRectangle = new Rectangle(
+            tile.getMinX() + 0.00001,
+            tile.getMaxX() - 0.00001,
+            tile.getMaxY() - 0.00001,
+            tile.getMinY() + 0.00001
+        );
         GeoShapeValues.GeoShapeValue value = geoShapeValue(shapeRectangle);
         // test shape within tile bounds
         {
@@ -238,16 +233,16 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
     }
 
     public void testBoundGridOutOfRange() throws Exception {
-        GeoBoundingBox boundingBox = new GeoBoundingBox(
-            new GeoPoint(90, -180),
-            new GeoPoint(89, 180)
-        );
+        GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(90, -180), new GeoPoint(89, 180));
         double lon = GeoTestUtil.nextLongitude();
         double lat = GeoTestUtil.nextLatitude();
         GeoShapeValues.GeoShapeValue value = geoShapeValue(new Point(lon, lat));
         for (int i = 0; i < maxPrecision(); i++) {
-            GeoShapeCellValues values =
-                new GeoShapeCellValues(makeGeoShapeValues(value), getBoundedGridTiler(boundingBox, i), NOOP_BREAKER);
+            GeoShapeCellValues values = new GeoShapeCellValues(
+                makeGeoShapeValues(value),
+                getBoundedGridTiler(boundingBox, i),
+                NOOP_BREAKER
+            );
             assertTrue(values.advanceExact(0));
             int numTiles = values.docValueCount();
             assertThat(numTiles, equalTo(0));
@@ -271,16 +266,18 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
             new Point(bbox.getMinX(), (bbox.getMinY() + bbox.getMaxY()) / 2),
             new Point(bbox.getMaxX(), (bbox.getMinY() + bbox.getMaxY()) / 2),
             new Point((bbox.getMinX() + bbox.getMaxX()) / 2, bbox.getMinY()),
-            new Point((bbox.getMinX() + bbox.getMaxX()) / 2, bbox.getMaxY()),
-        };
+            new Point((bbox.getMinX() + bbox.getMaxX()) / 2, bbox.getMaxY()), };
 
         for (Point point : pointCorners) {
             if (point.getX() == GeoUtils.MAX_LON || point.getY() == -LATITUDE_MASK) {
                 continue;
             }
             GeoShapeValues.GeoShapeValue value = geoShapeValue(point);
-            GeoShapeCellValues unboundedCellValues =
-                new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoTileGridTiler(precision), NOOP_BREAKER);
+            GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(
+                makeGeoShapeValues(value),
+                new UnboundedGeoTileGridTiler(precision),
+                NOOP_BREAKER
+            );
             assertTrue(unboundedCellValues.advanceExact(0));
             int numTiles = unboundedCellValues.docValueCount();
             assertThat(numTiles, equalTo(1));
@@ -288,5 +285,17 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
             long pointHash = GeoTileUtils.longEncode(encodeDecodeLon(point.getX()), encodeDecodeLat(point.getY()), precision);
             assertThat(tilerHash, equalTo(pointHash));
         }
+    }
+
+    public void testMultiPointOutOfBounds() throws Exception {
+        final double maxLat = randomDoubleBetween(GeoTileUtils.NORMALIZED_LATITUDE_MASK, 90, false);
+        final double minLat = randomDoubleBetween(-90, Math.nextDown(GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK), true);
+        // points are out of bounds, should not generate any bucket
+        MultiPoint points = new MultiPoint(List.of(new Point(0, maxLat), new Point(0, minLat)));
+        final GeoShapeValues.GeoShapeValue value = geoShapeValue(points);
+        final GeoGridTiler tiler = getUnboundedGridTiler(0);
+        final GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), tiler, NOOP_BREAKER);
+        assertTrue(values.advanceExact(0));
+        assertThat(values.docValueCount(), equalTo(0));
     }
 }

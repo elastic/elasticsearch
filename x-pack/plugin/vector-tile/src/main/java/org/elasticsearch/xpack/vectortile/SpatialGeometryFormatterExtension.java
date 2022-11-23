@@ -37,7 +37,7 @@ public class SpatialGeometryFormatterExtension implements GeometryFormatterExten
 
                 return (params) -> {
                     int[] parsed = SimpleVectorTileFormatter.parse(params);
-                    final FeatureFactory featureFactory = new FeatureFactory(parsed[0], parsed[1], parsed[2], parsed[3]);
+                    final FeatureFactory featureFactory = new FeatureFactory(parsed[0], parsed[1], parsed[2], parsed[3], parsed[4]);
                     return geometries -> {
                         final Geometry geometry = (geometries.size() == 1) ? geometries.get(0) : new GeometryCollection<>(geometries);
                         return new ArrayList<>(featureFactory.getFeatures(geometry));

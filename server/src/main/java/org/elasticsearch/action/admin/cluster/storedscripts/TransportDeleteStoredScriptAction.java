@@ -25,21 +25,34 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMasterNodeAction<DeleteStoredScriptRequest> {
 
-    private final ScriptService scriptService;
-
     @Inject
-    public TransportDeleteStoredScriptAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                             ScriptService scriptService) {
-        super(DeleteStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteStoredScriptRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
-        this.scriptService = scriptService;
+    public TransportDeleteStoredScriptAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeleteStoredScriptAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteStoredScriptRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, DeleteStoredScriptRequest request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
-        scriptService.deleteStoredScript(clusterService, request, listener);
+    protected void masterOperation(
+        Task task,
+        DeleteStoredScriptRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
+        ScriptService.deleteStoredScript(clusterService, request, listener);
     }
 
     @Override

@@ -7,6 +7,14 @@
  */
 package org.elasticsearch.gradle.internal;
 
+import org.gradle.api.DefaultTask;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.TaskAction;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -15,14 +23,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-
-import org.gradle.api.DefaultTask;
-import org.gradle.api.file.FileTree;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Optional;
-import org.gradle.api.tasks.OutputFile;
-import org.gradle.api.tasks.TaskAction;
 
 /**
  * Concatenates a list of files into one and removes duplicate lines.
@@ -34,7 +34,7 @@ public class ConcatFilesTask extends DefaultTask {
     }
 
     /** List of files to concatenate */
-    private FileTree files;
+    private FileCollection files;
 
     /** line to add at the top of the target file */
     private String headerLine;
@@ -43,12 +43,12 @@ public class ConcatFilesTask extends DefaultTask {
 
     private List<String> additionalLines = new ArrayList<>();
 
-    public void setFiles(FileTree files) {
+    public void setFiles(FileCollection files) {
         this.files = files;
     }
 
     @InputFiles
-    public FileTree getFiles() {
+    public FileCollection getFiles() {
         return files;
     }
 
@@ -83,13 +83,16 @@ public class ConcatFilesTask extends DefaultTask {
     @TaskAction
     public void concatFiles() throws IOException {
         if (getHeaderLine() != null) {
+            getTarget().getParentFile().mkdirs();
             Files.write(getTarget().toPath(), (getHeaderLine() + '\n').getBytes(StandardCharsets.UTF_8));
         }
 
         // To remove duplicate lines
         LinkedHashSet<String> uniqueLines = new LinkedHashSet<>();
         for (File f : getFiles()) {
-            uniqueLines.addAll(Files.readAllLines(f.toPath(), StandardCharsets.UTF_8));
+            if (f.exists()) {
+                uniqueLines.addAll(Files.readAllLines(f.toPath(), StandardCharsets.UTF_8));
+            }
         }
         Files.write(getTarget().toPath(), uniqueLines, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
 

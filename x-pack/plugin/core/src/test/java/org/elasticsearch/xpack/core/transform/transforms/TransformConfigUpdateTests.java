@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.AbstractWireSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
@@ -26,8 +26,13 @@ import java.util.Map;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomMetadata;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomRetentionPolicyConfig;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomSyncConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformConfigUpdateTests extends AbstractWireSerializingTransformTestCase<TransformConfigUpdate> {
 
@@ -39,7 +44,8 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomBoolean() ? null : randomSyncConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
-            randomBoolean() ? null : randomRetentionPolicyConfig()
+            randomBoolean() ? null : randomMetadata(),
+            randomBoolean() ? null : randomBoolean() ? randomRetentionPolicyConfig() : NullRetentionPolicyConfig.INSTANCE
         );
     }
 
@@ -56,7 +62,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
     public void testIsNoop() {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             TransformConfig config = randomTransformConfig();
-            TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null);
+            TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
             assertTrue("null update is not noop", update.isNoop(config));
             update = new TransformConfigUpdate(
                 config.getSource(),
@@ -65,6 +71,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
                 config.getSyncConfig(),
                 config.getDescription(),
                 config.getSettings(),
+                config.getMetadata(),
                 config.getRetentionPolicyConfig()
             );
             assertTrue("equal update is not noop", update.isNoop(config));
@@ -76,6 +83,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
                 config.getSyncConfig(),
                 "this is a new description",
                 config.getSettings(),
+                config.getMetadata(),
                 config.getRetentionPolicyConfig()
             );
             assertFalse("true update is noop", update.isNoop(config));
@@ -94,11 +102,12 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomNonEmptySettingsConfig(),
+            randomMetadata(),
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.V_7_2_0.toString()
         );
-        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null);
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
         assertThat(config, equalTo(update.apply(config)));
         SourceConfig sourceConfig = new SourceConfig("the_new_index");
@@ -106,7 +115,16 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         TimeValue frequency = TimeValue.timeValueSeconds(10);
         SyncConfig syncConfig = new TimeSyncConfig("time_field", TimeValue.timeValueSeconds(30));
         String newDescription = "new description";
-        SettingsConfig settings = new SettingsConfig(4_000, 4_000.400F, true, true);
+        SettingsConfig settings = new SettingsConfig.Builder().setMaxPageSearchSize(4_000)
+            .setRequestsPerSecond(4_000.400F)
+            .setDatesAsEpochMillis(true)
+            .setAlignCheckpoints(true)
+            .setUsePit(true)
+            .setDeduceMappings(true)
+            .setNumFailureRetries(10)
+            .setUnattended(true)
+            .build();
+        Map<String, Object> newMetadata = randomMetadata();
         RetentionPolicyConfig retentionPolicyConfig = new TimeRetentionPolicyConfig("time_field", new TimeValue(60_000));
         update = new TransformConfigUpdate(
             sourceConfig,
@@ -115,6 +133,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             syncConfig,
             newDescription,
             settings,
+            newMetadata,
             retentionPolicyConfig
         );
 
@@ -128,9 +147,45 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getSyncConfig(), equalTo(syncConfig));
         assertThat(updatedConfig.getDescription(), equalTo(newDescription));
         assertThat(updatedConfig.getSettings(), equalTo(settings));
+        // We only check for the existence of new entries. The map can also contain the old (random) entries.
+        assertThat(updatedConfig.getMetadata(), equalTo(newMetadata));
         assertThat(updatedConfig.getRetentionPolicyConfig(), equalTo(retentionPolicyConfig));
         assertThat(updatedConfig.getHeaders(), equalTo(headers));
         assertThat(updatedConfig.getVersion(), equalTo(Version.CURRENT));
+    }
+
+    public void testApplyRetentionPolicy() {
+        TransformConfig config = TransformConfigTests.randomTransformConfig();
+
+        RetentionPolicyConfig timeRetentionPolicyConfig = new TimeRetentionPolicyConfig("field", TimeValue.timeValueDays(1));
+        TransformConfigUpdate setRetentionPolicy = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            timeRetentionPolicyConfig
+        );
+        config = setRetentionPolicy.apply(config);
+        assertThat(config.getRetentionPolicyConfig(), is(equalTo(timeRetentionPolicyConfig)));
+
+        TransformConfigUpdate clearRetentionPolicy = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            NullRetentionPolicyConfig.INSTANCE
+        );
+        config = clearRetentionPolicy.apply(config);
+        assertThat(config.getRetentionPolicyConfig(), is(nullValue()));
+
+        config = setRetentionPolicy.apply(config);
+        assertThat(config.getRetentionPolicyConfig(), is(equalTo(timeRetentionPolicyConfig)));
     }
 
     public void testApplySettings() {
@@ -145,13 +200,22 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomNonEmptySettingsConfig(),
+            randomMetadata(),
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.V_7_2_0.toString()
         );
 
-        TransformConfigUpdate update =
-            new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(4_000, null, (Boolean) null, null), null);
+        TransformConfigUpdate update = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            new SettingsConfig.Builder().setMaxPageSearchSize(4_000).build(),
+            null,
+            null
+        );
         TransformConfig updatedConfig = update.apply(config);
 
         // for settings we allow partial updates, so changing 1 setting should not overwrite the other
@@ -161,7 +225,16 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
         assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
 
-        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(null, 43.244F, (Boolean) null, null), null);
+        update = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            new SettingsConfig.Builder().setRequestsPerSecond(43.244F).build(),
+            null,
+            null
+        );
         updatedConfig = update.apply(updatedConfig);
         assertThat(updatedConfig.getSettings().getMaxPageSearchSize(), equalTo(4_000));
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(43.244F));
@@ -169,19 +242,64 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
 
         // now reset to default using the magic -1
-        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, null, (Boolean) null, null), null);
+        update = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            new SettingsConfig.Builder().setMaxPageSearchSize(null).build(),
+            null,
+            null
+        );
         updatedConfig = update.apply(updatedConfig);
         assertNull(updatedConfig.getSettings().getMaxPageSearchSize());
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(43.244F));
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
         assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
 
-        update = new TransformConfigUpdate(null, null, null, null, null, new SettingsConfig(-1, -1F, (Boolean) null, null), null);
+        update = new TransformConfigUpdate(
+            null,
+            null,
+            null,
+            null,
+            null,
+            new SettingsConfig.Builder().setMaxPageSearchSize(null).setRequestsPerSecond(null).build(),
+            null,
+            null
+        );
         updatedConfig = update.apply(updatedConfig);
         assertNull(updatedConfig.getSettings().getMaxPageSearchSize());
         assertNull(updatedConfig.getSettings().getDocsPerSecond());
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
         assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
+    }
+
+    public void testApplyMetadata() {
+        Map<String, Object> oldMetadata = Map.of("foo", 123, "bar", 456);
+        TransformConfig config = new TransformConfig(
+            "time-transform",
+            randomSourceConfig(),
+            randomDestConfig(),
+            TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            randomSyncConfig(),
+            Collections.singletonMap("key", "value"),
+            PivotConfigTests.randomPivotConfig(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            SettingsConfigTests.randomNonEmptySettingsConfig(),
+            oldMetadata,
+            randomRetentionPolicyConfig(),
+            randomBoolean() ? null : Instant.now(),
+            randomBoolean() ? null : Version.V_7_2_0.toString()
+        );
+
+        Map<String, Object> newMetadata = Map.of("bar", 789, "baz", 1000);
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, newMetadata, null);
+        TransformConfig updatedConfig = update.apply(config);
+
+        // For metadata we apply full replace rather than partial update, so "foo" disappears.
+        assertThat(updatedConfig.getMetadata(), equalTo(Map.of("bar", 789, "baz", 1000)));
     }
 
     public void testApplyWithSyncChange() {
@@ -196,6 +314,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomNonEmptySettingsConfig(),
+            randomMetadata(),
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
@@ -206,6 +325,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             TimeSyncConfigTests.randomTimeSyncConfig(),
+            null,
             null,
             null,
             null
@@ -228,12 +348,13 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomNonEmptySettingsConfig(),
+            randomMetadata(),
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );
 
-        TransformConfigUpdate fooSyncUpdate = new TransformConfigUpdate(null, null, null, new FooSync(), null, null, null);
+        TransformConfigUpdate fooSyncUpdate = new TransformConfigUpdate(null, null, null, new FooSync(), null, null, null, null);
         ex = expectThrows(ElasticsearchStatusException.class, () -> fooSyncUpdate.apply(timeSyncedConfig));
         assertThat(
             ex.getMessage(),
@@ -273,21 +394,20 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         if (update.getSettings() != null) {
             builder.field(TransformField.SETTINGS.getPreferredName(), update.getSettings());
         }
+        if (update.getMetadata() != null) {
+            builder.field(TransformField.METADATA.getPreferredName(), update.getMetadata());
+        }
         if (update.getRetentionPolicyConfig() != null) {
-            builder.startObject(TransformField.RETENTION_POLICY.getPreferredName());
-            builder.field(update.getRetentionPolicyConfig().getWriteableName(), update.getRetentionPolicyConfig());
-            builder.endObject();
+            if (NullRetentionPolicyConfig.INSTANCE.equals(update.getRetentionPolicyConfig())) {
+                builder.nullField(TransformField.RETENTION_POLICY.getPreferredName());
+            } else {
+                builder.startObject(TransformField.RETENTION_POLICY.getPreferredName());
+                builder.field(update.getRetentionPolicyConfig().getWriteableName(), update.getRetentionPolicyConfig());
+                builder.endObject();
+            }
         }
 
         builder.endObject();
-    }
-
-    private static SyncConfig randomSyncConfig() {
-        return TimeSyncConfigTests.randomTimeSyncConfig();
-    }
-
-    private static RetentionPolicyConfig randomRetentionPolicyConfig() {
-        return TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig();
     }
 
     static class FooSync implements SyncConfig {

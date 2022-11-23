@@ -180,7 +180,7 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         assertEquals("", proc.process(withRandomWhitespaces(" \t  \r\n \n ", true, true)));
         assertEquals("foo bar", proc.process(withRandomWhitespaces("foo bar", true, false)));
         assertEquals("foo   bar", proc.process(withRandomWhitespaces("foo   bar", false, true)));
-        assertEquals("foo bar", proc.process(withRandomWhitespaces("foo bar",true, true)));
+        assertEquals("foo bar", proc.process(withRandomWhitespaces("foo bar", true, true)));
         assertEquals("foo \t \r\n \n bar", proc.process(withRandomWhitespaces("foo \t \r\n \n bar", true, true)));
         assertEquals("f", proc.process('f'));
 

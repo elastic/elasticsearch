@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 
-import javax.sql.DataSource;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -28,6 +27,8 @@ import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
+
+import javax.sql.DataSource;
 
 /**
  * Class handling debug logging. Typically disabled (hence why it's called debug).
@@ -93,8 +94,7 @@ final class Debug {
 
         if (statement instanceof CallableStatement) {
             i = CallableStatement.class;
-        }
-        else if (statement instanceof PreparedStatement) {
+        } else if (statement instanceof PreparedStatement) {
             i = PreparedStatement.class;
         }
 
@@ -201,8 +201,7 @@ final class Debug {
                             d.print.close();
                         }
                     }
-                }
-                else {
+                } else {
                     OUTPUT_REFS.put(out, Integer.valueOf(r - 1));
                 }
             }

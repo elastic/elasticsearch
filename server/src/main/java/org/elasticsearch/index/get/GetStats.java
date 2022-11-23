@@ -12,10 +12,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class GetStats implements Writeable, ToXContentFragment {
 
@@ -25,8 +26,7 @@ public class GetStats implements Writeable, ToXContentFragment {
     private long missingTimeInMillis;
     private long current;
 
-    public GetStats() {
-    }
+    public GetStats() {}
 
     public GetStats(StreamInput in) throws IOException {
         existsCount = in.readVLong();
@@ -138,5 +138,22 @@ public class GetStats implements Writeable, ToXContentFragment {
         out.writeVLong(missingCount);
         out.writeVLong(missingTimeInMillis);
         out.writeVLong(current);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetStats that = (GetStats) o;
+        return existsCount == that.existsCount
+            && existsTimeInMillis == that.existsTimeInMillis
+            && missingCount == that.missingCount
+            && missingTimeInMillis == that.missingTimeInMillis
+            && current == that.current;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(existsCount, existsTimeInMillis, missingCount, missingTimeInMillis, current);
     }
 }

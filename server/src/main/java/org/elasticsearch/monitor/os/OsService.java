@@ -13,9 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
@@ -28,14 +28,17 @@ public class OsService implements ReportingService<OsInfo> {
     private final OsInfo info;
     private final SingleObjectCache<OsStats> osStatsCache;
 
-    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.os.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
-                Property.NodeScope);
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "monitor.os.refresh_interval",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
 
     public OsService(Settings settings) throws IOException {
         this.probe = OsProbe.getInstance();
         TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
-        this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.allocatedProcessors(settings));
+        this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.nodeProcessors(settings));
         this.osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }
@@ -45,7 +48,7 @@ public class OsService implements ReportingService<OsInfo> {
         return this.info;
     }
 
-    public synchronized OsStats stats() {
+    public OsStats stats() {
         return osStatsCache.getOrRefresh();
     }
 

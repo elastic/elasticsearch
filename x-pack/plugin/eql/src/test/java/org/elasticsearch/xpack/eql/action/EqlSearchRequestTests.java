@@ -10,12 +10,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
@@ -25,24 +26,23 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 
 public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlSearchRequest> {
 
     // TODO: possibly add mutations
-    static String defaultTestFilter = "{\n" +
-        "   \"match\" : {\n" +
-        "       \"foo\": \"bar\"\n" +
-        "   }" +
-        "}";
+    static String defaultTestFilter = """
+        {
+           "match" : {
+               "foo": "bar"
+           }}""";
 
     static String defaultTestIndex = "endgame-*";
     boolean ccsMinimizeRoundtrips;
 
     @Before
-    public void setup() {
-    }
+    public void setup() {}
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -69,8 +69,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
             }
             QueryBuilder filter = parseFilter(defaultTestFilter);
             ccsMinimizeRoundtrips = randomBoolean();
-            return new EqlSearchRequest()
-                .indices(defaultTestIndex)
+            return new EqlSearchRequest().indices(defaultTestIndex)
                 .filter(filter)
                 .timestampField(randomAlphaOfLength(10))
                 .eventCategoryField(randomAlphaOfLength(10))
@@ -78,12 +77,20 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .size(randomInt(50))
                 .query(randomAlphaOfLength(10))
                 .ccsMinimizeRoundtrips(ccsMinimizeRoundtrips)
+                .waitForCompletionTimeout(randomTV())
+                .keepAlive(randomTV())
+                .keepOnCompletion(randomBoolean())
                 .fetchFields(randomFetchFields)
-                .runtimeMappings(randomRuntimeMappings());
+                .runtimeMappings(randomRuntimeMappings())
+                .resultPosition(randomFrom("tail", "head"));
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
         return null;
+    }
+
+    private TimeValue randomTV() {
+        return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
     }
 
     protected QueryBuilder parseFilter(String filter) throws IOException {
@@ -92,7 +99,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
     }
 
     protected QueryBuilder parseFilter(XContentParser parser) throws IOException {
-        QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
+        QueryBuilder parseInnerQueryBuilder = parseTopLevelQuery(parser);
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
     }
@@ -125,6 +132,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
         mutatedInstance.fetchFields(version.onOrAfter(Version.V_7_13_0) ? instance.fetchFields() : null);
         mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
+        mutatedInstance.resultPosition(version.onOrAfter(Version.V_7_17_8) ? instance.resultPosition() : "tail");
 
         return mutatedInstance;
     }

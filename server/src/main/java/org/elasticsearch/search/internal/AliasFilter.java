@@ -30,14 +30,22 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
 
-    public AliasFilter(QueryBuilder filter, String... aliases) {
+    private AliasFilter(QueryBuilder filter, String... aliases) {
         this.aliases = aliases == null ? Strings.EMPTY_ARRAY : aliases;
         this.filter = filter;
     }
 
-    public AliasFilter(StreamInput input) throws IOException {
-        aliases = input.readStringArray();
-        filter = input.readOptionalNamedWriteable(QueryBuilder.class);
+    public static AliasFilter of(QueryBuilder filter, String... aliases) {
+        if (filter == null && (aliases == null || aliases.length == 0)) {
+            return EMPTY;
+        }
+        return new AliasFilter(filter, aliases);
+    }
+
+    public static AliasFilter readFrom(StreamInput in) throws IOException {
+        final String[] aliases = in.readStringArray();
+        final QueryBuilder filter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        return of(filter, aliases);
     }
 
     @Override
@@ -78,8 +86,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AliasFilter that = (AliasFilter) o;
-        return Arrays.equals(aliases, that.aliases) &&
-            Objects.equals(filter, that.filter);
+        return Arrays.equals(aliases, that.aliases) && Objects.equals(filter, that.filter);
     }
 
     @Override
@@ -89,9 +96,6 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     @Override
     public String toString() {
-        return "AliasFilter{" +
-            "aliases=" + Arrays.toString(aliases) +
-            ", filter=" + filter +
-            '}';
+        return "AliasFilter{" + "aliases=" + Arrays.toString(aliases) + ", filter=" + filter + '}';
     }
 }

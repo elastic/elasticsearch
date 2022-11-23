@@ -55,8 +55,8 @@ public class GroupedActionListenerTests extends ESTestCase {
                     throw new AssertionError(e);
                 }
                 int c;
-                while((c = count.incrementAndGet()) <= groupSize) {
-                    listener.onResponse(c-1);
+                while ((c = count.incrementAndGet()) <= groupSize) {
+                    listener.onResponse(c - 1);
                 }
             });
             threads[i].start();

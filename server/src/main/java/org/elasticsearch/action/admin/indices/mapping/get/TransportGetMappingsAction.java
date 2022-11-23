@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -26,7 +25,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.concurrent.CancellationException;
+import java.util.Map;
 
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
 
@@ -35,27 +34,48 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     private final IndicesService indicesService;
 
     @Inject
-    public TransportGetMappingsAction(TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
-        super(GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest::new,
-                indexNameExpressionResolver, GetMappingsResponse::new);
+    public TransportGetMappingsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndicesService indicesService
+    ) {
+        super(
+            GetMappingsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetMappingsRequest::new,
+            indexNameExpressionResolver,
+            GetMappingsResponse::new
+        );
         this.indicesService = indicesService;
     }
 
     @Override
-    protected void doMasterOperation(Task task, final GetMappingsRequest request, String[] concreteIndices, final ClusterState state,
-                                     final ActionListener<GetMappingsResponse> listener) {
+    protected void doMasterOperation(
+        Task task,
+        final GetMappingsRequest request,
+        String[] concreteIndices,
+        final ClusterState state,
+        final ActionListener<GetMappingsResponse> listener
+    ) {
         logger.trace("serving getMapping request based on version {}", state.version());
         final Metadata metadata = state.metadata();
-        final ImmutableOpenMap<String, MappingMetadata> mappings =
-            metadata.findMappings(concreteIndices, indicesService.getFieldFilter(), () -> checkCancellation(task));
+        final Map<String, MappingMetadata> mappings = metadata.findMappings(
+            concreteIndices,
+            indicesService.getFieldFilter(),
+            () -> checkCancellation(task)
+        );
         listener.onResponse(new GetMappingsResponse(mappings));
     }
 
-    private void checkCancellation(Task task) {
-        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
-            throw new CancellationException("Task cancelled");
+    private static void checkCancellation(Task task) {
+        if (task instanceof CancellableTask cancellableTask) {
+            cancellableTask.ensureNotCancelled();
         }
     }
 }

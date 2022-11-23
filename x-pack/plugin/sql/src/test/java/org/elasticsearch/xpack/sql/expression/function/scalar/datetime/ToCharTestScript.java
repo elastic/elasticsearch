@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -64,8 +64,9 @@ public class ToCharTestScript {
     private static final List<String> FILL_MODIFIERS = asList("FM", "fm", "");
     private static final List<String> ORDINAL_SUFFIX_MODIFIERS = asList("TH", "th", "");
     // timezones that are valid both in Java and in Postgres
-    public static final List<String> TIMEZONES_TO_TEST =
-            readAllLinesWithoutComment(ToCharTestScript.class.getResource("tochar-test-timezones.txt"));
+    public static final List<String> TIMEZONES_TO_TEST = readAllLinesWithoutComment(
+        ToCharTestScript.class.getResource("tochar-test-timezones.txt")
+    );
 
     private final List<TestRecord> testRecords = new ArrayList<>();
     private final List<BigDecimal> testEpochSeconds = new ArrayList<>();
@@ -97,21 +98,27 @@ public class ToCharTestScript {
 
     private void patternsOneByOne() {
         for (String pattern : MATCHABLE_PATTERNS) {
-            testRecords.add(new TestRecord(
-                randomFromCollection(testEpochSeconds),
-                NOT_FULLY_MATCHABLE_PATTERNS.contains(pattern) ?
-                    pattern :
-                    String.join(PATTERN_DELIMITER, pattern, FILL_MODIFIERS.get(0) + pattern + ORDINAL_SUFFIX_MODIFIERS.get(0))));
+            testRecords.add(
+                new TestRecord(
+                    randomFromCollection(testEpochSeconds),
+                    NOT_FULLY_MATCHABLE_PATTERNS.contains(pattern)
+                        ? pattern
+                        : String.join(PATTERN_DELIMITER, pattern, FILL_MODIFIERS.get(0) + pattern + ORDINAL_SUFFIX_MODIFIERS.get(0))
+                )
+            );
         }
     }
 
     private void allPatternsTogether() {
         for (BigDecimal es : testEpochSeconds) {
-            testRecords.add(new TestRecord(
-                es,
-                IntStream.range(0, MATCHABLE_PATTERNS.size())
-                    .mapToObj(idx -> idx + ":" + patternWithRandomModifiers(MATCHABLE_PATTERNS.get(idx)))
-                    .collect(Collectors.joining(PATTERN_DELIMITER))));
+            testRecords.add(
+                new TestRecord(
+                    es,
+                    IntStream.range(0, MATCHABLE_PATTERNS.size())
+                        .mapToObj(idx -> idx + ":" + patternWithRandomModifiers(MATCHABLE_PATTERNS.get(idx)))
+                        .collect(Collectors.joining(PATTERN_DELIMITER))
+                )
+            );
         }
     }
 
@@ -127,9 +134,7 @@ public class ToCharTestScript {
 
     private void monthsAsRomanNumbers() {
         for (int i = 1; i <= 12; i++) {
-            testRecords.add(new TestRecord(
-                new BigDecimal(dateTime(0).withMonth(i).toEpochSecond()),
-                random.nextBoolean() ? "RM" : "rm"));
+            testRecords.add(new TestRecord(new BigDecimal(dateTime(0).withMonth(i).toEpochSecond()), random.nextBoolean() ? "RM" : "rm"));
         }
     }
 
@@ -140,20 +145,19 @@ public class ToCharTestScript {
         final int lengthOfRandomizedPattern = 50;
         final int pctChanceOfRandomCharacter = 80;
         for (int i = 0; i < randomizedPatternCount; i++) {
-            String patternWithLiterals = IntStream.rangeClosed(1, lengthOfRandomizedPattern)
-                    .mapToObj(idx -> {
-                        if (random.nextInt(100) < pctChanceOfRandomCharacter) {
-                            return randomCharacters.substring(random.nextInt(randomCharacters.length())).substring(0, 1);
-                        } else {
-                            return (randomFromCollection(FILL_MODIFIERS) + randomFromCollection(PATTERNS)
-                                + randomFromCollection(ORDINAL_SUFFIX_MODIFIERS));
-                        }})
-                    .collect(Collectors.joining());
+            String patternWithLiterals = IntStream.rangeClosed(1, lengthOfRandomizedPattern).mapToObj(idx -> {
+                if (random.nextInt(100) < pctChanceOfRandomCharacter) {
+                    return randomCharacters.substring(random.nextInt(randomCharacters.length())).substring(0, 1);
+                } else {
+                    return (randomFromCollection(FILL_MODIFIERS) + randomFromCollection(PATTERNS) + randomFromCollection(
+                        ORDINAL_SUFFIX_MODIFIERS
+                    ));
+                }
+            }).collect(Collectors.joining());
 
             // clean up the random string from the unsupported modifiers
             for (String unsupportedPatternModifier : Sets.union(UNSUPPORTED_PATTERN_MODIFIERS, NOT_FULLY_MATCHABLE_PATTERNS)) {
-                patternWithLiterals = patternWithLiterals
-                    .replace(unsupportedPatternModifier, "")
+                patternWithLiterals = patternWithLiterals.replace(unsupportedPatternModifier, "")
                     .replace(unsupportedPatternModifier.toLowerCase(Locale.ROOT), "");
             }
             testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), patternWithLiterals));
@@ -161,8 +165,9 @@ public class ToCharTestScript {
     }
 
     private BigDecimal randomSecondsWithFractions(int minYear, int maxYear) {
-        BigDecimal seconds =
-            new BigDecimal(RandomNumbers.randomLongBetween(random, (minYear - 1970) * SECONDS_IN_YEAR, (maxYear - 1970) * SECONDS_IN_YEAR));
+        BigDecimal seconds = new BigDecimal(
+            RandomNumbers.randomLongBetween(random, (minYear - 1970) * SECONDS_IN_YEAR, (maxYear - 1970) * SECONDS_IN_YEAR)
+        );
         BigDecimal fractions = new BigDecimal(RandomNumbers.randomIntBetween(random, 0, 999_999)).movePointLeft(6);
         return seconds.add(fractions);
     }
@@ -207,25 +212,29 @@ public class ToCharTestScript {
      * and update the test CSV file.
      */
     private String unitTestExporterScript() {
-        String header =
-            "\n\\echo #" +
-            "\n\\echo # DO NOT EDIT manually, was generated using " + ToCharTestScript.class.getName() +
-            "\n\\echo #\n\n";
+        String header = "\n\\echo #"
+            + "\n\\echo # DO NOT EDIT manually, was generated using "
+            + ToCharTestScript.class.getName()
+            + "\n\\echo #\n\n";
         String testCases = testRecords.stream().map(tc -> {
             long seconds = tc.secondsAndFractionsSinceEpoch.longValue();
             BigDecimal fractions = tc.secondsAndFractionsSinceEpoch.remainder(BigDecimal.ONE).movePointRight(6);
-            return String.format(Locale.ROOT,
+            return String.format(
+                Locale.ROOT,
                 "SET TIME ZONE '%6$s';\n"
                     + "\\copy (SELECT %1$s as epoch_seconds_and_microsends, '%5$s' as zone_id, '%4$s' as format_string, "
                     + "(TO_TIMESTAMP(%2$d) + INTERVAL '%3$d microseconds') as to_timestamp_result, "
                     + "TO_CHAR((TO_TIMESTAMP(%2$d) + INTERVAL '%3$d microseconds'), '%4$s') as to_char_result) to stdout "
-                    + "with DELIMITER as '" + DELIMITER + "' NULL as '' csv \n",
+                    + "with DELIMITER as '"
+                    + DELIMITER
+                    + "' NULL as '' csv \n",
                 tc.secondsAndFractionsSinceEpoch.toPlainString(),
                 seconds,
                 fractions.intValue(),
                 tc.formatString,
                 tc.zoneId,
-                adjustZoneIdToPostgres(tc.zoneId));
+                adjustZoneIdToPostgres(tc.zoneId)
+            );
         }).collect(Collectors.joining("\n"));
         return header + testCases;
     }

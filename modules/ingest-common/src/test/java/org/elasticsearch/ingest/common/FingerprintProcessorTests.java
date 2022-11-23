@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.security.MessageDigest;
@@ -227,7 +227,7 @@ public class FingerprintProcessorTests extends ESTestCase {
         MessageDigest md = MessageDigest.getInstance(FingerprintProcessor.Factory.DEFAULT_METHOD);
         expectedBytes = md.digest(expectedBytes);
 
-        var input = new IngestDocument(inputMap, Map.of());
+        var input = TestIngestDocument.withDefaultVersion(inputMap);
         var output = fp.execute(input);
         assertTrue(output.hasField("fingerprint"));
         String fingerprint = output.getFieldValue("fingerprint", String.class);
@@ -257,7 +257,7 @@ public class FingerprintProcessorTests extends ESTestCase {
             config.put("method", FingerprintProcessor.Factory.SUPPORTED_DIGESTS[k]);
 
             FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config);
-            var input = new IngestDocument(inputMap, Map.of());
+            var input = TestIngestDocument.withDefaultVersion(inputMap);
             var output = fp.execute(input);
             assertTrue(output.hasField("fingerprint"));
             String fingerprint = output.getFieldValue("fingerprint", String.class);
@@ -394,7 +394,7 @@ public class FingerprintProcessorTests extends ESTestCase {
             expectedBytes = concatBytes(expectedBytes, toBytes(value));
         }
 
-        var input = new IngestDocument(inputMap, Map.of());
+        var input = TestIngestDocument.withDefaultVersion(inputMap);
         var output = fp.execute(input);
         var hasher = (TestHasher) threadLocalHasher.get();
         assertThat(hasher.getBytesSeen(), equalTo(expectedBytes));

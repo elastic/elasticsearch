@@ -10,13 +10,12 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * A request builder for multiple search requests.
  */
 public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse> {
-
 
     public MultiSearchRequestBuilder(ElasticsearchClient client, MultiSearchAction action) {
         super(client, action, new MultiSearchRequest());
@@ -45,7 +44,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      */
     public MultiSearchRequestBuilder add(SearchRequestBuilder request) {
         if (request.request().indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS)
-                && request().indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
+            && request().indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
             request.request().indicesOptions(request().indicesOptions());
         }
 

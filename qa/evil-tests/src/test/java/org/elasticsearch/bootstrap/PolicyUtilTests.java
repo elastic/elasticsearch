@@ -9,7 +9,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -52,7 +52,7 @@ public class PolicyUtilTests extends ESTestCase {
 
     Path makeDummyPlugin(String policy, String... files) throws IOException {
         Path plugin = createTempDir();
-        Files.copy(this.getDataPath(policy), plugin.resolve(PluginInfo.ES_PLUGIN_POLICY));
+        Files.copy(this.getDataPath(policy), plugin.resolve(PluginDescriptor.ES_PLUGIN_POLICY));
         for (String file : files) {
             Files.createFile(plugin.resolve(file));
         }
@@ -70,11 +70,7 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     public void testCodebaseJarMap() throws Exception {
-        Set<URL> urls = new LinkedHashSet<>(List.of(
-            makeUrl("file:///foo.jar"),
-            makeUrl("file:///bar.txt"),
-            makeUrl("file:///a/bar.jar")
-        ));
+        Set<URL> urls = new LinkedHashSet<>(List.of(makeUrl("file:///foo.jar"), makeUrl("file:///bar.txt"), makeUrl("file:///a/bar.jar")));
 
         Map<String, URL> jarMap = PolicyUtil.getCodebaseJarMap(urls);
         assertThat(jarMap, hasKey("foo.jar"));
@@ -93,23 +89,20 @@ public class PolicyUtilTests extends ESTestCase {
     public void testPluginPolicyInfoNoJars() throws Exception {
         Path noJarsPlugin = makeDummyPlugin("dummy.policy");
         PluginPolicyInfo info = PolicyUtil.readPolicyInfo(noJarsPlugin);
-        assertThat(info.policy, is(not(nullValue())));
-        assertThat(info.jars, emptyIterable());
+        assertThat(info.policy(), is(not(nullValue())));
+        assertThat(info.jars(), emptyIterable());
     }
 
     public void testPluginPolicyInfo() throws Exception {
-        Path plugin = makeDummyPlugin("dummy.policy",
-            "foo.jar", "foo.txt", "bar.jar");
+        Path plugin = makeDummyPlugin("dummy.policy", "foo.jar", "foo.txt", "bar.jar");
         PluginPolicyInfo info = PolicyUtil.readPolicyInfo(plugin);
-        assertThat(info.policy, is(not(nullValue())));
-        assertThat(info.jars, containsInAnyOrder(
-            plugin.resolve("foo.jar").toUri().toURL(),
-            plugin.resolve("bar.jar").toUri().toURL()));
+        assertThat(info.policy(), is(not(nullValue())));
+        assertThat(info.jars(), containsInAnyOrder(plugin.resolve("foo.jar").toUri().toURL(), plugin.resolve("bar.jar").toUri().toURL()));
     }
 
     public void testPolicyMissingCodebaseProperty() throws Exception {
         Path plugin = makeDummyPlugin("missing-codebase.policy", "foo.jar");
-        URL policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY).toUri().toURL();
+        URL policyFile = plugin.resolve(PluginDescriptor.ES_PLUGIN_POLICY).toUri().toURL();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PolicyUtil.readPolicy(policyFile, Map.of()));
         assertThat(e.getMessage(), containsString("Unknown codebases [codebase.doesnotexist] in policy file"));
     }
@@ -120,15 +113,14 @@ public class PolicyUtilTests extends ESTestCase {
         try {
             URL jarUrl = plugin.resolve("foo.jar").toUri().toURL();
             setProperty("jarUrl", jarUrl.toString());
-            URL policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY).toUri().toURL();
+            URL policyFile = plugin.resolve(PluginDescriptor.ES_PLUGIN_POLICY).toUri().toURL();
             Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
 
             Set<Permission> globalPermissions = PolicyUtil.getPolicyPermissions(null, policy, tmpDir);
             assertThat(globalPermissions, contains(new RuntimePermission("queuePrintJob")));
 
             Set<Permission> jarPermissions = PolicyUtil.getPolicyPermissions(jarUrl, policy, tmpDir);
-            assertThat(jarPermissions,
-                containsInAnyOrder(new RuntimePermission("getClassLoader"), new RuntimePermission("queuePrintJob")));
+            assertThat(jarPermissions, containsInAnyOrder(new RuntimePermission("getClassLoader"), new RuntimePermission("queuePrintJob")));
         } finally {
             clearProperty("jarUrl");
         }
@@ -152,7 +144,7 @@ public class PolicyUtilTests extends ESTestCase {
         policyString.append(";\n};");
 
         logger.info(policyString.toString());
-        Files.writeString(plugin.resolve(PluginInfo.ES_PLUGIN_POLICY), policyString.toString());
+        Files.writeString(plugin.resolve(PluginDescriptor.ES_PLUGIN_POLICY), policyString.toString());
 
         return plugin;
     }
@@ -185,9 +177,11 @@ public class PolicyUtilTests extends ESTestCase {
     void assertIllegalPermission(String clazz, String name, String actions, Path tmpDir, PolicyParser parser) throws Exception {
         // global policy
         final Path globalPlugin = makeSinglePermissionPlugin(null, clazz, name, actions);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             "Permission (" + clazz + " " + name + (actions == null ? "" : (" " + actions)) + ") should be illegal",
-            () -> parser.parse(globalPlugin, tmpDir)); // no error
+            () -> parser.parse(globalPlugin, tmpDir)
+        ); // no error
         assertThat(e.getMessage(), containsString("contains illegal permission"));
         assertThat(e.getMessage(), containsString("in global grant"));
 
@@ -253,6 +247,7 @@ public class PolicyUtilTests extends ESTestCase {
         "javax.management.MBeanPermission * setAttribute",
         "javax.management.MBeanPermission * unregisterMBean",
         "javax.management.MBeanServerPermission *",
+        "javax.management.MBeanTrustPermission register",
         "javax.security.auth.AuthPermission doAs",
         "javax.security.auth.AuthPermission doAsPrivileged",
         "javax.security.auth.AuthPermission getSubject",
@@ -290,7 +285,8 @@ public class PolicyUtilTests extends ESTestCase {
         "java.io.FilePermission /foo/bar write",
         "java.lang.RuntimePermission createClassLoader",
         "java.lang.RuntimePermission getFileStoreAttributes",
-        "java.lang.RuntimePermission accessUserInformation"
+        "java.lang.RuntimePermission accessUserInformation",
+        "org.elasticsearch.secure_sm.ThreadPermission modifyArbitraryThreadGroup"
     );
 
     public void testModulePolicyAllowedPermissions() throws Exception {

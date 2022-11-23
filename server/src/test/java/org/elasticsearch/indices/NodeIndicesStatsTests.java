@@ -8,8 +8,8 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collections;
 
@@ -19,13 +19,14 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class NodeIndicesStatsTests extends ESTestCase {
 
     public void testInvalidLevel() {
-        final NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap());
+        final NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), Collections.emptyMap());
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContent(null, params));
         assertThat(
             e,
-            hasToString(containsString("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]")));
+            hasToString(containsString("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]"))
+        );
     }
 
 }

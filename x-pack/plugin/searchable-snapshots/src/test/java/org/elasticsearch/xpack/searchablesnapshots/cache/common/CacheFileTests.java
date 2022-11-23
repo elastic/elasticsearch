@@ -7,8 +7,11 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -20,31 +23,39 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.FSyncT
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
+@LuceneTestCase.SuppressFileSystems("DisableFsyncFS") // required by {@link testCacheFileCreatedAsSparseFile()}
 public class CacheFileTests extends ESTestCase {
 
     private static final CacheFile.ModificationListener NOOP = new CacheFile.ModificationListener() {
@@ -57,7 +68,8 @@ public class CacheFileTests extends ESTestCase {
 
     private static final CacheKey CACHE_KEY = new CacheKey("_snap_uuid", "_snap_index", new ShardId("_name", "_uuid", 0), "_filename");
 
-    public void testGetCacheKey() throws Exception {
+    public void testGetCacheKey() {
+        final Path file = createTempDir().resolve("file.new");
         final CacheKey cacheKey = new CacheKey(
             UUIDs.randomBase64UUID(random()),
             randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
@@ -65,7 +77,7 @@ public class CacheFileTests extends ESTestCase {
             randomAlphaOfLength(105).toLowerCase(Locale.ROOT)
         );
 
-        final CacheFile cacheFile = new CacheFile(cacheKey, randomLongBetween(1, 100), createTempFile(), NOOP);
+        final CacheFile cacheFile = new CacheFile(cacheKey, randomLongBetween(1, 100), file, NOOP);
         assertThat(cacheFile.getCacheKey(), sameInstance(cacheKey));
     }
 
@@ -379,6 +391,93 @@ public class CacheFileTests extends ESTestCase {
         }
     }
 
+    private static void assumeLinux64bitsOrWindows() {
+        assumeTrue(
+            "This test uses native methods implemented only for Windows & Linux 64bits",
+            Constants.WINDOWS || Constants.LINUX && Constants.JRE_IS_64BIT
+        );
+    }
+
+    public void testCacheFileCreatedAsSparseFile() throws Exception {
+        assumeLinux64bitsOrWindows();
+        final long fourKb = 4096L;
+        final long oneMb = 1 << 20;
+
+        final Path file = createTempDir().resolve(UUIDs.randomBase64UUID(random()));
+        final CacheFile cacheFile = new CacheFile(
+            new CacheKey("_snap_uuid", "_snap_name", new ShardId("_name", "_uid", 0), "_filename"),
+            randomLongBetween(fourKb, oneMb),
+            file,
+            NOOP
+        );
+        assertFalse(Files.exists(file));
+
+        final TestEvictionListener listener = new TestEvictionListener();
+        cacheFile.acquire(listener);
+        try {
+            final FileChannel fileChannel = cacheFile.getChannel();
+            assertTrue(Files.exists(file));
+
+            OptionalLong sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            assertTrue(sizeOnDisk.isPresent());
+            assertThat(sizeOnDisk.getAsLong(), equalTo(0L));
+
+            // write 1 byte at the last position in the cache file.
+            // For non sparse files, Windows would allocate the full file on disk in order to write a single byte at the end,
+            // making the next assertion fails.
+            fill(fileChannel, Math.toIntExact(cacheFile.getLength() - 1L), Math.toIntExact(cacheFile.getLength()));
+            fileChannel.force(false);
+
+            sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            assertTrue(sizeOnDisk.isPresent());
+            assertThat(
+                "Cache file should be sparse and not fully allocated on disk",
+                sizeOnDisk.getAsLong(),
+                allOf(greaterThan(0L), lessThan(oneMb))
+            );
+
+            // on Linux we can infer the filesystem's block size if only 1 byte was written,
+            // but this is not always right with encryption at rest using dmcrypt
+            final long blockSize = Constants.LINUX && noEncryptionAtRest(file) ? sizeOnDisk.getAsLong() : 0L;
+
+            fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
+            fileChannel.force(false);
+
+            sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            assertTrue(sizeOnDisk.isPresent());
+            assertThat(
+                "Cache file should be fully allocated on disk (maybe more given cluster/block size)",
+                sizeOnDisk.getAsLong(),
+                greaterThanOrEqualTo(cacheFile.getLength())
+            );
+
+            if (blockSize > 0L) {
+                final long nbBlocks = (cacheFile.getLength() + blockSize - 1) / blockSize; // ceil(cacheFile.getLength() / blockSize)
+                final long expectedSize = nbBlocks * blockSize;
+                assertThat(
+                    "Cache file size mismatches (block size: "
+                        + blockSize
+                        + ", number of blocks: "
+                        + nbBlocks
+                        + ", file length: "
+                        + cacheFile.getLength()
+                        + ')',
+                    sizeOnDisk.getAsLong(),
+                    equalTo(expectedSize)
+                );
+            }
+        } finally {
+            cacheFile.release(listener);
+        }
+    }
+
+    /**
+     * @return true when no encryption at rest is in use (best effort method)
+     */
+    private static boolean noEncryptionAtRest(Path path) {
+        return path.toAbsolutePath().toString().contains("/mnt/secret") == false;
+    }
+
     static class TestEvictionListener implements EvictionListener {
 
         private final SetOnce<CacheFile> evicted = new SetOnce<>();
@@ -438,5 +537,25 @@ public class CacheFileTests extends ESTestCase {
         final FSyncTrackingFileSystemProvider provider = new FSyncTrackingFileSystemProvider(defaultFileSystem, createTempDir());
         PathUtilsForTesting.installMock(provider.getFileSystem(null));
         return provider;
+    }
+
+    private static void fill(FileChannel fileChannel, int from, int to) {
+        final byte[] buffer = new byte[Math.min(Math.max(0, to - from), 1024)];
+        Arrays.fill(buffer, (byte) 0xff);
+        assert fileChannel.isOpen();
+
+        try {
+            int written = 0;
+            int remaining = to - from;
+            while (remaining > 0) {
+                final int len = Math.min(remaining, buffer.length);
+                fileChannel.write(ByteBuffer.wrap(buffer, 0, len), from + written);
+                remaining -= len;
+                written += len;
+            }
+            assert written == to - from;
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 }

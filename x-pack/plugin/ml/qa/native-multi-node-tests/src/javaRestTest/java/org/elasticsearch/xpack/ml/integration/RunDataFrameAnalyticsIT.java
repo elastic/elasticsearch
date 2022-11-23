@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -14,21 +15,22 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -58,7 +60,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetectionWithFewDocuments() throws Exception {
         String sourceIndex = "test-outlier-detection-with-few-docs";
 
-        client().admin().indices().prepareCreate(sourceIndex)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
             .get();
 
@@ -80,8 +84,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_few_docs";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
-            new OutlierDetection.Builder().build());
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            null,
+            new OutlierDetection.Builder().build()
+        );
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -129,7 +138,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
-        assertThatAuditMessagesMatch(id,
+        assertThatAuditMessagesMatch(
+            id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
             "Starting analytics on node",
@@ -140,13 +150,16 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started loading data",
             "Started analyzing",
             "Started writing results",
-            "Finished analysis");
+            "Finished analysis"
+        );
     }
 
     public void testPreview() throws Exception {
         String sourceIndex = "test-outlier-detection-preview";
 
-        client().admin().indices().prepareCreate(sourceIndex)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
             .get();
 
@@ -168,8 +181,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_preview";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
-            new OutlierDetection.Builder().build());
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            null,
+            new OutlierDetection.Builder().build()
+        );
         putAnalytics(config);
         List<Map<String, Object>> preview = previewDataFrame(id).getFeatureValues();
         for (Map<String, Object> feature : preview) {
@@ -181,7 +199,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
         String sourceIndex = "test-outlier-detection-with-enough-docs-to-scroll";
 
-        client().admin().indices().prepareCreate(sourceIndex)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -200,8 +220,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_enough_docs_to_scroll";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
-            new OutlierDetection.Builder().build());
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            "custom_ml",
+            new OutlierDetection.Builder().build()
+        );
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -217,12 +242,14 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         // Check they all have an outlier_score
         searchResponse = client().prepareSearch(config.getDest().getIndex())
             .setTrackTotalHits(true)
-            .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
+            .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score"))
+            .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
 
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
-        assertThatAuditMessagesMatch(id,
+        assertThatAuditMessagesMatch(
+            id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
             "Starting analytics on node",
@@ -233,7 +260,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started loading data",
             "Started analyzing",
             "Started writing results",
-            "Finished analysis");
+            "Finished analysis"
+        );
     }
 
     public void testOutlierDetectionWithMoreFieldsThanDocValueFieldLimit() throws Exception {
@@ -248,7 +276,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         GetSettingsResponse docValueLimitSetting = client().admin().indices().getSettings(getSettingsRequest).actionGet();
         int docValueLimit = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(
-            docValueLimitSetting.getIndexToSettings().values().iterator().next().value);
+            docValueLimitSetting.getIndexToSettings().values().iterator().next()
+        );
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -274,8 +303,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_more_fields_than_docvalue_limit";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
-            new OutlierDetection.Builder().build());
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            null,
+            new OutlierDetection.Builder().build()
+        );
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -306,7 +340,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
-        assertThatAuditMessagesMatch(id,
+        assertThatAuditMessagesMatch(
+            id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
             "Starting analytics on node",
@@ -317,13 +352,16 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started loading data",
             "Started analyzing",
             "Started writing results",
-            "Finished analysis");
+            "Finished analysis"
+        );
     }
 
     public void testStopOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
         String sourceIndex = "test-stop-outlier-detection-with-enough-docs-to-scroll";
 
-        client().admin().indices().prepareCreate(sourceIndex)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -342,8 +380,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_stop_outlier_detection_with_enough_docs_to_scroll";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
-            new OutlierDetection.Builder().build());
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            "custom_ml",
+            new OutlierDetection.Builder().build()
+        );
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -361,20 +404,23 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         if (searchResponse.getHits().getTotalHits().value == docCount) {
             searchResponse = client().prepareSearch(config.getDest().getIndex())
                 .setTrackTotalHits(true)
-                .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
+                .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score"))
+                .get();
             logger.debug("We stopped during analysis: [{}] < [{}]", searchResponse.getHits().getTotalHits().value, docCount);
             assertThat(searchResponse.getHits().getTotalHits().value, lessThan((long) docCount));
         } else {
             logger.debug("We stopped during reindexing: [{}] < [{}]", searchResponse.getHits().getTotalHits().value, docCount);
         }
 
-        assertThatAuditMessagesMatch(id,
+        assertThatAuditMessagesMatch(
+            id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-stop-outlier-detection-with-enough-docs-to-scroll-results]",
-            "Stopped analytics");
+            "Stopped analytics"
+        );
     }
 
     public void testOutlierDetectionWithMultipleSourceIndices() throws Exception {
@@ -383,11 +429,15 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String destIndex = "test-outlier-detection-with-multiple-source-indices-results";
         String[] sourceIndex = new String[] { sourceIndex1, sourceIndex2 };
 
-        client().admin().indices().prepareCreate(sourceIndex1)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex1)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        client().admin().indices().prepareCreate(sourceIndex2)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex2)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -407,8 +457,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_multiple_source_indices";
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setId(id)
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(id)
             .setSource(new DataFrameAnalyticsSource(sourceIndex, null, null, null))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
             .setAnalysis(new OutlierDetection.Builder().build())
@@ -428,12 +477,14 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         // Check they all have an outlier_score
         searchResponse = client().prepareSearch(config.getDest().getIndex())
             .setTrackTotalHits(true)
-            .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
+            .setQuery(QueryBuilders.existsQuery("ml.outlier_score"))
+            .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
 
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
-        assertThatAuditMessagesMatch(id,
+        assertThatAuditMessagesMatch(
+            id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
             "Starting analytics on node",
@@ -444,18 +495,23 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started loading data",
             "Started analyzing",
             "Started writing results",
-            "Finished analysis");
+            "Finished analysis"
+        );
     }
 
     public void testOutlierDetectionWithPreExistingDestIndex() throws Exception {
         String sourceIndex = "test-outlier-detection-with-pre-existing-dest-index";
         String destIndex = "test-outlier-detection-with-pre-existing-dest-index-results";
 
-        client().admin().indices().prepareCreate(sourceIndex)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        client().admin().indices().prepareCreate(destIndex)
+        client().admin()
+            .indices()
+            .prepareCreate(destIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -489,12 +545,14 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         // Check they all have an outlier_score
         searchResponse = client().prepareSearch(config.getDest().getIndex())
             .setTrackTotalHits(true)
-            .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
+            .setQuery(QueryBuilders.existsQuery("ml.outlier_score"))
+            .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
 
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
-        assertThatAuditMessagesMatch(id,
+        assertThatAuditMessagesMatch(
+            id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
             "Starting analytics on node",
@@ -505,21 +563,22 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started loading data",
             "Started analyzing",
             "Started writing results",
-            "Finished analysis");
+            "Finished analysis"
+        );
     }
 
     public void testModelMemoryLimitLowerThanEstimatedMemoryUsage() throws Exception {
         String sourceIndex = "test-model-memory-limit";
 
-        client().admin().indices().prepareCreate(sourceIndex)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
             .setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword")
             .get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10000; i++) {  // This number of rows should make memory usage estimate greater than 1MB
-            IndexRequest indexRequest = new IndexRequest(sourceIndex)
-                .id("doc_" + i)
-                .source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).id("doc_" + i).source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -529,8 +588,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         String id = "test_model_memory_limit_lower_than_estimated_memory_usage";
         ByteSizeValue modelMemoryLimit = ByteSizeValue.ofMb(1);
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setId(id)
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(id)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, null))
             .setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", null))
             .setAnalysis(new OutlierDetection.Builder().build())
@@ -539,7 +597,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         putAnalytics(config);
         assertIsStopped(id);
-        //should not throw
+        // should not throw
         startAnalytics(id);
         waitUntilAnalyticsIsFailed(id);
         forceStopAnalytics(id);
@@ -549,14 +607,14 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testLazyAssignmentWithModelMemoryLimitTooHighForAssignment() throws Exception {
         String sourceIndex = "test-lazy-assign-model-memory-limit-too-high";
 
-        client().admin().indices().prepareCreate(sourceIndex)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
             .setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword")
             .get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        IndexRequest indexRequest = new IndexRequest(sourceIndex)
-            .id("doc_1")
-            .source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
+        IndexRequest indexRequest = new IndexRequest(sourceIndex).id("doc_1").source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
         bulkRequestBuilder.add(indexRequest);
         BulkResponse bulkResponse = bulkRequestBuilder.get();
         if (bulkResponse.hasFailures()) {
@@ -566,8 +624,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_lazy_assign_model_memory_limit_too_high";
         // Assuming a 1TB job will never fit on the test machine - increase this when machines get really big!
         ByteSizeValue modelMemoryLimit = ByteSizeValue.ofTb(1);
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setId(id)
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(id)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, null))
             .setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", null))
             .setAnalysis(new OutlierDetection.Builder().build())
@@ -592,18 +649,22 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         stopAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
 
-        assertThatAuditMessagesMatch(id,
+        assertThatAuditMessagesMatch(
+            id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
-            "No node found to start analytics. Reasons [persistent task is awaiting node assignment.]",
+            "Job requires at least [1tb] free memory on a machine learning node to run",
             "Started analytics",
-            "Stopped analytics");
+            "Stopped analytics"
+        );
     }
 
     public void testOutlierDetectionStopAndRestart() throws Exception {
         String sourceIndex = "test-outlier-detection-stop-and-restart";
 
-        client().admin().indices().prepareCreate(sourceIndex)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -622,8 +683,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_stop_and_restart";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
-            new OutlierDetection.Builder().build());
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            "custom_ml",
+            new OutlierDetection.Builder().build()
+        );
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -656,7 +722,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         // Check they all have an outlier_score
         searchResponse = client().prepareSearch(config.getDest().getIndex())
             .setTrackTotalHits(true)
-            .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
+            .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score"))
+            .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
 
         assertProgressComplete(id);
@@ -666,7 +733,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetectionWithCustomParams() throws Exception {
         String sourceIndex = "test-outlier-detection-with-custom-params";
 
-        client().admin().indices().prepareCreate(sourceIndex)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -688,15 +757,19 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_custom_params";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
-            new OutlierDetection.Builder()
-                .setNNeighbors(3)
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            null,
+            new OutlierDetection.Builder().setNNeighbors(3)
                 .setMethod(OutlierDetection.Method.DISTANCE_KNN)
                 .setFeatureInfluenceThreshold(0.01)
                 .setComputeFeatureInfluence(false)
                 .setOutlierFraction(0.04)
                 .setStandardizationEnabled(true)
-                .build());
+                .build()
+        );
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -741,7 +814,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
-        assertThatAuditMessagesMatch(id,
+        assertThatAuditMessagesMatch(
+            id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
             "Starting analytics on node",
@@ -752,18 +826,28 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started loading data",
             "Started analyzing",
             "Started writing results",
-            "Finished analysis");
+            "Finished analysis"
+        );
     }
 
     public void testOutlierDetection_GivenIndexWithRuntimeFields() throws Exception {
         String sourceIndex = "test-outlier-detection-with-index-with-runtime-fields";
 
-        String mappings = "{\"dynamic\":false, \"runtime\": { \"runtime_numeric\": " +
-            "{ \"type\": \"double\", \"script\": { \"source\": \"emit(params._source.numeric)\", \"lang\": \"painless\" } } }}";
+        String mappings = """
+            {
+              "dynamic": false,
+              "runtime": {
+                "runtime_numeric": {
+                  "type": "double",
+                  "script": {
+                    "source": "emit(params._source.numeric)",
+                    "lang": "painless"
+                  }
+                }
+              }
+            }""";
 
-        client().admin().indices().prepareCreate(sourceIndex)
-            .setMapping(mappings)
-            .get();
+        client().admin().indices().prepareCreate(sourceIndex).setMapping(mappings).get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -783,8 +867,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_index_with_runtime_mappings";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
-            new OutlierDetection.Builder().build());
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            null,
+            new OutlierDetection.Builder().build()
+        );
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -837,7 +926,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
-        assertThatAuditMessagesMatch(id,
+        assertThatAuditMessagesMatch(
+            id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
             "Starting analytics on node",
@@ -848,7 +938,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started loading data",
             "Started analyzing",
             "Started writing results",
-            "Finished analysis");
+            "Finished analysis"
+        );
     }
 
     public void testOutlierDetection_GivenSearchRuntimeMappings() throws Exception {
@@ -856,9 +947,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         String mappings = "{\"enabled\": false}";
 
-        client().admin().indices().prepareCreate(sourceIndex)
-            .setMapping(mappings)
-            .get();
+        client().admin().indices().prepareCreate(sourceIndex).setMapping(mappings).get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -885,8 +974,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         numericFieldRuntimeMapping.put("script", "emit(params._source.numeric)");
         runtimeMappings.put("runtime_numeric", numericFieldRuntimeMapping);
 
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setId(id)
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(id)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, runtimeMappings))
             .setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", null))
             .setAnalysis(new OutlierDetection.Builder().build())
@@ -943,7 +1031,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
-        assertThatAuditMessagesMatch(id,
+        assertThatAuditMessagesMatch(
+            id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
             "Starting analytics on node",
@@ -954,7 +1043,47 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started loading data",
             "Started analyzing",
             "Started writing results",
-            "Finished analysis");
+            "Finished analysis"
+        );
+    }
+
+    public void testStart_GivenTimeout_Returns408() throws Exception {
+        String sourceIndex = "test-timeout-returns-408-data";
+
+        client().admin().indices().prepareCreate(sourceIndex).setMapping("numeric_1", "type=integer", "numeric_2", "type=integer").get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (int i = 0; i < 5; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            indexRequest.id(String.valueOf(i));
+            indexRequest.source("numeric_1", randomInt(), "numeric_2", randomInt());
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test-timeout-returns-408";
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            null,
+            new OutlierDetection.Builder().build()
+        );
+        putAnalytics(config);
+
+        StartDataFrameAnalyticsAction.Request request = new StartDataFrameAnalyticsAction.Request(id);
+        request.setTimeout(TimeValue.timeValueNanos(1L));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> client().execute(StartDataFrameAnalyticsAction.INSTANCE, request).actionGet()
+        );
+
+        assertThat(e.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
     }
 
     @Override

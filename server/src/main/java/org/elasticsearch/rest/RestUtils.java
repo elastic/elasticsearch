@@ -8,9 +8,9 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.core.Booleans;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -25,12 +25,7 @@ public class RestUtils {
      */
     private static final boolean DECODE_PLUS_AS_SPACE = Booleans.parseBoolean(System.getProperty("es.rest.url_plus_as_space", "false"));
 
-    public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
-        @Override
-        public String decode(String value) {
-            return RestUtils.decodeComponent(value);
-        }
-    };
+    public static final PathTrie.Decoder REST_DECODER = RestUtils::decodeComponent;
 
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {
@@ -178,9 +173,8 @@ public class RestUtils {
                     final char c2 = decodeHexNibble(s.charAt(++i));
                     if (c == Character.MAX_VALUE || c2 == Character.MAX_VALUE) {
                         throw new IllegalArgumentException(
-                            "invalid escape sequence `%" + s.charAt(i - 1)
-                                + s.charAt(i) + "' at index " + (i - 2)
-                                + " of: " + s);
+                            "invalid escape sequence `%" + s.charAt(i - 1) + s.charAt(i) + "' at index " + (i - 2) + " of: " + s
+                        );
                     }
                     c = (char) (c * 16 + c2);
                     // Fall through.
@@ -225,7 +219,7 @@ public class RestUtils {
         boolean isRegex = len > 2 && corsSetting.startsWith("/") && corsSetting.endsWith("/");
 
         if (isRegex) {
-            return Pattern.compile(corsSetting.substring(1, corsSetting.length()-1));
+            return Pattern.compile(corsSetting.substring(1, corsSetting.length() - 1));
         }
 
         return null;
@@ -242,9 +236,6 @@ public class RestUtils {
         if (Strings.isNullOrEmpty(corsSetting)) {
             return new String[0];
         }
-        return Arrays.asList(corsSetting.split(","))
-                     .stream()
-                     .map(String::trim)
-                     .toArray(size -> new String[size]);
+        return Arrays.asList(corsSetting.split(",")).stream().map(String::trim).toArray(size -> new String[size]);
     }
 }

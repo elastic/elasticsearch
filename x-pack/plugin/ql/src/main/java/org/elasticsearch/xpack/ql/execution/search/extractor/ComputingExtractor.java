@@ -91,8 +91,7 @@ public class ComputingExtractor implements HitExtractor, BucketExtractor {
             return false;
         }
         ComputingExtractor other = (ComputingExtractor) obj;
-        return Objects.equals(processor, other.processor)
-                && Objects.equals(hitName, other.hitName);
+        return Objects.equals(processor, other.processor) && Objects.equals(hitName, other.hitName);
     }
 
     @Override

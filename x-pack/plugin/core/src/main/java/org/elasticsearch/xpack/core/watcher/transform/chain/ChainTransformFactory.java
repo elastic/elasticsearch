@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transform.chain;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
@@ -36,7 +36,7 @@ public final class ChainTransformFactory extends TransformFactory<ChainTransform
     }
 
     @Override
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public ExecutableChainTransform createExecutable(ChainTransform chainTransform) {
         ArrayList<ExecutableTransform> executables = new ArrayList<>();
         for (Transform transform : chainTransform.getTransforms()) {

@@ -45,8 +45,14 @@ public final class BytesProcessor extends AbstractStringProcessor<Long> {
         }
 
         @Override
-        protected BytesProcessor newProcessor(String tag, String description, Map<String, Object> config, String field,
-                                              boolean ignoreMissing, String targetField) {
+        protected BytesProcessor newProcessor(
+            String tag,
+            String description,
+            Map<String, Object> config,
+            String field,
+            boolean ignoreMissing,
+            String targetField
+        ) {
             return new BytesProcessor(tag, description, field, ignoreMissing, targetField);
         }
     }

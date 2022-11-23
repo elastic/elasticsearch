@@ -11,16 +11,16 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.MockDeprecatedAggregationBuilder;
 import org.junit.Before;
@@ -111,12 +111,13 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
     }
 
     public void testFailOnStrictPassOnLenient() throws IOException {
-        String source = "{\n"
-            + "          \"avg_rating\": { \"some_removed_agg\": { \"field\": \"rating\" } }\n"
-            + "        },\n"
-            + "        {\n"
-            + "          \"max_rating\": { \"max_rating\" : { \"field\" : \"rating\" } }\n"
-            + "        }";
+        String source = """
+            {
+                      "avg_rating": { "some_removed_agg": { "field": "rating" } }
+                    },
+                    {
+                      "max_rating": { "max_rating" : { "field" : "rating" } }
+                    }""";
 
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
@@ -133,7 +134,9 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
     }
 
     public void testDeprecation() throws IOException {
-        String source = "{\"dep_agg\": {\"" + MockDeprecatedAggregationBuilder.NAME + "\" : {}}}";
+        String source = formatted("""
+            {"dep_agg": {"%s" : {}}}
+            """, MockDeprecatedAggregationBuilder.NAME);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig agg = AggregationConfig.fromXContent(parser, false);
             assertNull(agg.validate(null));
@@ -143,16 +146,12 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
 
     private static AggregationBuilder getRandomSupportedAggregation() {
         final int numberOfSupportedAggs = 4;
-        switch (randomIntBetween(1, numberOfSupportedAggs)) {
-            case 1:
-                return AggregationBuilders.avg("avg_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-            case 2:
-                return AggregationBuilders.min("min_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-            case 3:
-                return AggregationBuilders.max("max_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-            case 4:
-                return AggregationBuilders.sum("sum_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-        }
-        return null;
+        return switch (randomIntBetween(1, numberOfSupportedAggs)) {
+            case 1 -> AggregationBuilders.avg("avg_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 2 -> AggregationBuilders.min("min_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 3 -> AggregationBuilders.max("max_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            case 4 -> AggregationBuilders.sum("sum_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            default -> null;
+        };
     }
 }

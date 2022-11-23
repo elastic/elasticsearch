@@ -9,12 +9,13 @@
 package org.elasticsearch.common.breaker;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Breaker that will check a parent's when incrementing
@@ -45,7 +46,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.used = new AtomicLong(0);
         this.trippedCount = new AtomicLong(0);
         this.logger = logger;
-        logger.trace(() -> new ParameterizedMessage("creating ChildCircuitBreaker with settings {}", settings));
+        logger.trace(() -> format("creating ChildCircuitBreaker with settings %s", settings));
         this.parent = parent;
     }
 
@@ -57,11 +58,22 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     public void circuitBreak(String fieldName, long bytesNeeded) {
         final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
-        final String message = "[" + this.name + "] Data too large, data for [" + fieldName + "]" +
-                " would be [" + bytesNeeded + "/" + new ByteSizeValue(bytesNeeded) + "]" +
-                ", which is larger than the limit of [" +
-                memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
-        logger.debug(() -> new ParameterizedMessage("{}", message));
+        final String message = "["
+            + this.name
+            + "] Data too large, data for ["
+            + fieldName
+            + "]"
+            + " would be ["
+            + bytesNeeded
+            + "/"
+            + ByteSizeValue.ofBytes(bytesNeeded)
+            + "]"
+            + ", which is larger than the limit of ["
+            + memoryBytesLimit
+            + "/"
+            + ByteSizeValue.ofBytes(memoryBytesLimit)
+            + "]";
+        logger.debug(() -> format("%s", message));
         throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit, durability);
     }
 
@@ -108,8 +120,15 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private long noLimit(long bytes, String label) {
         long newUsed;
         newUsed = this.used.addAndGet(bytes);
-        logger.trace(() -> new ParameterizedMessage("[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: [-1b]]",
-                this.name, new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed)));
+        logger.trace(
+            () -> format(
+                "[%s] Adding [%s][%s] to used bytes [new used: [%s], limit: [-1b]]",
+                this.name,
+                ByteSizeValue.ofBytes(bytes),
+                label,
+                ByteSizeValue.ofBytes(newUsed)
+            )
+        );
         return newUsed;
     }
 
@@ -123,17 +142,28 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             newUsed = currentUsed + bytes;
             long newUsedWithOverhead = (long) (newUsed * overheadConstant);
             if (logger.isTraceEnabled()) {
-                logger.trace("[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: {} [{}], estimate: {} [{}]]",
-                        this.name,
-                        new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed),
-                        memoryBytesLimit, new ByteSizeValue(memoryBytesLimit),
-                        newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead));
+                logger.trace(
+                    "[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: {} [{}], estimate: {} [{}]]",
+                    this.name,
+                    ByteSizeValue.ofBytes(bytes),
+                    label,
+                    ByteSizeValue.ofBytes(newUsed),
+                    memoryBytesLimit,
+                    ByteSizeValue.ofBytes(memoryBytesLimit),
+                    newUsedWithOverhead,
+                    ByteSizeValue.ofBytes(newUsedWithOverhead)
+                );
             }
             if (memoryBytesLimit > 0 && newUsedWithOverhead > memoryBytesLimit) {
-                logger.warn("[{}] New used memory {} [{}] for data of [{}] would be larger than configured breaker: {} [{}], breaking",
-                        this.name,
-                        newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead), label,
-                        memoryBytesLimit, new ByteSizeValue(memoryBytesLimit));
+                logger.warn(
+                    "[{}] New used memory {} [{}] for data of [{}] would be larger than configured breaker: {} [{}], breaking",
+                    this.name,
+                    newUsedWithOverhead,
+                    ByteSizeValue.ofBytes(newUsedWithOverhead),
+                    label,
+                    memoryBytesLimit,
+                    ByteSizeValue.ofBytes(memoryBytesLimit)
+                );
                 circuitBreak(label, newUsedWithOverhead);
             }
             // Attempt to set the new used value, but make sure it hasn't changed
@@ -154,7 +184,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public void addWithoutBreaking(long bytes) {
         long u = used.addAndGet(bytes);
-        logger.trace(() -> new ParameterizedMessage("[{}] Adjusted breaker by [{}] bytes, now [{}]", this.name, bytes, u));
+        logger.trace(() -> format("[%s] Adjusted breaker by [%s] bytes, now [%s]", this.name, bytes, u));
         assert u >= 0 : "Used bytes: [" + u + "] must be >= 0";
     }
 

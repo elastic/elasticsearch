@@ -16,6 +16,39 @@ your data in a hot-warm-cold architecture,
 you can still use attribute-based allocation filters to
 control shard allocation for other purposes.
 
+{ess} and {ece} can perform the migration automatically. For self-managed
+deployments, you need to manually update your configuration, ILM policies, and
+indices to switch to node roles. 
+
+[discrete]
+[[cloud-migrate-to-node-roles]]
+=== Automatically migrate to node roles on {ess} or {ece}
+
+If you are using node attributes from the default deployment template in {ess} or {ece}, you will be
+prompted to switch to node roles when you:
+
+* Upgrade to {es} 7.10 or higher
+* Deploy a warm, cold, or frozen data tier
+* {cloud}/ec-autoscaling.html[Enable autoscaling]
+
+These actions automatically update your cluster configuration
+and {ilm-init} policies to use node roles. Additionally, upgrading to
+version 7.14 or higher automatically update {ilm-init} policies
+whenever any configuration change is applied to your deployment.
+
+
+If you use custom index templates, check them after the automatic migration
+completes and remove any <<shard-allocation-filtering, attribute-based
+allocation filters>>.
+
+NOTE: You do not need to take any further action after the automatic migration.
+The following manual steps are only necessary if you do not allow the automatic
+migration or have a self-managed deployment.
+
+[discrete]
+[[on-prem-migrate-to-node-roles]]
+=== Migrate to node roles on self-managed deployments
+
 To switch to using node roles:
 
 . <<assign-data-tier, Assign data nodes>> to the appropriate data tier.
@@ -28,7 +61,7 @@ on new indices.
 
 [discrete]
 [[assign-data-tier]]
-=== Assign data nodes to a data tier
+==== Assign data nodes to a data tier
 
 Configure the appropriate roles for each data node to assign it to one or more
 data tiers: `data_hot`, `data_content`, `data_warm`, `data_cold`, or `data_frozen`.
@@ -66,10 +99,10 @@ node.roles [ data_hot, data_content ]
 
 [discrete]
 [[remove-custom-allocation-settings]]
-=== Remove custom allocation settings from existing {ilm-init} policies
+==== Remove custom allocation settings from existing {ilm-init} policies
 
 Update the allocate action for each lifecycle phase to remove the attribute-based
-allocation settings. This enables {ilm-init} to inject the
+allocation settings. {ilm-init} will inject a
 <<ilm-migrate,migrate>> action into each phase
 to automatically transition the indices through the data tiers.
 
@@ -85,7 +118,7 @@ your policy must include the hot, warm, and cold phases.
 
 [discrete]
 [[stop-setting-custom-hot-attribute]]
-=== Stop setting the custom hot attribute on new indices
+==== Stop setting the custom hot attribute on new indices
 
 When you create a data stream, its first backing index
 is now automatically assigned to `data_hot` nodes.
@@ -103,9 +136,14 @@ DELETE _template/.cloud-hot-warm-allocation-0
 
 If you're using a custom index template, update it to remove the <<shard-allocation-filtering, attribute-based allocation filters>> you used to assign new indices to the hot tier.
 
+To completely avoid the issues that raise when mixing the tier preference and
+custom attribute routing setting we also recommend updating all the legacy,
+composable, and component templates to remove the <<shard-allocation-filtering, attribute-based allocation filters>>
+from the settings they configure.
+
 [discrete]
 [[set-tier-preference]]
-=== Set a tier preference for existing indices.
+==== Set a tier preference for existing indices
 
 {ilm-init} automatically transitions managed indices through the available
 data tiers by automatically injecting a <<ilm-migrate,migrate action>>
@@ -115,7 +153,7 @@ To enable {ilm-init} to move an _existing_ managed index
 through the data tiers, update the index settings to:
 
 . Remove the custom allocation filter by setting it to `null`.
-. Set the <<data-tier-shard-filtering,tier preference>>.
+. Set the <<tier-preference-allocation-filter,tier preference>>.
 
 For example, if your old template set the `data` attribute to `hot`
 to allocate shards to the hot tier, set the `data` attribute to `null`
@@ -161,3 +199,34 @@ PUT my-index/_settings
 // TEST[continued]
 
 If an index is already in the cold phase, include the cold, warm, and hot tiers.
+
+For indices that have both the `_tier_preference` and `require.data` configured
+but the `_tier_preference` is outdated (ie. the node attribute configuration
+is "colder" than the configured `_tier_preference`), the migration needs to
+remove the `require.data` attribute and update the `_tier_preference` to reflect
+the correct tiering.
+
+eg. For an index with the following routing configuration:
+[source,JSON]
+----
+{
+  "index.routing.allocation.require.data": "warm",
+  "index.routing.allocation.include._tier_preference": "data_hot"
+}
+----
+
+The routing configuration should be fixed like so:
+[source,console]
+----
+PUT my-index/_settings
+{
+  "index.routing.allocation.require.data": null,
+  "index.routing.allocation.include._tier_preference": "data_warm,data_hot"
+}
+----
+// TEST[continued]
+
+This situation can occur in a system that defaults to data tiers when, e.g.,
+an ILM policy that uses node attributes is restored and transitions the managed
+indices from the hot phase into the warm phase. In this case the node attribute
+configuration indicates the correct tier where the index should be allocated.

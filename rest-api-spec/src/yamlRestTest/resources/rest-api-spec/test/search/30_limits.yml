@@ -10,7 +10,7 @@ setup:
   - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar, foo2: bar, foo3: bar }
 
   - do:

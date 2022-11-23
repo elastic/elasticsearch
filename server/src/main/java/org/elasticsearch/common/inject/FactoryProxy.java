@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.internal.Errors;
@@ -53,16 +52,12 @@ class FactoryProxy<T> implements InternalFactory<T>, BindingProcessor.CreationLi
     }
 
     @Override
-    public T get(Errors errors, InternalContext context, Dependency<?> dependency)
-            throws ErrorsException {
+    public T get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException {
         return targetFactory.get(errors.withSource(targetKey), context, dependency);
     }
 
     @Override
     public String toString() {
-        return new ToStringBuilder(FactoryProxy.class)
-                .add("key", key)
-                .add("provider", targetFactory)
-                .toString();
+        return new ToStringBuilder(FactoryProxy.class).add("key", key).add("provider", targetFactory).toString();
     }
 }

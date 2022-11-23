@@ -8,10 +8,10 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.ingest.Processor;
+
 import java.util.Collections;
 import java.util.Map;
-
-import org.elasticsearch.ingest.Processor;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom ingest processors

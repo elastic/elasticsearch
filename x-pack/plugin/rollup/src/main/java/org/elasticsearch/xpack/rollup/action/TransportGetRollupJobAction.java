@@ -108,6 +108,7 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
+        Task actionTask,
         GetRollupJobsAction.Request request,
         RollupJobTask jobTask,
         ActionListener<GetRollupJobsAction.Response> listener

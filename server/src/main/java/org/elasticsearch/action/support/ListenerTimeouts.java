@@ -31,8 +31,13 @@ public class ListenerTimeouts {
      * @param listenerName name of the listener for timeout exception
      * @return the wrapped listener that will timeout
      */
-    public static <Response> ActionListener<Response> wrapWithTimeout(ThreadPool threadPool, ActionListener<Response> listener,
-                                                                      TimeValue timeout, String executor, String listenerName) {
+    public static <Response> ActionListener<Response> wrapWithTimeout(
+        ThreadPool threadPool,
+        ActionListener<Response> listener,
+        TimeValue timeout,
+        String executor,
+        String listenerName
+    ) {
         return wrapWithTimeout(threadPool, timeout, executor, listener, (ignore) -> {
             String timeoutMessage = "[" + listenerName + "]" + " timed out after [" + timeout + "]";
             listener.onFailure(new ElasticsearchTimeoutException(timeoutMessage));
@@ -50,9 +55,13 @@ public class ListenerTimeouts {
      * @param onTimeout consumer will be called and the resulting wrapper will be passed to it as a parameter
      * @return the wrapped listener that will timeout
      */
-    public static <Response> ActionListener<Response> wrapWithTimeout(ThreadPool threadPool, TimeValue timeout, String executor,
-                                                                      ActionListener<Response> listener,
-                                                                      Consumer<ActionListener<Response>> onTimeout) {
+    public static <Response> ActionListener<Response> wrapWithTimeout(
+        ThreadPool threadPool,
+        TimeValue timeout,
+        String executor,
+        ActionListener<Response> listener,
+        Consumer<ActionListener<Response>> onTimeout
+    ) {
         TimeoutableListener<Response> wrappedListener = new TimeoutableListener<>(listener, onTimeout);
         wrappedListener.cancellable = threadPool.schedule(wrappedListener, timeout, executor);
         return wrappedListener;

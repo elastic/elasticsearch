@@ -14,20 +14,22 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -108,8 +110,10 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 if (token != XContentParser.Token.START_ARRAY) {
                     throw new AssertionError("Impossible token received: " + token.name());
                 }
-                throw new ParsingException(parser.getTokenLocation(),
-                    "[script] query does not support an array of scripts. Use a bool query with a clause per script instead.");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[script] query does not support an array of scripts. Use a bool query with a clause per script instead."
+                );
             }
         }
 
@@ -117,16 +121,15 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             throw new ParsingException(parser.getTokenLocation(), "script must be provided with a [script] filter");
         }
 
-        return new ScriptQueryBuilder(script)
-                .boost(boost)
-                .queryName(queryName);
+        return new ScriptQueryBuilder(script).boost(boost).queryName(queryName);
     }
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[script] queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            throw new ElasticsearchException(
+                "[script] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+            );
         }
         FilterScript.Factory factory = context.compile(script, FilterScript.CONTEXT);
         SearchLookup lookup = context.lookup();
@@ -157,8 +160,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         @Override
         public boolean equals(Object obj) {
-            if (sameClassAs(obj) == false)
-                return false;
+            if (sameClassAs(obj) == false) return false;
             ScriptQuery other = (ScriptQuery) obj;
             return Objects.equals(script, other.script);
         }
@@ -168,6 +170,11 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             int h = classHash();
             h = 31 * h + script.hashCode();
             return h;
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
         }
 
         @Override
@@ -216,5 +223,8 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         return Objects.equals(script, other.script);
     }
 
-
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

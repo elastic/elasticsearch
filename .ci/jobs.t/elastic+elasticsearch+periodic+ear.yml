@@ -1,7 +1,6 @@
 ---
 - job:
     name: elastic+elasticsearch+%BRANCH%+periodic+ear
-    workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+periodic+ear
     display-name: "elastic / elasticsearch # %BRANCH% - encryption at rest"
     description: "The Elasticsearch %BRANCH% branch encryption at rest compatibility tests.\n\n"
     node: packaging-large
@@ -11,7 +10,8 @@
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
-            JAVA15_HOME=$HOME/.java/openjdk15
+            JAVA11_HOME=$HOME/.java/java11
+            JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |
           #!/bin/bash
           # Configure a dm-crypt volume backed by a file
@@ -24,6 +24,7 @@
           sudo cryptsetup open --key-file key.secret "$LOOP" secret --verbose
           sudo mkfs.ext2 /dev/mapper/secret
           sudo mkdir /mnt/secret
+          # Change /mnt/secret with care (at least a test uses this path to detect when encryption at rest is used)
           sudo mount /dev/mapper/secret /mnt/secret
           sudo chown -R jenkins /mnt/secret
           cp -r "$WORKSPACE" /mnt/secret

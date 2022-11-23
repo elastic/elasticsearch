@@ -11,7 +11,7 @@ fields.
 
 [[grok-syntax]]
 ==== Grok patterns
-The {stack} ships with numerous https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns/grok-patterns[predefined grok patterns] that simplify working with grok. The syntax for reusing grok patterns
+The {stack} ships with numerous https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns/legacy/grok-patterns[predefined grok patterns] that simplify working with grok. The syntax for reusing grok patterns
 takes one of the following forms:
 
 [%autowidth]
@@ -48,6 +48,22 @@ can match this text by using the following grok expression:
 ----
 %{NUMBER:duration} %{IP:client}
 ----
+
+[[grok-ecs]]
+==== Migrating to Elastic Common Schema (ECS)
+
+To ease migration to the {ecs-ref}[Elastic Common Schema (ECS)], a new set of 
+ECS-compliant patterns is available in addition to the existing patterns. The
+new ECS pattern definitions capture event field names that are compliant with
+the schema.
+
+The ECS pattern set has all of the pattern definitions from the legacy set, and
+is a drop-in replacement. Use the 
+{logstash-ref}/plugins-filters-grok.html#plugins-filters-grok-ecs_compatibility[`ecs-compatability`]
+setting to switch modes. 
+
+New features and enhancements will be added to the ECS-compliant files. The
+legacy patterns may still receive bug fixes which are backwards compatible.
 
 [[grok-patterns]]
 ==== Use grok patterns in Painless scripts

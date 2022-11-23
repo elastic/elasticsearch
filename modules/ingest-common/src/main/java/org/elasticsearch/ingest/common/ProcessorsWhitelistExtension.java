@@ -20,8 +20,10 @@ import java.util.Map;
 
 public class ProcessorsWhitelistExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST =
-        WhitelistLoader.loadFromResourceFiles(ProcessorsWhitelistExtension.class, "processors_whitelist.txt");
+    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+        ProcessorsWhitelistExtension.class,
+        "processors_whitelist.txt"
+    );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {

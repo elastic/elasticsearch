@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[search-aggregations-pipeline-inference-bucket-aggregation]]
 === {infer-cap} bucket aggregation
 ++++

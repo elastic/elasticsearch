@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.routing.RelocationFailureInfo;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -54,6 +55,12 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
     }
 
     @Override
+    public void relocationFailureInfoUpdated(ShardRouting relocatedShard, RelocationFailureInfo relocationFailureInfo) {
+        assert relocatedShard.active() : "expected active shard " + relocatedShard;
+        setChanged();
+    }
+
+    @Override
     public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
         assert failedShard.assignedToNode() : "expected assigned shard " + failedShard;
         setChanged();
@@ -67,8 +74,8 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
 
     @Override
     public void relocationSourceRemoved(ShardRouting removedReplicaRelocationSource) {
-        assert removedReplicaRelocationSource.primary() == false && removedReplicaRelocationSource.isRelocationTarget() :
-            "expected replica relocation target shard " + removedReplicaRelocationSource;
+        assert removedReplicaRelocationSource.primary() == false && removedReplicaRelocationSource.isRelocationTarget()
+            : "expected replica relocation target shard " + removedReplicaRelocationSource;
         setChanged();
     }
 
@@ -80,12 +87,15 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
 
     @Override
     public void initializedReplicaReinitialized(ShardRouting oldReplica, ShardRouting reinitializedReplica) {
-        assert oldReplica.initializing() && oldReplica.primary() == false :
-            "expected initializing replica shard " + oldReplica;
-        assert reinitializedReplica.initializing() && reinitializedReplica.primary() == false :
-            "expected reinitialized replica shard " + reinitializedReplica;
-        assert oldReplica.allocationId().getId().equals(reinitializedReplica.allocationId().getId()) == false :
-            "expected allocation id to change for reinitialized replica shard (old: " + oldReplica + " new: " + reinitializedReplica + ")";
+        assert oldReplica.initializing() && oldReplica.primary() == false : "expected initializing replica shard " + oldReplica;
+        assert reinitializedReplica.initializing() && reinitializedReplica.primary() == false
+            : "expected reinitialized replica shard " + reinitializedReplica;
+        assert oldReplica.allocationId().getId().equals(reinitializedReplica.allocationId().getId()) == false
+            : "expected allocation id to change for reinitialized replica shard (old: "
+                + oldReplica
+                + " new: "
+                + reinitializedReplica
+                + ")";
         setChanged();
     }
 

@@ -23,7 +23,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
-import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -47,9 +46,14 @@ final class ServerTransportFilter {
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
 
-    ServerTransportFilter(AuthenticationService authcService, AuthorizationService authzService,
-                ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                SecurityContext securityContext) {
+    ServerTransportFilter(
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        ThreadContext threadContext,
+        boolean extractClientCert,
+        DestructiveOperations destructiveOperations,
+        SecurityContext securityContext
+    ) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.threadContext = threadContext;
@@ -63,12 +67,12 @@ final class ServerTransportFilter {
      * thrown by this method will stop the request from being handled and the error will
      * be sent back to the sender.
      */
-    void inbound(String action, TransportRequest request, TransportChannel transportChannel,ActionListener<Void> listener) {
+    void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener) {
         if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {
                 destructiveOperations.failDestructive(indicesRequest.indices());
-            } catch(IllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 listener.onFailure(e);
                 return;
             }
@@ -80,7 +84,7 @@ final class ServerTransportFilter {
          requests from all the nodes are attached with a user (either a serialize
          user an authentication token
          */
-        String securityAction = actionMapper.action(action, request);
+        String securityAction = SecurityActionMapper.action(action, request);
 
         TransportChannel unwrappedChannel = transportChannel;
         if (unwrappedChannel instanceof TaskTransportChannel) {
@@ -89,7 +93,7 @@ final class ServerTransportFilter {
 
         if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel)) {
             TcpChannel tcpChannel = ((TcpTransportChannel) unwrappedChannel).getChannel();
-            if (tcpChannel instanceof Netty4TcpChannel || tcpChannel instanceof NioTcpChannel) {
+            if (tcpChannel instanceof Netty4TcpChannel) {
                 if (tcpChannel.isOpen()) {
                     SSLEngineUtils.extractClientCertificates(logger, threadContext, tcpChannel);
                 }
@@ -99,12 +103,12 @@ final class ServerTransportFilter {
         final Version version = transportChannel.getVersion();
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
-                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
-                    SystemUser.is(authentication.getUser()) == false) {
-                    securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
+                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
+                    && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
+                    securityContext.executeAsSystemUser(version, original -> {
                         final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, listener);
-                    }, version);
+                    });
                 } else {
                     authzService.authorize(authentication, securityAction, request, listener);
                 }

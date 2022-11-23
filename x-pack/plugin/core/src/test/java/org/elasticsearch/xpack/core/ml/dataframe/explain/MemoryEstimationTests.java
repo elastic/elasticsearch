@@ -9,20 +9,21 @@ package org.elasticsearch.xpack.core.ml.dataframe.explain;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MemoryEstimationTests extends AbstractSerializingTestCase<MemoryEstimation> {
+public class MemoryEstimationTests extends AbstractXContentSerializingTestCase<MemoryEstimation> {
 
     public static MemoryEstimation createRandom() {
         return new MemoryEstimation(
-            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null,
-            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null);
+            randomBoolean() ? ByteSizeValue.ofBytes(randomNonNegativeLong()) : null,
+            randomBoolean() ? ByteSizeValue.ofBytes(randomNonNegativeLong()) : null
+        );
     }
 
     @Override
@@ -48,14 +49,18 @@ public class MemoryEstimationTests extends AbstractSerializingTestCase<MemoryEst
 
     public void testConstructor_SmallValues() {
         MemoryEstimation memoryEstimation = new MemoryEstimation(
-            new ByteSizeValue(120, ByteSizeUnit.KB), new ByteSizeValue(30, ByteSizeUnit.KB));
+            new ByteSizeValue(120, ByteSizeUnit.KB),
+            new ByteSizeValue(30, ByteSizeUnit.KB)
+        );
         assertThat(memoryEstimation.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(120, ByteSizeUnit.KB)));
         assertThat(memoryEstimation.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(30, ByteSizeUnit.KB)));
     }
 
     public void testConstructor() {
         MemoryEstimation memoryEstimation = new MemoryEstimation(
-            new ByteSizeValue(20, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB));
+            new ByteSizeValue(20, ByteSizeUnit.MB),
+            new ByteSizeValue(10, ByteSizeUnit.MB)
+        );
         assertThat(memoryEstimation.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(20, ByteSizeUnit.MB)));
         assertThat(memoryEstimation.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(10, ByteSizeUnit.MB)));
     }

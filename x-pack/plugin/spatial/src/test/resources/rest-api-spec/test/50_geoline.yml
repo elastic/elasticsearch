@@ -17,15 +17,15 @@
         body:
           - index:
               _index: locations
-              _id: 1
+              _id: "1"
           - '{"location": [13.37139831, 47.82930284], "rank": 2.0 }'
           - index:
               _index: locations
-              _id: 2
+              _id: "2"
           - '{"location": [13.3784208402, 47.88832084022], "rank": 0.0 }'
           - index:
               _index: locations
-              _id: 3
+              _id: "3"
           - '{"location": [13.371830148701, 48.2084200148], "rank": 1.2 }'
 
   - do:

@@ -12,12 +12,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -29,7 +29,9 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -39,6 +41,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -51,38 +54,45 @@ import static org.mockito.Mockito.when;
 public class SecurityInfoTransportActionTests extends ESTestCase {
 
     private Settings settings;
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
     private Realms realms;
     private IPFilter ipFilter;
     private CompositeRolesStore rolesStore;
     private NativeRoleMappingStore roleMappingStore;
+    private ProfileService profileService;
     private SecurityUsageServices securityServices;
 
     @Before
     public void init() throws Exception {
         settings = Settings.builder().put("path.home", createTempDir()).build();
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         realms = mock(Realms.class);
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
         roleMappingStore = mock(NativeRoleMappingStore.class);
-        securityServices = new SecurityUsageServices(realms, rolesStore, roleMappingStore, ipFilter);
+        profileService = mock(ProfileService.class);
+        securityServices = new SecurityUsageServices(realms, rolesStore, roleMappingStore, ipFilter, profileService);
     }
 
     public void testAvailable() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings
+        );
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabled() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings
+        );
         assertThat(featureSet.enabled(), is(true));
 
-        Settings disabled = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(),false).build();
-        featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), disabled);
+        Settings disabled = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+        featureSet = new SecurityInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class), disabled);
         assertThat(featureSet.enabled(), is(false));
     }
 
@@ -91,7 +101,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean explicitlyDisabled = randomBoolean();
         final boolean enabled = explicitlyDisabled == false;
         final boolean operatorPrivilegesAvailable = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(operatorPrivilegesAvailable);
+        when(licenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(operatorPrivilegesAvailable);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 
@@ -117,19 +127,19 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             apiKeyServiceEnabled = randomBoolean();
             settings.put("xpack.security.authc.api_key.enabled", apiKeyServiceEnabled);
         } else {
-            apiKeyServiceEnabled = httpSSLEnabled;
+            apiKeyServiceEnabled = true; // this is the default
         }
 
         final boolean auditingEnabled = randomBoolean();
         settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
-        when(ipFilter.usageStats())
-                .thenReturn(MapBuilder.<String, Object>newMapBuilder()
-                        .put("http", Collections.singletonMap("enabled", httpIpFilterEnabled))
-                        .put("transport", Collections.singletonMap("enabled", transportIPFilterEnabled))
-                        .map());
-
+        when(ipFilter.usageStats()).thenReturn(
+            MapBuilder.<String, Object>newMapBuilder()
+                .put("http", Collections.singletonMap("enabled", httpIpFilterEnabled))
+                .put("transport", Collections.singletonMap("enabled", transportIPFilterEnabled))
+                .map()
+        );
 
         final boolean rolesStoreEnabled = randomBoolean();
         configureRoleStoreUsage(rolesStoreEnabled);
@@ -160,6 +170,21 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         if (operatorPrivilegesEnabled) {
             settings.put("xpack.security.operator_privileges.enabled", true);
         }
+
+        final Map<String, Object> userProfileUsage = Map.of(
+            "total",
+            randomIntBetween(100, 200),
+            "enabled",
+            randomIntBetween(50, 99),
+            "recent",
+            randomIntBetween(1, 42)
+        );
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<Map<String, Object>>) invocation.getArguments()[0];
+            listener.onResponse(userProfileUsage);
+            return null;
+        }).when(profileService).usageStats(anyActionListener());
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
@@ -229,6 +254,11 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 // operator privileges
                 assertThat(source.getValue("operator_privileges.available"), is(operatorPrivilegesAvailable));
                 assertThat(source.getValue("operator_privileges.enabled"), is(operatorPrivilegesEnabled));
+
+                // user profile
+                assertThat(source.getValue("user_profile.total"), equalTo(userProfileUsage.get("total")));
+                assertThat(source.getValue("user_profile.enabled"), equalTo(userProfileUsage.get("enabled")));
+                assertThat(source.getValue("user_profile.recent"), equalTo(userProfileUsage.get("recent")));
             } else {
                 if (explicitlyDisabled) {
                     assertThat(source.getValue("ssl"), is(nullValue()));
@@ -244,6 +274,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 assertThat(source.getValue("ipfilter"), is(nullValue()));
                 assertThat(source.getValue("roles"), is(nullValue()));
                 assertThat(source.getValue("operator_privileges"), is(nullValue()));
+                assertThat(source.getValue("user_profile"), is(Matchers.nullValue()));
             }
         }
     }
@@ -296,8 +327,15 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     private SecurityUsageTransportAction newUsageAction(Settings settings) {
-        return new SecurityUsageTransportAction(mock(TransportService.class),null,
-            null, mock(ActionFilters.class),null,
-            settings, licenseState, securityServices);
+        return new SecurityUsageTransportAction(
+            mock(TransportService.class),
+            null,
+            null,
+            mock(ActionFilters.class),
+            null,
+            settings,
+            licenseState,
+            securityServices
+        );
     }
 }

@@ -20,9 +20,10 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
 
     @After
     public void afterTest() {
-        Settings settings = Settings.builder().put(TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey(), (String)null)
-                .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        Settings settings = Settings.builder()
+            .put(TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey(), (String) null)
+            .build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
     }
 
     public void testCloseAllRequiresName() {
@@ -34,13 +35,17 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
         // disable closing
         createIndex("test_no_close");
         Settings settings = Settings.builder().put(TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey(), false).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
-        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-                () -> client().admin().indices().prepareClose("test_no_close").get());
-        assertEquals(illegalStateException.getMessage(),
-                "closing indices is disabled - set [cluster.indices.close.enable: true] to enable it. NOTE: closed indices still " +
-                        "consume a significant amount of diskspace");
+        IllegalStateException illegalStateException = expectThrows(
+            IllegalStateException.class,
+            () -> client().admin().indices().prepareClose("test_no_close").get()
+        );
+        assertEquals(
+            illegalStateException.getMessage(),
+            "closing indices is disabled - set [cluster.indices.close.enable: true] to enable it. NOTE: closed indices still "
+                + "consume a significant amount of diskspace"
+        );
     }
 
     private void assertIndexIsClosed(String... indices) {

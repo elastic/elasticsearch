@@ -14,17 +14,18 @@ import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidat
 
 import java.io.IOException;
 import java.util.Arrays;
+
 //TODO public for tests
 public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
 
-
     private final CandidateGenerator[] candidateGenerator;
-    private int numCandidates ;
+    private int numCandidates;
 
-    public MultiCandidateGeneratorWrapper(int numCandidates, CandidateGenerator...candidateGenerators) {
+    public MultiCandidateGeneratorWrapper(int numCandidates, CandidateGenerator... candidateGenerators) {
         this.candidateGenerator = candidateGenerators;
         this.numCandidates = numCandidates;
     }
+
     @Override
     public boolean isKnownWord(BytesRef term) throws IOException {
         return candidateGenerator[0].isKnownWord(term);
@@ -43,7 +44,7 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
         return reduce(set, numCandidates);
     }
 
-    private CandidateSet reduce(CandidateSet set, int numCandidates) {
+    private static CandidateSet reduce(CandidateSet set, int numCandidates) {
         if (set.candidates.length > numCandidates) {
             Candidate[] candidates = set.candidates;
             Arrays.sort(candidates, (left, right) -> Double.compare(right.score, left.score));
@@ -54,6 +55,7 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
 
         return set;
     }
+
     @Override
     public Candidate createCandidate(BytesRef term, TermStats termStats, double channelScore, boolean userInput) throws IOException {
         return candidateGenerator[0].createCandidate(term, termStats, channelScore, userInput);

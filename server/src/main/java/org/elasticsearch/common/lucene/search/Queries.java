@@ -8,15 +8,20 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.Collection;
@@ -35,7 +40,6 @@ public class Queries {
         return new MatchNoDocsQuery(reason);
     }
 
-
     public static Query newUnmappedFieldQuery(String field) {
         return newUnmappedFieldsQuery(Collections.singletonList(field));
     }
@@ -49,15 +53,30 @@ public class Queries {
         return Queries.newMatchNoDocsQuery("failed [" + field + "] query, caused by " + message);
     }
 
-    public static Query newNestedFilter() {
-        return not(newNonNestedFilter());
+    private static final Version NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION = Version.fromString("6.1.0");
+
+    /**
+     * Creates a new nested docs query
+     * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
+     */
+    public static Query newNestedFilter(Version indexVersionCreated) {
+        if (indexVersionCreated.onOrAfter(NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION)) {
+            return not(newNonNestedFilter(indexVersionCreated));
+        } else {
+            return new PrefixQuery(new Term(NestedPathFieldMapper.NAME_PRE_V8, new BytesRef("__")));
+        }
     }
 
     /**
      * Creates a new non-nested docs query
+     * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
      */
-    public static Query newNonNestedFilter() {
-        return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+    public static Query newNonNestedFilter(Version indexVersionCreated) {
+        if (indexVersionCreated.onOrAfter(NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION)) {
+            return new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        } else {
+            return not(newNestedFilter(indexVersionCreated));
+        }
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {
@@ -73,10 +92,7 @@ public class Queries {
 
     /** Return a query that matches all documents but those that match the given query. */
     public static Query not(Query q) {
-        return new BooleanQuery.Builder()
-            .add(new MatchAllDocsQuery(), Occur.MUST)
-            .add(q, Occur.MUST_NOT)
-            .build();
+        return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST).add(q, Occur.MUST_NOT).build();
     }
 
     static boolean isNegativeQuery(Query q) {
@@ -84,8 +100,7 @@ public class Queries {
             return false;
         }
         List<BooleanClause> clauses = ((BooleanQuery) q).clauses();
-        return clauses.isEmpty() == false &&
-                clauses.stream().allMatch(BooleanClause::isProhibited);
+        return clauses.isEmpty() == false && clauses.stream().allMatch(BooleanClause::isProhibited);
     }
 
     public static Query fixNegativeQueryIfNeeded(Query q) {
@@ -136,15 +151,15 @@ public class Queries {
         return query;
     }
 
-    private static Pattern spaceAroundLessThanPattern = Pattern.compile("(\\s+<\\s*)|(\\s*<\\s+)");
-    private static Pattern spacePattern = Pattern.compile(" ");
-    private static Pattern lessThanPattern = Pattern.compile("<");
+    private static final Pattern spaceAroundLessThanPattern = Pattern.compile("(\\s+<\\s*)|(\\s*<\\s+)");
+    private static final Pattern spacePattern = Pattern.compile(" ");
+    private static final Pattern lessThanPattern = Pattern.compile("<");
 
     public static int calculateMinShouldMatch(int optionalClauseCount, String spec) {
         int result = optionalClauseCount;
         spec = spec.trim();
 
-        if (-1 < spec.indexOf("<")) {
+        if (spec.contains("<")) {
             /* we have conditional spec(s) */
             spec = spaceAroundLessThanPattern.matcher(spec).replaceAll("<");
             for (String s : spacePattern.split(spec)) {
@@ -153,8 +168,7 @@ public class Queries {
                 if (optionalClauseCount <= upperBound) {
                     return result;
                 } else {
-                    result = calculateMinShouldMatch
-                            (optionalClauseCount, parts[1]);
+                    result = calculateMinShouldMatch(optionalClauseCount, parts[1]);
                 }
             }
             return result;
@@ -173,6 +187,6 @@ public class Queries {
             result = calc < 0 ? result + calc : calc;
         }
 
-        return result < 0 ? 0 : result;
+        return Math.max(result, 0);
     }
 }

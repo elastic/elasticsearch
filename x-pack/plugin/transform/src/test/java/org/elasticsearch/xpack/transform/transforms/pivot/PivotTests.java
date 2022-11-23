@@ -17,28 +17,34 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.Function;
@@ -50,6 +56,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -62,7 +69,11 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PivotTests extends ESTestCase {
 
@@ -81,7 +92,7 @@ public class PivotTests extends ESTestCase {
     @Before
     public void registerAggregationNamedObjects() throws Exception {
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new TestSpatialPlugin()));
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new TestSpatialPlugin(), new AggregationsPlugin()));
         namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -136,7 +147,7 @@ public class PivotTests extends ESTestCase {
         );
         assertThat(pivot.getInitialPageSize(), equalTo(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE));
 
-        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
     }
 
     public void testSearchFailure() throws Exception {
@@ -188,11 +199,24 @@ public class PivotTests extends ESTestCase {
     }
 
     public void testGetPerformanceCriticalFields() throws IOException {
-        String groupConfigJson = "{"
-            + "\"group-A\": { \"terms\": { \"field\": \"field-A\" } },"
-            + "\"group-B\": { \"terms\": { \"field\": \"field-B\" } },"
-            + "\"group-C\": { \"terms\": { \"field\": \"field-C\" } }"
-            + "}";
+        String groupConfigJson = """
+            {
+              "group-A": {
+                "terms": {
+                  "field": "field-A"
+                }
+              },
+              "group-B": {
+                "terms": {
+                  "field": "field-B"
+                }
+              },
+              "group-C": {
+                "terms": {
+                  "field": "field-C"
+                }
+              }
+            }""";
         GroupConfig groupConfig;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, groupConfigJson)) {
             groupConfig = GroupConfig.fromXContent(parser, false);
@@ -202,6 +226,47 @@ public class PivotTests extends ESTestCase {
         PivotConfig pivotConfig = new PivotConfig(groupConfig, AggregationConfigTests.randomAggregationConfig(), null);
         Function pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
         assertThat(pivot.getPerformanceCriticalFields(), contains("field-A", "field-B", "field-C"));
+    }
+
+    public void testProcessSearchResponse() {
+        Function pivot = new Pivot(
+            PivotConfigTests.randomPivotConfig(),
+            SettingsConfigTests.randomSettingsConfig(),
+            Version.CURRENT,
+            Collections.emptySet()
+        );
+
+        Aggregations aggs = null;
+        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+
+        aggs = new Aggregations(List.of());
+        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+
+        CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
+        when(compositeAgg.getName()).thenReturn("_transform");
+        when(compositeAgg.getBuckets()).thenReturn(List.of());
+        when(compositeAgg.afterKey()).thenReturn(null);
+        aggs = new Aggregations(List.of(compositeAgg));
+        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+
+        when(compositeAgg.getBuckets()).thenReturn(List.of());
+        when(compositeAgg.afterKey()).thenReturn(Map.of("key", "value"));
+        aggs = new Aggregations(List.of(compositeAgg));
+        // Empty bucket list is *not* a stop condition for composite agg processing.
+        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(notNullValue()));
+
+        CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
+        List<? extends CompositeAggregation.Bucket> buckets = List.of(bucket);
+        doReturn(buckets).when(compositeAgg).getBuckets();
+        when(compositeAgg.afterKey()).thenReturn(null);
+        aggs = new Aggregations(List.of(compositeAgg));
+        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+    }
+
+    private static SearchResponse searchResponseFromAggs(Aggregations aggs) {
+        SearchResponseSections sections = new SearchResponseSections(null, aggs, null, false, null, null, 1);
+        SearchResponse searchResponse = new SearchResponse(sections, null, 10, 5, 0, 0, new ShardSearchFailure[0], null);
+        return searchResponse;
     }
 
     private class MyMockClient extends NoOpClient {
@@ -217,8 +282,7 @@ public class PivotTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
 
-            if (request instanceof SearchRequest) {
-                SearchRequest searchRequest = (SearchRequest) request;
+            if (request instanceof SearchRequest searchRequest) {
                 List<ShardSearchFailure> searchFailures = new ArrayList<>();
 
                 for (String index : searchRequest.indices()) {
@@ -274,68 +338,100 @@ public class PivotTests extends ESTestCase {
 
     private AggregationConfig getAggregationConfig(String agg) throws IOException {
         if (agg.equals(AggregationType.SCRIPTED_METRIC.getName())) {
-            return parseAggregations(
-                "{\"pivot_scripted_metric\": {\n"
-                    + "\"scripted_metric\": {\n"
-                    + "    \"init_script\" : \"state.transactions = []\",\n"
-                    + "    \"map_script\" : "
-                    + "        \"state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)\", \n"
-                    + "    \"combine_script\" : \"double profit = 0; for (t in state.transactions) { profit += t } return profit\",\n"
-                    + "    \"reduce_script\" : \"double profit = 0; for (a in states) { profit += a } return profit\"\n"
-                    + "  }\n"
-                    + "}}"
-            );
+            return parseAggregations("""
+                {
+                  "pivot_scripted_metric": {
+                    "scripted_metric": {
+                      "init_script": "state.transactions = []",
+                      "map_script": "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)",
+                      "combine_script": "double profit = 0; for (t in state.transactions) { profit += t } return profit",
+                      "reduce_script": "double profit = 0; for (a in states) { profit += a } return profit"
+                    }
+                  }
+                }""");
         }
         if (agg.equals(AggregationType.BUCKET_SCRIPT.getName())) {
-            return parseAggregations(
-                "{\"pivot_bucket_script\":{"
-                    + "\"bucket_script\":{"
-                    + "\"buckets_path\":{\"param_1\":\"other_bucket\"},"
-                    + "\"script\":\"return params.param_1\"}}}"
-            );
+            return parseAggregations("""
+                {
+                  "pivot_bucket_script": {
+                    "bucket_script": {
+                      "buckets_path": {
+                        "param_1": "other_bucket"
+                      },
+                      "script": "return params.param_1"
+                    }
+                  }
+                }""");
         }
         if (agg.equals(AggregationType.BUCKET_SELECTOR.getName())) {
-            return parseAggregations(
-                "{\"pivot_bucket_selector\":{"
-                    + "\"bucket_selector\":{"
-                    + "\"buckets_path\":{\"param_1\":\"other_bucket\"},"
-                    + "\"script\":\"params.param_1 > 42.0\"}}}"
-            );
+            return parseAggregations("""
+                {
+                  "pivot_bucket_selector": {
+                    "bucket_selector": {
+                      "buckets_path": {
+                        "param_1": "other_bucket"
+                      },
+                      "script": "params.param_1 > 42.0"
+                    }
+                  }
+                }""");
         }
         if (agg.equals(AggregationType.WEIGHTED_AVG.getName())) {
-            return parseAggregations(
-                "{\n"
-                    + "\"pivot_weighted_avg\": {\n"
-                    + "  \"weighted_avg\": {\n"
-                    + "   \"value\": {\"field\": \"values\"},\n"
-                    + "   \"weight\": {\"field\": \"weights\"}\n"
-                    + "  }\n"
-                    + "}\n"
-                    + "}"
-            );
+            return parseAggregations("""
+                {
+                "pivot_weighted_avg": {
+                  "weighted_avg": {
+                   "value": {"field": "values"},
+                   "weight": {"field": "weights"}
+                  }
+                }
+                }""");
         }
         if (agg.equals(AggregationType.FILTER.getName())) {
-            return parseAggregations(
-                "{" + "\"pivot_filter\": {" + "  \"filter\": {" + "   \"term\": {\"field\": \"value\"}" + "  }" + "}" + "}"
-            );
+            return parseAggregations("""
+                {
+                  "pivot_filter": {
+                    "filter": {
+                      "term": {
+                        "field": "value"
+                      }
+                    }
+                  }
+                }""");
         }
         if (agg.equals(AggregationType.GEO_LINE.getName())) {
-            return parseAggregations(
-                "{\"pivot_geo_line\": {\"geo_line\": {\"point\": {\"field\": \"values\"}, \"sort\":{\"field\": \"timestamp\"}}}}"
-            );
+            return parseAggregations("""
+                {
+                  "pivot_geo_line": {
+                    "geo_line": {
+                      "point": {
+                        "field": "values"
+                      },
+                      "sort": {
+                        "field": "timestamp"
+                      }
+                    }
+                  }
+                }""");
         }
         if (agg.equals("global")) {
-            return parseAggregations("{\"pivot_global\": {\"global\": {}}}");
+            return parseAggregations("""
+                {"pivot_global": {"global": {}}}""");
         }
 
-        return parseAggregations(
-            "{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n" + "    }\n" + "  }" + "}"
-        );
+        return parseAggregations(formatted("""
+            {
+              "pivot_%s": {
+                "%s": {
+                  "field": "values"
+                }
+              }
+            }""", agg, agg));
     }
 
     private AggregationConfig parseAggregations(String json) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
         // parseAggregators expects to be already inside the xcontent object
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         return AggregationConfig.fromXContent(parser, false);
@@ -352,7 +448,7 @@ public class PivotTests extends ESTestCase {
     private static void validate(Client client, SourceConfig source, Function pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        pivot.validateQuery(client, source, ActionListener.wrap(validity -> {
+        pivot.validateQuery(client, source, null, ActionListener.wrap(validity -> {
             assertEquals(expectValid, validity);
             latch.countDown();
         }, e -> {

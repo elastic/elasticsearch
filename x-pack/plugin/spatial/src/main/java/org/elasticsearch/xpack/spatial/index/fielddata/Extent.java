@@ -31,7 +31,6 @@ class Extent {
     private static final byte CROSSES_LAT_AXIS = 3;
     private static final byte ALL_SET = 4;
 
-
     Extent() {
         this.top = Integer.MIN_VALUE;
         this.bottom = Integer.MAX_VALUE;
@@ -50,6 +49,7 @@ class Extent {
         this.posRight = posRight;
     }
 
+    @SuppressWarnings("HiddenField")
     public void reset(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
         this.top = top;
         this.bottom = bottom;
@@ -97,38 +97,37 @@ class Extent {
         final int posRight;
         byte type = input.readByte();
         switch (type) {
-            case NONE_SET:
+            case NONE_SET -> {
                 negLeft = Integer.MAX_VALUE;
                 negRight = Integer.MIN_VALUE;
                 posLeft = Integer.MAX_VALUE;
                 posRight = Integer.MIN_VALUE;
-                break;
-            case POSITIVE_SET:
+            }
+            case POSITIVE_SET -> {
                 posLeft = input.readVInt();
-                posRight =  Math.toIntExact(input.readVLong() + posLeft);
+                posRight = Math.toIntExact(input.readVLong() + posLeft);
                 negLeft = Integer.MAX_VALUE;
                 negRight = Integer.MIN_VALUE;
-                break;
-            case NEGATIVE_SET:
+            }
+            case NEGATIVE_SET -> {
                 negRight = -input.readVInt();
                 negLeft = Math.toIntExact(negRight - input.readVLong());
                 posLeft = Integer.MAX_VALUE;
                 posRight = Integer.MIN_VALUE;
-                break;
-            case CROSSES_LAT_AXIS:
+            }
+            case CROSSES_LAT_AXIS -> {
                 posRight = input.readVInt();
                 negLeft = -input.readVInt();
                 posLeft = 0;
                 negRight = 0;
-                break;
-            case ALL_SET:
+            }
+            case ALL_SET -> {
                 posLeft = input.readVInt();
-                posRight =  Math.toIntExact(input.readVLong() + posLeft);
+                posRight = Math.toIntExact(input.readVLong() + posLeft);
                 negRight = -input.readVInt();
                 negLeft = Math.toIntExact(negRight - input.readVLong());
-                break;
-            default:
-                throw new IllegalArgumentException("invalid extent values-set byte read [" + type + "]");
+            }
+            default -> throw new IllegalArgumentException("invalid extent values-set byte read [" + type + "]");
         }
         extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
     }
@@ -154,7 +153,8 @@ class Extent {
         }
         output.writeByte(type);
         switch (type) {
-            case NONE_SET : break;
+            case NONE_SET:
+                break;
             case POSITIVE_SET:
                 output.writeVInt(this.posLeft);
                 output.writeVLong((long) this.posRight - this.posLeft);
@@ -185,11 +185,14 @@ class Extent {
      * @return the extent of the point
      */
     public static Extent fromPoint(int x, int y) {
-        return new Extent(y, y,
+        return new Extent(
+            y,
+            y,
             x < 0 ? x : Integer.MAX_VALUE,
             x < 0 ? x : Integer.MIN_VALUE,
             x >= 0 ? x : Integer.MAX_VALUE,
-            x >= 0 ? x : Integer.MIN_VALUE);
+            x >= 0 ? x : Integer.MIN_VALUE
+        );
     }
 
     /**
@@ -257,12 +260,12 @@ class Extent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Extent extent = (Extent) o;
-        return top == extent.top &&
-            bottom == extent.bottom &&
-            negLeft == extent.negLeft &&
-            negRight == extent.negRight &&
-            posLeft == extent.posLeft &&
-            posRight == extent.posRight;
+        return top == extent.top
+            && bottom == extent.bottom
+            && negLeft == extent.negLeft
+            && negRight == extent.negRight
+            && posLeft == extent.posLeft
+            && posRight == extent.posRight;
     }
 
     @Override

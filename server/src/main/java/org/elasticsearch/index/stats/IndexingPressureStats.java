@@ -13,13 +13,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 public class IndexingPressureStats implements Writeable, ToXContentFragment {
-
 
     private final long totalCombinedCoordinatingAndPrimaryBytes;
     private final long totalCoordinatingBytes;
@@ -73,11 +72,26 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentReplicaOps = 0;
     }
 
-    public IndexingPressureStats(long totalCombinedCoordinatingAndPrimaryBytes, long totalCoordinatingBytes, long totalPrimaryBytes,
-                                 long totalReplicaBytes, long currentCombinedCoordinatingAndPrimaryBytes, long currentCoordinatingBytes,
-                                 long currentPrimaryBytes, long currentReplicaBytes, long coordinatingRejections, long primaryRejections,
-                                 long replicaRejections, long memoryLimit, long totalCoordinatingOps, long totalPrimaryOps,
-                                 long totalReplicaOps, long currentCoordinatingOps, long currentPrimaryOps, long currentReplicaOps) {
+    public IndexingPressureStats(
+        long totalCombinedCoordinatingAndPrimaryBytes,
+        long totalCoordinatingBytes,
+        long totalPrimaryBytes,
+        long totalReplicaBytes,
+        long currentCombinedCoordinatingAndPrimaryBytes,
+        long currentCoordinatingBytes,
+        long currentPrimaryBytes,
+        long currentReplicaBytes,
+        long coordinatingRejections,
+        long primaryRejections,
+        long replicaRejections,
+        long memoryLimit,
+        long totalCoordinatingOps,
+        long totalPrimaryOps,
+        long totalReplicaOps,
+        long currentCoordinatingOps,
+        long currentPrimaryOps,
+        long currentReplicaOps
+    ) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
         this.totalPrimaryBytes = totalPrimaryBytes;
@@ -188,6 +202,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         return currentReplicaOps;
     }
 
+    public long getMemoryLimit() {
+        return memoryLimit;
+    }
+
     private static final String COMBINED = "combined_coordinating_and_primary";
     private static final String COMBINED_IN_BYTES = "combined_coordinating_and_primary_in_bytes";
     private static final String COORDINATING = "coordinating";
@@ -209,25 +227,28 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.startObject("indexing_pressure");
         builder.startObject("memory");
         builder.startObject("current");
-        builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(currentCombinedCoordinatingAndPrimaryBytes));
-        builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, new ByteSizeValue(currentCoordinatingBytes));
-        builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, new ByteSizeValue(currentPrimaryBytes));
-        builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, new ByteSizeValue(currentReplicaBytes));
-        builder.humanReadableField(ALL_IN_BYTES, ALL, new ByteSizeValue(currentReplicaBytes + currentCombinedCoordinatingAndPrimaryBytes));
+        builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, ByteSizeValue.ofBytes(currentCombinedCoordinatingAndPrimaryBytes));
+        builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, ByteSizeValue.ofBytes(currentCoordinatingBytes));
+        builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, ByteSizeValue.ofBytes(currentPrimaryBytes));
+        builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, ByteSizeValue.ofBytes(currentReplicaBytes));
+        builder.humanReadableField(
+            ALL_IN_BYTES,
+            ALL,
+            ByteSizeValue.ofBytes(currentReplicaBytes + currentCombinedCoordinatingAndPrimaryBytes)
+        );
         builder.endObject();
         builder.startObject("total");
-        builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(totalCombinedCoordinatingAndPrimaryBytes));
-        builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, new ByteSizeValue(totalCoordinatingBytes));
-        builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, new ByteSizeValue(totalPrimaryBytes));
-        builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, new ByteSizeValue(totalReplicaBytes));
-        builder.humanReadableField(ALL_IN_BYTES, ALL, new ByteSizeValue(totalReplicaBytes + totalCombinedCoordinatingAndPrimaryBytes));
+        builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, ByteSizeValue.ofBytes(totalCombinedCoordinatingAndPrimaryBytes));
+        builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, ByteSizeValue.ofBytes(totalCoordinatingBytes));
+        builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, ByteSizeValue.ofBytes(totalPrimaryBytes));
+        builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, ByteSizeValue.ofBytes(totalReplicaBytes));
+        builder.humanReadableField(ALL_IN_BYTES, ALL, ByteSizeValue.ofBytes(totalReplicaBytes + totalCombinedCoordinatingAndPrimaryBytes));
         builder.field(COORDINATING_REJECTIONS, coordinatingRejections);
         builder.field(PRIMARY_REJECTIONS, primaryRejections);
         builder.field(REPLICA_REJECTIONS, replicaRejections);
         builder.endObject();
-        builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, new ByteSizeValue(memoryLimit));
+        builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, ByteSizeValue.ofBytes(memoryLimit));
         builder.endObject();
         return builder.endObject();
     }
 }
-

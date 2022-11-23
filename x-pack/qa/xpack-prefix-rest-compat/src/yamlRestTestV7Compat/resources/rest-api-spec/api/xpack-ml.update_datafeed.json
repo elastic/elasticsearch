@@ -1,0 +1,63 @@
+{
+  "xpack-ml.update_datafeed":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-datafeed.html",
+      "description":"Updates certain properties of a datafeed."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/ml/datafeeds/{datafeed_id}/_update",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "datafeed_id":{
+              "type":"string",
+              "description":"The ID of the datafeed to update"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The datafeed update settings",
+      "required":true
+    },
+    "params":{
+      "ignore_unavailable":{
+        "type":"boolean",
+        "description":"Ignore unavailable indexes (default: false)"
+      },
+      "allow_no_indices":{
+        "type":"boolean",
+        "description":"Ignore if the source indices expressions resolves to no concrete indices (default: true)"
+      },
+      "ignore_throttled":{
+        "type":"boolean",
+        "description":"Ignore indices that are marked as throttled (default: true)"
+      },
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "description":"Whether source index expressions should get expanded to open or closed indices (default: open)"
+      }
+    }
+  }
+}

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -65,11 +65,11 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
         return new LeafBucketCollectorBase(sub, values) {
@@ -126,35 +126,21 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     @Override
     public double metric(String name, long owningBucketOrd) {
         if (valuesSource == null || owningBucketOrd >= counts.size()) {
-            switch (InternalStats.Metrics.resolve(name)) {
-                case count:
-                    return 0;
-                case sum:
-                    return 0;
-                case min:
-                    return Double.POSITIVE_INFINITY;
-                case max:
-                    return Double.NEGATIVE_INFINITY;
-                case avg:
-                    return Double.NaN;
-                default:
-                    throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
-            }
+            return switch (InternalStats.Metrics.resolve(name)) {
+                case count -> 0;
+                case sum -> 0;
+                case min -> Double.POSITIVE_INFINITY;
+                case max -> Double.NEGATIVE_INFINITY;
+                case avg -> Double.NaN;
+            };
         }
-        switch (InternalStats.Metrics.resolve(name)) {
-            case count:
-                return counts.get(owningBucketOrd);
-            case sum:
-                return sums.get(owningBucketOrd);
-            case min:
-                return mins.get(owningBucketOrd);
-            case max:
-                return maxes.get(owningBucketOrd);
-            case avg:
-                return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
-            default:
-                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
-        }
+        return switch (InternalStats.Metrics.resolve(name)) {
+            case count -> counts.get(owningBucketOrd);
+            case sum -> sums.get(owningBucketOrd);
+            case min -> mins.get(owningBucketOrd);
+            case max -> maxes.get(owningBucketOrd);
+            case avg -> sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+        };
     }
 
     @Override

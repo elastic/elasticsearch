@@ -42,8 +42,14 @@ public class UpdateProcessActionRequestTests extends AbstractWireSerializingTest
         if (randomBoolean()) {
             filter = MlFilterTests.createTestFilter();
         }
-        return new UpdateProcessAction.Request(randomAlphaOfLength(10), modelPlotConfig, perPartitionCategorizationConfig, updates,
-            filter, randomBoolean());
+        return new UpdateProcessAction.Request(
+            randomAlphaOfLength(10),
+            modelPlotConfig,
+            perPartitionCategorizationConfig,
+            updates,
+            filter,
+            randomBoolean()
+        );
     }
 
     @Override

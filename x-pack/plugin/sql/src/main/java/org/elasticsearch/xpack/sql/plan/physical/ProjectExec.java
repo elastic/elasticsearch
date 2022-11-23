@@ -59,7 +59,6 @@ public class ProjectExec extends UnaryExec implements Unexecutable {
 
         ProjectExec other = (ProjectExec) obj;
 
-        return Objects.equals(projections, other.projections)
-                && Objects.equals(child(), other.child());
+        return Objects.equals(projections, other.projections) && Objects.equals(child(), other.child());
     }
 }

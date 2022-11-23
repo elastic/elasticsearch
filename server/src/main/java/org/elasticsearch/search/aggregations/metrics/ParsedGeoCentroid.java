@@ -9,11 +9,11 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid.Fields;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -42,14 +42,14 @@ public class ParsedGeoCentroid extends ParsedAggregation implements GeoCentroid 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (centroid != null) {
-            builder.startObject(Fields.CENTROID.getPreferredName());
+            builder.startObject(InternalCentroid.Fields.CENTROID.getPreferredName());
             {
                 builder.field(Fields.CENTROID_LAT.getPreferredName(), centroid.lat());
                 builder.field(Fields.CENTROID_LON.getPreferredName(), centroid.lon());
             }
             builder.endObject();
         }
-        builder.field(Fields.COUNT.getPreferredName(), count);
+        builder.field(InternalCentroid.Fields.COUNT.getPreferredName(), count);
         return builder;
     }
 
@@ -67,8 +67,8 @@ public class ParsedGeoCentroid extends ParsedAggregation implements GeoCentroid 
 
     static {
         declareAggregationFields(PARSER);
-        PARSER.declareObject((agg, centroid) -> agg.centroid = centroid, GEO_POINT_PARSER, Fields.CENTROID);
-        PARSER.declareLong((agg, count) -> agg.count = count, Fields.COUNT);
+        PARSER.declareObject((agg, centroid) -> agg.centroid = centroid, GEO_POINT_PARSER, InternalCentroid.Fields.CENTROID);
+        PARSER.declareLong((agg, count) -> agg.count = count, InternalCentroid.Fields.COUNT);
 
         GEO_POINT_PARSER.declareDouble(GeoPoint::resetLat, Fields.CENTROID_LAT);
         GEO_POINT_PARSER.declareDouble(GeoPoint::resetLon, Fields.CENTROID_LON);

@@ -33,6 +33,7 @@ fields to score each match as if the specified fields had been indexed into a
 single, combined field. This scoring is a best attempt; `combined_fields` makes
 some approximations and scores will not obey the BM25F model perfectly.
 
+:query-type: combined fields
 // tag::max-clause-limit[]
 [WARNING]
 .Field number limit
@@ -40,10 +41,11 @@ some approximations and scores will not obey the BM25F model perfectly.
 By default, there is a limit to the number of clauses a query can contain. This
 limit is defined by the
 <<indices-query-bool-max-clause-count,`indices.query.bool.max_clause_count`>>
-setting, which defaults to `4096`. For `combined_fields` queries, the number of
+setting, which defaults to `4096`. For {query-type} queries, the number of
 clauses is calculated as the number of fields multiplied by the number of terms.
 ===================================================
 // end::max-clause-limit[]
+:query-type!:
 
 ==== Per-field boosting
 

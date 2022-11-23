@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -119,7 +119,7 @@ public class TypesTests extends ESTestCase {
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("session_id");
         assertThat(field, instanceOf(KeywordEsField.class));
-        //assertThat(field.getPrecision(), is(15));
+        // assertThat(field.getPrecision(), is(15));
         assertThat(field.isAggregatable(), is(false));
     }
 
@@ -186,6 +186,13 @@ public class TypesTests extends ESTestCase {
         assertThat(dt.getDataType().typeName(), is("ip"));
     }
 
+    public void testVersionField() {
+        Map<String, EsField> mapping = loadMapping("mapping-version.json");
+        assertThat(mapping.size(), is(1));
+        EsField dt = mapping.get("version_number");
+        assertThat(dt.getDataType().typeName(), is("version"));
+    }
+
     public void testConstantKeywordField() {
         Map<String, EsField> mapping = loadMapping("mapping-constant-keyword.json");
         assertThat(mapping.size(), is(1));
@@ -228,7 +235,7 @@ public class TypesTests extends ESTestCase {
         return loadMapping(registry, stream, ordered);
     }
 
-    public static Map<String, EsField> loadMapping(DataTypeRegistry registry, InputStream stream, Boolean ordered) {
+    private static Map<String, EsField> loadMapping(DataTypeRegistry registry, InputStream stream, Boolean ordered) {
         boolean order = ordered != null ? ordered.booleanValue() : randomBoolean();
         try (InputStream in = stream) {
             return Types.fromEs(registry, XContentHelper.convertToMap(JsonXContent.jsonXContent, in, order));

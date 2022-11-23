@@ -9,44 +9,36 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
-import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
-import org.elasticsearch.xpack.core.ml.utils.MapHelper;
-import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
+import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -71,82 +63,39 @@ import static org.hamcrest.Matchers.nullValue;
  * torch.jit.save(traced_model, "simplemodel.pt")
  * ## End Python
  */
-public class PyTorchModelIT extends ESRestTestCase {
-
-    private static final String BASIC_AUTH_VALUE_SUPER_USER =
-        UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
     static final String BASE_64_ENCODED_MODEL =
-        "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWlpaWlpaWlpaWoACY19fdG9yY2hfXwp" +
-            "TdXBlclNpbXBsZQpxACmBfShYCAAAAHRyYWluaW5ncQGIdWJxAi5QSwcIXOpBBDQAAAA0AAAAUEsDBBQACAgIAAAAAAAAAAAAAAAAAA" +
-            "AAAAAdAEEAc2ltcGxlbW9kZWwvY29kZS9fX3RvcmNoX18ucHlGQj0AWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaW" +
-            "lpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWnWOMWvDMBCF9/yKI5MMrnHTQsHgjt2aJdlCEIp9SgWSTpykFvfXV1htaYds0nfv473Jqhjh" +
-            "kAPywbhgUbzSnC02wwZAyqBYOUzIUUoY4XRe6SVr/Q8lVsYbf4UBLkS2kBk1aOIPxbOIaPVQtEQ8vUnZ/WlrSxTA+JCTNHMc4Ig+Ele" +
-            "s+Jod+iR3N/jDDf74wxu4e/5+DmtE9mUyhdgFNq7bZ3ekehbruC6aTxS/c1rom6Z698WrEfIYxcn4JGTftLA7tzCnJeD41IJVC+U07k" +
-            "umUHw3E47Vqh+xnULeFisYLx064mV8UTZibWFMmX0p23wBUEsHCE0EGH3yAAAAlwEAAFBLAwQUAAgICAAAAAAAAAAAAAAAAAAAAAAAJ" +
-            "wA5AHNpbXBsZW1vZGVsL2NvZGUvX190b3JjaF9fLnB5LmRlYnVnX3BrbEZCNQBaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpa" +
-            "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWrWST0+DMBiHW6bOod/BGS94kKpo2Mwyox5x3pbgiXSAFtdR/nQu3IwHiZ9oX88CaeGu9tL0efq" +
-            "+v8P7fmiGA1wgTgoIcECZQqe6vmYD6G4hAJOcB1E8NazTm+ELyzY4C3Q0z8MsRwF+j4JlQUPEEo5wjH0WB9hCNFqgpOCExZY5QnnEw7" +
-            "ME+0v8GuaIs8wnKI7RigVrKkBzm0lh2OdjkeHllG28f066vK6SfEypF60S+vuYt4gjj2fYr/uPrSvRv356TepfJ9iWJRN0OaELQSZN3" +
-            "FRPNbcP1PTSntMr0x0HzLZQjPYIEo3UaFeiISRKH0Mil+BE/dyT1m7tCBLwVO1MX4DK3bbuTlXuy8r71j5Aoho66udAoseOnrdVzx28" +
-            "UFW6ROuO/lT6QKKyo79VU54emj9QSwcInsUTEDMBAAAFAwAAUEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAZAAYAc2ltcGxlbW9kZWw" +
-            "vY29uc3RhbnRzLnBrbEZCAgBaWoACKS5QSwcIbS8JVwQAAAAEAAAAUEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAATADsAc2ltcGxlbW" +
-            "9kZWwvdmVyc2lvbkZCNwBaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaMwpQSwcI0" +
-            "Z5nVQIAAAACAAAAUEsBAgAAAAAICAAAAAAAAFzqQQQ0AAAANAAAABQAAAAAAAAAAAAAAAAAAAAAAHNpbXBsZW1vZGVsL2RhdGEucGts" +
-            "UEsBAgAAFAAICAgAAAAAAE0EGH3yAAAAlwEAAB0AAAAAAAAAAAAAAAAAhAAAAHNpbXBsZW1vZGVsL2NvZGUvX190b3JjaF9fLnB5UEs" +
-            "BAgAAFAAICAgAAAAAAJ7FExAzAQAABQMAACcAAAAAAAAAAAAAAAAAAgIAAHNpbXBsZW1vZGVsL2NvZGUvX190b3JjaF9fLnB5LmRlYn" +
-            "VnX3BrbFBLAQIAAAAACAgAAAAAAABtLwlXBAAAAAQAAAAZAAAAAAAAAAAAAAAAAMMDAABzaW1wbGVtb2RlbC9jb25zdGFudHMucGtsU" +
-            "EsBAgAAAAAICAAAAAAAANGeZ1UCAAAAAgAAABMAAAAAAAAAAAAAAAAAFAQAAHNpbXBsZW1vZGVsL3ZlcnNpb25QSwYGLAAAAAAAAAAe" +
-            "Ay0AAAAAAAAAAAAFAAAAAAAAAAUAAAAAAAAAagEAAAAAAACSBAAAAAAAAFBLBgcAAAAA/AUAAAAAAAABAAAAUEsFBgAAAAAFAAUAagE" +
-            "AAJIEAAAAAA==";
+        "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWlpaWlpaWlpaWoACY19fdG9yY2hfXwp"
+            + "TdXBlclNpbXBsZQpxACmBfShYCAAAAHRyYWluaW5ncQGIdWJxAi5QSwcIXOpBBDQAAAA0AAAAUEsDBBQACAgIAAAAAAAAAAAAAAAAAA"
+            + "AAAAAdAEEAc2ltcGxlbW9kZWwvY29kZS9fX3RvcmNoX18ucHlGQj0AWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaW"
+            + "lpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWnWOMWvDMBCF9/yKI5MMrnHTQsHgjt2aJdlCEIp9SgWSTpykFvfXV1htaYds0nfv473Jqhjh"
+            + "kAPywbhgUbzSnC02wwZAyqBYOUzIUUoY4XRe6SVr/Q8lVsYbf4UBLkS2kBk1aOIPxbOIaPVQtEQ8vUnZ/WlrSxTA+JCTNHMc4Ig+Ele"
+            + "s+Jod+iR3N/jDDf74wxu4e/5+DmtE9mUyhdgFNq7bZ3ekehbruC6aTxS/c1rom6Z698WrEfIYxcn4JGTftLA7tzCnJeD41IJVC+U07k"
+            + "umUHw3E47Vqh+xnULeFisYLx064mV8UTZibWFMmX0p23wBUEsHCE0EGH3yAAAAlwEAAFBLAwQUAAgICAAAAAAAAAAAAAAAAAAAAAAAJ"
+            + "wA5AHNpbXBsZW1vZGVsL2NvZGUvX190b3JjaF9fLnB5LmRlYnVnX3BrbEZCNQBaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpa"
+            + "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWrWST0+DMBiHW6bOod/BGS94kKpo2Mwyox5x3pbgiXSAFtdR/nQu3IwHiZ9oX88CaeGu9tL0efq"
+            + "+v8P7fmiGA1wgTgoIcECZQqe6vmYD6G4hAJOcB1E8NazTm+ELyzY4C3Q0z8MsRwF+j4JlQUPEEo5wjH0WB9hCNFqgpOCExZY5QnnEw7"
+            + "ME+0v8GuaIs8wnKI7RigVrKkBzm0lh2OdjkeHllG28f066vK6SfEypF60S+vuYt4gjj2fYr/uPrSvRv356TepfJ9iWJRN0OaELQSZN3"
+            + "FRPNbcP1PTSntMr0x0HzLZQjPYIEo3UaFeiISRKH0Mil+BE/dyT1m7tCBLwVO1MX4DK3bbuTlXuy8r71j5Aoho66udAoseOnrdVzx28"
+            + "UFW6ROuO/lT6QKKyo79VU54emj9QSwcInsUTEDMBAAAFAwAAUEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAZAAYAc2ltcGxlbW9kZWw"
+            + "vY29uc3RhbnRzLnBrbEZCAgBaWoACKS5QSwcIbS8JVwQAAAAEAAAAUEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAATADsAc2ltcGxlbW"
+            + "9kZWwvdmVyc2lvbkZCNwBaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaMwpQSwcI0"
+            + "Z5nVQIAAAACAAAAUEsBAgAAAAAICAAAAAAAAFzqQQQ0AAAANAAAABQAAAAAAAAAAAAAAAAAAAAAAHNpbXBsZW1vZGVsL2RhdGEucGts"
+            + "UEsBAgAAFAAICAgAAAAAAE0EGH3yAAAAlwEAAB0AAAAAAAAAAAAAAAAAhAAAAHNpbXBsZW1vZGVsL2NvZGUvX190b3JjaF9fLnB5UEs"
+            + "BAgAAFAAICAgAAAAAAJ7FExAzAQAABQMAACcAAAAAAAAAAAAAAAAAAgIAAHNpbXBsZW1vZGVsL2NvZGUvX190b3JjaF9fLnB5LmRlYn"
+            + "VnX3BrbFBLAQIAAAAACAgAAAAAAABtLwlXBAAAAAQAAAAZAAAAAAAAAAAAAAAAAMMDAABzaW1wbGVtb2RlbC9jb25zdGFudHMucGtsU"
+            + "EsBAgAAAAAICAAAAAAAANGeZ1UCAAAAAgAAABMAAAAAAAAAAAAAAAAAFAQAAHNpbXBsZW1vZGVsL3ZlcnNpb25QSwYGLAAAAAAAAAAe"
+            + "Ay0AAAAAAAAAAAAFAAAAAAAAAAUAAAAAAAAAagEAAAAAAACSBAAAAAAAAFBLBgcAAAAA/AUAAAAAAAABAAAAUEsFBgAAAAAFAAUAagE"
+            + "AAJIEAAAAAA==";
     static final long RAW_MODEL_SIZE; // size of the model before base64 encoding
     static {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
-    private final ExecutorService executorService = Executors.newFixedThreadPool(5);
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
-    }
-
-    @Before
-    public void setLogging() throws IOException {
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("" +
-            "{" +
-            "\"transient\" : {\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\",\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"TRACE\"\n" +
-            "    }" +
-            "}");
-        client().performRequest(loggingSettings);
-    }
-
-    @After
-    public void cleanup() throws Exception {
-        terminate(executorService);
-
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("" +
-            "{" +
-            "\"transient\" : {\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n" +
-            "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n" +
-            "    }" +
-            "}");
-        client().performRequest(loggingSettings);
-
-        new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
-        waitForPendingTasks(adminClient());
-    }
-
     public void testEvaluate() throws IOException, InterruptedException {
         String modelId = "test_evaluate";
-        createTrainedModel(modelId);
+        createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
@@ -158,7 +107,10 @@ public class PyTorchModelIT extends ESRestTestCase {
                 executorService.execute(() -> {
                     try {
                         Response inference = infer("my words", modelId);
-                        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference\":[[1.0,1.0]]}"));
+                        assertThat(
+                            EntityUtils.toString(inference.getEntity()),
+                            equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}")
+                        );
                     } catch (IOException ex) {
                         failures.add(ex.getMessage());
                     } finally {
@@ -175,30 +127,109 @@ public class PyTorchModelIT extends ESRestTestCase {
         }
     }
 
+    public void testEvaluateWithResultFieldOverride() throws IOException {
+        String modelId = "test_evaluate";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        String resultsField = randomAlphaOfLength(10);
+        Response inference = infer("my words", modelId, resultsField);
+        assertThat(
+            EntityUtils.toString(inference.getEntity()),
+            equalTo("{\"inference_results\":[{\"" + resultsField + "\":[[1.0,1.0]]}]}")
+        );
+        stopDeployment(modelId);
+    }
+
+    public void testEvaluateWithMinimalTimeout() throws IOException {
+        String modelId = "test_evaluate_timeout";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        // There is a race between inference and timeout so that
+        // even with a zero timeout a valid inference response may
+        // be returned.
+        // The test asserts that if an error occurs it is a timeout error
+        try {
+            infer("my words", modelId, TimeValue.ZERO);
+        } catch (ResponseException ex) {
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(408));
+        }
+        stopDeployment(modelId);
+    }
+
+    public void testDeleteFailureDueToDeployment() throws IOException {
+        String modelId = "test_deployed_model_delete";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        Exception ex = expectThrows(Exception.class, () -> client().performRequest(new Request("DELETE", "_ml/trained_models/" + modelId)));
+        assertThat(ex.getMessage(), containsString("Cannot delete model [test_deployed_model_delete] as it is currently deployed"));
+        stopDeployment(modelId);
+    }
+
     @SuppressWarnings("unchecked")
     public void testDeploymentStats() throws IOException {
         String model = "model_starting_test";
         String modelPartial = "model_partially_started";
         String modelStarted = "model_started";
-        createTrainedModel(model);
+        createPassThroughModel(model);
         putVocabulary(List.of("once", "twice"), model);
         putModelDefinition(model);
-        createTrainedModel(modelPartial);
+        createPassThroughModel(modelPartial);
         putVocabulary(List.of("once", "twice"), modelPartial);
         putModelDefinition(modelPartial);
-        createTrainedModel(modelStarted);
+        createPassThroughModel(modelStarted);
         putVocabulary(List.of("once", "twice"), modelStarted);
         putModelDefinition(modelStarted);
 
         CheckedBiConsumer<String, AllocationStatus.State, IOException> assertAtLeast = (modelId, state) -> {
             startDeployment(modelId, state.toString());
-            Response response = getDeploymentStats(modelId);
-            List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
+            Response response = getTrainedModelStats(modelId);
+            var responseMap = entityAsMap(response);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
             assertThat(stats, hasSize(1));
-            String statusState = (String)XContentMapValues.extractValue("allocation_status.state", stats.get(0));
-            assertThat(stats.toString(), statusState, is(not(nullValue())));
+            String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
+            assertThat(responseMap.toString(), statusState, is(not(nullValue())));
             assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
-            stopDeployment(model);
+            assertThat(XContentMapValues.extractValue("inference_stats", stats.get(0)), is(not(nullValue())));
+
+            Integer byteSize = (Integer) XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0));
+            assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
+            assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
+
+            Integer requiredNativeMemory = (Integer) XContentMapValues.extractValue(
+                "model_size_stats.required_native_memory_bytes",
+                stats.get(0)
+            );
+            assertThat(responseMap.toString(), requiredNativeMemory, is(not(nullValue())));
+            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(240).getBytes() + 2 * RAW_MODEL_SIZE)));
+
+            Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
+            var humanResponseMap = entityAsMap(humanResponse);
+            stats = (List<Map<String, Object>>) humanResponseMap.get("trained_model_stats");
+            assertThat(stats, hasSize(1));
+            String stringModelSizeBytes = (String) XContentMapValues.extractValue("model_size_stats.model_size", stats.get(0));
+            assertThat(
+                "stats response: " + responseMap + " human stats response " + humanResponseMap,
+                stringModelSizeBytes,
+                is(not(nullValue()))
+            );
+            assertThat(stringModelSizeBytes, equalTo("1.5kb"));
+            String stringRequiredNativeMemory = (String) XContentMapValues.extractValue(
+                "model_size_stats.required_native_memory",
+                stats.get(0)
+            );
+            assertThat(
+                "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                stringRequiredNativeMemory,
+                is(not(nullValue()))
+            );
+            assertThat(stringRequiredNativeMemory, equalTo("240mb"));
+            stopDeployment(modelId);
         };
 
         assertAtLeast.accept(model, AllocationStatus.State.STARTING);
@@ -206,45 +237,103 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertAtLeast.accept(modelStarted, AllocationStatus.State.FULLY_ALLOCATED);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
     @SuppressWarnings("unchecked")
     public void testLiveDeploymentStats() throws IOException {
-        String modelA = "model_a";
+        String modelId = "live_deployment_stats";
+        createPassThroughModel(modelId);
+        putVocabulary(List.of("once", "twice"), modelId);
+        putModelDefinition(modelId);
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        {
+            Response noInferenceCallsStatsResponse = getTrainedModelStats(modelId);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
+                "trained_model_stats"
+            );
+            assertThat(stats, hasSize(1));
 
-        createTrainedModel(modelA);
-        putVocabulary(List.of("once", "twice"), modelA);
-        putModelDefinition(modelA);
-        startDeployment(modelA, AllocationStatus.State.FULLY_ALLOCATED.toString());
-        infer("once", modelA);
-        infer("twice", modelA);
-        Response response = getDeploymentStats(modelA);
-        List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
-        assertThat(stats, hasSize(1));
-        assertThat(stats.get(0).get("model_id"), equalTo(modelA));
-        assertThat(stats.get(0).get("model_size"), equalTo("1.5kb"));
-        List<Map<String, Object>> nodes = (List<Map<String, Object>>)stats.get(0).get("nodes");
-        // 2 of the 3 nodes in the cluster are ML nodes
-        assertThat(nodes, hasSize(2));
-        int inferenceCount = sumInferenceCountOnNodes(nodes);
-        assertThat(inferenceCount, equalTo(2));
+            List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "deployment_stats.nodes",
+                stats.get(0)
+            );
+            int inferenceCount = sumInferenceCountOnNodes(nodes);
+            assertThat(inferenceCount, equalTo(0));
+
+            for (var node : nodes) {
+                // null before the model is used
+                assertThat(node.get("last_access"), nullValue());
+                assertThat(node.get("average_inference_time_ms"), nullValue());
+                assertThat(node.get("average_inference_time_ms_last_minute"), nullValue());
+            }
+        }
+
+        infer("once", modelId);
+        infer("twice", modelId);
+        // By making this request 3 times at least one of the responses must come from the cache because the cluster has 2 ML nodes
+        infer("three times", modelId);
+        infer("three times", modelId);
+        infer("three times", modelId);
+        {
+            Response postInferStatsResponse = getTrainedModelStats(modelId);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(postInferStatsResponse).get("trained_model_stats");
+            assertThat(stats, hasSize(1));
+            assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelId));
+            assertThat(XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
+            List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "deployment_stats.nodes",
+                stats.get(0)
+            );
+            // 2 of the 3 nodes in the cluster are ML nodes but we have asked for a single allocation
+            assertThat(nodes, hasSize(1));
+            for (var node : nodes) {
+                assertThat(node.get("number_of_pending_requests"), notNullValue());
+            }
+            assertAtLeastOneOfTheseIsNonZero("inference_cache_hit_count", nodes);
+            // last_access, average_inference_time_ms and inference_cache_hit_count_last_minute
+            // may be null if inference wasn't performed on a node. Also, in this test they'll
+            // be zero even when they are present because we don't have a full minute of history.
+            assertAtLeastOneOfTheseIsNotNull("last_access", nodes);
+            assertAtLeastOneOfTheseIsNotNull("average_inference_time_ms", nodes);
+            assertAtLeastOneOfTheseIsNotNull("inference_cache_hit_count_last_minute", nodes);
+
+            assertThat((Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(5));
+            int inferenceCount = sumInferenceCountOnNodes(nodes);
+            assertThat(inferenceCount, equalTo(5));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFailedDeploymentStats() throws Exception {
+        String badModel = "bad_model";
+        String poorlyFormattedModelBase64 = "cG9vcmx5IGZvcm1hdHRlZCBtb2RlbAo=";
+        int length = Base64.getDecoder().decode(poorlyFormattedModelBase64).length;
+        createPassThroughModel(badModel);
+        putVocabulary(List.of("once", "twice"), badModel);
+        Request request = new Request("PUT", "_ml/trained_models/" + badModel + "/definition/0");
+        request.setJsonEntity(formatted("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", length, poorlyFormattedModelBase64));
+        client().performRequest(request);
+        startDeployment(badModel, AllocationStatus.State.STARTING.toString());
+        assertBusy(() -> {
+            Response noInferenceCallsStatsResponse = getTrainedModelStats(badModel);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
+                "trained_model_stats"
+            );
+            assertThat(stats, hasSize(1));
+
+            String assignmentState = (String) XContentMapValues.extractValue("deployment_stats.state", stats.get(0));
+            assertThat(assignmentState, equalTo(AssignmentState.FAILED.toString()));
+        });
     }
 
     @SuppressWarnings("unchecked")
     public void testGetDeploymentStats_WithWildcard() throws IOException {
-
-        {
-            // No deployments is an error when allow_no_match == false
-            expectThrows(ResponseException.class, () -> getDeploymentStats("*", false));
-            getDeploymentStats("*", true);
-        }
-
         String modelFoo = "foo";
-        createTrainedModel(modelFoo);
+        createPassThroughModel(modelFoo);
         putVocabulary(List.of("once", "twice"), modelFoo);
         putModelDefinition(modelFoo);
 
         String modelBar = "bar";
-        createTrainedModel(modelBar);
+        createPassThroughModel(modelBar);
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
@@ -253,55 +342,30 @@ public class PyTorchModelIT extends ESRestTestCase {
         infer("once", modelFoo);
         infer("once", modelBar);
         {
-            Response response = getDeploymentStats("*");
+            Response response = getTrainedModelStats("f*");
             Map<String, Object> map = entityAsMap(response);
-            List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("deployment_stats");
-            assertThat(stats, hasSize(2));
-            assertThat(stats.get(0).get("model_id"), equalTo(modelBar));
-            assertThat(stats.get(1).get("model_id"), equalTo(modelFoo));
-            List<Map<String, Object>> barNodes = (List<Map<String, Object>>)stats.get(0).get("nodes");
-            // 2 of the 3 nodes in the cluster are ML nodes
-            assertThat(barNodes, hasSize(2));
-            assertThat(sumInferenceCountOnNodes(barNodes), equalTo(1));
-            List<Map<String, Object>> fooNodes = (List<Map<String, Object>>)stats.get(0).get("nodes");
-            assertThat(fooNodes, hasSize(2));
-            assertThat(sumInferenceCountOnNodes(fooNodes), equalTo(1));
-        }
-        {
-            Response response = getDeploymentStats("f*");
-            Map<String, Object> map = entityAsMap(response);
-            List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("deployment_stats");
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
-            assertThat(stats.get(0).get("model_id"), equalTo(modelFoo));
+            assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelFoo));
         }
         {
-            Response response = getDeploymentStats("bar");
+            Response response = getTrainedModelStats("bar");
             Map<String, Object> map = entityAsMap(response);
-            List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("deployment_stats");
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
-            assertThat(stats.get(0).get("model_id"), equalTo(modelBar));
-        }
-        {
-            ResponseException e = expectThrows(ResponseException.class, () -> getDeploymentStats("c*", false));
-            assertThat(EntityUtils.toString(e.getResponse().getEntity()),
-                containsString("No known trained model with deployment with id [c*]"));
-        }
-        {
-            ResponseException e = expectThrows(ResponseException.class, () -> getDeploymentStats("foo,c*", false));
-            assertThat(EntityUtils.toString(e.getResponse().getEntity()),
-                containsString("No known trained model with deployment with id [c*]"));
+            assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelBar));
         }
     }
 
     @SuppressWarnings("unchecked")
     public void testGetDeploymentStats_WithStartedStoppedDeployments() throws IOException {
         String modelFoo = "foo";
-        String modelBar = "bar";
-        createTrainedModel(modelFoo);
+        String modelBar = "foo-2";
+        createPassThroughModel(modelFoo);
         putVocabulary(List.of("once", "twice"), modelFoo);
         putModelDefinition(modelFoo);
 
-        createTrainedModel(modelBar);
+        createPassThroughModel(modelBar);
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
@@ -310,143 +374,600 @@ public class PyTorchModelIT extends ESRestTestCase {
         infer("once", modelFoo);
         infer("once", modelBar);
 
-        Response response = getDeploymentStats("*");
+        Response response = getTrainedModelStats("foo*");
         Map<String, Object> map = entityAsMap(response);
-        List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("deployment_stats");
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
         assertThat(stats, hasSize(2));
 
         // check all nodes are started
-        for (int i : new int[]{0, 1}) {
-            List<Map<String, Object>> nodes = (List<Map<String, Object>>) stats.get(i).get("nodes");
-            // 2 ml nodes
-            assertThat(nodes, hasSize(2));
-            for (int j : new int[]{0, 1}) {
-                Object state = MapHelper.dig("routing_state.routing_state", nodes.get(j));
-                assertEquals("started", state);
-            }
+        for (int i : new int[] { 0, 1 }) {
+            List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "deployment_stats.nodes",
+                stats.get(i)
+            );
+            // 2 ml nodes but we've asked a single allocation for each model
+            assertThat(nodes, hasSize(1));
+            Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(0));
+            assertEquals("started", state);
         }
 
         stopDeployment(modelFoo);
 
-        response = getDeploymentStats("*");
+        response = getTrainedModelStats("foo*");
         map = entityAsMap(response);
-        stats = (List<Map<String, Object>>) map.get("deployment_stats");
+        stats = (List<Map<String, Object>>) map.get("trained_model_stats");
 
-        assertThat(stats, hasSize(1));
+        assertThat(stats, hasSize(2));
+        assertThat(stats.get(0), not(hasKey("deployment_stats")));
 
-        // check all nodes are started
-        List<Map<String, Object>> nodes = (List<Map<String, Object>>) stats.get(0).get("nodes");
-        // 2 ml nodes
-        assertThat(nodes, hasSize(2));
-        for (int j : new int[]{0, 1}) {
-            Object state = MapHelper.dig("routing_state.routing_state", nodes.get(j));
-            assertEquals("started", state);
-        }
+        // check a node is started for the non-stopped deployment
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "deployment_stats.nodes",
+            stats.get(1)
+        );
+        // 2 ml nodes but we've asked a single allocation
+        assertThat(nodes, hasSize(1));
+        Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(0));
+        assertEquals("started", state);
 
         stopDeployment(modelBar);
-
-        response = getDeploymentStats("*");
-        map = entityAsMap(response);
-        stats = (List<Map<String, Object>>) map.get("deployment_stats");
-        assertThat(stats, empty());
     }
 
-    private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
-        int inferenceCount = 0;
-        for (var node : nodes) {
-            inferenceCount += (Integer) node.get("inference_count");
+    public void testInferWithMissingModel() {
+        Exception ex = expectThrows(Exception.class, () -> infer("foo", "missing_model"));
+        assertThat(ex.getMessage(), containsString("Could not find trained model [missing_model]"));
+    }
+
+    public void testGetPytorchModelWithDefinition() throws IOException {
+        String model = "should-fail-get";
+        createPassThroughModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> client().performRequest(new Request("GET", "_ml/trained_models/" + model + "?include=definition"))
+        );
+        assertThat(ex.getMessage(), containsString("[should-fail-get] is type [pytorch] and does not support retrieving the definition"));
+    }
+
+    public void testStartDeploymentWithTruncatedDefinition() throws IOException {
+        String model = "should-fail-get";
+        createPassThroughModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        Request request = new Request("PUT", "_ml/trained_models/" + model + "/definition/0");
+        request.setJsonEntity(formatted("""
+            {"total_definition_length":%s2,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
+        client().performRequest(request);
+        Exception ex = expectThrows(Exception.class, () -> startDeployment(model));
+        assertThat(
+            ex.getMessage(),
+            containsString("Model definition truncated. Unable to deserialize trained model definition [" + model + "]")
+        );
+    }
+
+    public void testInferencePipelineAgainstUnallocatedModel() throws IOException {
+        String model = "not-deployed";
+        createPassThroughModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "not-deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {
+                  "_source": {
+                    "input": "my words"
+                  }
+                }
+              ]
+            }""";
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            allOf(
+                containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
+                containsString("error"),
+                not(containsString("warning"))
+            )
+        );
+
+        client().performRequest(putPipeline("my_pipeline", """
+            {"processors": [
+                  {
+                    "inference": {
+                      "model_id": "not-deployed"
+                    }
+                  }
+                ]
+            }"""));
+
+        Request request = new Request("PUT", "undeployed_model_index/_doc/1?pipeline=my_pipeline&refresh=true");
+        request.setJsonEntity("""
+            {
+                    "input": "my words"
+                  }
+            """);
+        Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
+        assertThat(ex.getMessage(), containsString("Trained model [not-deployed] is not deployed."));
+    }
+
+    public void testTruncation() throws IOException {
+        String modelId = "no-truncation";
+
+        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
+        request.setJsonEntity("""
+            {
+                "description": "simple model for testing",
+                "model_type": "pytorch",
+                "inference_config": {
+                    "pass_through": {
+                        "tokenization": {
+                            "bert": {
+                                "with_special_tokens": false,
+                                "truncate": "none",
+                                "max_sequence_length": 2
+                            }
+                        }
+                    }
+                }
+            }""");
+        client().performRequest(request);
+
+        putVocabulary(List.of("once", "twice", "thrice"), modelId);
+        putModelDefinition(modelId);
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+
+        String input = "once twice thrice";
+        var e = expectThrows(ResponseException.class, () -> EntityUtils.toString(infer("once twice thrice", modelId).getEntity()));
+        assertThat(
+            e.getMessage(),
+            containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
+        );
+
+        // We set timeout to 20s as we've seen this test time out on some busy workers.
+        request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=20s");
+        request.setJsonEntity(formatted("""
+            {
+              "docs": [
+                {
+                  "input": "%s"
+                }
+              ],
+              "inference_config": {
+                "pass_through": {
+                  "tokenization": {
+                    "bert": {
+                      "truncate": "first"
+                    }
+                  }
+                }
+              }
+            }""", input));
+        client().performRequest(request);
+    }
+
+    public void testStopUsedDeploymentByIngestProcessor() throws IOException {
+        String modelId = "test_stop_used_deployment_by_ingest_processor";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        client().performRequest(putPipeline("my_pipeline", formatted("""
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s"
+                  }
+                }
+              ]
+            }""", modelId)));
+        ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                "Cannot stop deployment for model [test_stop_used_deployment_by_ingest_processor] as it is referenced by"
+                    + " ingest processors; use force to stop the deployment"
+            )
+        );
+
+        stopDeployment(modelId, true);
+    }
+
+    public void testStopWithModelAliasUsedDeploymentByIngestProcessor() throws IOException {
+        String modelId = "test_stop_model_alias_used_deployment_by_ingest_processor";
+        String modelAlias = "used_model_alias";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        client().performRequest(new Request("PUT", formatted("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
+
+        client().performRequest(putPipeline("my_pipeline", formatted("""
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s"
+                  }
+                }
+              ]
+            }""", modelAlias)));
+        ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                "Cannot stop deployment for model [test_stop_model_alias_used_deployment_by_ingest_processor] as it has a "
+                    + "model_alias [used_model_alias] that is still referenced"
+                    + " by ingest processors; use force to stop the deployment"
+            )
+        );
+        stopDeployment(modelId, true);
+    }
+
+    public void testInferenceProcessorWithModelAlias() throws IOException {
+        String modelId = "test_model_alias_infer";
+        String modelAlias = "pytorch_model_alias";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        client().performRequest(new Request("PUT", formatted("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
+
+        String source = formatted("""
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "%s"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """, modelAlias);
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            allOf(
+                containsString("\"ml\":{\"inference\":{\"predicted_value\":[[1.0,1.0]]"),
+                containsString(modelId),
+                not(containsString("warning"))
+            )
+        );
+    }
+
+    public void testPipelineWithBadProcessor() throws IOException {
+        String model = "deployed";
+        createPassThroughModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+        startDeployment(model);
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed",
+                      "inference_config": {
+                        "ner": {}
+                      }
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """;
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            allOf(
+                containsString("Trained model [deployed] is configured for task [pass_through] but called with task [ner]"),
+                containsString("error"),
+                not(containsString("warning"))
+            )
+        );
+
+        // Missing input field is a warning
+        source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"something": "my words"}}]
+            }
+            """;
+
+        response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(response, containsString("Input field [input] does not exist in the source document"));
+        assertThat(response, containsString("status_exception"));
+    }
+
+    public void testDeleteModelWithDeploymentUsedByIngestProcessor() throws IOException {
+        String modelId = "test_delete_model_with_used_deployment";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        ResponseException ex = expectThrows(ResponseException.class, () -> deleteModel(modelId, false));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                "Cannot delete model [test_delete_model_with_used_deployment] as it is currently deployed;"
+                    + " use force to delete the model"
+            )
+        );
+
+        deleteModel(modelId, true);
+
+        assertThatTrainedModelAssignmentMetadataIsEmpty();
+    }
+
+    public void testStoppingDeploymentShouldTriggerRebalance() throws Exception {
+        // We start 2 models. The first needs so many allocations it won't possibly
+        // get them all. This would leave no space to allocate the second model at all.
+        // We then stop the first model and should see the second one get allocations.
+
+        // Enable lazy starting so that the deployments start even if they cannot get fully allocated.
+        // The setting is cleared in the cleanup method of these tests.
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "xpack.ml.max_lazy_ml_nodes": 5
+                }}""");
+        client().performRequest(loggingSettings);
+
+        String modelId1 = "stopping_triggers_rebalance_1";
+        createPassThroughModel(modelId1);
+        putModelDefinition(modelId1);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId1);
+
+        String modelId2 = "stopping_triggers_rebalance_2";
+        createPassThroughModel(modelId2);
+        putModelDefinition(modelId2);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId2);
+
+        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
+        startDeployment(modelId2, AllocationStatus.State.STARTING.toString(), 1, 1, Priority.NORMAL);
+
+        // Check second model did not get any allocations
+        assertAllocationCount(modelId2, 0);
+
+        stopDeployment(modelId1);
+
+        assertBusy(() -> assertAllocationCount(modelId2, 1));
+
+        stopDeployment(modelId2);
+    }
+
+    public void testNotifications() throws IOException {
+        String modelId1 = "test_notifications_1";
+        createPassThroughModel(modelId1);
+        putModelDefinition(modelId1);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId1);
+        startDeployment(modelId1);
+
+        String modelId2 = "test_notifications_2";
+        createPassThroughModel(modelId2);
+        putModelDefinition(modelId2);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId2);
+        startDeployment(modelId2);
+
+        stopDeployment(modelId1);
+        stopDeployment(modelId2);
+
+        assertNotificationsContain(modelId1, "Started deployment", "Stopped deployment");
+        assertNotificationsContain(modelId2, "Started deployment", "Stopped deployment");
+        assertSystemNotificationsContain("Rebalanced trained model allocations because [model deployment started]");
+    }
+
+    public void testStartDeployment_TooManyAllocations() throws IOException {
+        String modelId = "test_start_deployment_too_many_allocations";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> startDeployment(modelId, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL)
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString("Could not start deployment because there are not enough resources to provide all requested allocations")
+        );
+
+        Response response = getTrainedModelStats(modelId);
+        assertThat(EntityUtils.toString(response.getEntity()), not(containsString("deployment_stats")));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStartDeployment_GivenNoProcessorsLeft_AndLazyStartEnabled() throws Exception {
+        // We start 2 models. The first needs so many allocations it won't possibly
+        // get them all. This would leave no space to allocate the second model at all.
+
+        // Enable lazy starting so that the deployments start even if they cannot get fully allocated.
+        // The setting is cleared in the cleanup method of these tests.
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "xpack.ml.max_lazy_ml_nodes": 5
+                }}""");
+        client().performRequest(loggingSettings);
+
+        String modelId1 = "start_no_processors_left_lazy_start_1";
+        createPassThroughModel(modelId1);
+        putModelDefinition(modelId1);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId1);
+
+        String modelId2 = "start_no_processors_left_lazy_start_2";
+        createPassThroughModel(modelId2);
+        putModelDefinition(modelId2);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId2);
+
+        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
+
+        {
+            Request request = new Request(
+                "POST",
+                "/_ml/trained_models/"
+                    + modelId2
+                    + "/deployment/_start?timeout=40s&wait_for=starting&"
+                    + "number_of_allocations=4&threads_per_allocation=2&queue_capacity=500&cache_size=100Kb"
+            );
+            client().performRequest(request);
         }
-        return inferenceCount;
+
+        // Check second model did not get any allocations
+        assertAllocationCount(modelId2, 0);
+
+        // Verify stats shows model is starting and deployment settings are present
+        {
+            Response statsResponse = getTrainedModelStats(modelId2);
+            var responseMap = entityAsMap(statsResponse);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
+            assertThat(stats, hasSize(1));
+            String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
+            assertThat(statusState, equalTo("starting"));
+            int numberOfAllocations = (int) XContentMapValues.extractValue("deployment_stats.number_of_allocations", stats.get(0));
+            assertThat(numberOfAllocations, equalTo(4));
+            int threadsPerAllocation = (int) XContentMapValues.extractValue("deployment_stats.threads_per_allocation", stats.get(0));
+            assertThat(threadsPerAllocation, equalTo(2));
+            int queueCapacity = (int) XContentMapValues.extractValue("deployment_stats.queue_capacity", stats.get(0));
+            assertThat(queueCapacity, equalTo(500));
+            ByteSizeValue cacheSize = ByteSizeValue.parseBytesSizeValue(
+                (String) XContentMapValues.extractValue("deployment_stats.cache_size", stats.get(0)),
+                "cache_size)"
+            );
+            assertThat(cacheSize, equalTo(ByteSizeValue.ofKb(100)));
+        }
+
+        stopDeployment(modelId1);
+        stopDeployment(modelId2);
+    }
+
+    public void testUpdateDeployment_GivenMissingModel() throws IOException {
+        ResponseException ex = expectThrows(ResponseException.class, () -> updateDeployment("missing", 4));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("deployment for model with id [missing] not found"));
+    }
+
+    public void testUpdateDeployment_GivenAllocationsAreIncreased() throws Exception {
+        String modelId = "update_deployment_allocations_increased";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        assertAllocationCount(modelId, 1);
+
+        updateDeployment(modelId, 2);
+
+        assertBusy(() -> assertAllocationCount(modelId, 2));
+        assertSystemNotificationsContain("Rebalanced trained model allocations because [model deployment updated]");
+    }
+
+    public void testUpdateDeployment_GivenAllocationsAreIncreasedOverResources_AndScalingIsPossible() throws Exception {
+        Request maxLazyNodeSetting = new Request("PUT", "_cluster/settings");
+        maxLazyNodeSetting.setJsonEntity("""
+            {"persistent" : {
+                    "xpack.ml.max_lazy_ml_nodes": 5
+                }}""");
+        client().performRequest(maxLazyNodeSetting);
+
+        String modelId = "update_deployment_allocations_increased_scaling_possible";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        assertAllocationCount(modelId, 1);
+
+        updateDeployment(modelId, 42);
+
+        assertBusy(() -> {
+            int allocationCount = getAllocationCount(modelId);
+            assertThat(allocationCount, greaterThanOrEqualTo(2));
+        });
+    }
+
+    public void testUpdateDeployment_GivenAllocationsAreIncreasedOverResources_AndScalingIsNotPossible() throws Exception {
+        String modelId = "update_deployment_allocations_increased_scaling_not_possible";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        assertAllocationCount(modelId, 1);
+
+        ResponseException ex = expectThrows(ResponseException.class, () -> updateDeployment(modelId, 257));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString("Could not update deployment because there are not enough resources to provide all requested allocations")
+        );
+        assertAllocationCount(modelId, 1);
+    }
+
+    public void testUpdateDeployment_GivenAllocationsAreDecreased() throws Exception {
+        String modelId = "update_deployment_allocations_decreased";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId, "started", 2, 1, Priority.NORMAL);
+
+        assertBusy(() -> assertAllocationCount(modelId, 2));
+
+        updateDeployment(modelId, 1);
+
+        assertBusy(() -> assertAllocationCount(modelId, 1));
+    }
+
+    public void testStartMultipleLowPriorityDeployments() throws Exception {
+        String modelId1 = "start_multiple_low_priority_deployments_1";
+        String modelId2 = "start_multiple_low_priority_deployments_2";
+        String modelId3 = "start_multiple_low_priority_deployments_3";
+        String modelId4 = "start_multiple_low_priority_deployments_4";
+        for (String modelId : List.of(modelId1, modelId2, modelId3, modelId4)) {
+            createPassThroughModel(modelId);
+            putModelDefinition(modelId);
+            putVocabulary(List.of("these", "are", "my", "words"), modelId);
+            startDeployment(modelId, "started", 1, 1, Priority.LOW);
+            assertAllocationCount(modelId, 1);
+        }
     }
 
     private void putModelDefinition(String modelId) throws IOException {
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity("{  " +
-            "\"total_definition_length\":" + RAW_MODEL_SIZE + "," +
-            "\"definition\": \""  + BASE_64_ENCODED_MODEL + "\"," +
-            "\"total_parts\": 1" +
-            "}");
-        client().performRequest(request);
+        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE);
     }
-
-    private void putVocabulary(List<String> vocabulary, String modelId) throws IOException {
-        List<String> vocabularyWithPad = new ArrayList<>();
-        vocabularyWithPad.add(BertTokenizer.PAD_TOKEN);
-        vocabularyWithPad.addAll(vocabulary);
-        String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
-
-        Request request = new Request(
-            "PUT",
-            "/" + InferenceIndexConstants.nativeDefinitionStore() + "/_doc/test_vocab?refresh=true"
-        );
-        request.setJsonEntity("{  " +
-                "\"vocab\": [" + quotedWords + "]\n" +
-            "}");
-        request.setOptions(expectInferenceIndexWarning());
-        client().performRequest(request);
-    }
-
-    static RequestOptions expectInferenceIndexWarning() {
-        return RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(
-                w -> w.contains(
-                    "this request accesses system indices: ["
-                        + InferenceIndexConstants.nativeDefinitionStore()
-                        + "], but in a future major version, direct access to system indices will be prevented by default"
-                ) == false || w.size() != 1
-            )
-            .build();
-    }
-
-    private void createTrainedModel(String modelId) throws IOException {
-        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity("{  " +
-            "    \"description\": \"simple model for testing\",\n" +
-            "    \"model_type\": \"pytorch\",\n" +
-            "    \"inference_config\": {\n" +
-            "        \"pass_through\": {\n" +
-            "            \"vocabulary\": {\n" +
-            "              \"index\": \"" + InferenceIndexConstants.nativeDefinitionStore() + "\",\n" +
-            "              \"id\": \"test_vocab\"\n" +
-            "            },\n" +
-            "            \"tokenization\": {" +
-            "              \"bert\": {\"with_special_tokens\": false}\n" +
-            "            }\n" +
-            "        }\n" +
-            "    }\n" +
-            "}");
-        client().performRequest(request);
-    }
-
-    private Response startDeployment(String modelId) throws IOException {
-        return startDeployment(modelId, AllocationStatus.State.STARTED.toString());
-    }
-
-    private Response startDeployment(String modelId, String waitForState) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s&wait_for=" + waitForState);
-        return client().performRequest(request);
-    }
-
-    private void stopDeployment(String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_stop");
-        client().performRequest(request);
-    }
-
-    private Response getDeploymentStats(String modelId) throws IOException {
-        return getDeploymentStats(modelId, true);
-    }
-
-    private Response getDeploymentStats(String modelId, boolean allowNoMatch) throws IOException {
-        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/deployment/_stats?allow_no_match=" + allowNoMatch);
-        return client().performRequest(request);
-    }
-
-    private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity("{  " +
-            "\"docs\": [{\"input\":\"" + input + "\"}]\n" +
-            "}");
-        return client().performRequest(request);
-    }
-
 }

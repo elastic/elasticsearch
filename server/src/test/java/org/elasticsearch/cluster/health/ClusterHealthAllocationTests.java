@@ -30,10 +30,7 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test")
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(2)
-                .numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(routingTable).build();
@@ -71,8 +68,11 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
     }
 
     private ClusterState removeNode(ClusterState clusterState, String nodeName, AllocationService allocationService) {
-        return allocationService.disassociateDeadNodes(ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.getNodes()).remove(nodeName)).build(), true, "reroute");
+        return allocationService.disassociateDeadNodes(
+            ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.getNodes()).remove(nodeName)).build(),
+            true,
+            "reroute"
+        );
     }
 
     private ClusterHealthStatus getClusterHealthStatus(ClusterState clusterState) {

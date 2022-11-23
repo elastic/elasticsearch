@@ -32,15 +32,18 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldNamesProvidingStoredFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -56,7 +59,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -73,13 +75,19 @@ import java.util.concurrent.atomic.AtomicReference;
 final class TranslogDirectoryReader extends DirectoryReader {
     private final TranslogLeafReader leafReader;
 
-    TranslogDirectoryReader(ShardId shardId, Translog.Index operation, MappingLookup mappingLookup, DocumentParser documentParser,
-                            Analyzer analyzer, Runnable onSegmentCreated) throws IOException {
+    TranslogDirectoryReader(
+        ShardId shardId,
+        Translog.Index operation,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Analyzer analyzer,
+        Runnable onSegmentCreated
+    ) throws IOException {
         this(new TranslogLeafReader(shardId, operation, mappingLookup, documentParser, analyzer, onSegmentCreated));
     }
 
     private TranslogDirectoryReader(TranslogLeafReader leafReader) throws IOException {
-        super(leafReader.directory, new LeafReader[]{leafReader}, null);
+        super(leafReader.directory, new LeafReader[] { leafReader }, null);
         this.leafReader = leafReader;
     }
 
@@ -134,18 +142,61 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
     private static class TranslogLeafReader extends LeafReader {
 
-        private static final FieldInfo FAKE_SOURCE_FIELD
-            = new FieldInfo(SourceFieldMapper.NAME, 1, false, false, false, IndexOptions.NONE,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
-        private static final FieldInfo FAKE_ROUTING_FIELD
-            = new FieldInfo(RoutingFieldMapper.NAME, 2, false, false, false, IndexOptions.NONE,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
-        private static final FieldInfo FAKE_ID_FIELD
-            = new FieldInfo(IdFieldMapper.NAME, 3, false, false, false, IndexOptions.DOCS,
-            DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
-        private static Set<String> TRANSLOG_FIELD_NAMES =
-            Sets.newHashSet(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
-
+        private static final FieldInfo FAKE_SOURCE_FIELD = new FieldInfo(
+            SourceFieldMapper.NAME,
+            1,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false
+        );
+        private static final FieldInfo FAKE_ROUTING_FIELD = new FieldInfo(
+            RoutingFieldMapper.NAME,
+            2,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false
+        );
+        private static final FieldInfo FAKE_ID_FIELD = new FieldInfo(
+            IdFieldMapper.NAME,
+            3,
+            false,
+            false,
+            false,
+            IndexOptions.DOCS,
+            DocValuesType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false
+        );
+        private static final Set<String> TRANSLOG_FIELD_NAMES = Set.of(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
 
         private final ShardId shardId;
         private final Translog.Index operation;
@@ -158,8 +209,14 @@ final class TranslogDirectoryReader extends DirectoryReader {
         private final AtomicReference<LeafReader> delegate = new AtomicReference<>();
         private final BytesRef uid;
 
-        TranslogLeafReader(ShardId shardId, Translog.Index operation, MappingLookup mappingLookup, DocumentParser documentParser,
-                           Analyzer analyzer, Runnable onSegmentCreated) {
+        TranslogLeafReader(
+            ShardId shardId,
+            Translog.Index operation,
+            MappingLookup mappingLookup,
+            DocumentParser documentParser,
+            Analyzer analyzer,
+            Runnable onSegmentCreated
+        ) {
             this.shardId = shardId;
             this.operation = operation;
             this.mappingLookup = mappingLookup;
@@ -190,8 +247,16 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         private LeafReader createInMemoryLeafReader() {
             assert Thread.holdsLock(this);
-            final ParsedDocument parsedDocs = documentParser.parseDocument(new SourceToParse(shardId.getIndexName(), operation.id(),
-                operation.source(), XContentHelper.xContentType(operation.source()), operation.routing(), Map.of()), mappingLookup);
+            final ParsedDocument parsedDocs = documentParser.parseDocument(
+                new SourceToParse(
+                    operation.id(),
+                    operation.source(),
+                    XContentHelper.xContentType(operation.source()),
+                    operation.routing(),
+                    Map.of()
+                ),
+                mappingLookup
+            );
 
             parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
             parsedDocs.version().setLongValue(operation.version());
@@ -201,8 +266,14 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 final DirectoryReader reader = open(writer);
                 if (reader.leaves().size() != 1 || reader.leaves().get(0).reader().numDocs() != 1) {
                     reader.close();
-                    throw new IllegalStateException("Expected a single document segment; " +
-                        "but [" + reader.leaves().size() + " segments with " + reader.leaves().get(0).reader().numDocs() + " documents");
+                    throw new IllegalStateException(
+                        "Expected a single document segment; "
+                            + "but ["
+                            + reader.leaves().size()
+                            + " segments with "
+                            + reader.leaves().get(0).reader().numDocs()
+                            + " documents"
+                    );
                 }
                 return reader.leaves().get(0).reader();
             } catch (IOException e) {
@@ -274,6 +345,16 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public VectorValues getVectorValues(String field) throws IOException {
+            return getDelegate().getVectorValues(field);
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+            return getDelegate().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+        }
+
+        @Override
         public FieldInfos getFieldInfos() {
             return getDelegate().getFieldInfos();
         }
@@ -289,8 +370,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public void checkIntegrity() throws IOException {
-        }
+        public void checkIntegrity() throws IOException {}
 
         @Override
         public LeafMetaData getMetaData() {
@@ -348,7 +428,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 }
             }
             if (operation.routing() != null && visitor.needsField(FAKE_ROUTING_FIELD) == StoredFieldVisitor.Status.YES) {
-                visitor.stringField(FAKE_ROUTING_FIELD, operation.routing().getBytes(StandardCharsets.UTF_8));
+                visitor.stringField(FAKE_ROUTING_FIELD, operation.routing());
             }
             if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
                 final byte[] id = new byte[uid.length];

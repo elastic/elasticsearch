@@ -9,6 +9,7 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
@@ -16,33 +17,33 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -67,16 +68,24 @@ public class MockRepository extends FsRepository {
     public static class Plugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
 
         public static final Setting<String> USERNAME_SETTING = Setting.simpleString("secret.mock.username", Property.NodeScope);
-        public static final Setting<String> PASSWORD_SETTING =
-            Setting.simpleString("secret.mock.password", Property.NodeScope, Property.Filtered);
-
+        public static final Setting<String> PASSWORD_SETTING = Setting.simpleString(
+            "secret.mock.password",
+            Property.NodeScope,
+            Property.Filtered
+        );
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService, BigArrays bigArrays,
-                                                               RecoverySettings recoverySettings) {
-            return Collections.singletonMap("mock", (metadata) ->
-                new MockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings));
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
+            return Collections.singletonMap(
+                "mock",
+                (metadata) -> new MockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+            );
         }
 
         @Override
@@ -158,9 +167,14 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blocked = false;
 
-    public MockRepository(RepositoryMetadata metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry, ClusterService clusterService, BigArrays bigArrays,
-                          RecoverySettings recoverySettings) {
+    public MockRepository(
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings
+    ) {
         super(overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
@@ -192,8 +206,11 @@ public class MockRepository extends FsRepository {
         if (metadata.settings().getAsBoolean("localize_location", false)) {
             Path location = PathUtils.get(metadata.settings().get("location"));
             location = location.resolve(Integer.toString(environment.hashCode()));
-            return new RepositoryMetadata(metadata.name(), metadata.type(),
-                Settings.builder().put(metadata.settings()).put("location", location.toAbsolutePath()).build());
+            return new RepositoryMetadata(
+                metadata.name(),
+                metadata.type(),
+                Settings.builder().put(metadata.settings()).put("location", location.toAbsolutePath()).build()
+            );
         } else {
             return metadata;
         }
@@ -252,7 +269,7 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteSnapFile = true;
     }
 
-    public void setBlockAndOnWriteShardLevelSnapFiles(String indexId) {
+    public void setBlockOnShardLevelSnapFiles(String indexId) {
         blockedIndexId = indexId;
     }
 
@@ -318,9 +335,19 @@ public class MockRepository extends FsRepository {
         logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
         try {
-            while (blockAndFailOnDataFiles || blockOnDataFiles || blockOnAnyFiles || blockAndFailOnWriteIndexFile || blockOnWriteIndexFile
-                    || blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockAndFailOnWriteShardLevelMeta
-                    || blockOnReadIndexMeta || blockAndFailOnReadSnapFile || blockAndFailOnReadIndexFile || blockedIndexId != null) {
+            while (blockAndFailOnDataFiles
+                || blockOnDataFiles
+                || blockOnAnyFiles
+                || blockAndFailOnWriteIndexFile
+                || blockOnWriteIndexFile
+                || blockAndFailOnWriteSnapFile
+                || blockOnDeleteIndexN
+                || blockOnWriteShardLevelMeta
+                || blockAndFailOnWriteShardLevelMeta
+                || blockOnReadIndexMeta
+                || blockAndFailOnReadSnapFile
+                || blockAndFailOnReadIndexFile
+                || blockedIndexId != null) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -375,11 +402,10 @@ public class MockRepository extends FsRepository {
             private int hashCode(String path) {
                 try {
                     MessageDigest digest = MessageDigest.getInstance("MD5");
-                    byte[] bytes = digest.digest(path.getBytes("UTF-8"));
+                    byte[] bytes = digest.digest(path.getBytes(StandardCharsets.UTF_8));
                     int i = 0;
-                    return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16)
-                            | ((bytes[i++] & 0xFF) << 8) | (bytes[i++] & 0xFF);
-                } catch (NoSuchAlgorithmException | UnsupportedEncodingException ex) {
+                    return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16) | ((bytes[i++] & 0xFF) << 8) | (bytes[i++] & 0xFF);
+                } catch (NoSuchAlgorithmException ex) {
                     throw new ElasticsearchException("cannot calculate hashcode", ex);
                 }
             }
@@ -464,13 +490,14 @@ public class MockRepository extends FsRepository {
             public InputStream readBlob(String name) throws IOException {
                 if (blockOnReadIndexMeta && name.startsWith(BlobStoreRepository.METADATA_PREFIX) && path().equals(basePath()) == false) {
                     blockExecutionAndMaybeWait(name);
-                } else if (path().equals(basePath()) && name.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
-                        && blockOnceOnReadSnapshotInfo.compareAndSet(true, false)) {
-                    blockExecutionAndMaybeWait(name);
-                } else {
-                    maybeReadErrorAfterBlock(name);
-                    maybeIOExceptionOrBlock(name);
-                }
+                } else if (path().equals(basePath())
+                    && name.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
+                    && blockOnceOnReadSnapshotInfo.compareAndSet(true, false)) {
+                        blockExecutionAndMaybeWait(name);
+                    } else {
+                        maybeReadErrorAfterBlock(name);
+                        maybeIOExceptionOrBlock(name);
+                    }
                 return super.readBlob(name);
             }
 
@@ -495,8 +522,8 @@ public class MockRepository extends FsRepository {
                     deleteBlobsIgnoringIfNotExists(Iterators.single(blob));
                     deleteByteCount += blobs.get(blob).length();
                 }
-                blobStore().blobContainer(path().parent()).deleteBlobsIgnoringIfNotExists(
-                        Iterators.single(path().parts().get(path().parts().size() - 1)));
+                blobStore().blobContainer(path().parent())
+                    .deleteBlobsIgnoringIfNotExists(Iterators.single(path().parts().get(path().parts().size() - 1)));
                 return deleteResult.add(deleteBlobCount, deleteByteCount);
             }
 
@@ -504,8 +531,7 @@ public class MockRepository extends FsRepository {
             public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
                 final List<String> names = new ArrayList<>();
                 blobNames.forEachRemaining(names::add);
-                if (blockOnDeleteIndexN && names.stream().anyMatch(
-                    name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))) {
+                if (blockOnDeleteIndexN && names.stream().anyMatch(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))) {
                     blockExecutionAndMaybeWait("index-{N}");
                 }
                 super.deleteBlobsIgnoringIfNotExists(names.iterator());
@@ -533,8 +559,7 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-                throws IOException {
+            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
                 beforeWrite(blobName);
                 super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
@@ -545,16 +570,18 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlob(String blobName,
-                                  boolean failIfAlreadyExists,
-                                  boolean atomic,
-                                  CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+            public void writeMetadataBlob(
+                String blobName,
+                boolean failIfAlreadyExists,
+                boolean atomic,
+                CheckedConsumer<OutputStream, IOException> writer
+            ) throws IOException {
                 if (atomic) {
                     beforeAtomicWrite(blobName);
                 } else {
                     beforeWrite(blobName);
                 }
-                super.writeBlob(blobName, failIfAlreadyExists, atomic, writer);
+                super.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, writer);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
@@ -574,8 +601,8 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlobAtomic(final String blobName, final BytesReference bytes,
-                                        final boolean failIfAlreadyExists) throws IOException {
+            public void writeBlobAtomic(final String blobName, final BytesReference bytes, final boolean failIfAlreadyExists)
+                throws IOException {
                 final Random random = beforeAtomicWrite(blobName);
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer

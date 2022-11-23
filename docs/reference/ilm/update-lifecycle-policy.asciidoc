@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[update-lifecycle-policy]]
 === Lifecycle policy updates
 ++++

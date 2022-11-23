@@ -75,11 +75,20 @@ public class NodeSelectorTests extends RestClientTestCase {
         assertEquals(expected, nodes);
     }
 
-    private static Node dummyNode(boolean master, boolean data, boolean ingest){
+    private static Node dummyNode(boolean master, boolean data, boolean ingest) {
         return dummyNode(master, data, ingest, false, false, false, false, false);
     }
-    private static Node dummyNode(boolean master, boolean data, boolean ingest,
-                                  boolean dataContent, boolean dataHot, boolean dataWarm, boolean dataCold, boolean dataFrozen) {
+
+    private static Node dummyNode(
+        boolean master,
+        boolean data,
+        boolean ingest,
+        boolean dataContent,
+        boolean dataHot,
+        boolean dataWarm,
+        boolean dataCold,
+        boolean dataFrozen
+    ) {
         final Set<String> roles = new TreeSet<>();
         if (master) {
             roles.add("master");
@@ -105,10 +114,14 @@ public class NodeSelectorTests extends RestClientTestCase {
         if (ingest) {
             roles.add("ingest");
         }
-        return new Node(new HttpHost("dummy"), Collections.<HttpHost>emptySet(),
-                randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
-                new Roles(roles),
-                Collections.<String, List<String>>emptyMap());
+        return new Node(
+            new HttpHost("dummy"),
+            Collections.<HttpHost>emptySet(),
+            randomAsciiAlphanumOfLength(5),
+            randomAsciiAlphanumOfLength(5),
+            new Roles(roles),
+            Collections.<String, List<String>>emptyMap()
+        );
     }
 
 }

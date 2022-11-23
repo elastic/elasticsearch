@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -33,8 +33,7 @@ public final class TimeUtils {
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return new Date(dateStringToEpoch(parser.text()));
         }
-        throw new IllegalArgumentException(
-                "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
+        throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
     }
 
     public static Instant parseTimeFieldToInstant(XContentParser parser, String fieldName) throws IOException {
@@ -43,8 +42,7 @@ public final class TimeUtils {
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(parser.text()));
         }
-        throw new IllegalArgumentException(
-            "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
+        throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
     }
 
     /**
@@ -104,8 +102,7 @@ public final class TimeUtils {
 
         try {
             return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
-        } catch (ElasticsearchParseException | IllegalArgumentException e) {
-        }
+        } catch (ElasticsearchParseException | IllegalArgumentException e) {}
         // Could not do the conversion
         return -1;
     }
@@ -147,8 +144,9 @@ public final class TimeUtils {
     public static void checkPositive(TimeValue timeValue, ParseField field) {
         long nanos = timeValue.getNanos();
         if (nanos <= 0) {
-            throw new IllegalArgumentException(field.getPreferredName() + " cannot be less or equal than 0. Value = "
-                    + timeValue.toString());
+            throw new IllegalArgumentException(
+                field.getPreferredName() + " cannot be less or equal than 0. Value = " + timeValue.toString()
+            );
         }
     }
 
@@ -167,8 +165,9 @@ public final class TimeUtils {
         TimeValue base = new TimeValue(1, baseUnit);
         long baseNanos = base.getNanos();
         if (nanos % baseNanos != 0) {
-            throw new IllegalArgumentException(field.getPreferredName() + " has to be a multiple of " + base.toString() + "; actual was '"
-                    + timeValue.toString() + "'");
+            throw new IllegalArgumentException(
+                field.getPreferredName() + " has to be a multiple of " + base.toString() + "; actual was '" + timeValue.toString() + "'"
+            );
         }
     }
 }

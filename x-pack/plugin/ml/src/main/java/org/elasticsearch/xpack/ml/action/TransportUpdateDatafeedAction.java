@@ -25,29 +25,46 @@ import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 
-
-public class TransportUpdateDatafeedAction extends
-    TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
+public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
 
     private final DatafeedManager datafeedManager;
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportUpdateDatafeedAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver,
-                                         DatafeedManager datafeedManager) {
-        super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateDatafeedAction.Request::new,
-                indexNameExpressionResolver, PutDatafeedAction.Response::new, ThreadPool.Names.SAME);
+    public TransportUpdateDatafeedAction(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DatafeedManager datafeedManager
+    ) {
+        super(
+            UpdateDatafeedAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            UpdateDatafeedAction.Request::new,
+            indexNameExpressionResolver,
+            PutDatafeedAction.Response::new,
+            ThreadPool.Names.SAME
+        );
 
         this.datafeedManager = datafeedManager;
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-            new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
     }
 
     @Override
-    protected void masterOperation(Task task, UpdateDatafeedAction.Request request, ClusterState state,
-                                   ActionListener<PutDatafeedAction.Response> listener) {
+    protected void masterOperation(
+        Task task,
+        UpdateDatafeedAction.Request request,
+        ClusterState state,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
 
         datafeedManager.updateDatafeed(request, state, securityContext, threadPool, listener);
     }

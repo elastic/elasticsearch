@@ -20,12 +20,16 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 
-
 public class TransportSetResetModeAction extends AbstractTransportSetResetModeAction {
 
     @Inject
-    public TransportSetResetModeAction(TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportSetResetModeAction(
+        TransportService transportService,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters, indexNameExpressionResolver);
     }
 
@@ -44,17 +48,13 @@ public class TransportSetResetModeAction extends AbstractTransportSetResetModeAc
         ClusterState.Builder newState = ClusterState.builder(oldState);
         if (request.shouldDeleteMetadata()) {
             assert request.isEnabled() == false; // SetResetModeActionRequest should have enforced this
-            newState.metadata(Metadata.builder(oldState.getMetadata())
-                .removeCustom(MlMetadata.TYPE)
-                .removeCustom(ModelAliasMetadata.NAME)
-                .build());
+            newState.metadata(
+                Metadata.builder(oldState.getMetadata()).removeCustom(MlMetadata.TYPE).removeCustom(ModelAliasMetadata.NAME).build()
+            );
         } else {
-            MlMetadata.Builder builder = MlMetadata.Builder
-                .from(oldState.metadata().custom(MlMetadata.TYPE))
+            MlMetadata.Builder builder = MlMetadata.Builder.from(oldState.metadata().custom(MlMetadata.TYPE))
                 .isResetMode(request.isEnabled());
-            newState.metadata(Metadata.builder(oldState.getMetadata())
-                .putCustom(MlMetadata.TYPE, builder.build())
-                .build());
+            newState.metadata(Metadata.builder(oldState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
         }
         return newState.build();
     }

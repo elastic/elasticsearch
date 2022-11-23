@@ -7,8 +7,9 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
@@ -18,29 +19,36 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
-public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlClearCursorRequest> {
+public class SqlClearCursorRequestTests extends AbstractXContentSerializingTestCase<TestSqlClearCursorRequest> {
 
     public RequestInfo requestInfo;
 
     @Before
     public void setup() {
-        requestInfo = new RequestInfo(randomFrom(Mode.values()),
-                randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20)));
+        requestInfo = new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20)));
     }
 
     @Override
-    protected SqlClearCursorRequest createTestInstance() {
-        return new SqlClearCursorRequest(requestInfo, randomAlphaOfLength(100));
+    protected TestSqlClearCursorRequest createXContextTestInstance(XContentType xContentType) {
+        SqlTestUtils.assumeXContentJsonOrCbor(xContentType);
+        return super.createXContextTestInstance(xContentType);
     }
 
     @Override
-    protected Writeable.Reader<SqlClearCursorRequest> instanceReader() {
-        return SqlClearCursorRequest::new;
+    protected TestSqlClearCursorRequest createTestInstance() {
+        TestSqlClearCursorRequest result = new TestSqlClearCursorRequest(requestInfo, randomAlphaOfLength(100));
+        result.binaryCommunication(randomBoolean());
+        return result;
     }
 
     @Override
-    protected SqlClearCursorRequest doParseInstance(XContentParser parser) {
-        return SqlClearCursorRequest.fromXContent(parser);
+    protected Writeable.Reader<TestSqlClearCursorRequest> instanceReader() {
+        return TestSqlClearCursorRequest::new;
+    }
+
+    @Override
+    protected TestSqlClearCursorRequest doParseInstance(XContentParser parser) {
+        return SqlTestUtils.clone(TestSqlClearCursorRequest.fromXContent(parser), instanceReader(), getNamedWriteableRegistry());
     }
 
     private RequestInfo randomRequestInfo() {
@@ -48,15 +56,16 @@ public class SqlClearCursorRequestTests extends AbstractSerializingTestCase<SqlC
     }
 
     @Override
-    protected SqlClearCursorRequest mutateInstance(SqlClearCursorRequest instance) throws IOException {
+    protected TestSqlClearCursorRequest mutateInstance(TestSqlClearCursorRequest instance) throws IOException {
         @SuppressWarnings("unchecked")
-        Consumer<SqlClearCursorRequest> mutator = randomFrom(
-                request -> request.requestInfo(randomValueOtherThan(request.requestInfo(), this::randomRequestInfo)),
-                request -> request.setCursor(randomValueOtherThan(request.getCursor(), SqlQueryResponseTests::randomStringCursor))
+        Consumer<TestSqlClearCursorRequest> mutator = randomFrom(
+            request -> request.requestInfo(randomValueOtherThan(request.requestInfo(), this::randomRequestInfo)),
+            request -> request.setCursor(randomValueOtherThan(request.getCursor(), SqlQueryResponseTests::randomStringCursor)),
+            request -> request.binaryCommunication(randomValueOtherThan(request.binaryCommunication(), () -> randomBoolean()))
         );
-        SqlClearCursorRequest newRequest = new SqlClearCursorRequest(instance.requestInfo(), instance.getCursor());
+        TestSqlClearCursorRequest newRequest = new TestSqlClearCursorRequest(instance.requestInfo(), instance.getCursor());
+        newRequest.binaryCommunication(instance.binaryCommunication());
         mutator.accept(newRequest);
         return newRequest;
     }
 }
-

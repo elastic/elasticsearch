@@ -11,8 +11,8 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -24,18 +24,18 @@ public class MaxAgeCondition extends Condition<TimeValue> {
     public static final String NAME = "max_age";
 
     public MaxAgeCondition(TimeValue value) {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = value;
     }
 
     public MaxAgeCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = TimeValue.timeValueMillis(in.readLong());
     }
 
     @Override
     public Result evaluate(final Stats stats) {
-        long indexAge = System.currentTimeMillis() - stats.indexCreated;
+        long indexAge = System.currentTimeMillis() - stats.indexCreated();
         return new Result(this, this.value.getMillis() <= indexAge);
     }
 
@@ -64,7 +64,7 @@ public class MaxAgeCondition extends Condition<TimeValue> {
         if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
             return new MaxAgeCondition(TimeValue.parseTimeValue(parser.text(), NAME));
         } else {
-            throw new IllegalArgumentException("invalid token: " + parser.currentToken());
+            throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }
     }
 }

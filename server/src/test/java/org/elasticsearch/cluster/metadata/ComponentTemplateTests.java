@@ -14,13 +14,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,7 +28,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ComponentTemplateTests extends AbstractDiffableSerializationTestCase<ComponentTemplate> {
+public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<ComponentTemplate> {
     @Override
     protected ComponentTemplate makeTestChanges(ComponentTemplate testInstance) {
         try {
@@ -117,8 +117,10 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
         if (randomBoolean()) {
             return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
         } else {
-            return Collections.singletonMap(randomAlphaOfLength(5),
-                Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+            return Collections.singletonMap(
+                randomAlphaOfLength(5),
+                Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4))
+            );
         }
     }
 
@@ -131,33 +133,56 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
         switch (randomIntBetween(0, 2)) {
             case 0:
                 switch (randomIntBetween(0, 2)) {
-                    case 0:
+                    case 0 -> {
                         Template ot = orig.template();
                         return new ComponentTemplate(
-                            new Template(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
-                                ot.mappings(), ot.aliases()),
-                            orig.version(), orig.metadata());
-                    case 1:
+                            new Template(
+                                randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
+                                ot.mappings(),
+                                ot.aliases()
+                            ),
+                            orig.version(),
+                            orig.metadata()
+                        );
+                    }
+                    case 1 -> {
                         Template ot2 = orig.template();
                         return new ComponentTemplate(
-                            new Template(ot2.settings(),
-                                randomValueOtherThan(ot2.mappings(), ComponentTemplateTests::randomMappings), ot2.aliases()),
-                            orig.version(), orig.metadata());
-                    case 2:
+                            new Template(
+                                ot2.settings(),
+                                randomValueOtherThan(ot2.mappings(), ComponentTemplateTests::randomMappings),
+                                ot2.aliases()
+                            ),
+                            orig.version(),
+                            orig.metadata()
+                        );
+                    }
+                    case 2 -> {
                         Template ot3 = orig.template();
                         return new ComponentTemplate(
-                            new Template(ot3.settings(), ot3.mappings(),
-                                randomValueOtherThan(ot3.aliases(), ComponentTemplateTests::randomAliases)),
-                            orig.version(), orig.metadata());
-                    default:
-                        throw new IllegalStateException("illegal randomization branch");
+                            new Template(
+                                ot3.settings(),
+                                ot3.mappings(),
+                                randomValueOtherThan(ot3.aliases(), ComponentTemplateTests::randomAliases)
+                            ),
+                            orig.version(),
+                            orig.metadata()
+                        );
+                    }
+                    default -> throw new IllegalStateException("illegal randomization branch");
                 }
             case 1:
-                return new ComponentTemplate(orig.template(), randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
-                    orig.metadata());
+                return new ComponentTemplate(
+                    orig.template(),
+                    randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
+                    orig.metadata()
+                );
             case 2:
-                return new ComponentTemplate(orig.template(), orig.version(),
-                    randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta));
+                return new ComponentTemplate(
+                    orig.template(),
+                    orig.version(),
+                    randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta)
+                );
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }
@@ -181,29 +206,27 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
 
         {
             String randomString = randomAlphaOfLength(10);
-            CompressedXContent m1 = new CompressedXContent("{\"properties\":{\"" + randomString + "\":{\"type\":\"keyword\"}}}");
-            CompressedXContent m2 = new CompressedXContent("{\"properties\":{\"" + randomString + "\":{\"type\":\"keyword\"}}}");
+            CompressedXContent m1 = new CompressedXContent(formatted("""
+                {"properties":{"%s":{"type":"keyword"}}}
+                """, randomString));
+            CompressedXContent m2 = new CompressedXContent(formatted("""
+                {"properties":{"%s":{"type":"keyword"}}}
+                """, randomString));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
         }
 
         {
             CompressedXContent m1 = randomMappings();
-            CompressedXContent m2 = new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(10) + "\":{\"type\":\"keyword\"}}}");
+            CompressedXContent m2 = new CompressedXContent(formatted("""
+                {"properties":{"%s":{"type":"keyword"}}}
+                """, randomAlphaOfLength(10)));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(false));
         }
 
         {
-            Map<String, Object> map = XContentHelper.convertToMap(
-                new BytesArray(
-                    "{\""
-                        + MapperService.SINGLE_MAPPING_NAME
-                        + "\":{\"properties\":{\""
-                        + randomAlphaOfLength(10)
-                        + "\":{\"type\":\"keyword\"}}}}"
-                ),
-                true,
-                XContentType.JSON
-            ).v2();
+            Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(formatted("""
+                {"%s":{"properties":{"%s":{"type":"keyword"}}}}
+                """, MapperService.SINGLE_MAPPING_NAME, randomAlphaOfLength(10))), true, XContentType.JSON).v2();
             Map<String, Object> reduceMap = Template.reduceMapping(map);
             CompressedXContent m1 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(map)));
             CompressedXContent m2 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(reduceMap)));

@@ -8,17 +8,16 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -62,8 +61,8 @@ final class RemoteClusterConnection implements Closeable {
         this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         this.remoteConnectionManager.addListener(transportService);
-        this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
-            .getConcreteSettingForNamespace(clusterAlias).get(settings);
+        this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(clusterAlias)
+            .get(settings);
         this.threadPool = transportService.threadPool;
         initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
     }
@@ -71,7 +70,7 @@ final class RemoteClusterConnection implements Closeable {
     /**
      * Updates the skipUnavailable flag that can be dynamically set for each remote cluster
      */
-    void updateSkipUnavailable(boolean skipUnavailable) {
+    void setSkipUnavailable(boolean skipUnavailable) {
         this.skipUnavailable = skipUnavailable;
     }
 
@@ -117,25 +116,16 @@ final class RemoteClusterConnection implements Closeable {
                 request.nodes(true);
                 request.local(true); // run this on the node that gets the request it's as good as any other
                 Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
-                transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
-                    new TransportResponseHandler<ClusterStateResponse>() {
-
-                        @Override
-                        public ClusterStateResponse read(StreamInput in) throws IOException {
-                            return new ClusterStateResponse(in);
-                        }
-
-                        @Override
-                        public void handleResponse(ClusterStateResponse response) {
-                            DiscoveryNodes nodes = response.getState().nodes();
-                            contextPreservingActionListener.onResponse(nodes::get);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            contextPreservingActionListener.onFailure(exp);
-                        }
-                    });
+                transportService.sendRequest(
+                    connection,
+                    ClusterStateAction.NAME,
+                    request,
+                    TransportRequestOptions.EMPTY,
+                    new ActionListenerResponseHandler<>(
+                        contextPreservingActionListener.map(response -> response.getState().nodes()::get),
+                        ClusterStateResponse::new
+                    )
+                );
             }
         };
         try {
@@ -192,7 +182,7 @@ final class RemoteClusterConnection implements Closeable {
     }
 
     private static ConnectionManager createConnectionManager(ConnectionProfile connectionProfile, TransportService transportService) {
-        return new ClusterConnectionManager(connectionProfile, transportService.transport);
+        return new ClusterConnectionManager(connectionProfile, transportService.transport, transportService.threadPool.getThreadContext());
     }
 
     ConnectionManager getConnectionManager() {

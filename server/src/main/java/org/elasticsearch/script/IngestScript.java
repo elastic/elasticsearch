@@ -16,18 +16,25 @@ import java.util.Map;
 /**
  * A script used by the Ingest Script Processor.
  */
-public abstract class IngestScript {
+public abstract class IngestScript extends WriteScript {
 
-    public static final String[] PARAMETERS = { "ctx" };
+    public static final String[] PARAMETERS = {};
 
     /** The context used to compile {@link IngestScript} factories. */
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("ingest", Factory.class,
-        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(), true);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
+        "ingest",
+        Factory.class,
+        200,
+        TimeValue.timeValueMillis(0),
+        false,
+        true
+    );
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    public IngestScript(Map<String, Object> params) {
+    public IngestScript(Map<String, Object> params, CtxMap<?> ctxMap) {
+        super(ctxMap);
         this.params = params;
     }
 
@@ -36,9 +43,9 @@ public abstract class IngestScript {
         return params;
     }
 
-    public abstract void execute(Map<String, Object> ctx);
+    public abstract void execute();
 
     public interface Factory {
-        IngestScript newInstance(Map<String, Object> params);
+        IngestScript newInstance(Map<String, Object> params, CtxMap<?> ctx);
     }
 }

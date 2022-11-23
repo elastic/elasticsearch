@@ -32,6 +32,10 @@ final class MethodHandlers {
         this.methodHandlers = new HashMap<>(2, 1);
     }
 
+    public String getPath() {
+        return path;
+    }
+
     /**
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
@@ -59,7 +63,7 @@ final class MethodHandlers {
     RestHandler getHandler(RestRequest.Method method, RestApiVersion version) {
         Map<RestApiVersion, RestHandler> versionToHandlers = methodHandlers.get(method);
         if (versionToHandlers == null) {
-            return null; //method not found
+            return null; // method not found
         }
         final RestHandler handler = versionToHandlers.get(version);
         return handler == null ? versionToHandlers.get(RestApiVersion.current()) : handler;

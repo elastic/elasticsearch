@@ -21,8 +21,7 @@ public final class GetBuiltinPrivilegesRequest extends ActionRequest {
         super(in);
     }
 
-    public GetBuiltinPrivilegesRequest() {
-    }
+    public GetBuiltinPrivilegesRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {

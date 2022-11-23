@@ -8,6 +8,8 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Dictionary;
@@ -18,6 +20,8 @@ import java.util.Enumeration;
  */
 @SuppressForbidden(reason = "exposes read-only view of system properties")
 public final class BootstrapInfo {
+
+    private static final SetOnce<ConsoleLoader.Console> console = new SetOnce<>();
 
     /** no instantiation */
     private BootstrapInfo() {}
@@ -47,20 +51,50 @@ public final class BootstrapInfo {
     }
 
     /**
+     * Returns information about the console (tty) attached to the server process, or {@code null}
+     * if no console is attached.
+     */
+    @Nullable
+    public static ConsoleLoader.Console getConsole() {
+        return console.get();
+    }
+
+    /**
      * codebase location for untrusted scripts (provide some additional safety)
      * <p>
      * This is not a full URL, just a path.
      */
     public static final String UNTRUSTED_CODEBASE = "/untrusted";
 
+    /**
+     * A non-printable character denoting a UserException has occurred.
+     *
+     * This is sent over stderr to the controlling CLI process.
+     */
+    public static final char USER_EXCEPTION_MARKER = '\u0015';
+
+    /**
+     * A non-printable character denoting the server is ready to process requests.
+     *
+     * This is sent over stderr to the controlling CLI process.
+     */
+    public static final char SERVER_READY_MARKER = '\u0018';
+
+    /**
+     * A non-printable character denoting the server should shut itself down.
+     *
+     * This is sent over stdin from the controlling CLI process.
+     */
+    public static final char SERVER_SHUTDOWN_MARKER = '\u001B';
+
     // create a view of sysprops map that does not allow modifications
     // this must be done this way (e.g. versus an actual typed map), because
     // some test methods still change properties, so whitelisted changes must
     // be reflected in this view.
-    private static final Dictionary<Object,Object> SYSTEM_PROPERTIES;
+    private static final Dictionary<Object, Object> SYSTEM_PROPERTIES;
     static {
-        final Dictionary<Object,Object> sysprops = System.getProperties();
-        SYSTEM_PROPERTIES = new Dictionary<Object,Object>() {
+        final Dictionary<Object, Object> sysprops = System.getProperties();
+        SYSTEM_PROPERTIES = new Dictionary<Object, Object>() {
 
             @Override
             public int size() {
@@ -102,7 +136,7 @@ public final class BootstrapInfo {
     /**
      * Returns a read-only view of all system properties
      */
-    public static Dictionary<Object,Object> getSystemProperties() {
+    public static Dictionary<Object, Object> getSystemProperties() {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPropertyAccess("*");
@@ -110,7 +144,10 @@ public final class BootstrapInfo {
         return SYSTEM_PROPERTIES;
     }
 
-    public static void init() {
+    public static void init() {}
+
+    static void setConsole(@Nullable ConsoleLoader.Console console) {
+        BootstrapInfo.console.set(console);
     }
 
 }

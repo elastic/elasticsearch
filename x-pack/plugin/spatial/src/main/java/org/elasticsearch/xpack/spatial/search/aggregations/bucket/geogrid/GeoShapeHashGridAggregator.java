@@ -18,9 +18,17 @@ import java.io.IOException;
 import java.util.Map;
 
 public class GeoShapeHashGridAggregator extends GeoHashGridAggregator {
-    public GeoShapeHashGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, int requiredSize,
-                                      int shardSize, AggregationContext context, Aggregator parent,
-                                      CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
+    public GeoShapeHashGridAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        int requiredSize,
+        int shardSize,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, valuesSource, requiredSize, shardSize, context, parent, cardinality, metadata);
     }
 

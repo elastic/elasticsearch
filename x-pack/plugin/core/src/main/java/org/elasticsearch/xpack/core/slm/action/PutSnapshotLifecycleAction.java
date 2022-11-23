@@ -14,20 +14,20 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleAction.Response> {
+public class PutSnapshotLifecycleAction extends ActionType<AcknowledgedResponse> {
     public static final PutSnapshotLifecycleAction INSTANCE = new PutSnapshotLifecycleAction();
     public static final String NAME = "cluster:admin/slm/put";
 
     protected PutSnapshotLifecycleAction() {
-        super(NAME, PutSnapshotLifecycleAction.Response::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -46,7 +46,7 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
             lifecycle = new SnapshotLifecyclePolicy(in);
         }
 
-        public Request() { }
+        public Request() {}
 
         public String getLifecycleId() {
             return this.lifecycleId;
@@ -94,24 +94,12 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
                 return false;
             }
             Request other = (Request) obj;
-            return lifecycleId.equals(other.lifecycleId) &&
-                lifecycle.equals(other.lifecycle);
+            return lifecycleId.equals(other.lifecycleId) && lifecycle.equals(other.lifecycle);
         }
 
         @Override
         public String toString() {
             return Strings.toString(this);
-        }
-    }
-
-    public static class Response extends AcknowledgedResponse implements ToXContentObject {
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        public Response(StreamInput streamInput) throws IOException {
-            this(streamInput.readBoolean());
         }
     }
 }

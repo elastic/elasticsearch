@@ -11,21 +11,18 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState.Builder;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.Builder;
 
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Generates a unique index name prefixing the original index name with the configured
@@ -44,8 +41,12 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
     private final String prefix;
     private final BiFunction<String, Builder, Builder> lifecycleStateSetter;
 
-    public GenerateUniqueIndexNameStep(StepKey key, StepKey nextStepKey, String prefix,
-                                       BiFunction<String, Builder, Builder> lifecycleStateSetter) {
+    public GenerateUniqueIndexNameStep(
+        StepKey key,
+        StepKey nextStepKey,
+        String prefix,
+        BiFunction<String, Builder, Builder> lifecycleStateSetter
+    ) {
         super(key, nextStepKey);
         this.prefix = prefix;
         this.lifecycleStateSetter = lifecycleStateSetter;
@@ -69,29 +70,32 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return clusterState;
         }
 
-        ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
-
-        Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
-        String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
+        String policyName = indexMetadata.getLifecyclePolicyName();
         String generatedIndexName = generateValidIndexName(prefix, index.getName());
         ActionRequestValidationException validationException = validateGeneratedIndexName(generatedIndexName, clusterState);
         if (validationException != null) {
-            logger.warn("unable to generate a valid index name as part of policy [{}] for index [{}] due to [{}]",
-                policy, index.getName(), validationException.getMessage());
+            logger.warn(
+                "unable to generate a valid index name as part of policy [{}] for index [{}] due to [{}]",
+                policyName,
+                index.getName(),
+                validationException.getMessage()
+            );
             throw validationException;
         }
-        lifecycleStateSetter.apply(generatedIndexName, newCustomData);
+        lifecycleStateSetter.apply(generatedIndexName, newLifecycleState);
 
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
-        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
-        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder));
-        return newClusterStateBuilder.build();
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
+            clusterState,
+            indexMetadata.getIndex(),
+            newLifecycleState.build()
+        );
     }
 
     @Nullable

@@ -23,8 +23,8 @@ import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
-import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationIndicator;
 import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationFunction;
+import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationIndicator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,9 +41,7 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
         int[] isCat = new int[10000];
         int[] isDog = new int[10000];
 
-        client().admin().indices().prepareCreate("data")
-            .setMapping("metric", "type=double", "term", "type=keyword")
-            .get();
+        client().admin().indices().prepareCreate("data").setMapping("metric", "type=double", "term", "type=keyword").get();
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("data");
         for (int i = 0; i < 5000; i++) {
             IndexRequest indexRequest = new IndexRequest("data");
@@ -72,14 +70,9 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
         double dogCorrelation = pearsonCorrelation(xs, isDog);
 
         AtomicLong counter = new AtomicLong();
-        double[] steps = Stream.generate(() -> counter.getAndAdd(2L)).limit(50).mapToDouble(l -> (double)l).toArray();
+        double[] steps = Stream.generate(() -> counter.getAndAdd(2L)).limit(50).mapToDouble(l -> (double) l).toArray();
         SearchResponse percentilesSearch = client().prepareSearch("data")
-            .addAggregation(
-                AggregationBuilders
-                    .percentiles("percentiles")
-                    .field("metric")
-                    .percentiles(steps)
-            )
+            .addAggregation(AggregationBuilders.percentiles("percentiles").field("metric").percentiles(steps))
             .setSize(0)
             .setTrackTotalHits(true)
             .get();
@@ -92,16 +85,10 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
             "metric"
         );
 
-        SearchResponse countCorrelations = client()
-            .prepareSearch("data")
+        SearchResponse countCorrelations = client().prepareSearch("data")
             .setSize(0)
             .setTrackTotalHits(false)
-            .addAggregation(AggregationBuilders
-                .terms("buckets")
-                .field("term")
-                .subAggregation(aggs.v1())
-                .subAggregation(aggs.v2())
-            )
+            .addAggregation(AggregationBuilders.terms("buckets").field("term").subAggregation(aggs.v1()).subAggregation(aggs.v2()))
             .get();
 
         Terms terms = countCorrelations.getAggregations().get("buckets");
@@ -139,7 +126,7 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
                 percentiles.add(percentile_r);
             }
         }
-        fractions.add(2.0/100);
+        fractions.add(2.0 / 100);
         double[] expectations = new double[percentiles.size() + 1];
         expectations[0] = percentile_0;
         for (int i = 1; i < percentiles.size(); i++) {
@@ -167,7 +154,7 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
 
     private double pearsonCorrelation(double[] xs, int[] ys) {
         double meanX = MovingFunctions.unweightedAvg(xs);
-        double meanY = sum(ys)/(double)ys.length;
+        double meanY = sum(ys) / (double) ys.length;
         double varX = Math.pow(MovingFunctions.stdDev(xs, meanX), 2.0);
         double varY = 0.0;
         for (int y : ys) {
@@ -181,9 +168,9 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
 
         double corXY = 0.0;
         for (int i = 0; i < xs.length; i++) {
-            corXY += (((xs[i] - meanX)*(ys[i] - meanY))/Math.sqrt(varX*varY));
+            corXY += (((xs[i] - meanX) * (ys[i] - meanY)) / Math.sqrt(varX * varY));
         }
-        return corXY/xs.length;
+        return corXY / xs.length;
     }
 
     private static int sum(int[] xs) {
@@ -195,9 +182,7 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
     }
 
     private void sendAndMaybeFail(BulkRequestBuilder bulkRequestBuilder) {
-        BulkResponse bulkResponse = bulkRequestBuilder
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         if (bulkResponse.hasFailures()) {
             int failures = 0;
             for (BulkItemResponse itemResponse : bulkResponse) {
@@ -209,8 +194,5 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
             fail("Bulk response contained " + failures + " failures");
         }
     }
-
-
-
 
 }

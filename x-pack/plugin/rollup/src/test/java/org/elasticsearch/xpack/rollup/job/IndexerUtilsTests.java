@@ -12,19 +12,18 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -44,11 +43,12 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.joda.time.DateTime;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -80,7 +80,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
-            long timestamp = new DateTime().minusDays(i).getMillis();
+            long timestamp = ZonedDateTime.now(ZoneOffset.UTC).minusDays(i).toInstant().toEpochMilli();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
             document.add(new LongPoint(timestampField, timestamp));
             document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1, 100)));
@@ -108,11 +108,10 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
         metricAgg.forEach(compositeBuilder::subAggregation);
 
-        Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
+        CompositeAggregation composite = searchAndReduce(
+            indexSearcher,
+            new AggTestConfig(compositeBuilder, timestampFieldType, valueFieldType)
+        );
         indexReader.close();
         directory.close();
 
@@ -140,7 +139,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
-            long timestamp = new DateTime().minusDays(i).getMillis();
+            long timestamp = ZonedDateTime.now(ZoneOffset.UTC).minusDays(i).toInstant().toEpochMilli();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
             document.add(new LongPoint(timestampField, timestamp));
             document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1, 100)));
@@ -170,11 +169,10 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
         metricAgg.forEach(compositeBuilder::subAggregation);
 
-        Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
+        CompositeAggregation composite = searchAndReduce(
+            indexSearcher,
+            new AggTestConfig(compositeBuilder, timestampFieldType, valueFieldType)
+        );
         indexReader.close();
         directory.close();
 
@@ -224,11 +222,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
         metricAgg.forEach(compositeBuilder::subAggregation);
 
-        Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
+        CompositeAggregation composite = searchAndReduce(indexSearcher, new AggTestConfig(compositeBuilder, valueFieldType));
         indexReader.close();
         directory.close();
 
@@ -256,7 +250,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
-            long timestamp = new DateTime().minusDays(i).getMillis();
+            long timestamp = ZonedDateTime.now(ZoneOffset.UTC).minusDays(i).toInstant().toEpochMilli();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
             document.add(new LongPoint(timestampField, timestamp));
             document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1, 100)));
@@ -285,11 +279,10 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
         metricAgg.forEach(compositeBuilder::subAggregation);
 
-        Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
+        CompositeAggregation composite = searchAndReduce(
+            indexSearcher,
+            new AggTestConfig(compositeBuilder, timestampFieldType, valueFieldType)
+        );
         indexReader.close();
         directory.close();
 
@@ -312,7 +305,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             List<CompositeAggregation.Bucket> foos = new ArrayList<>();
 
             CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
-            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
+            LinkedHashMap<String, Object> keys = Maps.newLinkedHashMapWithExpectedSize(3);
             keys.put("foo.date_histogram", 123L);
             keys.put("bar.terms", "baz");
             keys.put("abc.histogram", 1.9);
@@ -360,7 +353,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             List<CompositeAggregation.Bucket> foos = new ArrayList<>();
 
             CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
-            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
+            LinkedHashMap<String, Object> keys = Maps.newLinkedHashMapWithExpectedSize(3);
             keys.put("foo.date_histogram", 123L);
 
             char[] charArray = new char[IndexWriter.MAX_TERM_LENGTH];
@@ -408,7 +401,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             List<CompositeAggregation.Bucket> foos = new ArrayList<>();
 
             CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
-            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
+            Map<String, Object> keys = Maps.newLinkedHashMapWithExpectedSize(3);
             keys.put("bar.terms", null);
             keys.put("abc.histogram", null);
             when(bucket.getKey()).thenReturn(keys);
@@ -473,11 +466,10 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
         metricAgg.forEach(compositeBuilder::subAggregation);
 
-        Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType, metricFieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
+        CompositeAggregation composite = searchAndReduce(
+            indexSearcher,
+            new AggTestConfig(compositeBuilder, valueFieldType, metricFieldType)
+        );
         indexReader.close();
         directory.close();
 
@@ -547,11 +539,10 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         List<AggregationBuilder> metricAgg = createAggregationBuilders(singletonList(metricConfig));
         metricAgg.forEach(compositeBuilder::subAggregation);
 
-        Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
+        CompositeAggregation composite = searchAndReduce(
+            indexSearcher,
+            new AggTestConfig(compositeBuilder, timestampFieldType, valueFieldType)
+        );
         indexReader.close();
         directory.close();
 

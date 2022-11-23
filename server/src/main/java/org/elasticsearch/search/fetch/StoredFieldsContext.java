@@ -13,9 +13,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,7 +31,7 @@ public class StoredFieldsContext implements Writeable {
     public static final String _NONE_ = "_none_";
 
     private final List<String> fieldNames;
-    private boolean fetchFields;
+    private final boolean fetchFields;
 
     private StoredFieldsContext(boolean fetchFields) {
         this.fetchFields = fetchFields;
@@ -143,6 +143,10 @@ public class StoredFieldsContext implements Writeable {
         }
     }
 
+    public static StoredFieldsContext metadataOnly() {
+        return new StoredFieldsContext(true);
+    }
+
     public static StoredFieldsContext fromList(List<String> fieldNames) {
         if (fieldNames.size() == 1 && _NONE_.equals(fieldNames.get(0))) {
             return new StoredFieldsContext(false);
@@ -165,10 +169,19 @@ public class StoredFieldsContext implements Writeable {
             }
             return fromList(list);
         } else {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Expected [" + XContentParser.Token.VALUE_STRING + "] or ["
-                    + XContentParser.Token.START_ARRAY + "] in [" + fieldName + "] but found [" + token + "]",
-                parser.getTokenLocation());
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected ["
+                    + XContentParser.Token.VALUE_STRING
+                    + "] or ["
+                    + XContentParser.Token.START_ARRAY
+                    + "] in ["
+                    + fieldName
+                    + "] but found ["
+                    + token
+                    + "]",
+                parser.getTokenLocation()
+            );
         }
     }
 

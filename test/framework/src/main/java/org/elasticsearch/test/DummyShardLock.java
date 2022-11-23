@@ -21,6 +21,5 @@ public class DummyShardLock extends ShardLock {
     }
 
     @Override
-    protected void closeInternal() {
-    }
+    protected void closeInternal() {}
 }

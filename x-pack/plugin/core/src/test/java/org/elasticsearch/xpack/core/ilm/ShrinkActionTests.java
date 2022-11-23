@@ -7,25 +7,52 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
+
+    private Client client;
+    private IndicesAdminClient indicesClient;
+
+    @Before
+    public void setUpClient() throws Exception {
+        super.setUp();
+        client = Mockito.mock(Client.class);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+    }
 
     @Override
     protected ShrinkAction doParseInstance(XContentParser parser) throws IOException {
@@ -41,7 +68,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         if (randomBoolean()) {
             return new ShrinkAction(randomIntBetween(1, 100), null);
         } else {
-            return new ShrinkAction(null, new ByteSizeValue(randomIntBetween(1, 100)));
+            return new ShrinkAction(null, ByteSizeValue.ofBytes(randomIntBetween(1, 100)));
         }
     }
 
@@ -50,7 +77,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         if (action.getNumberOfShards() != null) {
             return new ShrinkAction(action.getNumberOfShards() + randomIntBetween(1, 2), null);
         } else {
-            return new ShrinkAction(null, new ByteSizeValue(action.getMaxPrimaryShardSize().getBytes() + 1));
+            return new ShrinkAction(null, ByteSizeValue.ofBytes(action.getMaxPrimaryShardSize().getBytes() + 1));
         }
     }
 
@@ -65,89 +92,176 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     }
 
     public void testMaxPrimaryShardSize() {
-        ByteSizeValue maxPrimaryShardSize1 = new ByteSizeValue(10);
+        ByteSizeValue maxPrimaryShardSize1 = ByteSizeValue.ofBytes(10);
         Exception e1 = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(1, 100), maxPrimaryShardSize1));
         assertThat(e1.getMessage(), equalTo("Cannot set both [number_of_shards] and [max_primary_shard_size]"));
 
-        ByteSizeValue maxPrimaryShardSize2 = new ByteSizeValue(0);
+        ByteSizeValue maxPrimaryShardSize2 = ByteSizeValue.ZERO;
         Exception e2 = expectThrows(Exception.class, () -> new ShrinkAction(null, maxPrimaryShardSize2));
         assertThat(e2.getMessage(), equalTo("[max_primary_shard_size] must be greater than 0"));
     }
 
-    public void testPerformActionWithSkip() {
+    public void testPerformActionWithSkipBecauseOfShardNumber() throws InterruptedException {
         String lifecycleName = randomAlphaOfLengthBetween(4, 10);
         int numberOfShards = randomIntBetween(1, 10);
         ShrinkAction action = new ShrinkAction(numberOfShards, null);
-        String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
-        BranchingStep step = ((BranchingStep) steps.get(0));
-
-        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, Collections.singletonMap("warm",
-                new Phase("warm", TimeValue.ZERO, Collections.singletonMap(action.getWriteableName(), action))));
-        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong());
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         String indexName = randomAlphaOfLength(5);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING))
-            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
-                .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
-                    LifecycleExecutionState.builder()
-                        .setPhase(step.getKey().getPhase())
-                        .setPhaseTime(0L)
-                        .setAction(step.getKey().getAction())
-                        .setActionTime(0L)
-                        .setStep(step.getKey().getName())
-                        .setStepTime(0L)
-                        .build().asMap())
-                .numberOfShards(numberOfShards).numberOfReplicas(0))).build();
-        step.performAction(state.metadata().index(indexName).getIndex(), state);
-        assertThat(step.getNextStepKey(), equalTo(nextStepKey));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(0);
+        assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true, false);
     }
 
-    public void testPerformActionWithoutSkip() {
+    public void testPerformActionWithSkipBecauseOfSearchableSnapshot() throws InterruptedException {
+        String lifecycleName = randomAlphaOfLengthBetween(4, 10);
+        int numberOfShards = randomIntBetween(1, 10);
+        ShrinkAction action = new ShrinkAction(numberOfShards, null);
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        String indexName = randomAlphaOfLength(5);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(
+                settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+                    .put(LifecycleSettings.SNAPSHOT_INDEX_NAME, randomAlphaOfLength(10))
+            )
+            .numberOfShards(numberOfShards * 2)
+            .numberOfReplicas(0);
+        assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true, false);
+    }
+
+    public void testPerformActionWithoutSkip() throws InterruptedException {
         int numShards = 6;
         int divisor = randomFrom(2, 3, 6);
         int expectedFinalShards = numShards / divisor;
         String lifecycleName = randomAlphaOfLengthBetween(4, 10);
         ShrinkAction action = new ShrinkAction(expectedFinalShards, null);
-        String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
-        BranchingStep step = ((BranchingStep) steps.get(0));
-
-        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, Collections.singletonMap("warm",
-            new Phase("warm", TimeValue.ZERO, Collections.singletonMap(action.getWriteableName(), action))));
-        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong());
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         String indexName = randomAlphaOfLength(5);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING))
-            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
-                .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
-                    LifecycleExecutionState.builder()
-                        .setPhase(step.getKey().getPhase())
-                        .setPhaseTime(0L)
-                        .setAction(step.getKey().getAction())
-                        .setActionTime(0L)
-                        .setStep(step.getKey().getName())
-                        .setStepTime(0L)
-                        .build().asMap())
-                .numberOfShards(numShards).numberOfReplicas(0))).build();
-        step.performAction(state.metadata().index(indexName).getIndex(), state);
-        assertThat(step.getNextStepKey(), equalTo(steps.get(1).getKey()));
+        IndexMetadata.Builder indexMetadatBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .numberOfShards(numShards)
+            .numberOfReplicas(0);
+        assertPerformAction(lifecycleName, indexName, indexMetadatBuilder, action, nextStepKey, false, false);
+    }
+
+    public void testFailureIsPropagated() throws InterruptedException {
+        String lifecycleName = randomAlphaOfLengthBetween(4, 10);
+        int numberOfShards = randomIntBetween(1, 10);
+        ShrinkAction action = new ShrinkAction(numberOfShards, null);
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        String indexName = randomAlphaOfLength(5);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(0);
+        assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true, true);
+    }
+
+    public void assertPerformAction(
+        String lifecycleName,
+        String indexName,
+        IndexMetadata.Builder indexMetadataBuilder,
+        ShrinkAction action,
+        StepKey nextStepKey,
+        boolean shouldSkip,
+        boolean withError
+    ) throws InterruptedException {
+        String phase = randomAlphaOfLengthBetween(1, 10);
+        List<Step> steps = action.toSteps(client, phase, nextStepKey);
+        AsyncBranchingStep step = ((AsyncBranchingStep) steps.get(0));
+
+        LifecyclePolicy policy = new LifecyclePolicy(
+            lifecycleName,
+            Collections.singletonMap("warm", new Phase("warm", TimeValue.ZERO, Collections.singletonMap(action.getWriteableName(), action)))
+        );
+        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(
+            policy,
+            Collections.emptyMap(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        IndexLifecycleMetadata.TYPE,
+                        new IndexLifecycleMetadata(
+                            Collections.singletonMap(policyMetadata.getName(), policyMetadata),
+                            OperationMode.RUNNING
+                        )
+                    )
+                    .put(
+                        indexMetadataBuilder.putCustom(
+                            LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
+                            LifecycleExecutionState.builder()
+                                .setPhase(step.getKey().phase())
+                                .setPhaseTime(0L)
+                                .setAction(step.getKey().action())
+                                .setActionTime(0L)
+                                .setStep(step.getKey().name())
+                                .setStepTime(0L)
+                                .build()
+                                .asMap()
+                        )
+                    )
+            )
+            .build();
+        setUpIndicesStatsRequestMock(indexName, withError);
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        AtomicBoolean failurePropagated = new AtomicBoolean(false);
+        step.performAction(state.metadata().index(indexName), state, null, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                countDownLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (withError) {
+                    assertThat(e.getMessage(), equalTo("simulated"));
+                    failurePropagated.set(true);
+                    countDownLatch.countDown();
+                } else {
+                    fail("Unexpected exception: " + e.getMessage());
+                }
+            }
+        });
+        assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
+        if (withError) {
+            assertTrue(failurePropagated.get());
+        } else if (shouldSkip) {
+            assertThat(step.getNextStepKey(), equalTo(nextStepKey));
+        } else {
+            assertThat(step.getNextStepKey(), equalTo(steps.get(1).getKey()));
+        }
     }
 
     public void testToSteps() {
         ShrinkAction action = createTestInstance();
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        List<Step> steps = action.toSteps(client, phase, nextStepKey);
         assertThat(steps.size(), equalTo(17));
         StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP);
         StepKey expectedSecondKey = new StepKey(phase, ShrinkAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
@@ -167,11 +281,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         StepKey expectedSixteenKey = new StepKey(phase, ShrinkAction.NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey expectedSeventeenKey = new StepKey(phase, ShrinkAction.NAME, DeleteStep.NAME);
 
-        assertTrue(steps.get(0) instanceof BranchingStep);
+        assertTrue(steps.get(0) instanceof AsyncBranchingStep);
         assertThat(steps.get(0).getKey(), equalTo(expectedFirstKey));
         expectThrows(IllegalStateException.class, () -> steps.get(0).getNextStepKey());
-        assertThat(((BranchingStep) steps.get(0)).getNextStepKeyOnFalse(), equalTo(expectedSecondKey));
-        assertThat(((BranchingStep) steps.get(0)).getNextStepKeyOnTrue(), equalTo(nextStepKey));
+        assertThat(((AsyncBranchingStep) steps.get(0)).getNextStepKeyOnFalse(), equalTo(expectedSecondKey));
+        assertThat(((AsyncBranchingStep) steps.get(0)).getNextStepKeyOnTrue(), equalTo(nextStepKey));
 
         assertTrue(steps.get(1) instanceof CheckNotDataStreamWriteIndexStep);
         assertThat(steps.get(1).getKey(), equalTo(expectedSecondKey));
@@ -215,8 +329,10 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertTrue(steps.get(10) instanceof ClusterStateWaitUntilThresholdStep);
         assertThat(steps.get(10).getKey(), equalTo(expectedEleventhKey));
         assertThat(steps.get(10).getNextStepKey(), equalTo(expectedTwelveKey));
-        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(10)).getStepToExecute(),
-            is(instanceOf(ShrunkShardsAllocatedStep.class)));
+        assertThat(
+            ((ClusterStateWaitUntilThresholdStep) steps.get(10)).getStepToExecute(),
+            is(instanceOf(ShrunkShardsAllocatedStep.class))
+        );
         // assert in case the threshold is breached we go back to the "cleanup shrunk index" step
         assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(10)).getNextKeyOnThreshold(), is(expectedSixthKey));
 
@@ -245,6 +361,33 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertTrue(steps.get(16) instanceof DeleteStep);
         assertThat(steps.get(16).getKey(), equalTo(expectedSeventeenKey));
         assertThat(steps.get(16).getNextStepKey(), equalTo(expectedFifteenKey));
+    }
+
+    private void setUpIndicesStatsRequestMock(String index, boolean withError) {
+        IndicesStatsRequestBuilder builder = Mockito.mock(IndicesStatsRequestBuilder.class);
+        IndicesStatsResponse response = Mockito.mock(IndicesStatsResponse.class);
+        CommonStats commonStats = Mockito.mock(CommonStats.class);
+        Mockito.when(response.getPrimaries()).thenReturn(commonStats);
+        Mockito.doAnswer(invocation -> {
+            String request = (String) invocation.getArguments()[0];
+            assertNotNull(request);
+            assertEquals(index, request);
+            return builder;
+        }).when(indicesClient).prepareStats(Mockito.any());
+        Mockito.when(builder.clear()).thenReturn(builder);
+        Mockito.when(builder.setDocs(true)).thenReturn(builder);
+        Mockito.when(builder.setStore(true)).thenReturn(builder);
+        Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) invocation.getArguments()[0];
+            assertNotNull(listener);
+            if (withError) {
+                listener.onFailure(new RuntimeException("simulated"));
+            } else {
+                listener.onResponse(response);
+            }
+            return null;
+        }).when(builder).execute(Mockito.any());
     }
 
     @Override

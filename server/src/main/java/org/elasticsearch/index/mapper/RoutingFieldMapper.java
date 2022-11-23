@@ -12,10 +12,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 
 public class RoutingFieldMapper extends MetadataFieldMapper {
 
@@ -54,8 +55,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(required);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { required };
         }
 
         @Override
@@ -64,14 +65,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> RoutingFieldMapper.get(Defaults.REQUIRED),
-        c -> new Builder()
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> RoutingFieldMapper.get(Defaults.REQUIRED), c -> new Builder());
+
+    public static final MappedFieldType FIELD_TYPE = new RoutingFieldType();
 
     static final class RoutingFieldType extends StringFieldType {
-
-        static RoutingFieldType INSTANCE = new RoutingFieldType();
 
         private RoutingFieldType() {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
@@ -84,24 +82,37 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            return new StoredValueFetcher(context.lookup(), NAME);
         }
     }
 
+    /**
+     * Should we require {@code routing} on CRUD operations?
+     */
     private final boolean required;
 
     private static final RoutingFieldMapper REQUIRED = new RoutingFieldMapper(true);
     private static final RoutingFieldMapper NOT_REQUIRED = new RoutingFieldMapper(false);
+
+    private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
     public static RoutingFieldMapper get(boolean required) {
         return required ? REQUIRED : NOT_REQUIRED;
     }
 
     private RoutingFieldMapper(boolean required) {
-        super(RoutingFieldType.INSTANCE, Lucene.KEYWORD_ANALYZER);
+        super(FIELD_TYPE);
         this.required = required;
     }
 
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return ANALYZERS;
+    }
+
+    /**
+     * Should we require {@code routing} on CRUD operations?
+     */
     public boolean required() {
         return this.required;
     }
@@ -120,4 +131,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
 }

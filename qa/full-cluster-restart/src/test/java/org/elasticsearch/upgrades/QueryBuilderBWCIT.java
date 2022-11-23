@@ -8,7 +8,6 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -18,13 +17,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -35,9 +32,9 @@ import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -45,7 +42,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * An integration test that tests whether percolator queries stored in older supported ES version can still be read by the
@@ -62,73 +59,97 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
     private static final List<Object[]> CANDIDATES = new ArrayList<>();
 
     static {
-        addCandidate("\"match\": { \"keyword_field\": \"value\"}", new MatchQueryBuilder("keyword_field", "value"));
+        addCandidate("""
+            "match": { "text_field": "value"}
+            """, new MatchQueryBuilder("text_field", "value"));
+        addCandidate("""
+            "match": { "text_field": {"query": "value", "operator": "and"} }
+            """, new MatchQueryBuilder("text_field", "value").operator(Operator.AND));
+        addCandidate("""
+            "match": { "text_field": {"query": "value", "analyzer": "english"} }
+            """, new MatchQueryBuilder("text_field", "value").analyzer("english"));
+        addCandidate("""
+            "match": { "text_field": {"query": "value", "minimum_should_match": 3} }
+            """, new MatchQueryBuilder("text_field", "value").minimumShouldMatch("3"));
+        addCandidate("""
+            "match": { "text_field": {"query": "value", "fuzziness": "auto"} }
+            """, new MatchQueryBuilder("text_field", "value").fuzziness(Fuzziness.AUTO));
+        addCandidate("""
+            "match_phrase": { "text_field": "value"}
+            """, new MatchPhraseQueryBuilder("text_field", "value"));
+        addCandidate("""
+            "match_phrase": { "text_field": {"query": "value", "slop": 3}}
+            """, new MatchPhraseQueryBuilder("text_field", "value").slop(3));
+        addCandidate("""
+            "range": { "long_field": {"gte": 1, "lte": 9}}
+            """, new RangeQueryBuilder("long_field").from(1).to(9));
         addCandidate(
-            "\"match\": { \"keyword_field\": {\"query\": \"value\", \"operator\": \"and\"} }",
-            new MatchQueryBuilder("keyword_field", "value").operator(Operator.AND)
+            """
+                "bool": { "must_not": [{"match_none": {}}], "must": [{"match_all": {}}], "filter": [{"match_all": {}}], \
+                "should": [{"match_all": {}}]}
+                """,
+            new BoolQueryBuilder().mustNot(new MatchNoneQueryBuilder())
+                .must(new MatchAllQueryBuilder())
+                .filter(new MatchAllQueryBuilder())
+                .should(new MatchAllQueryBuilder())
         );
         addCandidate(
-            "\"match\": { \"keyword_field\": {\"query\": \"value\", \"analyzer\": \"english\"} }",
-            new MatchQueryBuilder("keyword_field", "value").analyzer("english")
-        );
-        addCandidate(
-            "\"match\": { \"keyword_field\": {\"query\": \"value\", \"minimum_should_match\": 3} }",
-            new MatchQueryBuilder("keyword_field", "value").minimumShouldMatch("3")
-        );
-        addCandidate(
-            "\"match\": { \"keyword_field\": {\"query\": \"value\", \"fuzziness\": \"auto\"} }",
-            new MatchQueryBuilder("keyword_field", "value").fuzziness(Fuzziness.AUTO)
-        );
-        addCandidate("\"match_phrase\": { \"keyword_field\": \"value\"}", new MatchPhraseQueryBuilder("keyword_field", "value"));
-        addCandidate(
-            "\"match_phrase\": { \"keyword_field\": {\"query\": \"value\", \"slop\": 3}}",
-            new MatchPhraseQueryBuilder("keyword_field", "value").slop(3)
-        );
-        addCandidate("\"range\": { \"long_field\": {\"gte\": 1, \"lte\": 9}}", new RangeQueryBuilder("long_field").from(1).to(9));
-        addCandidate(
-            "\"bool\": { \"must_not\": [{\"match_all\": {}}], \"must\": [{\"match_all\": {}}], " +
-                "\"filter\": [{\"match_all\": {}}], \"should\": [{\"match_all\": {}}]}",
-            new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder()).must(new MatchAllQueryBuilder())
-                .filter(new MatchAllQueryBuilder()).should(new MatchAllQueryBuilder())
-        );
-        addCandidate(
-            "\"dis_max\": {\"queries\": [{\"match_all\": {}},{\"match_all\": {}},{\"match_all\": {}}], \"tie_breaker\": 0.01}",
-            new DisMaxQueryBuilder().add(new MatchAllQueryBuilder()).add(new MatchAllQueryBuilder()).add(new MatchAllQueryBuilder())
+            """
+                "dis_max": {"queries": [{"match_all": {}},{"match_all": {}},{"match_all": {}}], "tie_breaker": 0.01}
+                """,
+            new DisMaxQueryBuilder().add(new MatchAllQueryBuilder())
+                .add(new MatchAllQueryBuilder())
+                .add(new MatchAllQueryBuilder())
                 .tieBreaker(0.01f)
         );
+        addCandidate("""
+            "constant_score": {"filter": {"match_all": {}}, "boost": 0.1}
+            """, new ConstantScoreQueryBuilder(new MatchAllQueryBuilder()).boost(0.1f));
         addCandidate(
-            "\"constant_score\": {\"filter\": {\"match_all\": {}}, \"boost\": 0.1}",
-            new ConstantScoreQueryBuilder(new MatchAllQueryBuilder()).boost(0.1f)
+            """
+                "function_score": {"query": {"match_all": {}},"functions": [{"random_score": {}, "filter": {"match_all": {}}, \
+                "weight": 0.2}]}
+                """,
+            new FunctionScoreQueryBuilder(
+                new MatchAllQueryBuilder(),
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(
+                        new MatchAllQueryBuilder(),
+                        new RandomScoreFunctionBuilder().setWeight(0.2f)
+                    ) }
+            )
         );
         addCandidate(
-            "\"function_score\": {\"query\": {\"match_all\": {}}," +
-                "\"functions\": [{\"random_score\": {}, \"filter\": {\"match_all\": {}}, \"weight\": 0.2}]}",
-            new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
-                new FunctionScoreQueryBuilder.FilterFunctionBuilder(new MatchAllQueryBuilder(),
-                    new RandomScoreFunctionBuilder().setWeight(0.2f))})
+            """
+                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
+                { "span_term": { "keyword_field": "value2" }}]}
+                """,
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 0).addClause(
+                new SpanTermQueryBuilder("keyword_field", "value2")
+            )
         );
         addCandidate(
-            "\"span_near\": {\"clauses\": [{ \"span_term\": { \"keyword_field\": \"value1\" }}, " +
-                "{ \"span_term\": { \"keyword_field\": \"value2\" }}]}",
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 0)
-                .addClause(new SpanTermQueryBuilder("keyword_field", "value2"))
+            """
+                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
+                { "span_term": { "keyword_field": "value2" }}], "slop": 2}
+                """,
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("keyword_field", "value2")
+            )
         );
         addCandidate(
-            "\"span_near\": {\"clauses\": [{ \"span_term\": { \"keyword_field\": \"value1\" }}, " +
-                "{ \"span_term\": { \"keyword_field\": \"value2\" }}], \"slop\": 2}",
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2)
-                .addClause(new SpanTermQueryBuilder("keyword_field", "value2"))
-        );
-        addCandidate(
-            "\"span_near\": {\"clauses\": [{ \"span_term\": { \"keyword_field\": \"value1\" }}, " +
-                "{ \"span_term\": { \"keyword_field\": \"value2\" }}], \"slop\": 2, \"in_order\": false}",
-            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2)
-                .addClause(new SpanTermQueryBuilder("keyword_field", "value2")).inOrder(false)
+            """
+                "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
+                { "span_term": { "keyword_field": "value2" }}], "slop": 2, "in_order": false}
+                """,
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("keyword_field", "value2")
+            ).inOrder(false)
         );
     }
 
     private static void addCandidate(String querySource, QueryBuilder expectedQb) {
-        CANDIDATES.add(new Object[]{"{\"query\": {" + querySource + "}}", expectedQb});
+        CANDIDATES.add(new Object[] { "{\"query\": {" + querySource + "}}", expectedQb });
     }
 
     public void testQueryBuilderBWC() throws Exception {
@@ -156,6 +177,11 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                     mappingsAndSettings.endObject();
                 }
                 {
+                    mappingsAndSettings.startObject("text_field");
+                    mappingsAndSettings.field("type", "text");
+                    mappingsAndSettings.endObject();
+                }
+                {
                     mappingsAndSettings.startObject("long_field");
                     mappingsAndSettings.field("type", "long");
                     mappingsAndSettings.endObject();
@@ -176,17 +202,19 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 assertEquals(201, rsp.getStatusLine().getStatusCode());
             }
         } else {
-            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY,
-                Collections.emptyList()).getNamedWriteables());
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(
+                new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables()
+            );
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
                 QueryBuilder expectedQueryBuilder = (QueryBuilder) CANDIDATES.get(i)[1];
                 Request request = new Request("GET", "/" + index + "/_search");
-                request.setJsonEntity("{\"query\": {\"ids\": {\"values\": [\"" + Integer.toString(i) + "\"]}}, " +
-                        "\"docvalue_fields\": [{\"field\":\"query.query_builder_field\"}]}");
+                request.setJsonEntity(formatted("""
+                    {"query": {"ids": {"values": ["%s"]}}, "docvalue_fields": [{"field":"query.query_builder_field"}]}
+                    """, i));
                 Response rsp = client().performRequest(request);
                 assertEquals(200, rsp.getStatusLine().getStatusCode());
-                Map<?, ?> hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>)toMap(rsp).get("hits")).get("hits")).get(0);
+                var hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) responseAsMap(rsp).get("hits")).get("hits")).get(0);
                 String queryBuilderStr = (String) ((List<?>) ((Map<?, ?>) hitRsp.get("fields")).get("query.query_builder_field")).get(0);
                 byte[] qbSource = Base64.getDecoder().decode(queryBuilderStr);
                 try (InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length)) {
@@ -199,13 +227,5 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 }
             }
         }
-    }
-
-    private static Map<String, Object> toMap(Response response) throws IOException {
-        return toMap(EntityUtils.toString(response.getEntity()));
-    }
-
-    private static Map<String, Object> toMap(String response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 }

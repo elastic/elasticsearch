@@ -22,14 +22,16 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -106,20 +108,12 @@ public class AggConstructionContentionBenchmark {
 
     @Setup
     public void setup() {
-        switch (breaker) {
-            case "real":
-                breakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
-                break;
-            case "preallocate":
-                preallocateBreaker = true;
-                breakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
-                break;
-            case "noop":
-                breakerService = new NoneCircuitBreakerService();
-                break;
-            default:
-                throw new UnsupportedOperationException();
-        }
+        breakerService = switch (breaker) {
+            case "real", "preallocate" -> new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
+            case "noop" -> new NoneCircuitBreakerService();
+            default -> throw new UnsupportedOperationException();
+        };
+        preallocateBreaker = breaker.equals("preallocate");
         bigArrays = new BigArrays(recycler, breakerService, "request");
     }
 
@@ -198,10 +192,26 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public Analyzer getNamedAnalyzer(String analyzer) {
+            return null;
+        }
+
+        @Override
+        public Analyzer buildCustomAnalyzer(
+            IndexSettings indexSettings,
+            boolean normalizer,
+            NameOrDefinition tokenizer,
+            List<NameOrDefinition> charFilters,
+            List<NameOrDefinition> tokenFilters
+        ) {
+            return null;
+        }
+
+        @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
             IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(new IndexFieldDataCache.Listener() {
             }, index, ft.name());
-            return ft.fielddataBuilder("test", this::lookup).build(indexFieldDataCache, breakerService);
+            return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(indexFieldDataCache, breakerService);
         }
 
         @Override
@@ -268,7 +278,7 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public ObjectMapper getObjectMapper(String path) {
+        public NestedLookup nestedLookup() {
             throw new UnsupportedOperationException();
         }
 
@@ -335,6 +345,16 @@ public class AggConstructionContentionBenchmark {
         @Override
         public boolean enableRewriteToFilterByFilter() {
             return true;
+        }
+
+        @Override
+        public boolean isInSortOrderExecutionRequired() {
+            return false;
+        }
+
+        @Override
+        public Set<String> sourcePath(String fullName) {
+            return Set.of(fullName);
         }
 
         @Override

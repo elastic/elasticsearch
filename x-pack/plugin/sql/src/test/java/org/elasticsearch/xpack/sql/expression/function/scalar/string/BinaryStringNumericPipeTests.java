@@ -24,8 +24,7 @@ import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTest
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 
-public class BinaryStringNumericPipeTests
-        extends AbstractNodeTestCase<BinaryStringNumericPipe, Pipe> {
+public class BinaryStringNumericPipeTests extends AbstractNodeTestCase<BinaryStringNumericPipe, Pipe> {
 
     @Override
     protected BinaryStringNumericPipe randomInstance() {
@@ -56,35 +55,21 @@ public class BinaryStringNumericPipeTests
         BinaryStringNumericPipe b1 = randomInstance();
 
         Expression newExpression = randomValueOtherThan(b1.expression(), () -> randomBinaryStringNumericExpression());
-        BinaryStringNumericPipe newB = new BinaryStringNumericPipe(
-                b1.source(),
-                newExpression,
-                b1.left(),
-                b1.right(),
-                b1.operation());
+        BinaryStringNumericPipe newB = new BinaryStringNumericPipe(b1.source(), newExpression, b1.left(), b1.right(), b1.operation());
         assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
 
         BinaryStringNumericPipe b2 = randomInstance();
         BinaryStringNumericOperation newOp = randomValueOtherThan(b2.operation(), () -> randomBinaryStringNumericOperation());
-        newB = new BinaryStringNumericPipe(
-            b2.source(),
-            b2.expression(),
-            b2.left(),
-            b2.right(),
-            newOp);
-        assertEquals(newB,
-            b2.transformPropertiesOnly(BinaryStringNumericOperation.class, v -> Objects.equals(v, b2.operation()) ? newOp : v));
+        newB = new BinaryStringNumericPipe(b2.source(), b2.expression(), b2.left(), b2.right(), newOp);
+        assertEquals(
+            newB,
+            b2.transformPropertiesOnly(BinaryStringNumericOperation.class, v -> Objects.equals(v, b2.operation()) ? newOp : v)
+        );
 
         BinaryStringNumericPipe b3 = randomInstance();
         Source newLoc = randomValueOtherThan(b3.source(), () -> randomSource());
-        newB = new BinaryStringNumericPipe(
-            newLoc,
-            b3.expression(),
-            b3.left(),
-            b3.right(),
-            b3.operation());
-        assertEquals(newB,
-            b3.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b3.source()) ? newLoc : v));
+        newB = new BinaryStringNumericPipe(newLoc, b3.expression(), b3.left(), b3.right(), b3.operation());
+        assertEquals(newB, b3.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b3.source()) ? newLoc : v));
     }
 
     @Override
@@ -92,8 +77,7 @@ public class BinaryStringNumericPipeTests
         BinaryStringNumericPipe b = randomInstance();
         Pipe newLeft = pipe(((Expression) randomValueOtherThan(b.left(), () -> randomStringLiteral())));
         Pipe newRight = pipe(((Expression) randomValueOtherThan(b.right(), () -> randomIntLiteral())));
-        BinaryStringNumericPipe newB =
-                new BinaryStringNumericPipe(b.source(), b.expression(), b.left(), b.right(), b.operation());
+        BinaryStringNumericPipe newB = new BinaryStringNumericPipe(b.source(), b.expression(), b.left(), b.right(), b.operation());
         BinaryPipe transformed = newB.replaceChildren(newLeft, b.right());
 
         assertEquals(transformed.left(), newLeft);
@@ -117,31 +101,45 @@ public class BinaryStringNumericPipeTests
     @Override
     protected BinaryStringNumericPipe mutate(BinaryStringNumericPipe instance) {
         List<Function<BinaryStringNumericPipe, BinaryStringNumericPipe>> randoms = new ArrayList<>();
-        randoms.add(f -> new BinaryStringNumericPipe(f.source(),
+        randoms.add(
+            f -> new BinaryStringNumericPipe(
+                f.source(),
                 f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.left(), () -> randomStringLiteral()))),
                 f.right(),
-                f.operation()));
-        randoms.add(f -> new BinaryStringNumericPipe(f.source(),
+                f.operation()
+            )
+        );
+        randoms.add(
+            f -> new BinaryStringNumericPipe(
+                f.source(),
                 f.expression(),
                 f.left(),
                 pipe(((Expression) randomValueOtherThan(f.right(), () -> randomIntLiteral()))),
-                f.operation()));
-        randoms.add(f -> new BinaryStringNumericPipe(f.source(),
+                f.operation()
+            )
+        );
+        randoms.add(
+            f -> new BinaryStringNumericPipe(
+                f.source(),
                 f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.left(), () -> randomStringLiteral()))),
                 pipe(((Expression) randomValueOtherThan(f.right(), () -> randomIntLiteral()))),
-                f.operation()));
+                f.operation()
+            )
+        );
 
         return randomFrom(randoms).apply(instance);
     }
 
     @Override
     protected BinaryStringNumericPipe copy(BinaryStringNumericPipe instance) {
-        return new BinaryStringNumericPipe(instance.source(),
-                instance.expression(),
-                instance.left(),
-                instance.right(),
-                instance.operation());
+        return new BinaryStringNumericPipe(
+            instance.source(),
+            instance.expression(),
+            instance.left(),
+            instance.right(),
+            instance.operation()
+        );
     }
 }

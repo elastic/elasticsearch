@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
@@ -36,6 +37,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.STACK_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
@@ -102,8 +104,12 @@ public final class AuthorizationUtils {
      * This method knows nothing about listeners so it is important that callers ensure their listeners preserve their
      * context and restore it appropriately.
      */
-    public static void switchUserBasedOnActionOriginAndExecute(ThreadContext threadContext, SecurityContext securityContext,
-                                                               Consumer<ThreadContext.StoredContext> consumer) {
+    public static void switchUserBasedOnActionOriginAndExecute(
+        ThreadContext threadContext,
+        SecurityContext securityContext,
+        Version version,
+        Consumer<ThreadContext.StoredContext> consumer
+    ) {
         final String actionOrigin = threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME);
         if (actionOrigin == null) {
             assert false : "cannot switch user if there is no action origin";
@@ -112,7 +118,10 @@ public final class AuthorizationUtils {
 
         switch (actionOrigin) {
             case SECURITY_ORIGIN:
-                securityContext.executeAsUser(XPackSecurityUser.INSTANCE, consumer, Version.CURRENT);
+                securityContext.executeAsInternalUser(XPackSecurityUser.INSTANCE, version, consumer);
+                break;
+            case SECURITY_PROFILE_ORIGIN:
+                securityContext.executeAsInternalUser(SecurityProfileUser.INSTANCE, version, consumer);
                 break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
@@ -130,10 +139,10 @@ public final class AuthorizationUtils {
             case LOGSTASH_MANAGEMENT_ORIGIN:
             case FLEET_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
-                securityContext.executeAsUser(XPackUser.INSTANCE, consumer, Version.CURRENT);
+                securityContext.executeAsInternalUser(XPackUser.INSTANCE, version, consumer);
                 break;
             case ASYNC_SEARCH_ORIGIN:
-                securityContext.executeAsUser(AsyncSearchUser.INSTANCE, consumer, Version.CURRENT);
+                securityContext.executeAsInternalUser(AsyncSearchUser.INSTANCE, version, consumer);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

@@ -10,17 +10,14 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolutionStrategy;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
@@ -31,9 +28,6 @@ import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Stream;
-
 
 /**
  * A wrapper around Gradle's Java Base plugin that applies our
@@ -50,6 +44,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
 
+        configureConfigurations(project);
         configureCompile(project);
         configureInputNormalization(project);
 
@@ -58,15 +53,65 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     }
 
     /**
+     * Makes dependencies non-transitive.
+     * <p>
+     * Gradle allows setting all dependencies as non-transitive very easily.
+     * Sadly this mechanism does not translate into maven pom generation. In order
+     * to effectively make the pom act as if it has no transitive dependencies,
+     * we must exclude each transitive dependency of each direct dependency.
+     * <p>
+     * Determining the transitive deps of a dependency which has been resolved as
+     * non-transitive is difficult because the process of resolving removes the
+     * transitive deps. To sidestep this issue, we create a configuration per
+     * direct dependency version. This specially named and unique configuration
+     * will contain all of the transitive dependencies of this particular
+     * dependency. We can then use this configuration during pom generation
+     * to iterate the transitive dependencies and add excludes.
+     */
+    public static void configureConfigurations(Project project) {
+        // we are not shipping these jars, we act like dumb consumers of these things
+        if (project.getPath().startsWith(":test:fixtures") || project.getPath().equals(":build-tools")) {
+            return;
+        }
+        // fail on any conflicting dependency versions
+        project.getConfigurations().all(configuration -> {
+            if (configuration.getName().endsWith("Fixture")) {
+                // just a self contained test-fixture configuration, likely transitive and hellacious
+                return;
+            }
+            configuration.resolutionStrategy(ResolutionStrategy::failOnVersionConflict);
+        });
+
+        // disable transitive dependency management
+        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+        sourceSets.all(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
+    }
+
+    private static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
+        List<String> sourceSetConfigurationNames = List.of(
+            sourceSet.getApiConfigurationName(),
+            sourceSet.getImplementationConfigurationName(),
+            sourceSet.getImplementationConfigurationName(),
+            sourceSet.getCompileOnlyConfigurationName(),
+            sourceSet.getRuntimeOnlyConfigurationName()
+        );
+
+        project.getConfigurations()
+            .matching(c -> sourceSetConfigurationNames.contains(c.getName()))
+            .configureEach(GradleUtils::disableTransitiveDependencies);
+    }
+
+    /**
      * Adds compiler settings to the project
      */
     public static void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
-
         JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
+        if (BuildParams.getJavaToolChainSpec().isPresent()) {
+            java.toolchain(BuildParams.getJavaToolChainSpec().get());
+        }
         java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
         java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
-
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
             CompileOptions compileOptions = compileTask.getOptions();
             /*
@@ -79,7 +124,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
             List<String> compilerArgs = compileOptions.getCompilerArgs();
             compilerArgs.add("-Werror");
-            compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try");
+            compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try,-removal");
             compilerArgs.add("-Xdoclint:all");
             compilerArgs.add("-Xdoclint:-missing");
             compileOptions.setEncoding("UTF-8");
@@ -95,7 +140,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
         });
     }
-
 
     /**
      * Apply runtime classpath input normalization so that changes in JAR manifests don't break build cacheability

@@ -6,26 +6,26 @@
  * Side Public License, v 1.
  */
 
+
+import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
-import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
-import org.elasticsearch.gradle.internal.BuildPlugin
+
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.BwcVersions
+import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
+import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.plugins.ide.eclipse.model.AccessRule
+import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
-import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
-import org.gradle.plugins.ide.eclipse.model.ProjectDependency
-import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
-import org.elasticsearch.gradle.internal.ResolveAllDependencies
+
 import java.nio.file.Files
+
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
+import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 plugins {
   id 'lifecycle-base'
@@ -38,20 +38,13 @@ plugins {
   id 'elasticsearch.runtime-jdk-provision'
   id 'elasticsearch.ide'
   id 'elasticsearch.forbidden-dependencies'
-  id 'elasticsearch.formatting'
   id 'elasticsearch.local-distribution'
   id 'elasticsearch.fips'
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
+  id 'elasticsearch.run-ccs'
   id 'elasticsearch.release-tools'
-  id "com.diffplug.spotless" version "5.12.5" apply false
-}
-
-String licenseCommit
-if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
-  licenseCommit = BuildParams.gitRevision ?: "master" // leniency for non git builds
-} else {
-  licenseCommit = "v${version}"
+  id 'elasticsearch.versions'
 }
 
 /**
@@ -74,17 +67,28 @@ ext.testArtifact = { p, String name = "test" ->
 }
 
 tasks.register("updateCIBwcVersions") {
-  doLast {
-    File yml = file(".ci/bwcVersions")
-    yml.text = ""
-    yml << "BWC_VERSION:\n"
-    BuildParams.bwcVersions.indexCompatible.each {
-      yml << "  - \"$it\"\n"
+  def writeVersions = { File file, List<Version> versions ->
+    file.text = ""
+    file << "BWC_VERSION:\n"
+    versions.each {
+      file << "  - \"$it\"\n"
     }
+  }
+  doLast {
+    writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
+    writeVersions(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
   }
 }
 
 tasks.register("verifyVersions") {
+  def verifyCiYaml = { File file, List<Version> versions ->
+    String ciYml = file.text
+    versions.each {
+      if (ciYml.contains("\"$it\"\n") == false) {
+        throw new Exception("${file} is outdated, run `./gradlew updateCIBwcVersions` and check in the results")
+      }
+    }
+  }
   doLast {
     if (gradle.startParameter.isOffline()) {
       throw new GradleException("Must run in online mode to verify versions")
@@ -100,17 +104,12 @@ tasks.register("verifyVersions") {
           .collect { Version.fromString(it) }
       )
     }
-    String ciYml = file(".ci/bwcVersions").text
-    BuildParams.bwcVersions.indexCompatible.each {
-      if (ciYml.contains("\"$it\"\n") == false) {
-        throw new Exception(".ci/bwcVersions is outdated, run `./gradlew updateCIBwcVersions` and check in the results");
-      }
-    }
+    verifyCiYaml(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
+    verifyCiYaml(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
 
     // Make sure backport bot config file is up to date
     JsonNode backportConfig = new ObjectMapper().readTree(file(".backportrc.json"))
-    List<BwcVersions.UnreleasedVersionInfo> unreleased = BuildParams.bwcVersions.unreleased.collect { BuildParams.bwcVersions.unreleasedInfo(it) }
-    unreleased.each { unreleasedVersion ->
+    BuildParams.bwcVersions.forPreviousUnreleased { unreleasedVersion ->
       boolean valid = backportConfig.get("targetBranchChoices").elements().any { branchChoice ->
         if (branchChoice.isObject()) {
           return branchChoice.get("name").textValue() == unreleasedVersion.branch
@@ -122,11 +121,11 @@ tasks.register("verifyVersions") {
         throw new GradleException("No branch choice exists for development branch ${unreleasedVersion.branch} in .backportrc.json.")
       }
     }
-    BwcVersions.UnreleasedVersionInfo nextMinor = unreleased.find { it.branch.endsWith("x") }
-    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == nextMinor.branch }.key
-    if (versionMapping != "^v${nextMinor.version}\$") {
-      throw new GradleException("Backport label mapping for branch ${nextMinor.branch} is '${versionMapping}' but should be " +
-        "'^v${nextMinor.version}\$'. Update .backportrc.json.")
+    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == 'main' }.key
+    String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
+    if (versionMapping != expectedMapping) {
+      throw new GradleException("Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
+        "'${expectedMapping}'. Update .backportrc.json.")
     }
   }
 }
@@ -138,19 +137,9 @@ tasks.register("verifyVersions") {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = true
+boolean bwc_tests_enabled = false
 // place a PR link here when committing bwc changes:
-String bwc_tests_disabled_issue = ""
-/*
- * FIPS 140-2 behavior was fixed in 7.11.0. Before that there is no way to run elasticsearch in a
- * JVM that is properly configured to be in fips mode with BCFIPS. For now we need to disable
- * all bwc testing in fips mode.
- */
-
-if ( BuildParams.inFipsJvm ) {
-  bwc_tests_enabled = false
-  bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/issues/66772"
-}
+String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/91823"
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -165,21 +154,16 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
   bwc_tests_enabled = false
 }
 
-allprojects {
-  // common maven publishing configuration
-  group = 'org.elasticsearch'
-  version = VersionProperties.elasticsearch
-  description = "Elasticsearch subproject ${project.path}"
+subprojects { proj ->
+  apply plugin: 'elasticsearch.base'
+}
 
+allprojects {
   // We disable this plugin for now till we shaked out the issues we see
   // e.g. see https://github.com/elastic/elasticsearch/issues/72169
   // apply plugin:'elasticsearch.internal-test-rerun'
-  plugins.withType(BuildPlugin).whenPluginAdded {
-    project.licenseFile = project.rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-    project.noticeFile = project.rootProject.file('NOTICE.txt')
-  }
 
-  plugins.withType(InternalPluginBuildPlugin).whenPluginAdded {
+  plugins.withType(BaseInternalPluginBuildPlugin).whenPluginAdded {
     project.dependencies {
       compileOnly project(":server")
       testImplementation project(":test:framework")
@@ -189,24 +173,13 @@ allprojects {
   // injecting groovy property variables into all projects
   project.ext {
     // for ide hacks...
-    isEclipse = providers.systemProperty("eclipse.launcher").forUseAtConfigurationTime().isPresent() ||   // Detects gradle launched from Eclipse's IDE
-            providers.systemProperty("eclipse.application").forUseAtConfigurationTime().isPresent() ||    // Detects gradle launched from the Eclipse compiler server
+    isEclipse = providers.systemProperty("eclipse.launcher").isPresent() ||   // Detects gradle launched from Eclipse's IDE
+            providers.systemProperty("eclipse.application").isPresent() ||    // Detects gradle launched from the Eclipse compiler server
             gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
             gradle.startParameter.taskNames.contains('cleanEclipse')
   }
 
   ext.bwc_tests_enabled = bwc_tests_enabled
-
-  // ignore missing javadocs
-  tasks.withType(Javadoc).configureEach { Javadoc javadoc ->
-    // the -quiet here is because of a bug in gradle, in that adding a string option
-    // by itself is not added to the options. By adding quiet, both this option and
-    // the "value" -quiet is added, separated by a space. This is ok since the javadoc
-    // command already adds -quiet, so we are just duplicating it
-    // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
-    javadoc.options.encoding = 'UTF8'
-    javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
-  }
 
   // eclipse configuration
   apply plugin: 'elasticsearch.eclipse'
@@ -234,19 +207,15 @@ allprojects {
     }
   }
 
-  def checkPart1 = tasks.register('checkPart1')
-  def checkPart2 = tasks.register('checkPart2')
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
-      checkPart2.configure { dependsOn 'check' }
+      if (project.path.contains("security") || project.path.contains(":ml")) {
+        tasks.register('checkPart3') { dependsOn 'check' }
+      } else {
+        tasks.register('checkPart2') { dependsOn 'check' }
+      }
     } else {
-      checkPart1.configure { dependsOn 'check' }
-    }
-  }
-
-  project.ext.disableTasks = { String... tasknames ->
-    for (String taskname : tasknames) {
-      project.tasks.named(taskname).configure { enabled = false }
+      tasks.register('checkPart1') { dependsOn 'check' }
     }
   }
 
@@ -259,9 +228,6 @@ allprojects {
       it.enabled = false
     }
     maybeConfigure(project.tasks, 'dependenciesInfo') {
-      it.enabled = false
-    }
-    maybeConfigure(project.tasks, 'dependenciesGraph') {
       it.enabled = false
     }
   }
@@ -291,62 +257,9 @@ allprojects {
         }
       }
     }
-
-
-    // Handle javadoc dependencies across projects. Order matters: the linksOffline for
-    // org.elasticsearch:elasticsearch must be the last one or all the links for the
-    // other packages (e.g org.elasticsearch.client) will point to server rather than
-    // their own artifacts.
-    if (project.plugins.hasPlugin(BuildPlugin) || project.plugins.hasPlugin(PluginBuildPlugin)) {
-      String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
-      Closure sortClosure = { a, b -> b.group <=> a.group }
-      Closure depJavadocClosure = { shadowed, dep ->
-        if ((dep instanceof ProjectDependency) == false) {
-          return
-        }
-        Project upstreamProject = dep.dependencyProject
-        if (upstreamProject == null) {
-          return
-        }
-        if (shadowed) {
-          /*
-           * Include the source of shadowed upstream projects so we don't
-           * have to publish their javadoc.
-           */
-          project.evaluationDependsOn(upstreamProject.path)
-          project.javadoc.source += upstreamProject.javadoc.source
-          /*
-           * Instead we need the upstream project's javadoc classpath so
-           * we don't barf on the classes that it references.
-           */
-          project.javadoc.classpath += upstreamProject.javadoc.classpath
-        } else {
-          // Link to non-shadowed dependant projects
-          project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-          String externalLinkName = upstreamProject.archivesBaseName
-          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
-          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
-        }
-      }
-      boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
-      project.configurations.compileClasspath.dependencies
-              .findAll()
-              .toSorted(sortClosure)
-              .each({ c -> depJavadocClosure(hasShadow, c) })
-      project.configurations.compileOnly.dependencies
-              .findAll()
-              .toSorted(sortClosure)
-              .each({ c -> depJavadocClosure(false, c) })
-      if (hasShadow) {
-        // include any dependencies for shadow JAR projects that are *not* bundled in the shadow JAR
-        project.configurations.shadow.dependencies
-                .findAll()
-                .toSorted(sortClosure)
-                .each({ c -> depJavadocClosure(false, c) })
-      }
-    }
   }
 
+  apply plugin: 'elasticsearch.formatting'
 }
 
 
@@ -377,6 +290,10 @@ tasks.named("wrapper").configure {
     // copy wrapper properties file to build-tools-internal to allow seamless idea integration
     def file = new File("build-tools-internal/gradle/wrapper/gradle-wrapper.properties")
     Files.copy(wrapper.getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)
+    // copy wrapper properties file to plugins/examples to allow seamless idea integration
+    def examplePluginsWrapperProperties = new File("plugins/examples/gradle/wrapper/gradle-wrapper.properties")
+    Files.copy(wrapper.getPropertiesFile().toPath(), examplePluginsWrapperProperties.toPath(), REPLACE_EXISTING)
+
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
     project.file('build-tools-internal/src/main/resources/minimumGradleVersion').text = gradleVersion
@@ -426,4 +343,23 @@ tasks.named("eclipse").configure {
   dependsOn gradle.includedBuild('build-conventions').task(':eclipse')
   dependsOn gradle.includedBuild('build-tools').task(':eclipse')
   dependsOn gradle.includedBuild('build-tools-internal').task(':eclipse')
+}
+
+tasks.register("buildReleaseArtifacts").configure {
+  group = 'build'
+  description = 'Builds all artifacts required for release manager'
+
+  dependsOn allprojects.findAll {
+    it.path.startsWith(':distribution:docker') == false
+      && it.path.startsWith(':ml-cpp') == false
+      && it.path.startsWith(':distribution:bwc') == false
+  }
+    .collect { GradleUtils.findByName(it.tasks, 'assemble') }
+    .findAll { it != null }
+}
+
+tasks.register("spotlessApply").configure {
+  dependsOn gradle.includedBuild('build-tools').task(':spotlessApply')
+  dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
+  dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
 }

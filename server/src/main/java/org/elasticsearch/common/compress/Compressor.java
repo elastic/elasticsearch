@@ -18,8 +18,6 @@ public interface Compressor {
 
     boolean isCompressed(BytesReference bytes);
 
-    int headerLength();
-
     /**
      * Creates a new input stream that decompresses the contents read from the provided input stream.
      * Closing the returned {@link InputStream} will close the provided stream input.

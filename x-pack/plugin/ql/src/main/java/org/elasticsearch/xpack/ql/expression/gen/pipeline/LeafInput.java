@@ -53,7 +53,6 @@ public abstract class LeafInput<T> extends Pipe {
         }
 
         LeafInput<?> other = (LeafInput<?>) obj;
-        return Objects.equals(context(), other.context())
-                && Objects.equals(expression(), other.expression());
+        return Objects.equals(context(), other.context()) && Objects.equals(expression(), other.expression());
     }
 }

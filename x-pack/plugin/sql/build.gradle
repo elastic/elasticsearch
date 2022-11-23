@@ -13,7 +13,7 @@ esplugin {
 ext {
   antlrVersion = "4.9.2"
   // SQL dependency versions
-  jlineVersion = "3.14.1"
+  jlineVersion = "3.21.0"
 
   // SQL test dependency versions
   csvjdbcVersion = "1.0.34"
@@ -32,6 +32,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly(project(':modules:lang-painless:spi'))
   api project('sql-action')
+  api project(':modules:aggregations')
   api project(':modules:aggs-matrix-stats')
   compileOnly project(path: xpackModule('ql'))
   testImplementation project(':test:framework')
@@ -48,13 +49,11 @@ dependencies {
  * in $ES_HOME/bin/x-pack/. This is useful because it is an
  * executable jar that can be moved wherever it is needed.
  */
-tasks.named("bundlePlugin").configure {
-  from(configurations.bin) {
+esplugin.bundleSpec.from({configurations.bin}) {
     into 'bin'
-  }
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 /**********************************************
  *          SQL Parser regeneration           *

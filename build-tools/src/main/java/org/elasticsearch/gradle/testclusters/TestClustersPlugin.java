@@ -10,8 +10,8 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -20,6 +20,7 @@ import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileSystemOperations;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -29,8 +30,10 @@ import org.gradle.api.tasks.TaskState;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.process.ExecOperations;
 
-import javax.inject.Inject;
 import java.io.File;
+import java.util.function.Function;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.util.GradleUtils.noop;
 
@@ -44,6 +47,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
     private final ProviderFactory providerFactory;
     private Provider<File> runtimeJavaProvider;
+    private Function<Version, Boolean> isReleasedVersion = v -> true;
 
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
@@ -61,12 +65,21 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     @Inject
+    protected FileOperations getFileOperations() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
     public TestClustersPlugin(ProviderFactory providerFactory) {
         this.providerFactory = providerFactory;
     }
 
     public void setRuntimeJava(Provider<File> runtimeJava) {
         this.runtimeJavaProvider = runtimeJava;
+    }
+
+    public void setIsReleasedVersion(Function<Version, Boolean> isReleasedVersion) {
+        this.isReleasedVersion = isReleasedVersion;
     }
 
     @Override
@@ -107,8 +120,9 @@ public class TestClustersPlugin implements Plugin<Project> {
         Provider<ReaperService> reaper
     ) {
         // Create an extensions that allows describing clusters
-        NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(ElasticsearchCluster.class, name -> {
-            return new ElasticsearchCluster(
+        NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
+            ElasticsearchCluster.class,
+            name -> new ElasticsearchCluster(
                 project.getPath(),
                 name,
                 project,
@@ -116,12 +130,14 @@ public class TestClustersPlugin implements Plugin<Project> {
                 getFileSystemOperations(),
                 getArchiveOperations(),
                 getExecOperations(),
+                getFileOperations(),
                 new File(project.getBuildDir(), "testclusters"),
-                runtimeJavaProvider
-            );
-        });
+                runtimeJavaProvider,
+                isReleasedVersion
+            )
+        );
         project.getExtensions().add(EXTENSION_NAME, container);
-        container.all(cluster -> cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
+        container.configureEach(cluster -> cluster.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
         return container;
     }
 

@@ -10,10 +10,11 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
@@ -38,7 +39,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * @param nullValue An optional substitute value if the _source value is 'null'.
      */
     public SourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
-        this(context.sourcePath(fieldName), nullValue);
+        this(context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet(), nullValue);
     }
 
     /**
@@ -51,10 +52,10 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) {
+    public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
-            Object sourceValue = lookup.extractValue(path, nullValue);
+            Object sourceValue = source.extractValue(path, nullValue);
             if (sourceValue == null) {
                 continue;
             }
@@ -76,8 +77,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
                         Object parsedValue = parseSourceValue(value);
                         if (parsedValue != null) {
                             values.add(parsedValue);
+                        } else {
+                            ignoredValues.add(value);
                         }
                     } catch (Exception e) {
+                        ignoredValues.add(value);
                         // if we get a parsing exception here, that means that the
                         // value in _source would have also caused a parsing
                         // exception at index time and the value ignored.

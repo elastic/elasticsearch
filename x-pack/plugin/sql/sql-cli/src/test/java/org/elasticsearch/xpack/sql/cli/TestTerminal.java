@@ -19,7 +19,7 @@ public class TestTerminal implements CliTerminal {
     private boolean closed = false;
     private Iterator<String> inputLines;
 
-    public TestTerminal(String ... inputLines) {
+    public TestTerminal(String... inputLines) {
         this.inputLines = Arrays.asList(inputLines).iterator();
     }
 

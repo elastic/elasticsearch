@@ -7,9 +7,10 @@
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,7 +23,7 @@ class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiV
     private final Map<String, Double> values;
 
     TestMultiValueAggregation(String name, Map<String, Double> values) {
-        super(name, emptyMap());
+        super(name, null, emptyMap());
         this.values = values;
     }
 
@@ -42,7 +43,7 @@ class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiV
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         throw new UnsupportedOperationException();
     }
 

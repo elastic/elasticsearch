@@ -41,12 +41,7 @@ public class JLineTerminal implements CliTerminal {
      *      enabled in production because it is fairly nice.
      */
     public JLineTerminal(Terminal terminal, boolean enableMatchBracket) {
-        this(terminal,
-            LineReaderBuilder.builder()
-                .terminal(terminal)
-                .completer(Completers.INSTANCE)
-                .build(),
-            enableMatchBracket);
+        this(terminal, LineReaderBuilder.builder().terminal(terminal).completer(Completers.INSTANCE).build(), enableMatchBracket);
     }
 
     /**
@@ -157,7 +152,6 @@ public class JLineTerminal implements CliTerminal {
             line.append(text, DEFAULT.foreground(BRIGHT));
             return this;
         }
-
 
         public LineBuilder error(String text) {
             line.append(text, BOLD.foreground(RED));

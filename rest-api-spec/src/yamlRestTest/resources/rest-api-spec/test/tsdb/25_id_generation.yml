@@ -1,0 +1,438 @@
+setup:
+  - skip:
+      version: " - 8.1.99"
+      reason: id generation changed in 8.2
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [metricset, k8s.pod.uid]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          time_series_dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+
+---
+generates a consistent id:
+  - skip:
+      version: " - 8.1.99"
+      reason: ID generation added in 8.2
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - match: {items.0.index._id: cZZNs4NdV58ePSPIAAABeRnS7fM}
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - match: {items.0.index._id: cZZNs4NdV58ePSPIAAABeRnS7fM}
+
+---
+index a new document on top of an old one:
+  - skip:
+      version: " - 8.1.99"
+      reason: indexing on top of another document support added in 8.2
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            max_tx:
+              max:
+                field: k8s.pod.network.tx
+            max_rx:
+              min:
+                field: k8s.pod.network.rx
+  - match: {aggregations.max_tx.value: 2.012916202E9}
+  - match: {aggregations.max_rx.value: 5.30575198E8}
+
+  - do:
+      index:
+        refresh: true
+        index: test
+        op_type: index
+        body:
+          "@timestamp": "2021-04-28T18:51:03.142Z"
+          metricset: pod
+          k8s:
+            pod:
+              name: dog
+              uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+              ip: 10.10.55.3
+              network:
+                tx: 111434595272
+                rx: 430605511
+  - match: {_id: cn4exTOUtxytuLkQAAABeRnR_mY}
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            max_tx:
+              max:
+                field: k8s.pod.network.tx
+            max_rx:
+              min:
+                field: k8s.pod.network.rx
+  - match: {aggregations.max_tx.value: 1.11434595272E11}
+  - match: {aggregations.max_rx.value: 4.30605511E8}
+
+---
+index a new document on top of an old one over bulk:
+  - skip:
+      version: " - 8.1.99"
+      reason: indexing on top of another document support added in 8.2
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            max_tx:
+              max:
+                field: k8s.pod.network.tx
+            max_rx:
+              min:
+                field: k8s.pod.network.rx
+  - match: {aggregations.max_tx.value: 2.012916202E9}
+  - match: {aggregations.max_rx.value: 5.30575198E8}
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
+  - match: {items.0.index._id: cn4exTOUtxytuLkQAAABeRnR_mY}
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            max_tx:
+              max:
+                field: k8s.pod.network.tx
+            max_rx:
+              min:
+                field: k8s.pod.network.rx
+  - match: {aggregations.max_tx.value: 1.11434595272E11}
+  - match: {aggregations.max_rx.value: 4.30605511E8}
+
+---
+create operation on top of old document fails:
+  - skip:
+      version: " - 8.1.99"
+      reason: id generation changed in 8.2
+
+  - do:
+      catch: "/\\[cn4exTOUtxytuLkQAAABeRnR_mY\\]\\[\\{.+\\}\\@2021-04-28T18:51:03.142Z\\]: version conflict, document already exists \\(current version \\[1\\]\\)/"
+      index:
+        refresh: true
+        index: test
+        body:
+          "@timestamp": "2021-04-28T18:51:03.142Z"
+          metricset: pod
+          k8s:
+            pod:
+              name: dog
+              uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+              ip: 10.10.55.3
+              network:
+                tx: 111434595272
+                rx: 430605511
+
+---
+create operation on top of old document fails over bulk:
+  - skip:
+      version: " - 8.1.99"
+      reason: id generation changed in 8.2
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"create": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
+  - match: { items.0.create.error.reason: "[cn4exTOUtxytuLkQAAABeRnR_mY][{k8s.pod.uid=df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset=pod}@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
+
+---
+ids query:
+  - skip:
+      version: " - 8.1.99"
+      reason: ids generation changed in 8.2
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: k8s.pod.network.tx
+          query:
+            ids:
+              values: ["cn4exTOUtxytuLkQAAABeRnR_mY", "cZZNs4NdV58ePSPIAAABeRnSA5M"]
+          sort: ["@timestamp"]
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._id: "cn4exTOUtxytuLkQAAABeRnR_mY"}
+  - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [1434595272]}
+  - match: {hits.hits.1._id: "cZZNs4NdV58ePSPIAAABeRnSA5M"}
+  - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [2012916202]}
+
+---
+get:
+  - skip:
+      version: " - 8.1.99"
+      reason: ids generation changed in 8.2
+
+  - do:
+      get:
+        index:   test
+        id:      cZZNs4NdV58ePSPIAAABeRnSA5M
+  - match: {_index: test}
+  - match: {_id: cZZNs4NdV58ePSPIAAABeRnSA5M}
+  - match:
+      _source:
+        "@timestamp": "2021-04-28T18:51:04.467Z"
+        metricset: pod
+        k8s:
+          pod:
+            name: cat
+            uid: 947e4ced-1786-4e53-9e0c-5c447e959507
+            ip: 10.10.55.2
+            network:
+              tx: 2012916202
+              rx: 803685721
+
+---
+get not found:
+  - skip:
+      version: " - 8.1.99"
+      reason: ids generation changed in 8.2
+
+  - do:
+      catch: missing
+      get:
+        index:   test
+        id:      not found
+
+---
+get with routing:
+  - skip:
+      version: " - 8.1.99"
+      reason: ids generation changed in 8.2
+
+  - do:
+      catch: bad_request
+      get:
+        index:   test
+        id:      cZZNs4NdV58ePSPIAAABeRnSA5M
+        routing: routing
+
+---
+delete:
+  - skip:
+      version: " - 8.1.99"
+      reason: ids generation changed in 8.2
+
+  - do:
+      delete:
+        index:   test
+        id:      cZZNs4NdV58ePSPIAAABeRnSA5M
+  - match: {result: deleted}
+
+---
+delete not found:
+  - skip:
+      version: " - 8.1.99"
+      reason: ids generation changed in 8.2
+
+  - do:
+      catch: missing
+      delete:
+        index:   test
+        id:      not found
+
+---
+delete with routing:
+  - skip:
+      version: " - 8.1.99"
+      reason: ids generation changed in 8.2
+
+  - do:
+      catch: bad_request
+      delete:
+        index:   test
+        id:      not found
+        routing: routing
+
+---
+delete over _bulk:
+  - skip:
+      version: " - 8.1.99"
+      reason: ids generation changed in 8.2
+
+  - do:
+      bulk:
+        index:   test
+        body:
+          - '{"delete": {"_id": "cn4exTOUtxytuLkQAAABeRnR_mY"}}'
+          - '{"delete": {"_id": "cZZNs4NdV58ePSPIAAABeRnSA5M"}}'
+          - '{"delete": {"_id": "not found ++ not found"}}'
+  - match: {items.0.delete.result: deleted}
+  - match: {items.1.delete.result: deleted}
+  - match: {items.2.delete.status: 404}
+  - match: {items.2.delete.error.reason: "invalid id [not found ++ not found] for index [test] in time series mode"}
+
+---
+routing_path matches deep object:
+  - skip:
+      version: " - 8.1.99"
+      reason: id generation changed in 8.2
+
+  - do:
+      indices.create:
+          index: test2
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [dim.**.uid]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  properties:
+                    foo:
+                      properties:
+                        bar:
+                          properties:
+                            baz:
+                              properties:
+                                uid:
+                                  type: keyword
+                                  time_series_dimension: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test2
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"bar": {"baz": {"uid": "uid1"}}}}}'
+  - match: {items.0.index.result: created}
+  - match: {items.0.index._id: OcEOGaxBa0saxogMAAABeRnRGTM}
+
+---
+routing_path matches object:
+  - skip:
+      version: " - 8.1.99"
+      reason: id generation changed in 8.2
+
+  - do:
+      indices.create:
+          index: test2
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [dim.*.uid]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  properties:
+                    foo:
+                      properties:
+                        uid:
+                          type: keyword
+                          time_series_dimension: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test2
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"uid": "uid1"}}}'
+  - match: {items.0.index.result: created}
+  - match: {items.0.index._id: 8bgiqUyQKH6n8noAAAABeRnRGTM}

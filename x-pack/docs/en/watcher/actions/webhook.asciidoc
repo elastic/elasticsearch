@@ -27,7 +27,7 @@ The following snippet shows a simple webhook action definition:
       "method" : "POST", <4>
       "host" : "mylisteningserver", <5>
       "port" : 9200, <6>
-      "path": ":/{{ctx.watch_id}}", <7>
+      "path": "/{{ctx.watch_id}}", <7>
       "body" : "{{ctx.watch_id}}:{{ctx.payload.hits.total}}" <8>
     }
   }
@@ -41,6 +41,7 @@ The following snippet shows a simple webhook action definition:
     (5 minutes in this example)
 <4> The HTTP method to use when connecting to the host
 <5> The host to connect to
+
 <6> The port to connect to
 <7> The path (URI) to use in the HTTP request
 <8> The body to send with the request
@@ -99,7 +100,7 @@ the values serve as the parameter values:
       "method" : "POST",
       "host" : "mylisteningserver",
       "port" : 9200,
-      "path": ":/alert",
+      "path": "/alert",
       "params" : {
         "watch_id" : "{{ctx.watch_id}}" <1>
       }
@@ -126,7 +127,7 @@ the values serve as the header values:
       "method" : "POST",
       "host" : "mylisteningserver",
       "port" : 9200,
-      "path": ":/alert/{{ctx.watch_id}}",
+      "path": "/alert/{{ctx.watch_id}}",
       "headers" : {
         "Content-Type" : "application/yaml" <1>
       },

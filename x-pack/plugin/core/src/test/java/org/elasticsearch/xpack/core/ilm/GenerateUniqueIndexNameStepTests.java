@@ -12,13 +12,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState.Builder;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.Builder;
 
 import java.util.Locale;
 import java.util.function.BiFunction;
@@ -53,46 +54,48 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
         String prefix = instance.prefix();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                prefix = randomValueOtherThan(prefix, () -> randomAlphaOfLengthBetween(5, 10));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
+            case 2 -> prefix = randomValueOtherThan(prefix, () -> randomAlphaOfLengthBetween(5, 10));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new GenerateUniqueIndexNameStep(key, nextKey, prefix, lifecycleStateSetter());
     }
 
     @Override
     protected GenerateUniqueIndexNameStep copyInstance(GenerateUniqueIndexNameStep instance) {
-        return new GenerateUniqueIndexNameStep(instance.getKey(), instance.getNextStepKey(), instance.prefix(),
-            instance.lifecycleStateSetter());
+        return new GenerateUniqueIndexNameStep(
+            instance.getKey(),
+            instance.getNextStepKey(),
+            instance.prefix(),
+            instance.lifecycleStateSetter()
+        );
     }
 
     public void testPerformAction() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
 
         final IndexMetadata indexMetadata = indexMetadataBuilder.build();
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, false).build()).build();
+            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .build();
 
         GenerateUniqueIndexNameStep generateUniqueIndexNameStep = createRandomInstance();
         ClusterState newClusterState = generateUniqueIndexNameStep.performAction(indexMetadata.getIndex(), clusterState);
 
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
-        assertThat("the " + GenerateUniqueIndexNameStep.NAME + " step must generate an index name", executionState.getShrinkIndexName(),
-            notNullValue());
-        assertThat(executionState.getShrinkIndexName(), containsString(indexName));
-        assertThat(executionState.getShrinkIndexName(), startsWith(generateUniqueIndexNameStep.prefix()));
+        LifecycleExecutionState executionState = newClusterState.metadata().index(indexName).getLifecycleExecutionState();
+        assertThat(
+            "the " + GenerateUniqueIndexNameStep.NAME + " step must generate an index name",
+            executionState.shrinkIndexName(),
+            notNullValue()
+        );
+        assertThat(executionState.shrinkIndexName(), containsString(indexName));
+        assertThat(executionState.shrinkIndexName(), startsWith(generateUniqueIndexNameStep.prefix()));
     }
 
     public void testGenerateValidIndexName() {
@@ -118,8 +121,10 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
         }
 
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                () -> generateValidIndexSuffix(() -> "****???><><>,# \\/:||"));
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> generateValidIndexSuffix(() -> "****???><><>,# \\/:||")
+            );
             assertThat(illegalArgumentException.getMessage(), is("unable to generate random index name suffix"));
         }
 
@@ -130,48 +135,59 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
 
     public void testValidateGeneratedIndexName() {
         {
-            assertThat(validateGeneratedIndexName(
-                generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150)), ClusterState.EMPTY_STATE
-            ), nullValue());
+            assertThat(
+                validateGeneratedIndexName(
+                    generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150)),
+                    ClusterState.EMPTY_STATE
+                ),
+                nullValue()
+            );
         }
 
         {
             // index name is validated (invalid chars etc)
             String generatedIndexName = generateValidIndexName("_prefix-", randomAlphaOfLengthBetween(5, 150));
-            assertThat(validateGeneratedIndexName(generatedIndexName, ClusterState.EMPTY_STATE).validationErrors(), containsInAnyOrder(
-                "Invalid index name [" + generatedIndexName + "], must not start with '_', '-', or '+'"));
+            assertThat(
+                validateGeneratedIndexName(generatedIndexName, ClusterState.EMPTY_STATE).validationErrors(),
+                containsInAnyOrder("Invalid index name [" + generatedIndexName + "], must not start with '_', '-', or '+'")
+            );
         }
 
         {
             // index name is validated (invalid chars etc)
             String generatedIndexName = generateValidIndexName("shrink-", "shrink-indexName-random###");
-            assertThat(validateGeneratedIndexName(generatedIndexName, ClusterState.EMPTY_STATE).validationErrors(), containsInAnyOrder(
-                "Invalid index name [" + generatedIndexName + "], must not contain '#'"));
+            assertThat(
+                validateGeneratedIndexName(generatedIndexName, ClusterState.EMPTY_STATE).validationErrors(),
+                containsInAnyOrder("Invalid index name [" + generatedIndexName + "], must not contain '#'")
+            );
         }
 
         {
             // generated index already exists as a standalone index
             String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
             IndexMetadata indexMetadata = IndexMetadata.builder(generatedIndexName)
-                .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
-                .numberOfReplicas(randomIntBetween(1,5))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(1, 5))
                 .build();
             ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder()
-                    .put(indexMetadata, false))
+                .metadata(Metadata.builder().put(indexMetadata, false))
                 .build();
 
             ActionRequestValidationException validationException = validateGeneratedIndexName(generatedIndexName, clusterState);
             assertThat(validationException, notNullValue());
-            assertThat(validationException.validationErrors(), containsInAnyOrder("the index name we generated [" + generatedIndexName
-                + "] already exists"));
+            assertThat(
+                validationException.validationErrors(),
+                containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists")
+            );
         }
 
         {
             // generated index name already exists as an index (cluster state routing table is also populated)
             String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
             IndexMetadata indexMetadata = IndexMetadata.builder(generatedIndexName)
-                .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 5))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(1, 5))
                 .build();
             ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -181,27 +197,32 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
 
             ActionRequestValidationException validationException = validateGeneratedIndexName(generatedIndexName, clusterState);
             assertThat(validationException, notNullValue());
-            assertThat(validationException.validationErrors(), containsInAnyOrder("the index name we generated [" + generatedIndexName
-                + "] already exists"));;
+            assertThat(
+                validationException.validationErrors(),
+                containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists")
+            );
+            ;
         }
 
         {
             // generated index name already exists as an alias to another index
             String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
             IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
-                .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1, 5))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(1, 5))
                 .putAlias(AliasMetadata.builder(generatedIndexName).build())
                 .build();
             ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder()
-                    .put(indexMetadata, false))
+                .metadata(Metadata.builder().put(indexMetadata, false))
                 .build();
 
             ActionRequestValidationException validationException = validateGeneratedIndexName(generatedIndexName, clusterState);
             assertThat(validationException, notNullValue());
-            assertThat(validationException.validationErrors(), containsInAnyOrder("the index name we generated [" + generatedIndexName
-                + "] already exists as alias"));
+            assertThat(
+                validationException.validationErrors(),
+                containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists as alias")
+            );
         }
     }
 

@@ -10,17 +10,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
 
 /**
@@ -44,20 +44,18 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetadata idxMeta = clusterState.getMetadata().index(index);
         if (idxMeta == null) {
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             // Index must have been since deleted, ignore it
             return new Result(false, null);
         }
-        String shrunkenIndexSource = IndexMetadata.INDEX_RESIZE_SOURCE_NAME.get(
-            clusterState.metadata().index(index).getSettings());
+        String shrunkenIndexSource = IndexMetadata.INDEX_RESIZE_SOURCE_NAME.get(clusterState.metadata().index(index).getSettings());
         if (Strings.isNullOrEmpty(shrunkenIndexSource)) {
             throw new IllegalStateException("step[" + NAME + "] is checking an un-shrunken index[" + index.getName() + "]");
         }
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(idxMeta);
+        LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         String targetIndexName = getShrinkIndexName(shrunkenIndexSource, lifecycleState);
-        boolean isConditionMet = index.getName().equals(targetIndexName) &&
-                clusterState.metadata().index(shrunkenIndexSource) == null;
+        boolean isConditionMet = index.getName().equals(targetIndexName) && clusterState.metadata().index(shrunkenIndexSource) == null;
         if (isConditionMet) {
             return new Result(true, null);
         } else {
@@ -72,8 +70,10 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
 
         static final ParseField ORIGINAL_INDEX_NAME = new ParseField("original_index_name");
         static final ParseField MESSAGE = new ParseField("message");
-        static final ConstructingObjectParser<Info, Void> PARSER = new ConstructingObjectParser<>("shrunken_index_check_step_info",
-                a -> new Info((String) a[0]));
+        static final ConstructingObjectParser<Info, Void> PARSER = new ConstructingObjectParser<>(
+            "shrunken_index_check_step_info",
+            a -> new Info((String) a[0])
+        );
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), ORIGINAL_INDEX_NAME);
             PARSER.declareString((i, s) -> {}, MESSAGE);

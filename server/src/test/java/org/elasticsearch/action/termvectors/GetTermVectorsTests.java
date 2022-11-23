@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.termvectors;
 
-import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.payloads.FloatEncoder;
@@ -21,16 +20,17 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -86,8 +86,9 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
 
         @Override
         public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
-            return Collections.singletonList(PreConfiguredTokenizer.singleton("mock-whitespace",
-                () -> new MockTokenizer(MockTokenizer.WHITESPACE, false)));
+            return Collections.singletonList(
+                PreConfiguredTokenizer.singleton("mock-whitespace", () -> new MockTokenizer(MockTokenizer.WHITESPACE, false))
+            );
         }
 
         // Based on DelimitedPayloadTokenFilter:
@@ -96,7 +97,6 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
             private final PayloadAttribute payAtt = addAttribute(PayloadAttribute.class);
             private final PayloadEncoder encoder;
-
 
             MockPayloadTokenFilter(TokenStream input, char delimiter, PayloadEncoder encoder) {
                 super(input);
@@ -127,7 +127,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
     }
 
     public void testRandomPayloadWithDelimitedPayloadTokenFilter() throws IOException {
-        //create the test document
+        // create the test document
         int encoding = randomIntBetween(0, 2);
         String encodingString = "";
         if (encoding == 0) {
@@ -143,23 +143,38 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
         Map<String, List<BytesRef>> payloads = createPayloads(tokens, encoding);
         String delimiter = createRandomDelimiter(tokens);
         String queryString = createString(tokens, payloads, encoding, delimiter.charAt(0));
-        //create the mapping
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                .startObject("field").field("type", "text").field("term_vector", "with_positions_offsets_payloads")
-                .field("analyzer", "payload_test").endObject().endObject().endObject().endObject();
-        Settings setting =  Settings.builder()
+        // create the mapping
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("term_vector", "with_positions_offsets_payloads")
+            .field("analyzer", "payload_test")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        Settings setting = Settings.builder()
             .put("index.analysis.analyzer.payload_test.tokenizer", "mock-whitespace")
             .putList("index.analysis.analyzer.payload_test.filter", "my_delimited_payload")
             .put("index.analysis.filter.my_delimited_payload.delimiter", delimiter)
             .put("index.analysis.filter.my_delimited_payload.encoding", encodingString)
-            .put("index.analysis.filter.my_delimited_payload.type", "mock_payload_filter").build();
+            .put("index.analysis.filter.my_delimited_payload.type", "mock_payload_filter")
+            .build();
         createIndex("test", setting, mapping);
 
-        client().prepareIndex("test").setId(Integer.toString(1))
-                .setSource(jsonBuilder().startObject().field("field", queryString).endObject()).execute().actionGet();
+        client().prepareIndex("test")
+            .setId(Integer.toString(1))
+            .setSource(jsonBuilder().startObject().field("field", queryString).endObject())
+            .execute()
+            .actionGet();
         client().admin().indices().prepareRefresh().get();
         TermVectorsRequestBuilder resp = client().prepareTermVectors("test", Integer.toString(1))
-                .setPayloads(true).setOffsets(true).setPositions(true).setSelectedFields();
+            .setPayloads(true)
+            .setOffsets(true)
+            .setPositions(true)
+            .setSelectedFields();
         TermVectorsResponse response = resp.execute().actionGet();
         assertThat("doc id 1 doesn't exists but should", response.isExists(), equalTo(true));
         Fields fields = response.getFields();
@@ -175,12 +190,16 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             assertNotNull(docsAndPositions);
             for (int k = 0; k < docsAndPositions.freq(); k++) {
                 docsAndPositions.nextPosition();
-                if (docsAndPositions.getPayload()!=null){
-                    String infoString = "\nterm: " + term + " has payload \n"+ docsAndPositions.getPayload().toString() +
-                            "\n but should have payload \n"+curPayloads.get(k).toString();
+                if (docsAndPositions.getPayload() != null) {
+                    String infoString = formatted("""
+
+                        term: %s has payload\s
+                        %s
+                         but should have payload\s
+                        %s""", term, docsAndPositions.getPayload().toString(), curPayloads.get(k).toString());
                     assertThat(infoString, docsAndPositions.getPayload(), equalTo(curPayloads.get(k)));
                 } else {
-                    String infoString = "\nterm: " + term + " has no payload but should have payload \n"+curPayloads.get(k).toString();
+                    String infoString = "\nterm: " + term + " has no payload but should have payload \n" + curPayloads.get(k).toString();
                     assertThat(infoString, curPayloads.get(k).length, equalTo(0));
                 }
             }
@@ -200,24 +219,12 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             resultString = resultString + token;
             BytesRef payload = payloads.get(token).get(payloadCounter.get(token));
             if (payload.length > 0) {
-                resultString = resultString + delimiter;
-                switch (encoding) {
-                    case 0: {
-                        resultString = resultString + Float.toString(PayloadHelper.decodeFloat(payload.bytes, payload.offset));
-                        break;
-                    }
-                    case 1: {
-                        resultString = resultString + Integer.toString(PayloadHelper.decodeInt(payload.bytes, payload.offset));
-                        break;
-                    }
-                    case 2: {
-                        resultString = resultString + payload.utf8ToString();
-                        break;
-                    }
-                    default: {
-                        throw new ElasticsearchException("unsupported encoding type");
-                    }
-                }
+                resultString = resultString + delimiter + switch (encoding) {
+                    case 0 -> Float.toString(PayloadHelper.decodeFloat(payload.bytes, payload.offset));
+                    case 1 -> Integer.toString(PayloadHelper.decodeInt(payload.bytes, payload.offset));
+                    case 2 -> payload.utf8ToString();
+                    default -> throw new ElasticsearchException("unsupported encoding type");
+                };
             }
             resultString = resultString + " ";
         }
@@ -237,15 +244,15 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
     private String createRandomDelimiter(String[] tokens) {
         String delimiter = "";
         boolean isTokenOrWhitespace = true;
-        while(isTokenOrWhitespace) {
+        while (isTokenOrWhitespace) {
             isTokenOrWhitespace = false;
             delimiter = randomUnicodeOfLength(1);
-            for(String token:tokens) {
-                if(token.contains(delimiter)) {
+            for (String token : tokens) {
+                if (token.contains(delimiter)) {
                     isTokenOrWhitespace = true;
                 }
             }
-            if(Character.isWhitespace(delimiter.charAt(0))) {
+            if (Character.isWhitespace(delimiter.charAt(0))) {
                 isTokenOrWhitespace = true;
             }
         }
@@ -259,16 +266,14 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             boolean createPayload = randomBoolean();
             if (createPayload) {
                 switch (encoding) {
-                    case 0: {
+                    case 0 -> {
                         float theFloat = randomFloat();
                         payloads.get(token).add(new BytesRef(PayloadHelper.encodeFloat(theFloat)));
-                        break;
                     }
-                    case 1: {
+                    case 1 -> {
                         payloads.get(token).add(new BytesRef(PayloadHelper.encodeInt(randomInt())));
-                        break;
                     }
-                    case 2: {
+                    case 2 -> {
                         String payload = randomUnicodeOfLengthBetween(50, 100);
                         for (int c = 0; c < payload.length(); c++) {
                             if (Character.isWhitespace(payload.charAt(c))) {
@@ -276,9 +281,8 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
                             }
                         }
                         payloads.get(token).add(new BytesRef(payload));
-                        break;
                     }
-                    default: {
+                    default -> {
                         throw new ElasticsearchException("unsupported encoding type");
                     }
                 }

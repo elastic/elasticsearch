@@ -26,6 +26,7 @@ serve as a model for a templated email body.
 * <<actions-logging,`logging`>>
 * <<actions-slack,`slack`>>
 * <<actions-pagerduty,`pagerduty`>>
+* <<actions-jira,`jira`>>
 
 [discrete]
 [[actions-ack-throttle]]

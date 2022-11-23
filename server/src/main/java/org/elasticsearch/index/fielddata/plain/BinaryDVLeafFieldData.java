@@ -11,16 +11,14 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 
 /** {@link LeafFieldData} impl on top of Lucene's binary doc values. */
 public class BinaryDVLeafFieldData implements LeafFieldData {
@@ -44,8 +42,8 @@ public class BinaryDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues());
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(getBytesValues())), name);
     }
 
     @Override
@@ -56,11 +54,6 @@ public class BinaryDVLeafFieldData implements LeafFieldData {
     @Override
     public long ramBytesUsed() {
         return 0; // unknown
-    }
-
-    @Override
-    public Collection<Accountable> getChildResources() {
-        return Collections.emptyList();
     }
 
 }

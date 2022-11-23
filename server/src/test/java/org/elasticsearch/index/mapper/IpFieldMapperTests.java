@@ -18,11 +18,17 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,9 +51,6 @@ public class IpFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "::1"));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", false),
-            m -> assertFalse(((IpFieldMapper) m).ignoreMalformed()));
-
         registerDimensionChecks(checker);
     }
 
@@ -58,6 +61,14 @@ public class IpFieldMapperTests extends MapperTestCase {
         }));
         assertExistsQuery(mapperService);
         assertParseMinimalWarnings();
+    }
+
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
     }
 
     public void testDefaults() throws Exception {
@@ -132,28 +143,17 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
         IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
-        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddress.getByName("::1"))),
-                storedField.binaryValue());
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddress.getByName("::1"))), storedField.binaryValue());
     }
 
-    public void testIgnoreMalformed() throws Exception {
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-
-        ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", ":1")));
-        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), containsString("':1' is not an IP string literal"));
-
-        DocumentMapper mapper2 = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "ip");
-            b.field("ignore_malformed", true);
-        }));
-
-        ParsedDocument doc = mapper2.parse(source(b -> b.field("field", ":1")));
-
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
-        assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(exampleMalformedValue(":1").errorMatches("':1' is not an IP string literal"));
     }
 
     public void testNullValue() throws IOException {
@@ -190,13 +190,17 @@ public class IpFieldMapperTests extends MapperTestCase {
         doc = mapper.parse(source(b -> b.nullField("field")));
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
-        MapperParsingException e = expectThrows(MapperParsingException.class,
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
             () -> createDocumentMapper(Version.CURRENT, fieldMapping(b -> {
-            b.field("type", "ip");
-            b.field("null_value", ":1");
-        })));
-        assertEquals(e.getMessage(),
-            "Failed to parse mapping: Error parsing [null_value] on field [field]: ':1' is not an IP string literal.");
+                b.field("type", "ip");
+                b.field("null_value", ":1");
+            }))
+        );
+        assertEquals(
+            e.getMessage(),
+            "Failed to parse mapping: Error parsing [null_value] on field [field]: ':1' is not an IP string literal."
+        );
 
         createDocumentMapper(Version.V_7_9_0, fieldMapping(b -> {
             b.field("type", "ip");
@@ -219,39 +223,46 @@ public class IpFieldMapperTests extends MapperTestCase {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", false).field("doc_values", false);
+                b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
             })));
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", true).field("doc_values", false);
+                b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
             })));
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", false).field("doc_values", true);
+                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
             })));
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
         }
     }
 
     public void testDimensionMultiValuedField() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true);
+            b.field("time_series_dimension", true);
         }));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1"))));
-        assertThat(e.getCause().getMessage(),
-            containsString("Dimension field [field] cannot be a multi-valued field"));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1")))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
     }
 
     @Override
@@ -271,8 +282,10 @@ public class IpFieldMapperTests extends MapperTestCase {
                 b.field("script", "test");
                 b.field("null_value", 7);
             })));
-            assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]")
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
@@ -280,8 +293,116 @@ public class IpFieldMapperTests extends MapperTestCase {
                 b.field("script", "test");
                 b.field("ignore_malformed", "true");
             })));
-            assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]")
+            );
         }
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new IpSyntheticSourceSupport(ignoreMalformed);
+    }
+
+    private static class IpSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
+        private final boolean ignoreMalformed;
+
+        private IpSyntheticSourceSupport(boolean ignoreMalformed) {
+            this.ignoreMalformed = ignoreMalformed;
+        }
+
+        @Override
+        public SyntheticSourceExample example(int maxValues) {
+            if (randomBoolean()) {
+                Tuple<Object, Object> v = generateValue();
+                if (v.v2()instanceof InetAddress a) {
+                    return new SyntheticSourceExample(v.v1(), NetworkAddress.format(a), this::mapping);
+                }
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<Object, Object>> values = randomList(1, maxValues, this::generateValue);
+            List<Object> in = values.stream().map(Tuple::v1).toList();
+            List<Object> outList = values.stream()
+                .filter(v -> v.v2() instanceof InetAddress)
+                .map(v -> new BytesRef(InetAddressPoint.encode((InetAddress) v.v2())))
+                .collect(Collectors.toSet())
+                .stream()
+                .sorted()
+                .map(v -> InetAddressPoint.decode(v.bytes))
+                .map(NetworkAddress::format)
+                .collect(Collectors.toCollection(ArrayList::new));
+            values.stream().filter(v -> false == v.v2() instanceof InetAddress).map(v -> v.v2()).forEach(outList::add);
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<Object, Object> generateValue() {
+            if (ignoreMalformed && randomBoolean()) {
+                List<Supplier<Object>> choices = List.of(
+                    () -> randomAlphaOfLength(3),
+                    ESTestCase::randomInt,
+                    ESTestCase::randomLong,
+                    ESTestCase::randomFloat,
+                    ESTestCase::randomDouble
+                );
+                Object v = randomFrom(choices).get();
+                return Tuple.tuple(v, v);
+            }
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            InetAddress addr = randomIp(randomBoolean());
+            return Tuple.tuple(NetworkAddress.format(addr), addr);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "ip");
+            if (nullValue != null) {
+                b.field("null_value", NetworkAddress.format(nullValue));
+            }
+            if (rarely()) {
+                b.field("index", false);
+            }
+            if (rarely()) {
+                b.field("store", false);
+            }
+            if (ignoreMalformed) {
+                b.field("ignore_malformed", true);
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    equalTo("field [field] of type [ip] doesn't support synthetic source because it doesn't have doc values"),
+                    b -> b.field("type", "ip").field("doc_values", false)
+                )
+            );
+        }
+    }
+
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            protected IpFieldScript.Factory emptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new IpFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {}
+                };
+            }
+
+            @Override
+            protected IpFieldScript.Factory nonEmptyFieldScript() {
+                return (fieldName, params, searchLookup) -> ctx -> new IpFieldScript(fieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {
+                        emit("192.168.0.1");
+                    }
+                };
+            }
+        };
     }
 }

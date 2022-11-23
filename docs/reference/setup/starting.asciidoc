@@ -44,18 +44,6 @@ are different methods depending on whether you're using development mode or
 production mode. See <<docker-cli-run>>. 
 
 [discrete]
-[[start-msi]]
-=== MSI packages
-
-If you installed {es} on Windows using the `.msi` package, you can start {es} 
-from the command line. If you want it to start automatically at boot time 
-without any user interaction, 
-<<msi-installer-windows-service,install {es} as a Windows service>>.
-
-[discrete]
-include::install/msi-windows-start.asciidoc[]
-
-[discrete]
 [[start-rpm]]
 === RPM packages
 

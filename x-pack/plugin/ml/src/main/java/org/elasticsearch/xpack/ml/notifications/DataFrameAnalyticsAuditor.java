@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.notifications;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.ml.notifications.DataFrameAnalyticsAuditMessage;
 

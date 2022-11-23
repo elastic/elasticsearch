@@ -7,14 +7,14 @@
  */
 package org.elasticsearch.test.test;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.client.Client;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
@@ -42,7 +42,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
@@ -61,14 +60,6 @@ public class InternalTestClusterTests extends ESTestCase {
         return Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class);
     }
 
-    @Override
-    protected List<String> filteredWarnings() {
-        return Stream.concat(super.filteredWarnings().stream(),
-            List.of("Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
-                    "multiple disks. This feature will be removed in 8.0.").stream())
-            .collect(Collectors.toList());
-    }
-
     public void testInitializiationIsConsistent() {
         long clusterSeed = randomLong();
         boolean masterNodes = randomBoolean();
@@ -80,12 +71,34 @@ public class InternalTestClusterTests extends ESTestCase {
         String nodePrefix = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
 
         Path baseDir = createTempDir();
-        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
-            nodePrefix, Collections.emptyList(), Function.identity());
-        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
-            nodePrefix, Collections.emptyList(), Function.identity());
+        InternalTestCluster cluster0 = new InternalTestCluster(
+            clusterSeed,
+            baseDir,
+            masterNodes,
+            randomBoolean(),
+            minNumDataNodes,
+            maxNumDataNodes,
+            clusterName,
+            nodeConfigurationSource,
+            numClientNodes,
+            nodePrefix,
+            Collections.emptyList(),
+            Function.identity()
+        );
+        InternalTestCluster cluster1 = new InternalTestCluster(
+            clusterSeed,
+            baseDir,
+            masterNodes,
+            randomBoolean(),
+            minNumDataNodes,
+            maxNumDataNodes,
+            clusterName,
+            nodeConfigurationSource,
+            numClientNodes,
+            nodePrefix,
+            Collections.emptyList(),
+            Function.identity()
+        );
         assertClusters(cluster0, cluster1, true);
     }
 
@@ -113,8 +126,11 @@ public class InternalTestClusterTests extends ESTestCase {
     public static void assertSettings(Settings left, Settings right, boolean checkClusterUniqueSettings) {
         Set<String> keys0 = left.keySet();
         Set<String> keys1 = right.keySet();
-        assertThat("--> left:\n" + left.toDelimitedString('\n') +  "\n-->right:\n" + right.toDelimitedString('\n'),
-            keys0.size(), equalTo(keys1.size()));
+        assertThat(
+            "--> left:\n" + left.toDelimitedString('\n') + "\n-->right:\n" + right.toDelimitedString('\n'),
+            keys0.size(),
+            equalTo(keys1.size())
+        );
         for (String key : keys0) {
             if (clusterUniqueSettings.contains(key) && checkClusterUniqueSettings == false) {
                 continue;
@@ -135,13 +151,15 @@ public class InternalTestClusterTests extends ESTestCase {
             masterNodes = randomBoolean();
             minNumDataNodes = randomIntBetween(0, 3);
             maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
-            bootstrapMasterNodeIndex = -1;
+            bootstrapMasterNodeIndex = InternalTestCluster.BOOTSTRAP_MASTER_NODE_INDEX_AUTO;
         } else {
             // if we manage min master nodes, we need to lock down the number of nodes
             minNumDataNodes = randomIntBetween(0, 4);
             maxNumDataNodes = minNumDataNodes;
             masterNodes = false;
-            bootstrapMasterNodeIndex = maxNumDataNodes == 0 ? -1 : randomIntBetween(0, maxNumDataNodes - 1);
+            bootstrapMasterNodeIndex = maxNumDataNodes == 0
+                ? InternalTestCluster.BOOTSTRAP_MASTER_NODE_INDEX_AUTO
+                : randomIntBetween(0, maxNumDataNodes - 1);
         }
         final int numClientNodes = randomIntBetween(0, 2);
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
@@ -166,14 +184,36 @@ public class InternalTestClusterTests extends ESTestCase {
 
         String nodePrefix = "foobar";
 
-        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, createTempDir(), masterNodes,
-            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, "clustername", nodeConfigurationSource, numClientNodes,
-            nodePrefix, mockPlugins(), Function.identity());
+        InternalTestCluster cluster0 = new InternalTestCluster(
+            clusterSeed,
+            createTempDir(),
+            masterNodes,
+            autoManageMinMasterNodes,
+            minNumDataNodes,
+            maxNumDataNodes,
+            "clustername",
+            nodeConfigurationSource,
+            numClientNodes,
+            nodePrefix,
+            mockPlugins(),
+            Function.identity()
+        );
         cluster0.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
 
-        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, createTempDir(), masterNodes,
-            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, "clustername", nodeConfigurationSource, numClientNodes,
-            nodePrefix, mockPlugins(), Function.identity());
+        InternalTestCluster cluster1 = new InternalTestCluster(
+            clusterSeed,
+            createTempDir(),
+            masterNodes,
+            autoManageMinMasterNodes,
+            minNumDataNodes,
+            maxNumDataNodes,
+            "clustername",
+            nodeConfigurationSource,
+            numClientNodes,
+            nodePrefix,
+            mockPlugins(),
+            Function.identity()
+        );
         cluster1.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
 
         assertClusters(cluster0, cluster1, false);
@@ -226,64 +266,76 @@ public class InternalTestClusterTests extends ESTestCase {
         };
         String nodePrefix = "test";
         Path baseDir = createTempDir();
-        InternalTestCluster cluster = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            true, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
-            nodePrefix, mockPlugins(), Function.identity());
+        InternalTestCluster cluster = new InternalTestCluster(
+            clusterSeed,
+            baseDir,
+            masterNodes,
+            true,
+            minNumDataNodes,
+            maxNumDataNodes,
+            clusterName1,
+            nodeConfigurationSource,
+            numClientNodes,
+            nodePrefix,
+            mockPlugins(),
+            Function.identity()
+        );
         try {
             cluster.beforeTest(random());
             final int originalMasterCount = cluster.numMasterNodes();
-            final Map<String,Path[]> shardNodePaths = new HashMap<>();
-            for (String name: cluster.getNodeNames()) {
-                shardNodePaths.put(name, getNodePaths(cluster, name));
+            final Map<String, Path[]> shardDataPaths = new HashMap<>();
+            for (String name : cluster.getNodeNames()) {
+                shardDataPaths.put(name, getDataPaths(cluster, name));
             }
-            String poorNode = randomValueOtherThanMany(n -> originalMasterCount == 1 && n.equals(cluster.getMasterName()),
-                () -> randomFrom(cluster.getNodeNames()));
-            Path dataPath = getNodePaths(cluster, poorNode)[0];
+            String poorNode = randomValueOtherThanMany(
+                n -> originalMasterCount == 1 && n.equals(cluster.getMasterName()),
+                () -> randomFrom(cluster.getNodeNames())
+            );
+            Path dataPath = getDataPaths(cluster, poorNode)[0];
             final Settings poorNodeDataPathSettings = cluster.dataPathSettings(poorNode);
             final Path testMarker = dataPath.resolve("testMarker");
             Files.createDirectories(testMarker);
-            cluster.stopRandomNode(InternalTestCluster.nameFilter(poorNode));
+            cluster.stopNode(poorNode);
             assertFileExists(testMarker); // stopping a node half way shouldn't clean data
 
             final String stableNode = randomFrom(cluster.getNodeNames());
-            final Path stableDataPath = getNodePaths(cluster, stableNode)[0];
+            final Path stableDataPath = getDataPaths(cluster, stableNode)[0];
             final Path stableTestMarker = stableDataPath.resolve("stableTestMarker");
             assertThat(stableDataPath, not(dataPath));
             Files.createDirectories(stableTestMarker);
 
-            final String newNode1 =  cluster.startNode();
-            assertThat(getNodePaths(cluster, newNode1)[0], not(dataPath));
+            final String newNode1 = cluster.startNode();
+            assertThat(getDataPaths(cluster, newNode1)[0], not(dataPath));
             assertFileExists(testMarker); // starting a node should re-use data folders and not clean it
-            final String newNode2 =  cluster.startNode();
-            final Path newDataPath = getNodePaths(cluster, newNode2)[0];
+            final String newNode2 = cluster.startNode();
+            final Path newDataPath = getDataPaths(cluster, newNode2)[0];
             final Path newTestMarker = newDataPath.resolve("newTestMarker");
             assertThat(newDataPath, not(dataPath));
             Files.createDirectories(newTestMarker);
-            final String newNode3 =  cluster.startNode(poorNodeDataPathSettings);
-            assertThat(getNodePaths(cluster, newNode3)[0], equalTo(dataPath));
+            final String newNode3 = cluster.startNode(poorNodeDataPathSettings);
+            assertThat(getDataPaths(cluster, newNode3)[0], equalTo(dataPath));
             cluster.beforeTest(random());
             assertFileNotExists(newTestMarker); // the cluster should be reset for a new test, cleaning up the extra path we made
             assertFileNotExists(testMarker); // a new unknown node used this path, it should be cleaned
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
-            for (String name: cluster.getNodeNames()) {
-                assertThat("data paths for " + name + " changed", getNodePaths(cluster, name), equalTo(shardNodePaths.get(name)));
+            for (String name : cluster.getNodeNames()) {
+                assertThat("data paths for " + name + " changed", getDataPaths(cluster, name), equalTo(shardDataPaths.get(name)));
             }
 
             cluster.beforeTest(random());
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
-            for (String name: cluster.getNodeNames()) {
-                assertThat("data paths for " + name + " changed", getNodePaths(cluster, name),
-                    equalTo(shardNodePaths.get(name)));
+            for (String name : cluster.getNodeNames()) {
+                assertThat("data paths for " + name + " changed", getDataPaths(cluster, name), equalTo(shardDataPaths.get(name)));
             }
         } finally {
             cluster.close();
         }
     }
 
-    private Path[] getNodePaths(InternalTestCluster cluster, String name) {
+    private Path[] getDataPaths(InternalTestCluster cluster, String name) {
         final NodeEnvironment nodeEnvironment = cluster.getInstance(NodeEnvironment.class, name);
         if (nodeEnvironment.hasNodeFile()) {
-            return new Path[] { nodeEnvironment.nodeDataPath() };
+            return nodeEnvironment.nodeDataPaths();
         } else {
             return new Path[0];
         }
@@ -293,35 +345,49 @@ public class InternalTestClusterTests extends ESTestCase {
         final Path baseDir = createTempDir();
         final int numNodes = 5;
 
-        InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false,
-                false, 0, 0, "test", new NodeConfigurationSource() {
+        InternalTestCluster cluster = new InternalTestCluster(
+            randomLong(),
+            baseDir,
+            false,
+            false,
+            0,
+            0,
+            "test",
+            new NodeConfigurationSource() {
 
-            @Override
-            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-                return Settings.builder()
+                @Override
+                public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+                    return Settings.builder()
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                         .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
                         .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
                         .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                         .build();
-            }
+                }
 
-            @Override
-            public Path nodeConfigPath(int nodeOrdinal) {
-                return null;
-            }
-        }, 0, "", mockPlugins(), Function.identity());
+                @Override
+                public Path nodeConfigPath(int nodeOrdinal) {
+                    return null;
+                }
+            },
+            0,
+            "",
+            mockPlugins(),
+            Function.identity()
+        );
         cluster.beforeTest(random());
         List<DiscoveryNodeRole> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
-            final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false ?
-                    DiscoveryNodeRole.MASTER_ROLE : // last node and still no master
+            final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false
+                ? DiscoveryNodeRole.MASTER_ROLE
+                : // last node and still no master
                 randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
             roles.add(role);
         }
 
         cluster.setBootstrapMasterNodeIndex(
-                randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(DiscoveryNodeRole.MASTER_ROLE)).count() - 1));
+            randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(DiscoveryNodeRole.MASTER_ROLE)).count() - 1)
+        );
 
         try {
             Map<DiscoveryNodeRole, Set<String>> pathsPerRole = new HashMap<>();
@@ -338,7 +404,7 @@ public class InternalTestClusterTests extends ESTestCase {
                     throw new IllegalStateException("get your story straight");
                 }
                 Set<String> rolePaths = pathsPerRole.computeIfAbsent(role, k -> new HashSet<>());
-                for (Path path : getNodePaths(cluster, node)) {
+                for (Path path : getDataPaths(cluster, node)) {
                     assertTrue(rolePaths.add(path.toString()));
                 }
             }
@@ -348,7 +414,7 @@ public class InternalTestClusterTests extends ESTestCase {
             Map<DiscoveryNodeRole, Set<String>> result = new HashMap<>();
             for (String name : cluster.getNodeNames()) {
                 DiscoveryNode node = cluster.getInstance(ClusterService.class, name).localNode();
-                List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
+                List<String> paths = Arrays.stream(getDataPaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
                 if (node.isMasterNode()) {
                     result.computeIfAbsent(DiscoveryNodeRole.MASTER_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else if (node.canContainData()) {
@@ -387,22 +453,29 @@ public class InternalTestClusterTests extends ESTestCase {
         Path baseDir = createTempDir();
         List<Class<? extends Plugin>> plugins = new ArrayList<>(mockPlugins());
         plugins.add(NodeAttrCheckPlugin.class);
-        InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false, true, 2, 2,
-            "test", nodeConfigurationSource, 0, nodePrefix,
-            plugins, Function.identity());
+        InternalTestCluster cluster = new InternalTestCluster(
+            randomLong(),
+            baseDir,
+            false,
+            true,
+            2,
+            2,
+            "test",
+            nodeConfigurationSource,
+            0,
+            nodePrefix,
+            plugins,
+            Function.identity()
+        );
         try {
             cluster.beforeTest(random());
             switch (randomInt(2)) {
-                case 0:
+                case 0 -> {
                     cluster.stopRandomDataNode();
                     cluster.startNode();
-                    break;
-                case 1:
-                    cluster.rollingRestart(InternalTestCluster.EMPTY_CALLBACK);
-                    break;
-                case 2:
-                    cluster.fullRestart();
-                    break;
+                }
+                case 1 -> cluster.rollingRestart(InternalTestCluster.EMPTY_CALLBACK);
+                case 2 -> cluster.fullRestart();
             }
         } finally {
             cluster.close();

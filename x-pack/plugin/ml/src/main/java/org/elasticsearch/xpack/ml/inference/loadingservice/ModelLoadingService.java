@@ -8,9 +8,8 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,10 +25,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -58,7 +60,10 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_MODEL_INFERENCE_FEATURE;
 
 /**
@@ -83,10 +88,11 @@ public class ModelLoadingService implements ClusterStateListener {
      * <p>
      * Once the limit is reached, LRU models are evicted in favor of new models
      */
-    public static final Setting<ByteSizeValue> INFERENCE_MODEL_CACHE_SIZE =
-        Setting.memorySizeSetting("xpack.ml.inference_model.cache_size",
-            "40%",
-            Setting.Property.NodeScope);
+    public static final Setting<ByteSizeValue> INFERENCE_MODEL_CACHE_SIZE = Setting.memorySizeSetting(
+        "xpack.ml.inference_model.cache_size",
+        "40%",
+        Setting.Property.NodeScope
+    );
 
     /**
      * How long should a model stay in the cache since its last access
@@ -96,15 +102,18 @@ public class ModelLoadingService implements ClusterStateListener {
      * Specifically, in the ingest scenario, a processor will call getModel whenever it needs to run inference. So, if a processor is not
      * executed for an extended period of time, the model will be evicted and will have to be loaded again when getModel is called.
      */
-    public static final Setting<TimeValue> INFERENCE_MODEL_CACHE_TTL =
-        Setting.timeSetting("xpack.ml.inference_model.time_to_live",
-            new TimeValue(5, TimeUnit.MINUTES),
-            new TimeValue(1, TimeUnit.MILLISECONDS),
-            Setting.Property.NodeScope);
+    public static final Setting<TimeValue> INFERENCE_MODEL_CACHE_TTL = Setting.timeSetting(
+        "xpack.ml.inference_model.time_to_live",
+        new TimeValue(5, TimeUnit.MINUTES),
+        new TimeValue(1, TimeUnit.MILLISECONDS),
+        Setting.Property.NodeScope
+    );
 
     // The feature requesting the model
     public enum Consumer {
-        PIPELINE, SEARCH, INTERNAL
+        PIPELINE,
+        SEARCH,
+        INTERNAL
     }
 
     private static class ModelAndConsumer {
@@ -135,15 +144,17 @@ public class ModelLoadingService implements ClusterStateListener {
     private final CircuitBreaker trainedModelCircuitBreaker;
     private final XPackLicenseState licenseState;
 
-    public ModelLoadingService(TrainedModelProvider trainedModelProvider,
-                               InferenceAuditor auditor,
-                               ThreadPool threadPool,
-                               ClusterService clusterService,
-                               TrainedModelStatsService modelStatsService,
-                               Settings settings,
-                               String localNode,
-                               CircuitBreaker trainedModelCircuitBreaker,
-                               XPackLicenseState licenseState) {
+    public ModelLoadingService(
+        TrainedModelProvider trainedModelProvider,
+        InferenceAuditor auditor,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TrainedModelStatsService modelStatsService,
+        Settings settings,
+        String localNode,
+        CircuitBreaker trainedModelCircuitBreaker,
+        XPackLicenseState licenseState
+    ) {
         this.provider = trainedModelProvider;
         this.threadPool = threadPool;
         this.maxCacheSize = INFERENCE_MODEL_CACHE_SIZE.get(settings);
@@ -153,8 +164,7 @@ public class ModelLoadingService implements ClusterStateListener {
         this.localModelCache = CacheBuilder.<String, ModelAndConsumer>builder()
             .setMaximumWeight(this.maxCacheSize.getBytes())
             .weigher((id, modelAndConsumer) -> modelAndConsumer.model.ramBytesUsed())
-            // explicit declaration of the listener lambda necessary for Eclipse IDE 4.14
-            .removalListener(notification -> cacheEvictionListener(notification))
+            .removalListener(this::cacheEvictionListener)
             .setExpireAfterAccess(INFERENCE_MODEL_CACHE_TTL.get(settings))
             .build();
         clusterService.addListener(this);
@@ -172,6 +182,20 @@ public class ModelLoadingService implements ClusterStateListener {
         return localModelCache.get(modelAliasToId.getOrDefault(modelId, modelId)) != null;
     }
 
+    public ByteSizeValue getMaxCacheSize() {
+        return maxCacheSize;
+    }
+
+    /**
+     * This method is intended for use in telemetry, not making decisions about what will fit in the cache.
+     * The value returned could immediately be out-of-date if cache changes are in progress. It is good
+     * enough for external reporting of vaguely up-to-date status, but not for anything related to immediate
+     * additions to the cache.
+     */
+    public ByteSizeValue getCurrentCacheSize() {
+        return ByteSizeValue.ofBytes(localModelCache.weight());
+    }
+
     /**
      * Load the model for use by an ingest pipeline. The model will not be cached if there is no
      * ingest pipeline referencing it i.e. it is used in simulate mode
@@ -179,8 +203,8 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelId  the model to get
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
-    public void getModelForPipeline(String modelId, ActionListener<LocalModel> modelActionListener) {
-        getModel(modelId, Consumer.PIPELINE, modelActionListener);
+    public void getModelForPipeline(String modelId, TaskId parentTaskId, ActionListener<LocalModel> modelActionListener) {
+        getModel(modelId, Consumer.PIPELINE, parentTaskId, modelActionListener);
     }
 
     /**
@@ -190,7 +214,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
     public void getModelForInternalInference(String modelId, ActionListener<LocalModel> modelActionListener) {
-        getModel(modelId, Consumer.INTERNAL, modelActionListener);
+        getModel(modelId, Consumer.INTERNAL, null, modelActionListener);
     }
 
     /**
@@ -200,7 +224,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
     public void getModelForSearch(String modelId, ActionListener<LocalModel> modelActionListener) {
-        getModel(modelId, Consumer.SEARCH, modelActionListener);
+        getModel(modelId, Consumer.SEARCH, null, modelActionListener);
     }
 
     /**
@@ -225,11 +249,12 @@ public class ModelLoadingService implements ClusterStateListener {
      * The main difference being that models for search are always cached whereas pipeline models
      * are only cached if they are referenced by an ingest pipeline
      *
-     * @param modelIdOrAlias       the model id or model alias to get
+     * @param modelIdOrAlias      the model id or model alias to get
      * @param consumer            which feature is requesting the model
+     * @param parentTaskId        The parent task id
      * @param modelActionListener the listener to alert when the model has been retrieved.
      */
-    private void getModel(String modelIdOrAlias, Consumer consumer, ActionListener<LocalModel> modelActionListener) {
+    private void getModel(String modelIdOrAlias, Consumer consumer, TaskId parentTaskId, ActionListener<LocalModel> modelActionListener) {
         final String modelId = modelAliasToId.getOrDefault(modelIdOrAlias, modelIdOrAlias);
         ModelAndConsumer cachedModel = localModelCache.get(modelId);
         if (cachedModel != null) {
@@ -241,16 +266,14 @@ public class ModelLoadingService implements ClusterStateListener {
                 return;
             }
             modelActionListener.onResponse(cachedModel.model);
-            logger.trace(() -> new ParameterizedMessage("[{}] (model_alias [{}]) loaded from cache", modelId, modelIdOrAlias));
+            logger.trace(() -> format("[%s] (model_alias [%s]) loaded from cache", modelId, modelIdOrAlias));
             return;
         }
 
-        if (loadModelIfNecessary(modelIdOrAlias, consumer, modelActionListener)) {
-            logger.trace(() -> new ParameterizedMessage(
-                "[{}] (model_alias [{}]) is loading or loaded, added new listener to queue",
-                modelId,
-                modelIdOrAlias
-            ));
+        if (loadModelIfNecessary(modelIdOrAlias, consumer, parentTaskId, modelActionListener)) {
+            logger.trace(
+                () -> format("[%s] (model_alias [%s]) is loading or loaded, added new listener to queue", modelId, modelIdOrAlias)
+            );
         }
     }
 
@@ -262,10 +285,16 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelIdOrAlias The model to get
      * @param consumer The model consumer
      * @param modelActionListener The listener
+     * @param parentTaskId The parent task id
      * @return If the model is cached or currently being loaded true is returned. If a new load is started
      * false is returned to indicate a new load event
      */
-    private boolean loadModelIfNecessary(String modelIdOrAlias, Consumer consumer, ActionListener<LocalModel> modelActionListener) {
+    private boolean loadModelIfNecessary(
+        String modelIdOrAlias,
+        Consumer consumer,
+        TaskId parentTaskId,
+        ActionListener<LocalModel> modelActionListener
+    ) {
         synchronized (loadingListeners) {
             final String modelId = modelAliasToId.getOrDefault(modelIdOrAlias, modelIdOrAlias);
             ModelAndConsumer cachedModel = localModelCache.get(modelId);
@@ -282,8 +311,10 @@ public class ModelLoadingService implements ClusterStateListener {
             }
 
             // Add the listener to the queue if the model is loading
-            Queue<ActionListener<LocalModel>> listeners = loadingListeners.computeIfPresent(modelId,
-                (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener));
+            Queue<ActionListener<LocalModel>> listeners = loadingListeners.computeIfPresent(
+                modelId,
+                (storedModelKey, listenerQueue) -> addFluently(listenerQueue, modelActionListener)
+            );
 
             // The cachedModel entry is null, but there are listeners present, that means it is being loaded
             if (listeners != null) {
@@ -293,18 +324,12 @@ public class ModelLoadingService implements ClusterStateListener {
             if (Consumer.SEARCH != consumer && referencedModels.contains(modelId) == false) {
                 // The model is requested by a pipeline but not referenced by any ingest pipelines.
                 // This means it is a simulate call and the model should not be cached
-                logger.trace(() -> new ParameterizedMessage(
-                    "[{}] (model_alias [{}]) not actively loading, eager loading without cache",
-                    modelId,
-                    modelIdOrAlias
-                ));
-                loadWithoutCaching(modelId, consumer, modelActionListener);
+                logger.trace(
+                    () -> format("[%s] (model_alias [%s]) not actively loading, eager loading without cache", modelId, modelIdOrAlias)
+                );
+                loadWithoutCaching(modelId, consumer, parentTaskId, modelActionListener);
             } else {
-                logger.trace(() -> new ParameterizedMessage(
-                    "[{}] (model_alias [{}]) attempting to load and cache",
-                    modelId,
-                    modelIdOrAlias
-                ));
+                logger.trace(() -> format("[%s] (model_alias [%s]) attempting to load and cache", modelId, modelIdOrAlias));
                 loadingListeners.put(modelId, addFluently(new ArrayDeque<>(), modelActionListener));
                 loadModel(modelId, consumer);
             }
@@ -313,107 +338,161 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void loadModel(String modelId, Consumer consumer) {
-        provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
-            trainedModelConfig -> {
-                if (trainedModelConfig.isAllocateOnly()) {
-                    handleLoadFailure(modelId, new ElasticsearchException("model [{}] is allocate only", modelId));
+        // We cannot use parentTaskId here as multiple listeners may be wanting this model to be loaded
+        // We don't want to cancel the loading if only ONE of them stops listening or closes connection
+        // TODO Is there a way to only signal a cancel if all the listener tasks cancel???
+        provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), null, ActionListener.wrap(trainedModelConfig -> {
+            if (trainedModelConfig.isAllocateOnly()) {
+                if (consumer == Consumer.SEARCH) {
+                    handleLoadFailure(
+                        modelId,
+                        new ElasticsearchStatusException(
+                            "Trained model [{}] with type [{}] is currently not usable in search.",
+                            RestStatus.BAD_REQUEST,
+                            modelId,
+                            trainedModelConfig.getModelType()
+                        )
+                    );
                     return;
                 }
-                auditNewReferencedModel(modelId);
-                trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
-                provider.getTrainedModelForInference(modelId, consumer == Consumer.INTERNAL, ActionListener.wrap(
-                    inferenceDefinition -> {
-                        try {
-                            // Since we have used the previously stored estimate to help guard against OOM we need
-                            // to adjust the memory so that the memory this model uses in the circuit breaker
-                            // is the most accurate estimate.
-                            updateCircuitBreakerEstimate(modelId, inferenceDefinition, trainedModelConfig);
-                        } catch (CircuitBreakingException ex) {
-                            handleLoadFailure(modelId, ex);
-                            return;
-                        }
-
-                        handleLoadSuccess(modelId, consumer, trainedModelConfig, inferenceDefinition);
-                    },
-                    failure -> {
-                        // We failed to get the definition, remove the initial estimation.
-                        trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
-                        logger.warn(new ParameterizedMessage("[{}] failed to load model definition", modelId), failure);
-                        handleLoadFailure(modelId, failure);
-                    }
-                ));
-            },
-            failure -> {
-                logger.warn(new ParameterizedMessage("[{}] failed to load model configuration", modelId), failure);
-                handleLoadFailure(modelId, failure);
+                handleLoadFailure(
+                    modelId,
+                    new ElasticsearchStatusException("Trained model [{}] is not deployed.", RestStatus.BAD_REQUEST, modelId)
+                );
+                return;
             }
-        ));
+            auditNewReferencedModel(modelId);
+            trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getModelSize(), modelId);
+            provider.getTrainedModelForInference(modelId, consumer == Consumer.INTERNAL, ActionListener.wrap(inferenceDefinition -> {
+                try {
+                    // Since we have used the previously stored estimate to help guard against OOM we need
+                    // to adjust the memory so that the memory this model uses in the circuit breaker
+                    // is the most accurate estimate.
+                    updateCircuitBreakerEstimate(modelId, inferenceDefinition, trainedModelConfig);
+                } catch (CircuitBreakingException ex) {
+                    handleLoadFailure(modelId, ex);
+                    return;
+                }
+
+                handleLoadSuccess(modelId, consumer, trainedModelConfig, inferenceDefinition);
+            }, failure -> {
+                // We failed to get the definition, remove the initial estimation.
+                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getModelSize());
+                logger.warn(() -> "[" + modelId + "] failed to load model definition", failure);
+                handleLoadFailure(modelId, failure);
+            }));
+        }, failure -> {
+            logger.warn(() -> "[" + modelId + "] failed to load model configuration", failure);
+            handleLoadFailure(modelId, failure);
+        }));
     }
 
-    private void loadWithoutCaching(String modelId, Consumer consumer, ActionListener<LocalModel> modelActionListener) {
+    private void loadWithoutCaching(
+        String modelId,
+        Consumer consumer,
+        TaskId parentTaskId,
+        ActionListener<LocalModel> modelActionListener
+    ) {
         // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
         // by a simulated pipeline
-        provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
-            trainedModelConfig -> {
-                // Verify we can pull the model into memory without causing OOM
-                trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
-                provider.getTrainedModelForInference(modelId, consumer == Consumer.INTERNAL, ActionListener.wrap(
-                    inferenceDefinition -> {
-                        InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
-                            inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :
-                            trainedModelConfig.getInferenceConfig();
-                        try {
-                            updateCircuitBreakerEstimate(modelId, inferenceDefinition, trainedModelConfig);
-                        } catch (CircuitBreakingException ex) {
-                            modelActionListener.onFailure(ex);
-                            return;
-                        }
+        provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), parentTaskId, ActionListener.wrap(trainedModelConfig -> {
+            // If the model should be allocated, we should fail here
+            if (trainedModelConfig.isAllocateOnly()) {
+                if (consumer == Consumer.SEARCH) {
+                    modelActionListener.onFailure(
+                        new ElasticsearchStatusException(
+                            "model [{}] with type [{}] is currently not usable in search.",
+                            RestStatus.BAD_REQUEST,
+                            modelId,
+                            trainedModelConfig.getModelType()
+                        )
+                    );
+                    return;
+                }
+                modelActionListener.onFailure(
+                    new ElasticsearchStatusException(
+                        "model [{}] must be deployed to use. Please deploy with the start trained model deployment API.",
+                        RestStatus.BAD_REQUEST,
+                        modelId
+                    )
+                );
+                return;
+            }
+            // Verify we can pull the model into memory without causing OOM
+            trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getModelSize(), modelId);
+            provider.getTrainedModelForInference(modelId, consumer == Consumer.INTERNAL, ActionListener.wrap(inferenceDefinition -> {
+                InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null
+                    ? inferenceConfigFromTargetType(inferenceDefinition.getTargetType())
+                    : trainedModelConfig.getInferenceConfig();
+                try {
+                    updateCircuitBreakerEstimate(modelId, inferenceDefinition, trainedModelConfig);
+                } catch (CircuitBreakingException ex) {
+                    modelActionListener.onFailure(ex);
+                    return;
+                }
 
-                        modelActionListener.onResponse(new LocalModel(
-                            trainedModelConfig.getModelId(),
-                            localNode,
-                            inferenceDefinition,
-                            trainedModelConfig.getInput(),
-                            trainedModelConfig.getDefaultFieldMap(),
-                            inferenceConfig,
-                            trainedModelConfig.getLicenseLevel(),
-                            modelStatsService,
-                            trainedModelCircuitBreaker));
-                    },
-                    // Failure getting the definition, remove the initial estimation value
-                    e -> {
-                        trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
-                        modelActionListener.onFailure(e);
-                    }
-                ));
+                modelActionListener.onResponse(
+                    new LocalModel(
+                        trainedModelConfig.getModelId(),
+                        localNode,
+                        inferenceDefinition,
+                        trainedModelConfig.getInput(),
+                        trainedModelConfig.getDefaultFieldMap(),
+                        inferenceConfig,
+                        trainedModelConfig.getLicenseLevel(),
+                        modelStatsService,
+                        trainedModelCircuitBreaker
+                    )
+                );
             },
-            modelActionListener::onFailure
-        ));
+                // Failure getting the definition, remove the initial estimation value
+                e -> {
+                    trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getModelSize());
+                    if (unwrapCause(e) instanceof ResourceNotFoundException) {
+                        modelActionListener.onFailure(e);
+                    } else {
+                        modelActionListener.onFailure(
+                            new ElasticsearchStatusException(
+                                "failed to load model [{}] definition",
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                modelId,
+                                e
+                            )
+                        );
+                    }
+                }
+            ));
+        }, modelActionListener::onFailure));
     }
 
-    private void updateCircuitBreakerEstimate(String modelId, InferenceDefinition inferenceDefinition,
-                                              TrainedModelConfig trainedModelConfig) throws CircuitBreakingException {
-        long estimateDiff = inferenceDefinition.ramBytesUsed() - trainedModelConfig.getEstimatedHeapMemory();
+    private void updateCircuitBreakerEstimate(
+        String modelId,
+        InferenceDefinition inferenceDefinition,
+        TrainedModelConfig trainedModelConfig
+    ) throws CircuitBreakingException {
+        long estimateDiff = inferenceDefinition.ramBytesUsed() - trainedModelConfig.getModelSize();
         if (estimateDiff < 0) {
             trainedModelCircuitBreaker.addWithoutBreaking(estimateDiff);
         } else if (estimateDiff > 0) { // rare case where estimate is now HIGHER
             try {
                 trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(estimateDiff, modelId);
             } catch (CircuitBreakingException ex) { // if we failed here, we should remove the initial estimate as well
-                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
+                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getModelSize());
                 throw ex;
             }
         }
     }
 
-    private void handleLoadSuccess(String modelId,
-                                   Consumer consumer,
-                                   TrainedModelConfig trainedModelConfig,
-                                   InferenceDefinition inferenceDefinition) {
+    private void handleLoadSuccess(
+        String modelId,
+        Consumer consumer,
+        TrainedModelConfig trainedModelConfig,
+        InferenceDefinition inferenceDefinition
+    ) {
         Queue<ActionListener<LocalModel>> listeners;
-        InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
-            inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :
-            trainedModelConfig.getInferenceConfig();
+        InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null
+            ? inferenceConfigFromTargetType(inferenceDefinition.getTargetType())
+            : trainedModelConfig.getInferenceConfig();
         LocalModel loadedModel = new LocalModel(
             trainedModelConfig.getModelId(),
             localNode,
@@ -423,7 +502,8 @@ public class ModelLoadingService implements ClusterStateListener {
             inferenceConfig,
             trainedModelConfig.getLicenseLevel(),
             modelStatsService,
-            trainedModelCircuitBreaker);
+            trainedModelCircuitBreaker
+        );
         final ModelAndConsumerLoader modelAndConsumerLoader = new ModelAndConsumerLoader(new ModelAndConsumer(loadedModel, consumer));
         synchronized (loadingListeners) {
             populateNewModelAlias(modelId);
@@ -440,13 +520,13 @@ public class ModelLoadingService implements ClusterStateListener {
                     // We should start tracking on successful load. It will stop being tracked once it evacuates the cache and is no
                     // longer a referenced model
                     // NOTE: It is not possible to change the referenced models without locking on `loadingListeners`
-                    //       So, if the model is evacuated from cache immediately after checking that it was present,
-                    //       the feature usage will still be tracked.
+                    // So, if the model is evacuated from cache immediately after checking that it was present,
+                    // the feature usage will still be tracked.
                     if (License.OperationMode.BASIC.equals(trainedModelConfig.getLicenseLevel()) == false) {
                         ML_MODEL_INFERENCE_FEATURE.startTracking(licenseState, modelId);
                     }
                 } catch (ExecutionException ee) {
-                    logger.warn(() -> new ParameterizedMessage("[{}] threw when attempting add to cache", modelId), ee);
+                    logger.warn(() -> "[" + modelId + "] threw when attempting add to cache", ee);
                 }
                 shouldNotAudit.remove(modelId);
             }
@@ -455,7 +535,7 @@ public class ModelLoadingService implements ClusterStateListener {
             if (listeners == null) {
                 // If we newly added it into cache, release the model so that the circuit breaker can still accurately keep track
                 // of memory
-                if(modelAndConsumerLoader.isLoaded()) {
+                if (modelAndConsumerLoader.isLoaded()) {
                     loadedModel.release();
                 }
                 return;
@@ -480,8 +560,8 @@ public class ModelLoadingService implements ClusterStateListener {
                 return;
             }
         } // synchronized (loadingListeners)
-        // If we failed to load and there were listeners present, that means that this model is referenced by a processor
-        // Alert the listeners to the failure
+          // If we failed to load and there were listeners present, that means that this model is referenced by a processor
+          // Alert the listeners to the failure
         for (ActionListener<LocalModel> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
             listener.onFailure(failure);
         }
@@ -490,12 +570,8 @@ public class ModelLoadingService implements ClusterStateListener {
     private void populateNewModelAlias(String modelId) {
         Set<String> newModelAliases = modelIdToUpdatedModelAliases.remove(modelId);
         if (newModelAliases != null && newModelAliases.isEmpty() == false) {
-            logger.trace(() -> new ParameterizedMessage(
-                "[{}] model is now loaded, setting new model_aliases {}",
-                modelId,
-                newModelAliases
-            ));
-            for (String modelAlias: newModelAliases) {
+            logger.trace(() -> format("[%s] model is now loaded, setting new model_aliases %s", modelId, newModelAliases));
+            for (String modelAlias : newModelAliases) {
                 modelAliasToId.put(modelAlias, modelId);
             }
         }
@@ -504,23 +580,26 @@ public class ModelLoadingService implements ClusterStateListener {
     private void cacheEvictionListener(RemovalNotification<String, ModelAndConsumer> notification) {
         try {
             if (notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
-                MessageSupplier msg = () -> new ParameterizedMessage(
-                    "model cache entry evicted." +
-                        "current cache [{}] current max [{}] model size [{}]. " +
-                        "If this is undesired, consider updating setting [{}] or [{}].",
+                Supplier<String> msg = () -> Strings.format(
+                    "model cache entry evicted."
+                        + "current cache [%s] current max [%s] model size [%s]. "
+                        + "If this is undesired, consider updating setting [%s] or [%s].",
                     ByteSizeValue.ofBytes(localModelCache.weight()).getStringRep(),
                     maxCacheSize.getStringRep(),
                     ByteSizeValue.ofBytes(notification.getValue().model.ramBytesUsed()).getStringRep(),
                     INFERENCE_MODEL_CACHE_SIZE.getKey(),
-                    INFERENCE_MODEL_CACHE_TTL.getKey());
+                    INFERENCE_MODEL_CACHE_TTL.getKey()
+                );
                 auditIfNecessary(notification.getKey(), msg);
             }
             String modelId = modelAliasToId.getOrDefault(notification.getKey(), notification.getKey());
-            logger.trace(() -> new ParameterizedMessage(
-                "Persisting stats for evicted model [{}] (model_aliases {})",
-                modelId,
-                modelIdToModelAliases.getOrDefault(modelId, new HashSet<>())
-            ));
+            logger.trace(
+                () -> format(
+                    "Persisting stats for evicted model [%s] (model_aliases %s)",
+                    modelId,
+                    modelIdToModelAliases.getOrDefault(modelId, new HashSet<>())
+                )
+            );
             // If it's not referenced in a pipeline, stop tracking it on this node
             if (referencedModels.contains(modelId) == false) {
                 ML_MODEL_INFERENCE_FEATURE.stopTracking(licenseState, modelId);
@@ -545,9 +624,9 @@ public class ModelLoadingService implements ClusterStateListener {
 
         ClusterState state = event.state();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        Set<String> allReferencedModelKeys = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE) ?
-            getReferencedModelKeys(currentIngestMetadata) :
-            new HashSet<>(referencedModels);
+        Set<String> allReferencedModelKeys = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE)
+            ? getReferencedModelKeys(currentIngestMetadata)
+            : new HashSet<>(referencedModels);
         Set<String> referencedModelsBeforeClusterState;
         Set<String> loadingModelBeforeClusterState = null;
         Set<String> removedModels;
@@ -582,13 +661,17 @@ public class ModelLoadingService implements ClusterStateListener {
                 String modelId = changedAliases.getOrDefault(modelAliasOrId, modelAliasToId.getOrDefault(modelAliasOrId, modelAliasOrId));
                 // If the "old" model_alias is referenced, we don't want to invalidate. This way the model that now has the model_alias
                 // can be loaded in first
-                boolean oldModelAliasesNotReferenced = Sets.haveEmptyIntersection(referencedModels,
-                    oldIdToAliases.getOrDefault(modelId, Collections.emptySet()));
+                boolean oldModelAliasesNotReferenced = Sets.haveEmptyIntersection(
+                    referencedModels,
+                    oldIdToAliases.getOrDefault(modelId, Collections.emptySet())
+                );
                 // If the model itself is referenced, we shouldn't evict.
                 boolean modelIsNotReferenced = referencedModels.contains(modelId) == false;
                 // If a model_alias change causes it to NOW be referenced, we shouldn't attempt to evict it
-                boolean newModelAliasesNotReferenced = Sets.haveEmptyIntersection(referencedModels,
-                    modelIdToModelAliases.getOrDefault(modelId, Collections.emptySet()));
+                boolean newModelAliasesNotReferenced = Sets.haveEmptyIntersection(
+                    referencedModels,
+                    modelIdToModelAliases.getOrDefault(modelId, Collections.emptySet())
+                );
                 if (oldModelAliasesNotReferenced && newModelAliasesNotReferenced && modelIsNotReferenced) {
                     ModelAndConsumer modelAndConsumer = localModelCache.get(modelId);
                     if (modelAndConsumer != null && modelAndConsumer.consumers.contains(Consumer.SEARCH) == false) {
@@ -611,10 +694,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 String modelId = changedAliases.getOrDefault(
                     newlyReferencedModel,
                     // If the model_alias hasn't changed, get the model id IF it is a model_alias, otherwise we assume it is an id
-                    modelAliasToId.getOrDefault(
-                        newlyReferencedModel,
-                        newlyReferencedModel
-                    )
+                    modelAliasToId.getOrDefault(newlyReferencedModel, newlyReferencedModel)
                 );
                 // Verify that it isn't an old model id but just a new model_alias
                 if (referencedModels.contains(modelId) == false) {
@@ -653,18 +733,26 @@ public class ModelLoadingService implements ClusterStateListener {
         } // synchronized (loadingListeners)
         if (logger.isTraceEnabled()) {
             if (loadingListeners.keySet().equals(loadingModelBeforeClusterState) == false) {
-                logger.trace("cluster state event changed loading models: before {} after {}", loadingModelBeforeClusterState,
-                    loadingListeners.keySet());
+                logger.trace(
+                    "cluster state event changed loading models: before {} after {}",
+                    loadingModelBeforeClusterState,
+                    loadingListeners.keySet()
+                );
             }
             if (referencedModels.equals(referencedModelsBeforeClusterState) == false) {
-                logger.trace("cluster state event changed referenced models: before {} after {}", referencedModelsBeforeClusterState,
-                    referencedModels);
+                logger.trace(
+                    "cluster state event changed referenced models: before {} after {}",
+                    referencedModelsBeforeClusterState,
+                    referencedModels
+                );
             }
             if (oldIdToAliases.equals(modelIdToModelAliases) == false) {
-                logger.trace("model id to alias mappings changed. before {} after {}. Model alias to IDs {}",
+                logger.trace(
+                    "model id to alias mappings changed. before {} after {}. Model alias to IDs {}",
                     oldIdToAliases,
                     modelIdToModelAliases,
-                    modelAliasToId);
+                    modelAliasToId
+                );
             }
             if (addedModelViaAliases.isEmpty() == false) {
                 logger.trace("adding new models via model_aliases and ids: {}", addedModelViaAliases);
@@ -677,9 +765,11 @@ public class ModelLoadingService implements ClusterStateListener {
         loadModelsForPipeline(addedModelViaAliases.keySet());
     }
 
-    private Map<String, String> gatherLazyChangedAliasesAndUpdateModelAliases(ClusterChangedEvent event,
-                                                                              boolean prefetchModels,
-                                                                              Set<String> allReferencedModelKeys) {
+    private Map<String, String> gatherLazyChangedAliasesAndUpdateModelAliases(
+        ClusterChangedEvent event,
+        boolean prefetchModels,
+        Set<String> allReferencedModelKeys
+    ) {
         Map<String, String> changedAliases = new HashMap<>();
         if (event.changedCustomMetadataSet().contains(ModelAliasMetadata.NAME)) {
             final Map<java.lang.String, ModelAliasMetadata.ModelAliasEntry> modelAliasesToIds = new HashMap<>(
@@ -689,8 +779,7 @@ public class ModelLoadingService implements ClusterStateListener {
             for (Map.Entry<java.lang.String, ModelAliasMetadata.ModelAliasEntry> aliasToId : modelAliasesToIds.entrySet()) {
                 modelIdToModelAliases.computeIfAbsent(aliasToId.getValue().getModelId(), k -> new HashSet<>()).add(aliasToId.getKey());
                 java.lang.String modelId = modelAliasToId.get(aliasToId.getKey());
-                if (modelId != null
-                    && modelId.equals(aliasToId.getValue().getModelId()) == false) {
+                if (modelId != null && modelId.equals(aliasToId.getValue().getModelId()) == false) {
                     if (prefetchModels && allReferencedModelKeys.contains(aliasToId.getKey())) {
                         changedAliases.put(aliasToId.getKey(), aliasToId.getValue().getModelId());
                     } else {
@@ -707,14 +796,14 @@ public class ModelLoadingService implements ClusterStateListener {
         return changedAliases;
     }
 
-    private void auditIfNecessary(String modelId, MessageSupplier msg) {
+    private void auditIfNecessary(String modelId, Supplier<String> msg) {
         if (shouldNotAudit.contains(modelId)) {
-            logger.trace(() -> new ParameterizedMessage("[{}] {}", modelId, msg.get().getFormattedMessage()));
+            logger.trace(() -> format("[%s] %s", modelId, msg.get()));
             return;
         }
-        auditor.info(modelId, msg.get().getFormattedMessage());
+        auditor.info(modelId, msg.get());
         shouldNotAudit.add(modelId);
-        logger.info("[{}] {}", modelId, msg.get().getFormattedMessage());
+        logger.info("[{}] {}", modelId, msg.get());
     }
 
     private void loadModelsForPipeline(Set<String> modelIds) {
@@ -768,14 +857,10 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private static InferenceConfig inferenceConfigFromTargetType(TargetType targetType) {
-        switch (targetType) {
-            case REGRESSION:
-                return RegressionConfig.EMPTY_PARAMS;
-            case CLASSIFICATION:
-                return ClassificationConfig.EMPTY_PARAMS;
-            default:
-                throw ExceptionsHelper.badRequestException("unsupported target type [{}]", targetType);
-        }
+        return switch (targetType) {
+            case REGRESSION -> RegressionConfig.EMPTY_PARAMS;
+            case CLASSIFICATION -> ClassificationConfig.EMPTY_PARAMS;
+        };
     }
 
     /**

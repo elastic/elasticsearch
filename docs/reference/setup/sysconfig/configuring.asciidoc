@@ -6,8 +6,8 @@ install Elasticsearch, and which operating system you are using.
 
 When using the `.zip` or `.tar.gz` packages, system settings can be configured:
 
-* temporarily with <<ulimit,`ulimit`>>, or
-* permanently in <<limits.conf,`/etc/security/limits.conf`>>.
+* Temporarily with <<ulimit,`ulimit`>>.
+* Permanently in <<limits.conf,`/etc/security/limits.conf`>>.
 
 When using the RPM or Debian packages, most system settings are set in the
 <<sysconfig,system configuration file>>. However, systems which use systemd

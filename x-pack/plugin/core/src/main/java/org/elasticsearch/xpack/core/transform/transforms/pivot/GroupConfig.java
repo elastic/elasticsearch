@@ -16,13 +16,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
@@ -34,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -58,18 +60,12 @@ public class GroupConfig implements Writeable, ToXContentObject {
         source = in.readMap();
         groups = in.readOrderedMap(StreamInput::readString, (stream) -> {
             SingleGroupSource.Type groupType = SingleGroupSource.Type.fromId(stream.readByte());
-            switch (groupType) {
-                case TERMS:
-                    return new TermsGroupSource(stream);
-                case HISTOGRAM:
-                    return new HistogramGroupSource(stream);
-                case DATE_HISTOGRAM:
-                    return new DateHistogramGroupSource(stream);
-                case GEOTILE_GRID:
-                    return new GeoTileGroupSource(stream);
-                default:
-                    throw new IOException("Unknown group type");
-            }
+            return switch (groupType) {
+                case TERMS -> new TermsGroupSource(stream);
+                case HISTOGRAM -> new HistogramGroupSource(stream);
+                case DATE_HISTOGRAM -> new DateHistogramGroupSource(stream);
+                case GEOTILE_GRID -> new GeoTileGroupSource(stream);
+            };
         });
     }
 
@@ -92,9 +88,11 @@ public class GroupConfig implements Writeable, ToXContentObject {
         return validationException;
     }
 
+    public void checkForDeprecations(String id, NamedXContentRegistry namedXContentRegistry, Consumer<DeprecationIssue> onDeprecation) {}
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(source);
+        out.writeGenericMap(source);
         out.writeMap(groups, StreamOutput::writeString, (stream, value) -> {
             stream.writeByte(value.getType().getId());
             value.writeTo(stream);
@@ -187,23 +185,12 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
             token = parser.nextToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-            SingleGroupSource groupSource;
-            switch (groupType) {
-                case TERMS:
-                    groupSource = TermsGroupSource.fromXContent(parser, lenient);
-                    break;
-                case HISTOGRAM:
-                    groupSource = HistogramGroupSource.fromXContent(parser, lenient);
-                    break;
-                case DATE_HISTOGRAM:
-                    groupSource = DateHistogramGroupSource.fromXContent(parser, lenient);
-                    break;
-                case GEOTILE_GRID:
-                    groupSource = GeoTileGroupSource.fromXContent(parser, lenient);
-                    break;
-                default:
-                    throw new ParsingException(parser.getTokenLocation(), "invalid grouping type: " + groupType);
-            }
+            SingleGroupSource groupSource = switch (groupType) {
+                case TERMS -> TermsGroupSource.fromXContent(parser, lenient);
+                case HISTOGRAM -> HistogramGroupSource.fromXContent(parser, lenient);
+                case DATE_HISTOGRAM -> DateHistogramGroupSource.fromXContent(parser, lenient);
+                case GEOTILE_GRID -> GeoTileGroupSource.fromXContent(parser, lenient);
+            };
 
             parser.nextToken();
 

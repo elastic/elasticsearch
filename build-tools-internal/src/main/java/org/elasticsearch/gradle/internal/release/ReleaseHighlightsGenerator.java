@@ -17,6 +17,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,21 +40,18 @@ public class ReleaseHighlightsGenerator {
     static String generateFile(QualifiedVersion version, String template, List<ChangelogEntry> entries) throws IOException {
         final List<String> priorVersions = new ArrayList<>();
 
-        if (version.getMinor() > 0) {
-            final int major = version.getMajor();
-            for (int minor = version.getMinor(); minor >= 0; minor--) {
+        if (version.minor() > 0) {
+            final int major = version.major();
+            for (int minor = version.minor() - 1; minor >= 0; minor--) {
                 String majorMinor = major + "." + minor;
-                String fileSuffix = "";
-                if (major == 7 && minor < 7) {
-                    fileSuffix = "-" + majorMinor + ".0";
-                }
-                priorVersions.add("{ref-bare}/" + majorMinor + "/release-highlights" + fileSuffix + ".html[" + majorMinor + "]");
+                priorVersions.add("{ref-bare}/" + majorMinor + "/release-highlights.html[" + majorMinor + "]");
             }
         }
 
         final Map<Boolean, List<ChangelogEntry.Highlight>> groupedHighlights = entries.stream()
             .map(ChangelogEntry::getHighlight)
             .filter(Objects::nonNull)
+            .sorted(Comparator.comparingInt(ChangelogEntry.Highlight::getPr))
             .collect(Collectors.groupingBy(ChangelogEntry.Highlight::isNotable, Collectors.toList()));
 
         final List<ChangelogEntry.Highlight> notableHighlights = groupedHighlights.getOrDefault(true, List.of());

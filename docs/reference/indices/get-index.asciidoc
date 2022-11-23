@@ -44,6 +44,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
+`features`::
+(Optional, string)
+Return information about specific index features. Supports comma-
+separated values. Valid values are `aliases`, `mappings`, and `settings`.
+Defaults to `aliases,mappings,settings`.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]

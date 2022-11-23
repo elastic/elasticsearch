@@ -25,10 +25,7 @@ public final class StringUtils {
         String escapeString = Character.toString(escape);
 
         // replace wildcards with % and escape special characters
-        String likeString = s.replace("%", escapeString + "%")
-            .replace("_", escapeString + "_")
-            .replace("*", "%")
-            .replace("?", "_");
+        String likeString = s.replace("%", escapeString + "%").replace("_", escapeString + "_").replace("*", "%").replace("?", "_");
 
         return new LikePattern(likeString, escape);
     }

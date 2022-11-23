@@ -3,8 +3,8 @@ services:
   elasticsearch-node:
     image: elasticsearch:test
     environment:
+      - discovery.type=single-node
       - node.name=elasticsearch-node
-      - cluster.initial_master_nodes=elasticsearch-node
       - cluster.name=elasticsearch-node
       - bootstrap.memory_lock=true
       - network.publish_host=127.0.0.1
@@ -92,8 +92,15 @@ services:
       - xpack.security.authc.realms.oidc.c2id-jwt.claims.name=name
       - xpack.security.authc.realms.oidc.c2id-jwt.claims.mail=email
       - xpack.security.authc.realms.oidc.c2id-jwt.claims.groups=groups
+      - xpack.security.authc.realms.jwt.op-jwt.order=7
+      - xpack.security.authc.realms.jwt.op-jwt.allowed_issuer=http://oidc-provider:8080/c2id
+      - xpack.security.authc.realms.jwt.op-jwt.allowed_audiences=elasticsearch-jwt1,elasticsearch-jwt2
+      - xpack.security.authc.realms.jwt.op-jwt.pkc_jwkset_path=op-jwks.json
+      - xpack.security.authc.realms.jwt.op-jwt.claims.principal=sub
+      - xpack.security.authc.realms.jwt.op-jwt.claims.groups=groups
+      - xpack.security.authc.realms.jwt.op-jwt.client_authentication.type=shared_secret
     volumes:
-      - ./build/logs/node1:/usr/share/elasticsearch/logs
+      - ./testfixtures_shared/logs/node1:/usr/share/elasticsearch/logs
       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
       - ./oidc/op-jwks.json:/usr/share/elasticsearch/config/op-jwks.json
@@ -137,25 +144,25 @@ services:
       - ./openldap/certs:/container/service/slapd/assets/certs
 
   shibboleth-idp:
-    image: "unicon/shibboleth-idp:3.4.2"
+    build:
+      context: .
+      dockerfile: ./idp/Dockerfile
     depends_on:
       - openldap
     environment:
       - JETTY_MAX_HEAP=64m
-      - JETTY_BROWSER_SSL_KEYSTORE_PASSWORD=secret
-      - JETTY_BACKCHANNEL_SSL_KEYSTORE_PASSWORD=secret
     ports:
-      - "4443"
+      - 4443
+    expose:
+      - 4443
     links:
       - openldap:openldap
-    volumes:
-      - ./idp/shibboleth-idp/conf:/opt/shibboleth-idp/conf
-      - ./idp/shibboleth-idp/credentials:/opt/shibboleth-idp/credentials
-      - ./idp/shibboleth-idp/metadata:/opt/shibboleth-idp/metadata
-      - ./idp/shib-jetty-base/start.d/ssl.ini:/opt/shib-jetty-base/start.d/ssl.ini
+    restart: always #ensure ephemeral port mappings are properly updated
 
   oidc-provider:
-    image: "c2id/c2id-server:9.5"
+    build:
+      context: .
+      dockerfile: ./oidc/Dockerfile
     depends_on:
       - http-proxy
     ports:

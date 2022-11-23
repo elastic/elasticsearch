@@ -65,16 +65,17 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
     }
 
     @Override
-    protected void onResponseReceived(HttpResponse response) throws HttpException, IOException {
-        this.response = response;
+    protected void onResponseReceived(HttpResponse httpResponse) throws HttpException, IOException {
+        this.response = httpResponse;
     }
 
     @Override
     protected void onEntityEnclosed(HttpEntity entity, ContentType contentType) throws IOException {
         long len = entity.getContentLength();
         if (len > bufferLimitBytes) {
-            throw new ContentTooLongException("entity content is too long [" + len +
-                    "] for the configured buffer limit [" + bufferLimitBytes + "]");
+            throw new ContentTooLongException(
+                "entity content is too long [" + len + "] for the configured buffer limit [" + bufferLimitBytes + "]"
+            );
         }
         if (len < 0) {
             len = 4096;

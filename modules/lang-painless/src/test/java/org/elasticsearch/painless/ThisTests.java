@@ -70,8 +70,7 @@ public class ThisTests extends ScriptTestCase {
         }
 
         public static final String[] PARAMETERS = {};
-        public static final ScriptContext<ThisScript.Factory> CONTEXT =
-                new ScriptContext<>("this_test", ThisScript.Factory.class);
+        public static final ScriptContext<ThisScript.Factory> CONTEXT = new ScriptContext<>("this_test", ThisScript.Factory.class);
     }
 
     @Override
@@ -96,11 +95,18 @@ public class ThisTests extends ScriptTestCase {
         List<String> result = new ArrayList<>();
         result.add("this");
         result.add("base");
-        assertEquals(result, exec("List result = []; " +
-                "thisString('this');" +
-                "setBaseString('base');" +
-                "result.add(thisString()); " +
-                "result.add(getBaseString());" +
-                "result;", "", ""));
+        assertEquals(
+            result,
+            exec(
+                "List result = []; "
+                    + "thisString('this');"
+                    + "setBaseString('base');"
+                    + "result.add(thisString()); "
+                    + "result.add(getBaseString());"
+                    + "result;",
+                "",
+                ""
+            )
+        );
     }
 }

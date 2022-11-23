@@ -10,11 +10,11 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,8 +22,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class IndexingPressure {
 
-    public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES =
-        Setting.memorySizeSetting("indexing_pressure.memory.limit", "10%", Setting.Property.NodeScope);
+    public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES = Setting.memorySizeSetting(
+        "indexing_pressure.memory.limit",
+        "10%",
+        Setting.Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
@@ -78,12 +81,25 @@ public class IndexingPressure {
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.coordinatingRejections.getAndIncrement();
-            throw new EsRejectedExecutionException("rejected execution of coordinating operation [" +
-                "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
-                "replica_bytes=" + replicaWriteBytes + ", " +
-                "all_bytes=" + totalBytesWithoutOperation + ", " +
-                "coordinating_operation_bytes=" + bytes + ", " +
-                "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
+            throw new EsRejectedExecutionException(
+                "rejected execution of coordinating operation ["
+                    + "coordinating_and_primary_bytes="
+                    + bytesWithoutOperation
+                    + ", "
+                    + "replica_bytes="
+                    + replicaWriteBytes
+                    + ", "
+                    + "all_bytes="
+                    + totalBytesWithoutOperation
+                    + ", "
+                    + "coordinating_operation_bytes="
+                    + bytes
+                    + ", "
+                    + "max_coordinating_and_primary_bytes="
+                    + primaryAndCoordinatingLimits
+                    + "]",
+                false
+            );
         }
         currentCoordinatingBytes.getAndAdd(bytes);
         currentCoordinatingOps.getAndAdd(operations);
@@ -117,12 +133,25 @@ public class IndexingPressure {
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.primaryRejections.getAndIncrement();
-            throw new EsRejectedExecutionException("rejected execution of primary operation [" +
-                "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
-                "replica_bytes=" + replicaWriteBytes + ", " +
-                "all_bytes=" + totalBytesWithoutOperation + ", " +
-                "primary_operation_bytes=" + bytes + ", " +
-                "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
+            throw new EsRejectedExecutionException(
+                "rejected execution of primary operation ["
+                    + "coordinating_and_primary_bytes="
+                    + bytesWithoutOperation
+                    + ", "
+                    + "replica_bytes="
+                    + replicaWriteBytes
+                    + ", "
+                    + "all_bytes="
+                    + totalBytesWithoutOperation
+                    + ", "
+                    + "primary_operation_bytes="
+                    + bytes
+                    + ", "
+                    + "max_coordinating_and_primary_bytes="
+                    + primaryAndCoordinatingLimits
+                    + "]",
+                false
+            );
         }
         currentPrimaryBytes.getAndAdd(bytes);
         currentPrimaryOps.getAndAdd(operations);
@@ -142,10 +171,19 @@ public class IndexingPressure {
             long replicaBytesWithoutOperation = replicaWriteBytes - bytes;
             this.currentReplicaBytes.getAndAdd(-bytes);
             this.replicaRejections.getAndIncrement();
-            throw new EsRejectedExecutionException("rejected execution of replica operation [" +
-                "replica_bytes=" + replicaBytesWithoutOperation + ", " +
-                "replica_operation_bytes=" + bytes + ", " +
-                "max_replica_bytes=" + replicaLimits + "]", false);
+            throw new EsRejectedExecutionException(
+                "rejected execution of replica operation ["
+                    + "replica_bytes="
+                    + replicaBytesWithoutOperation
+                    + ", "
+                    + "replica_operation_bytes="
+                    + bytes
+                    + ", "
+                    + "max_replica_bytes="
+                    + replicaLimits
+                    + "]",
+                false
+            );
         }
         currentReplicaOps.getAndAdd(operations);
         totalReplicaBytes.getAndAdd(bytes);
@@ -157,10 +195,25 @@ public class IndexingPressure {
     }
 
     public IndexingPressureStats stats() {
-        return new IndexingPressureStats(totalCombinedCoordinatingAndPrimaryBytes.get(), totalCoordinatingBytes.get(),
-            totalPrimaryBytes.get(), totalReplicaBytes.get(), currentCombinedCoordinatingAndPrimaryBytes.get(),
-            currentCoordinatingBytes.get(), currentPrimaryBytes.get(), currentReplicaBytes.get(), coordinatingRejections.get(),
-            primaryRejections.get(), replicaRejections.get(), primaryAndCoordinatingLimits, totalCoordinatingOps.get(),
-            totalPrimaryOps.get(), totalReplicaOps.get(), currentCoordinatingOps.get(), currentPrimaryOps.get(), currentReplicaOps.get());
+        return new IndexingPressureStats(
+            totalCombinedCoordinatingAndPrimaryBytes.get(),
+            totalCoordinatingBytes.get(),
+            totalPrimaryBytes.get(),
+            totalReplicaBytes.get(),
+            currentCombinedCoordinatingAndPrimaryBytes.get(),
+            currentCoordinatingBytes.get(),
+            currentPrimaryBytes.get(),
+            currentReplicaBytes.get(),
+            coordinatingRejections.get(),
+            primaryRejections.get(),
+            replicaRejections.get(),
+            primaryAndCoordinatingLimits,
+            totalCoordinatingOps.get(),
+            totalPrimaryOps.get(),
+            totalReplicaOps.get(),
+            currentCoordinatingOps.get(),
+            currentPrimaryOps.get(),
+            currentReplicaOps.get()
+        );
     }
 }

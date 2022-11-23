@@ -13,10 +13,10 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -34,8 +34,12 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     private final OriginalIndices originalIndices;
     private final ShardSearchRequest shardSearchRequest;
 
-    public QuerySearchRequest(OriginalIndices originalIndices, ShardSearchContextId contextId,
-                              ShardSearchRequest shardSearchRequest, AggregatedDfs dfs) {
+    public QuerySearchRequest(
+        OriginalIndices originalIndices,
+        ShardSearchContextId contextId,
+        ShardSearchRequest shardSearchRequest,
+        AggregatedDfs dfs
+    ) {
         this.contextId = contextId;
         this.dfs = dfs;
         this.shardSearchRequest = shardSearchRequest;

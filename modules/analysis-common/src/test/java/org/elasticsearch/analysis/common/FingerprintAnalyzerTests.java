@@ -1,5 +1,3 @@
-package org.elasticsearch.analysis.common;
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -7,6 +5,8 @@ package org.elasticsearch.analysis.common;
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
@@ -16,34 +16,27 @@ public class FingerprintAnalyzerTests extends ESTokenStreamTestCase {
 
     public void testFingerprint() throws Exception {
         Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255);
-        assertAnalyzesTo(a, "foo bar@baz Baz $ foo foo FOO. FoO",
-            new String[]{"bar baz foo"});
+        assertAnalyzesTo(a, "foo bar@baz Baz $ foo foo FOO. FoO", new String[] { "bar baz foo" });
     }
 
     public void testReusableTokenStream() throws Exception {
         Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255);
-        assertAnalyzesTo(a, "foo bar baz Baz foo foo FOO. FoO",
-            new String[]{"bar baz foo"});
-        assertAnalyzesTo(a, "xyz XYZ abc 123.2 abc",
-            new String[]{"123.2 abc xyz"});
+        assertAnalyzesTo(a, "foo bar baz Baz foo foo FOO. FoO", new String[] { "bar baz foo" });
+        assertAnalyzesTo(a, "xyz XYZ abc 123.2 abc", new String[] { "123.2 abc xyz" });
     }
 
     public void testAsciifolding() throws Exception {
         Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255);
-        assertAnalyzesTo(a, "gödel escher bach",
-            new String[]{"bach escher godel"});
+        assertAnalyzesTo(a, "gödel escher bach", new String[] { "bach escher godel" });
 
-        assertAnalyzesTo(a, "gödel godel escher bach",
-            new String[]{"bach escher godel"});
+        assertAnalyzesTo(a, "gödel godel escher bach", new String[] { "bach escher godel" });
     }
 
     public void testLimit() throws Exception {
         Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 3);
-        assertAnalyzesTo(a, "e d c b a",
-            new String[]{});
+        assertAnalyzesTo(a, "e d c b a", new String[] {});
 
-        assertAnalyzesTo(a, "b a",
-            new String[]{"a b"});
+        assertAnalyzesTo(a, "b a", new String[] { "a b" });
     }
 
 }

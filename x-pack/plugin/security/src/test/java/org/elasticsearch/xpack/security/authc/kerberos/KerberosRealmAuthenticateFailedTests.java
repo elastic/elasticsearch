@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import javax.security.auth.login.LoginException;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.AdditionalMatchers.aryEq;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -47,8 +48,10 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
     public void testAuthenticateWithNonKerberosAuthenticationToken() {
         final KerberosRealm kerberosRealm = createKerberosRealm(randomAlphaOfLength(5));
 
-        final UsernamePasswordToken usernamePasswordToken =
-                new UsernamePasswordToken(randomAlphaOfLength(5), new SecureString(new char[] { 'a', 'b', 'c' }));
+        final UsernamePasswordToken usernamePasswordToken = new UsernamePasswordToken(
+            randomAlphaOfLength(5),
+            new SecureString(new char[] { 'a', 'b', 'c' })
+        );
         expectThrows(AssertionError.class, () -> kerberosRealm.authenticate(usernamePasswordToken, PlainActionFuture.newFuture()));
     }
 
@@ -76,15 +79,18 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
             }
         }
         final boolean nullKerberosAuthnToken = rarely();
-        final KerberosAuthenticationToken kerberosAuthenticationToken =
-                nullKerberosAuthnToken ? null : new KerberosAuthenticationToken(decodedTicket);
+        final KerberosAuthenticationToken kerberosAuthenticationToken = nullKerberosAuthnToken
+            ? null
+            : new KerberosAuthenticationToken(decodedTicket);
         if (nullKerberosAuthnToken) {
-            expectThrows(AssertionError.class,
-                    () -> kerberosRealm.authenticate(kerberosAuthenticationToken, PlainActionFuture.newFuture()));
+            expectThrows(
+                AssertionError.class,
+                () -> kerberosRealm.authenticate(kerberosAuthenticationToken, PlainActionFuture.newFuture())
+            );
         } else {
-            final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+            final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
             kerberosRealm.authenticate(kerberosAuthenticationToken, future);
-            AuthenticationResult result = future.actionGet();
+            AuthenticationResult<User> result = future.actionGet();
             assertThat(result, is(notNullValue()));
             if (validTicket) {
                 final String expectedUsername = maybeRemoveRealmName(username);
@@ -97,8 +103,9 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
                 assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.TERMINATE)));
                 if (throwExceptionForInvalidTicket == false) {
                     assertThat(result.getException(), is(instanceOf(ElasticsearchSecurityException.class)));
-                    final List<String> wwwAuthnHeader = ((ElasticsearchSecurityException) result.getException())
-                            .getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
+                    final List<String> wwwAuthnHeader = ((ElasticsearchSecurityException) result.getException()).getHeader(
+                        KerberosAuthenticationToken.WWW_AUTHENTICATE
+                    );
                     assertThat(wwwAuthnHeader, is(notNullValue()));
                     assertThat(wwwAuthnHeader.get(0), is(equalTo(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX + outToken)));
                     assertThat(result.getMessage(), is(equalTo("failed to authenticate user, gss context negotiation not complete")));
@@ -109,24 +116,31 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
                         assertThat(result.getMessage(), is(equalTo("failed to authenticate user, gss context negotiation failure")));
                     }
                     assertThat(result.getException(), is(instanceOf(ElasticsearchSecurityException.class)));
-                    final List<String> wwwAuthnHeader = ((ElasticsearchSecurityException) result.getException())
-                            .getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
+                    final List<String> wwwAuthnHeader = ((ElasticsearchSecurityException) result.getException()).getHeader(
+                        KerberosAuthenticationToken.WWW_AUTHENTICATE
+                    );
                     assertThat(wwwAuthnHeader, is(notNullValue()));
                     assertThat(wwwAuthnHeader.get(0), is(equalTo(KerberosAuthenticationToken.NEGOTIATE_SCHEME_NAME)));
                 }
             }
-            verify(mockKerberosTicketValidator).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug),
-                    anyActionListener());
+            verify(mockKerberosTicketValidator).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug), anyActionListener());
         }
     }
 
     public void testDelegatedAuthorizationFailedToResolve() throws Exception {
         final String username = randomPrincipalName();
         RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("mock", "other_realm");
-        final MockLookupRealm otherRealm = new MockLookupRealm(new RealmConfig(realmIdentifier,
-            Settings.builder().put(globalSettings)
-                .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
+        final MockLookupRealm otherRealm = new MockLookupRealm(
+            new RealmConfig(
+                realmIdentifier,
+                Settings.builder()
+                    .put(globalSettings)
+                    .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
+                    .build(),
+                TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings)
+            )
+        );
         final User lookupUser = new User(randomAlphaOfLength(5));
         otherRealm.registerUser(lookupUser);
 
@@ -138,13 +152,17 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, "out-token"), null);
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         kerberosRealm.authenticate(kerberosAuthenticationToken, future);
 
-        AuthenticationResult result = future.actionGet();
+        AuthenticationResult<User> result = future.actionGet();
         assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.CONTINUE)));
-        verify(mockKerberosTicketValidator, times(1)).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug),
-                anyActionListener());
+        verify(mockKerberosTicketValidator, times(1)).validateTicket(
+            aryEq(decodedTicket),
+            eq(keytabPath),
+            eq(krbDebug),
+            anyActionListener()
+        );
         verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }

@@ -58,13 +58,12 @@ public interface FieldValues<T> {
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup)  {
+            public List<Object> fetchValues(Source lookup, int doc, List<Object> ignoredValues) {
                 List<Object> values = new ArrayList<>();
                 try {
-                    fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(formatter.apply(v)));
+                    fieldValues.valuesForDoc(context.lookup(), ctx, doc, v -> values.add(formatter.apply(v)));
                 } catch (Exception e) {
-                    // ignore errors - if they exist here then they existed at index time
-                    // and so on_script_error must have been set to `ignore`
+                    ignoredValues.addAll(values);
                 }
                 return values;
             }
@@ -78,8 +77,11 @@ public interface FieldValues<T> {
      * @param context the search execution context
      * @return the value fetcher
      */
-    static <T> ValueFetcher valueListFetcher(FieldValues<T> fieldValues, Function<List<T>, List<Object>> formatter,
-                                             SearchExecutionContext context) {
+    static <T> ValueFetcher valueListFetcher(
+        FieldValues<T> fieldValues,
+        Function<List<T>, List<Object>> formatter,
+        SearchExecutionContext context
+    ) {
         return new ValueFetcher() {
             LeafReaderContext ctx;
 
@@ -89,13 +91,12 @@ public interface FieldValues<T> {
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup)  {
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
                 List<T> values = new ArrayList<>();
                 try {
-                    fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(v));
+                    fieldValues.valuesForDoc(context.lookup(), ctx, doc, values::add);
                 } catch (Exception e) {
-                    // ignore errors - if they exist here then they existed at index time
-                    // and so on_script_error must have been set to `ignore`
+                    ignoredValues.addAll(values);
                 }
                 return formatter.apply(values);
             }

@@ -21,9 +21,12 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class OriginalIndicesTests extends ESTestCase {
 
-    private static final IndicesOptions[] indicesOptionsValues = new IndicesOptions[]{
-            IndicesOptions.lenientExpandOpen() , IndicesOptions.strictExpand(), IndicesOptions.strictExpandOpen(),
-            IndicesOptions.strictExpandOpenAndForbidClosed(), IndicesOptions.strictSingleIndexNoExpandForbidClosed()};
+    private static final IndicesOptions[] indicesOptionsValues = new IndicesOptions[] {
+        IndicesOptions.lenientExpandOpen(),
+        IndicesOptions.strictExpand(),
+        IndicesOptions.strictExpandOpen(),
+        IndicesOptions.strictExpandOpenAndForbidClosed(),
+        IndicesOptions.strictSingleIndexNoExpandForbidClosed() };
 
     public void testOriginalIndicesSerialization() throws IOException {
         int iterations = iterations(10, 30);

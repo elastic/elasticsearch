@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 
@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.MAX_DESCRIPTION_LENGTH;
 
 /**
@@ -33,6 +33,8 @@ import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.
 public class TransformConfigUpdate implements Writeable {
 
     public static final String NAME = "data_frame_transform_config_update";
+
+    public static TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
     private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -46,8 +48,10 @@ public class TransformConfigUpdate implements Writeable {
             SyncConfig syncConfig = (SyncConfig) args[3];
             String description = (String) args[4];
             SettingsConfig settings = (SettingsConfig) args[5];
-            RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[6];
-            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings, retentionPolicyConfig);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metadata = (Map<String, Object>) args[6];
+            RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[7];
+            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings, metadata, retentionPolicyConfig);
         }
     );
 
@@ -58,11 +62,16 @@ public class TransformConfigUpdate implements Writeable {
         PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformField.SYNC);
         PARSER.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, false), TransformField.SETTINGS);
-        PARSER.declareNamedObject(
-            optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
-            TransformField.RETENTION_POLICY
-        );
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), TransformField.METADATA);
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> {
+            XContentParser.Token token = p.nextToken();
+            assert token == XContentParser.Token.FIELD_NAME;
+            String currentName = p.currentName();
+            RetentionPolicyConfig namedObject = p.namedObject(RetentionPolicyConfig.class, currentName, c);
+            token = p.nextToken();
+            assert token == XContentParser.Token.END_OBJECT;
+            return namedObject;
+        }, NullRetentionPolicyConfig.INSTANCE, TransformField.RETENTION_POLICY);
     }
 
     private final SourceConfig source;
@@ -71,6 +80,7 @@ public class TransformConfigUpdate implements Writeable {
     private final SyncConfig syncConfig;
     private final String description;
     private final SettingsConfig settings;
+    private final Map<String, Object> metadata;
     private final RetentionPolicyConfig retentionPolicyConfig;
     private Map<String, String> headers;
 
@@ -81,6 +91,7 @@ public class TransformConfigUpdate implements Writeable {
         final SyncConfig syncConfig,
         final String description,
         final SettingsConfig settings,
+        final Map<String, Object> metadata,
         final RetentionPolicyConfig retentionPolicyConfig
     ) {
         this.source = source;
@@ -92,6 +103,7 @@ public class TransformConfigUpdate implements Writeable {
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");
         }
         this.settings = settings;
+        this.metadata = metadata;
         this.retentionPolicyConfig = retentionPolicyConfig;
     }
 
@@ -104,16 +116,9 @@ public class TransformConfigUpdate implements Writeable {
         if (in.readBoolean()) {
             setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            settings = in.readOptionalWriteable(SettingsConfig::new);
-        } else {
-            settings = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
-        } else {
-            retentionPolicyConfig = null;
-        }
+        settings = in.readOptionalWriteable(SettingsConfig::new);
+        metadata = in.readMap();
+        retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 
     public SourceConfig getSource() {
@@ -143,6 +148,11 @@ public class TransformConfigUpdate implements Writeable {
     }
 
     @Nullable
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    @Nullable
     public RetentionPolicyConfig getRetentionPolicyConfig() {
         return retentionPolicyConfig;
     }
@@ -168,12 +178,9 @@ public class TransformConfigUpdate implements Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalWriteable(settings);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalNamedWriteable(retentionPolicyConfig);
-        }
+        out.writeOptionalWriteable(settings);
+        out.writeGenericMap(metadata);
+        out.writeOptionalNamedWriteable(retentionPolicyConfig);
     }
 
     @Override
@@ -194,26 +201,32 @@ public class TransformConfigUpdate implements Writeable {
             && Objects.equals(this.syncConfig, that.syncConfig)
             && Objects.equals(this.description, that.description)
             && Objects.equals(this.settings, that.settings)
+            && Objects.equals(this.metadata, that.metadata)
             && Objects.equals(this.retentionPolicyConfig, that.retentionPolicyConfig)
             && Objects.equals(this.headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source, dest, frequency, syncConfig, description, settings, retentionPolicyConfig, headers);
+        return Objects.hash(source, dest, frequency, syncConfig, description, settings, metadata, retentionPolicyConfig, headers);
     }
 
     public static TransformConfigUpdate fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public boolean isNoop(TransformConfig config) {
+    public boolean isEmpty() {
+        return this.equals(EMPTY);
+    }
+
+    boolean isNoop(TransformConfig config) {
         return isNullOrEqual(source, config.getSource())
             && isNullOrEqual(dest, config.getDestination())
             && isNullOrEqual(frequency, config.getFrequency())
             && isNullOrEqual(syncConfig, config.getSyncConfig())
             && isNullOrEqual(description, config.getDescription())
             && isNullOrEqual(settings, config.getSettings())
+            && isNullOrEqual(metadata, config.getMetadata())
             && isNullOrEqual(retentionPolicyConfig, config.getRetentionPolicyConfig())
             && isNullOrEqual(headers, config.getHeaders());
     }
@@ -267,8 +280,16 @@ public class TransformConfigUpdate implements Writeable {
             settingsBuilder.update(settings);
             builder.setSettings(settingsBuilder.build());
         }
+        if (metadata != null) {
+            // Unlike with settings, we fully replace the old metadata with the new metadata
+            builder.setMetadata(metadata);
+        }
         if (retentionPolicyConfig != null) {
-            builder.setRetentionPolicyConfig(retentionPolicyConfig);
+            if (NullRetentionPolicyConfig.INSTANCE.equals(retentionPolicyConfig)) {
+                builder.setRetentionPolicyConfig(null);
+            } else {
+                builder.setRetentionPolicyConfig(retentionPolicyConfig);
+            }
         }
 
         builder.setVersion(Version.CURRENT);

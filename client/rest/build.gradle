@@ -17,6 +17,8 @@
  * under the License.
  */
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
 
 apply plugin: 'elasticsearch.build'
@@ -29,8 +31,8 @@ group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-client'
 
 // LLRC is licenses under Apache 2.0
-ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
-ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
+licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
 
 dependencies {
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -44,12 +46,13 @@ dependencies {
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-  testImplementation "org.elasticsearch:securemock:${versions.securemock}"
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
 tasks.named("processResources").configure {
-  expand versions: versions
+  expand versions: [
+    elasticsearch: VersionProperties.getElasticsearch()
+  ]
 }
 
 tasks.withType(CheckForbiddenApis).configureEach {
@@ -73,13 +76,8 @@ tasks.named("jarHell").configure {
   enabled = false
 }
 
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass 'org.elasticsearch.client.RestClientTestCase'
-    }
-  }
+tasks.named('testTestingConventions').configure {
+  baseClass 'org.elasticsearch.client.RestClientTestCase'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -88,7 +86,6 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
-          'org.apache.log4j.Category',
           'org.apache.log4j.Level',
           'org.apache.log4j.Logger',
           'org.apache.log4j.Priority',

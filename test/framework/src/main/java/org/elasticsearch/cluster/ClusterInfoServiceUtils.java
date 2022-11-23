@@ -21,12 +21,12 @@ public class ClusterInfoServiceUtils {
 
     public static ClusterInfo refresh(InternalClusterInfoService internalClusterInfoService) {
         logger.trace("refreshing cluster info");
-        final PlainActionFuture<ClusterInfo> future = new PlainActionFuture<>(){
+        final PlainActionFuture<ClusterInfo> future = new PlainActionFuture<>() {
             @Override
             protected boolean blockingAllowed() {
                 // In tests we permit blocking the applier thread here so that we know a followup reroute isn't working with stale data.
                 return Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
-                        || super.blockingAllowed();
+                    || super.blockingAllowed();
             }
         };
         internalClusterInfoService.refreshAsync(future);

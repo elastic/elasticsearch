@@ -7,17 +7,13 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -28,6 +24,11 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -43,7 +44,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
@@ -97,57 +98,68 @@ public class Precision implements EvaluationMetric {
     }
 
     @Override
-    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                        EvaluationFields fields) {
-        String actualField = fields.getActualField();
+    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(
+        EvaluationParameters parameters,
+        EvaluationFields fields
+    ) {
+        String actualFieldName = fields.getActualField();
         String predictedField = fields.getPredictedField();
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
-        this.actualField.trySet(actualField);
+        this.actualField.trySet(actualFieldName);
         if (topActualClassNames.get() == null) {  // This is step 1
             return Tuple.tuple(
                 List.of(
                     AggregationBuilders.terms(ACTUAL_CLASSES_NAMES_AGG_NAME)
-                        .field(actualField)
+                        .field(actualFieldName)
                         .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
-                        .size(MAX_CLASSES_CARDINALITY)),
-                List.of());
+                        .size(MAX_CLASSES_CARDINALITY)
+                ),
+                List.of()
+            );
         }
         if (result.get() == null) {  // This is step 2
-            KeyedFilter[] keyedFiltersPredicted =
-                topActualClassNames.get().stream()
-                    .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(predictedField, className).lenient(true)))
-                    .toArray(KeyedFilter[]::new);
-            Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
+            KeyedFilter[] keyedFiltersPredicted = topActualClassNames.get()
+                .stream()
+                .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(predictedField, className).lenient(true)))
+                .toArray(KeyedFilter[]::new);
+            Script script = PainlessScripts.buildIsEqualScript(actualFieldName, predictedField);
             return Tuple.tuple(
                 List.of(
                     AggregationBuilders.filters(BY_PREDICTED_CLASS_AGG_NAME, keyedFiltersPredicted)
-                        .subAggregation(AggregationBuilders.avg(PER_PREDICTED_CLASS_PRECISION_AGG_NAME).script(script))),
+                        .subAggregation(AggregationBuilders.avg(PER_PREDICTED_CLASS_PRECISION_AGG_NAME).script(script))
+                ),
                 List.of(
                     PipelineAggregatorBuilders.avgBucket(
                         AVG_PRECISION_AGG_NAME,
-                        BY_PREDICTED_CLASS_AGG_NAME + ">" + PER_PREDICTED_CLASS_PRECISION_AGG_NAME)));
+                        BY_PREDICTED_CLASS_AGG_NAME + ">" + PER_PREDICTED_CLASS_PRECISION_AGG_NAME
+                    )
+                )
+            );
         }
         return Tuple.tuple(List.of(), List.of());
     }
 
     @Override
     public void process(Aggregations aggs) {
-        if (topActualClassNames.get() == null && aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME) instanceof Terms) {
-            Terms topActualClassesAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
+        final Aggregation classNamesAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
+        if (topActualClassNames.get() == null && classNamesAgg instanceof Terms topActualClassesAgg) {
             if (topActualClassesAgg.getSumOfOtherDocCounts() > 0) {
                 // This means there were more than {@code MAX_CLASSES_CARDINALITY} buckets.
                 // We cannot calculate average precision accurately, so we fail.
                 throw ExceptionsHelper.badRequestException(
-                    "Cannot calculate average precision. Cardinality of field [{}] is too high", actualField.get());
+                    "Cannot calculate average precision. Cardinality of field [{}] is too high",
+                    actualField.get()
+                );
             }
             topActualClassNames.set(
-                topActualClassesAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList()));
+                topActualClassesAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList())
+            );
         }
-        if (result.get() == null &&
-                aggs.get(BY_PREDICTED_CLASS_AGG_NAME) instanceof Filters &&
-                aggs.get(AVG_PRECISION_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
-            Filters byPredictedClassAgg = aggs.get(BY_PREDICTED_CLASS_AGG_NAME);
-            NumericMetricsAggregation.SingleValue avgPrecisionAgg = aggs.get(AVG_PRECISION_AGG_NAME);
+        final Aggregation byPredicted = aggs.get(BY_PREDICTED_CLASS_AGG_NAME);
+        final Aggregation avgPrecision = aggs.get(AVG_PRECISION_AGG_NAME);
+        if (result.get() == null
+            && byPredicted instanceof Filters byPredictedClassAgg
+            && avgPrecision instanceof NumericMetricsAggregation.SingleValue avgPrecisionAgg) {
             List<PerClassSingleValue> classes = new ArrayList<>(byPredictedClassAgg.getBuckets().size());
             for (Filters.Bucket bucket : byPredictedClassAgg.getBuckets()) {
                 String className = bucket.getKeyAsString();
@@ -167,8 +179,7 @@ public class Precision implements EvaluationMetric {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -195,8 +206,11 @@ public class Precision implements EvaluationMetric {
         private static final ParseField AVG_PRECISION = new ParseField("avg_precision");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("precision_result", true, a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1]));
+        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
+            "precision_result",
+            true,
+            a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1])
+        );
 
         static {
             PARSER.declareObjectArray(constructorArg(), PerClassSingleValue.PARSER, CLASSES);
@@ -218,7 +232,7 @@ public class Precision implements EvaluationMetric {
         }
 
         public Result(StreamInput in) throws IOException {
-            this.classes = Collections.unmodifiableList(in.readList(PerClassSingleValue::new));
+            this.classes = in.readImmutableList(PerClassSingleValue::new);
             this.avgPrecision = in.readDouble();
         }
 
@@ -260,8 +274,7 @@ public class Precision implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(this.classes, that.classes)
-                && this.avgPrecision == that.avgPrecision;
+            return Objects.equals(this.classes, that.classes) && this.avgPrecision == that.avgPrecision;
         }
 
         @Override

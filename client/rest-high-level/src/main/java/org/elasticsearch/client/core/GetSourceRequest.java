@@ -30,8 +30,7 @@ public final class GetSourceRequest implements Validatable {
     }
 
     public static GetSourceRequest from(GetRequest getRequest) {
-        return new GetSourceRequest(getRequest.index(), getRequest.id())
-            .routing(getRequest.routing())
+        return new GetSourceRequest(getRequest.index(), getRequest.id()).routing(getRequest.routing())
             .preference(getRequest.preference())
             .refresh(getRequest.refresh())
             .realtime(getRequest.realtime())

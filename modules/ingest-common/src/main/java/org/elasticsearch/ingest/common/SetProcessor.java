@@ -39,8 +39,15 @@ public final class SetProcessor extends AbstractProcessor {
         this(tag, description, field, value, copyFrom, true, false);
     }
 
-    SetProcessor(String tag, String description, TemplateScript.Factory field, ValueSource value, String copyFrom, boolean overrideEnabled,
-                 boolean ignoreEmptyValue) {
+    SetProcessor(
+        String tag,
+        String description,
+        TemplateScript.Factory field,
+        ValueSource value,
+        String copyFrom,
+        boolean overrideEnabled,
+        boolean ignoreEmptyValue
+    ) {
         super(tag, description);
         this.overrideEnabled = overrideEnabled;
         this.field = field;
@@ -96,8 +103,12 @@ public final class SetProcessor extends AbstractProcessor {
         }
 
         @Override
-        public SetProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                   String description, Map<String, Object> config) throws Exception {
+        public SetProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String copyFrom = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "copy_from");
             String mediaType = ConfigurationUtils.readMediaTypeProperty(TYPE, processorTag, config, "media_type", "application/json");
@@ -108,8 +119,12 @@ public final class SetProcessor extends AbstractProcessor {
             } else {
                 Object value = config.remove("value");
                 if (value != null) {
-                    throw newConfigurationException(TYPE, processorTag, "copy_from",
-                        "cannot set both `copy_from` and `value` in the same processor");
+                    throw newConfigurationException(
+                        TYPE,
+                        processorTag,
+                        "copy_from",
+                        "cannot set both `copy_from` and `value` in the same processor"
+                    );
                 }
             }
 
@@ -117,14 +132,7 @@ public final class SetProcessor extends AbstractProcessor {
             TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", field, scriptService);
             boolean ignoreEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_value", false);
 
-            return new SetProcessor(
-                    processorTag,
-                    description,
-                    compiledTemplate,
-                    valueSource,
-                    copyFrom,
-                    overrideEnabled,
-                    ignoreEmptyValue);
+            return new SetProcessor(processorTag, description, compiledTemplate, valueSource, copyFrom, overrideEnabled, ignoreEmptyValue);
         }
     }
 }

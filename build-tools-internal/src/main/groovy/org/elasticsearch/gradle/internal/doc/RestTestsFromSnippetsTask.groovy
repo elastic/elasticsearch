@@ -68,7 +68,6 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
     RestTestsFromSnippetsTask(ObjectFactory objectFactory) {
         testRoot = objectFactory.directoryProperty()
         TestBuilder builder = new TestBuilder()
-        doFirst { outputRoot().delete() }
         perSnippet builder.&handleSnippet
         doLast builder.&checkUnconverted
         doLast builder.&finishLastTest
@@ -265,19 +264,6 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
                 current.println("        - stash_in_path")
                 current.println("        - stash_path_replace")
                 current.println("        - warnings")
-                if (test.testEnv != null) {
-                    switch (test.testEnv) {
-                    case 'basic':
-                    case 'gold':
-                    case 'platinum':
-                    case 'enterprise':
-                        current.println("        - xpack")
-                        break;
-                    default:
-                        throw new InvalidUserDataException('Unsupported testEnv: '
-                                + test.testEnv)
-                    }
-                }
             }
             if (test.skip) {
                 if (test.continued) {
@@ -405,7 +391,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
         }
 
         private void testTearDown(Snippet snippet) {
-            if (previousTest.testSetup == false && lastDocsPath == snippet.path) {
+            if (previousTest != null && previousTest.testSetup == false && lastDocsPath == snippet.path) {
                 throw new InvalidUserDataException("$snippet must follow test setup or be first")
             }
             setupCurrent(snippet)

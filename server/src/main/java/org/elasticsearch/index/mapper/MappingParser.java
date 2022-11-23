@@ -10,8 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,15 +26,16 @@ import java.util.function.Supplier;
  */
 public final class MappingParser {
     private final Supplier<MappingParserContext> parserContextSupplier;
-    private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
 
-    MappingParser(Supplier<MappingParserContext> parserContextSupplier,
-                  Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-                  Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
-                  Function<String, String> documentTypeResolver) {
+    MappingParser(
+        Supplier<MappingParserContext> parserContextSupplier,
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
+        Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
+        Function<String, String> documentTypeResolver
+    ) {
         this.parserContextSupplier = parserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
         this.metadataMappersSupplier = metadataMappersSupplier;
@@ -89,16 +90,20 @@ public final class MappingParser {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
+        if (type.isEmpty()) {
+            throw new MapperParsingException("type cannot be an empty string");
+        }
         return parse(type, mapping);
     }
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
-        ContentPath contentPath = new ContentPath(1);
         MappingParserContext parserContext = parserContextSupplier.get();
-        RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(contentPath);
+
+        RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mapping, parserContext);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
+        boolean isSourceSynthetic = false;
 
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -110,14 +115,17 @@ public final class MappingParser {
             if (typeParser != null) {
                 iterator.remove();
                 if (false == fieldNode instanceof Map) {
-                    throw new IllegalArgumentException("[_parent] must be an object containing [type]");
+                    throw new IllegalArgumentException("[" + fieldName + "] config must be an object");
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, parserContext).build(contentPath);
+                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, parserContext)
+                    .build(MapperBuilderContext.forMetadata());
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
-                fieldNodeMap.remove("type");
-                checkNoRemainingFields(fieldName, fieldNodeMap);
+                assert fieldNodeMap.isEmpty();
+                if (metadataFieldMapper instanceof SourceFieldMapper sfm) {
+                    isSourceSynthetic = sfm.isSynthetic();
+                }
             }
         }
 
@@ -140,11 +148,15 @@ public final class MappingParser {
              */
             meta = Collections.unmodifiableMap(new HashMap<>(removed));
         }
-        checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
+        if (parserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
+            // legacy indices are allowed to have extra definitions that we ignore (we will drop them on import)
+            checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
+        }
 
         return new Mapping(
-            rootObjectMapper,
+            rootObjectMapper.build(MapperBuilderContext.root(isSourceSynthetic)),
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
-            meta);
+            meta
+        );
     }
 }

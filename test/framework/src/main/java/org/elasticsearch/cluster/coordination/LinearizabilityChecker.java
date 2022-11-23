@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -164,6 +164,7 @@ public class LinearizabilityChecker {
         public List<Event> copyEvents() {
             return new ArrayList<>(events);
         }
+
         /**
          * Completes the history with response events for invocations that are missing corresponding responses
          *
@@ -200,10 +201,7 @@ public class LinearizabilityChecker {
 
         @Override
         public String toString() {
-            return "History{" +
-                "events=" + events +
-                ", nextId=" + nextId +
-                '}';
+            return "History{" + "events=" + events + ", nextId=" + nextId + '}';
         }
 
     }
@@ -229,8 +227,12 @@ public class LinearizabilityChecker {
      * @param terminateEarly a condition upon which to terminate early
      * @return true iff the history is linearizable w.r.t. the given spec
      */
-    public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator,
-                                  BooleanSupplier terminateEarly) {
+    public boolean isLinearizable(
+        SequentialSpec spec,
+        History history,
+        Function<Object, Object> missingResponseGenerator,
+        BooleanSupplier terminateEarly
+    ) {
         history = history.clone(); // clone history before completing it
         history.complete(missingResponseGenerator); // complete history
         final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
@@ -289,9 +291,7 @@ public class LinearizabilityChecker {
      * Convenience method for {@link #isLinearizable(SequentialSpec, History, Function)} that requires the history to be complete
      */
     public boolean isLinearizable(SequentialSpec spec, History history) {
-        return isLinearizable(spec, history, o -> {
-            throw new IllegalArgumentException("history is not complete");
-        });
+        return isLinearizable(spec, history, o -> { throw new IllegalArgumentException("history is not complete"); });
     }
 
     /**
@@ -304,9 +304,10 @@ public class LinearizabilityChecker {
         StringBuilder builder = new StringBuilder();
         partitions.forEach(new Consumer<List<Event>>() {
             int index = 0;
+
             @Override
             public void accept(List<Event> events) {
-                builder.append("Partition " ).append(index++).append("\n");
+                builder.append("Partition ").append(index++).append("\n");
                 builder.append(visualizePartition(events));
             }
         });
@@ -337,9 +338,14 @@ public class LinearizabilityChecker {
         int beginIndex = eventToPosition.get(Tuple.tuple(EventType.INVOCATION, id));
         int endIndex = eventToPosition.get(Tuple.tuple(EventType.RESPONSE, id));
         input = input.substring(0, Math.min(beginIndex + 25, input.length()));
-        return Strings.padStart(input, beginIndex + 25, ' ') +
-            "   "  + Strings.padStart("", endIndex-beginIndex, 'X') + "   "
-            + output + "  (" + entry.event.id + ")";
+        return Strings.padStart(input, beginIndex + 25, ' ')
+            + "   "
+            + Strings.padStart("", endIndex - beginIndex, 'X')
+            + "   "
+            + output
+            + "  ("
+            + entry.event.id
+            + ")";
     }
 
     /**
@@ -394,26 +400,7 @@ public class LinearizabilityChecker {
         RESPONSE
     }
 
-    public static class Event {
-        public final EventType type;
-        public final Object value;
-        public final int id;
-
-        public Event(EventType type, Object value, int id) {
-            this.type = type;
-            this.value = value;
-            this.id = id;
-        }
-
-        @Override
-        public String toString() {
-            return "Event{" +
-                "type=" + type +
-                ", value=" + value +
-                ", id=" + id +
-                '}';
-        }
-    }
+    public record Event(EventType type, Object value, int id) {}
 
     static class Entry {
         final Event event;
@@ -449,7 +436,6 @@ public class LinearizabilityChecker {
         }
     }
 
-
     /**
      * A cache optimized for small bit-counts (less than 64) and small number of unique permutations of state objects.
      *
@@ -473,7 +459,7 @@ public class LinearizabilityChecker {
      */
     private static class Cache {
         private final Map<Object, Set<FixedBitSet>> largeMap = new HashMap<>();
-        private final LongObjectHashMap<Set<Object>> smallMap = new LongObjectHashMap<>();
+        private final Map<Long, Set<Object>> smallMap = new HashMap<>();
         private final Map<Object, Object> internalizeStateMap = new HashMap<>();
         private final Map<Set<Object>, Set<Object>> statePermutations = new HashMap<>();
 
@@ -487,22 +473,18 @@ public class LinearizabilityChecker {
 
         private boolean addInternal(Object state, FixedBitSet bitSet) {
             long[] bits = bitSet.getBits();
-            if (bits.length == 1)
-                return addSmall(state, bits[0]);
-            else
-                return addLarge(state, bitSet);
+            if (bits.length == 1) return addSmall(state, bits[0]);
+            else return addLarge(state, bitSet);
         }
 
         private boolean addSmall(Object state, long bits) {
-            int index = smallMap.indexOf(bits);
-            Set<Object> states;
-            if (index < 0) {
-                states = Collections.singleton(state);
+            Set<Object> states = smallMap.get(bits);
+            if (states == null) {
+                states = Set.of(state);
             } else {
-                Set<Object> oldStates = smallMap.indexGet(index);
-                if (oldStates.contains(state))
-                    return false;
-                states = new HashSet<>(oldStates.size() + 1);
+                Set<Object> oldStates = states;
+                if (oldStates.contains(state)) return false;
+                states = Sets.newHashSetWithExpectedSize(oldStates.size() + 1);
                 states.addAll(oldStates);
                 states.add(state);
             }
@@ -511,11 +493,7 @@ public class LinearizabilityChecker {
             // We thus avoid the overhead of the set data structure.
             states = statePermutations.computeIfAbsent(states, k -> k);
 
-            if (index < 0) {
-                smallMap.indexInsert(index, bits, states);
-            } else {
-                smallMap.indexReplace(index, states);
-            }
+            smallMap.put(bits, states);
 
             return true;
         }

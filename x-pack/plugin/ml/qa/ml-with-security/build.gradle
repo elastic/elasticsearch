@@ -2,13 +2,13 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  yamlRestTestImplementation(testArtifact(xpackProject('plugin')))
+  yamlRestTestImplementation(testArtifact(project(':x-pack:plugin')))
 }
 
 // bring in machine learning rest test suite
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat', 'semantic_search'
   }
   restTests {
     includeXpack 'ml'
@@ -20,13 +20,16 @@ tasks.named("yamlRestTest").configure {
     // Remove these tests because they don't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite
     'ml/ml_classic_analyze/Test analyze API with an analyzer that does what we used to do in native code',
-    'ml/ml_standard_analyze/Test analyze API with the standard 7.14 ML analyzer',
-    'ml/ml_standard_analyze/Test 7.14 analyzer with blank lines',
-    'ml/ml_standard_analyze/Test 7.14 analyzer with multiple multiline messages',
-    'ml/ml_standard_analyze/Test 7.14 analyzer with stop words in messages',
+    'ml/ml_standard_analyze/Test analyze API with the standard 7.16 ML analyzer',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with blank lines',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with multiple multiline messages',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with stop words in messages',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with stop words in messages and strange lines without letters',
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
     'ml/3rd_party_deployment/Test start deployment fails with missing model definition',
+    'ml/3rd_party_deployment/Test start deployment with low priority and multiple allocations',
+    'ml/3rd_party_deployment/Test start deployment with low priority and multiple threads per allocation',
     'ml/calendar_crud/Test get calendar given missing',
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',
@@ -34,6 +37,14 @@ tasks.named("yamlRestTest").configure {
     'ml/calendar_crud/Test put calendar given id contains invalid chars',
     'ml/calendar_crud/Test delete event from non existing calendar',
     'ml/calendar_crud/Test delete job from non existing calendar',
+    // These are searching tests with aggregations, and do not call any ML endpoints
+    'ml/categorization_agg/Test categorization agg simple',
+    'ml/categorization_agg/Test categorization aggregation against unsupported field',
+    'ml/categorization_agg/Test categorization aggregation with poor settings',
+    'ml/change_point_agg/Test change_point agg simple',
+    'ml/change_point_agg/Test change_point with missing buckets_path',
+    'ml/change_point_agg/Test change_point with bad buckets_path',
+    'ml/change_point_agg/Test change_point with too few buckets',
     'ml/custom_all_field/Test querying custom all field',
     'ml/datafeeds_crud/Test delete datafeed with missing id',
     'ml/datafeeds_crud/Test put datafeed referring to missing job_id',
@@ -145,7 +156,8 @@ tasks.named("yamlRestTest").configure {
     'ml/filter_crud/Test get all filter given index exists but no mapping for filter_id',
     'ml/get_datafeed_stats/Test get datafeed stats given missing datafeed_id',
     'ml/get_datafeeds/Test get datafeed given missing datafeed_id',
-    'ml/inference_crud/Test delete given used trained model',
+    'ml/inference_crud/Test delete given model referenced by pipeline',
+    'ml/inference_crud/Test delete given model with alias referenced by pipeline',
     'ml/inference_crud/Test delete with missing model',
     'ml/inference_crud/Test get given missing trained model',
     'ml/inference_crud/Test get given expression without matches and allow_no_match is false',
@@ -161,6 +173,8 @@ tasks.named("yamlRestTest").configure {
     'ml/inference_crud/Test delete model alias where alias points to different model',
     'ml/inference_crud/Test put with defer_definition_decompression with invalid compression definition and no memory estimate',
     'ml/inference_crud/Test put with defer_definition_decompression with invalid definition and no memory estimate',
+    'ml/inference_crud/Test put nlp model config with vocabulary set',
+    'ml/inference_crud/Test put model model aliases with nlp model',
     'ml/inference_processor/Test create processor with missing mandatory fields',
     'ml/inference_stats_crud/Test get stats given missing trained model',
     'ml/inference_stats_crud/Test get stats given expression without matches and allow_no_match is false',
@@ -222,13 +236,14 @@ tasks.named("yamlRestTest").configure {
     'ml/set_upgrade_mode/Attempt to open job when upgrade_mode is enabled',
     'ml/set_upgrade_mode/Setting upgrade_mode to enabled',
     'ml/set_upgrade_mode/Setting upgrade mode to disabled from enabled',
-    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false'
+    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false',
+    'ml/update_trained_model_deployment/Test with unknown model id'
   ].join(',')
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
-  extraConfigFile 'roles.yml', file('roles.yml')
+  rolesFile file('roles.yml')
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   user username: "ml_admin", password: "x-pack-test-password", role: "minimal,machine_learning_admin,ingest_admin"
   user username: "ml_user", password: "x-pack-test-password", role: "minimal,machine_learning_user"

@@ -8,10 +8,10 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 
 /**
  * Base class for {@link Runnable}s that need to call {@link ActionListener#onFailure(Exception)} in case an uncaught
@@ -44,7 +44,17 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
      * @return Wrapped {@code Runnable}
      */
     public static <T> ActionRunnable<T> supply(ActionListener<T> listener, CheckedSupplier<T, Exception> supplier) {
-        return ActionRunnable.wrap(listener, l -> l.onResponse(supplier.get()));
+        return ActionRunnable.wrap(listener, new CheckedConsumer<>() {
+            @Override
+            public void accept(ActionListener<T> l) throws Exception {
+                l.onResponse(supplier.get());
+            }
+
+            @Override
+            public String toString() {
+                return supplier.toString();
+            }
+        });
     }
 
     /**
@@ -60,6 +70,11 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
             @Override
             protected void doRun() throws Exception {
                 consumer.accept(listener);
+            }
+
+            @Override
+            public String toString() {
+                return "ActionRunnable#wrap[" + consumer + "]";
             }
         };
     }

@@ -11,15 +11,17 @@ package org.elasticsearch.common.util;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
-import java.util.TreeMap;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.Map.entry;
 
 public class Maps {
 
@@ -36,10 +38,8 @@ public class Maps {
      */
     @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> copyMapWithAddedEntry(final Map<K, V> map, final K key, final V value) {
-        Objects.requireNonNull(map);
-        Objects.requireNonNull(key);
-        Objects.requireNonNull(value);
-        assert checkIsImmutableMap(map, key, value);
+        assert assertIsImmutableMapAndNonNullKey(map, key, value);
+        assert value != null;
         assert map.containsKey(key) == false : "expected entry [" + key + "] to not already be present in map";
         @SuppressWarnings("rawtypes")
         final Map.Entry<K, V>[] entries = new Map.Entry[map.size() + 1];
@@ -59,13 +59,26 @@ public class Maps {
      * @param <V>   the type of the values in the map
      * @return an immutable map that contains the items from the specified map and a mapping from the specified key to the specified value
      */
+    @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> copyMapWithAddedOrReplacedEntry(final Map<K, V> map, final K key, final V value) {
-        Objects.requireNonNull(map);
-        Objects.requireNonNull(key);
-        Objects.requireNonNull(value);
-        assert checkIsImmutableMap(map, key, value);
-        return Stream.concat(map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false), Stream.of(entry(key, value)))
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        final V existing = map.get(key);
+        if (existing == null) {
+            return copyMapWithAddedEntry(map, key, value);
+        }
+        assert assertIsImmutableMapAndNonNullKey(map, key, value);
+        assert value != null;
+        @SuppressWarnings("rawtypes")
+        final Map.Entry<K, V>[] entries = new Map.Entry[map.size()];
+        boolean replaced = false;
+        int i = 0;
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            if (replaced == false && entry.getKey().equals(key)) {
+                entry = Map.entry(entry.getKey(), value);
+                replaced = true;
+            }
+            entries[i++] = entry;
+        }
+        return Map.ofEntries(entries);
     }
 
     /**
@@ -79,10 +92,10 @@ public class Maps {
      * @return an immutable map that contains the items from the specified map with the provided key removed
      */
     public static <K, V> Map<K, V> copyMapWithRemovedEntry(final Map<K, V> map, final K key) {
-        Objects.requireNonNull(map);
-        Objects.requireNonNull(key);
-        assert checkIsImmutableMap(map, key, map.get(key));
-        return map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false)
+        assert assertIsImmutableMapAndNonNullKey(map, key, map.get(key));
+        return map.entrySet()
+            .stream()
+            .filter(k -> key.equals(k.getKey()) == false)
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
@@ -94,7 +107,8 @@ public class Maps {
         Map.of("a", "b").getClass()
     );
 
-    private static <K, V> boolean checkIsImmutableMap(final Map<K, V> map, final K key, final V value) {
+    private static <K, V> boolean assertIsImmutableMapAndNonNullKey(final Map<K, V> map, final K key, final V value) {
+        assert key != null;
         // check in the known immutable classes map first, most of the time we don't need to actually do the put and throw which is slow to
         // the point of visibly slowing down internal cluster tests without this short-cut
         if (IMMUTABLE_MAP_CLASSES.contains(map.getClass())) {
@@ -103,8 +117,7 @@ public class Maps {
         try {
             map.put(key, value);
             return false;
-        } catch (final UnsupportedOperationException ignored) {
-        }
+        } catch (final UnsupportedOperationException ignored) {}
         return true;
     }
 
@@ -118,7 +131,8 @@ public class Maps {
      * @return an immutable map containing the specified entries
      */
     public static <K, V> Map<K, V> ofEntries(final Collection<Map.Entry<K, V>> entries) {
-        @SuppressWarnings("unchecked") final Map<K, V> map = Map.ofEntries(entries.toArray(Map.Entry[]::new));
+        @SuppressWarnings("unchecked")
+        final Map<K, V> map = Map.ofEntries(entries.toArray(Map.Entry[]::new));
         return map;
     }
 
@@ -137,7 +151,8 @@ public class Maps {
         if (left == null || right == null || left.size() != right.size()) {
             return false;
         }
-        return left.entrySet().stream()
+        return left.entrySet()
+            .stream()
             .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
     }
 
@@ -189,5 +204,138 @@ public class Maps {
             }
         }
         return flatMap;
+    }
+
+    /**
+     * Returns a {@link Collector} that accumulates the input elements into a sorted map and finishes the resulting set into an
+     * unmodifiable sorted map. The resulting read-only view through the unmodifiable sorted map is a sorted map.
+     *
+     * @param <T> the type of the input elements
+     * @return an unmodifiable {@link NavigableMap} where the underlying map is sorted
+     */
+    public static <T, K, V> Collector<T, ?, NavigableMap<K, V>> toUnmodifiableSortedMap(
+        Function<T, ? extends K> keyMapper,
+        Function<T, ? extends V> valueMapper
+    ) {
+        return Collectors.collectingAndThen(
+            Collectors.toMap(
+                keyMapper,
+                valueMapper,
+                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
+                () -> new TreeMap<K, V>()
+            ),
+            Collections::unmodifiableNavigableMap
+        );
+    }
+
+    /**
+     * Returns a {@link Collector} that accumulates the input elements into a linked hash map and finishes the resulting set into an
+     * unmodifiable map. The resulting read-only view through the unmodifiable map is a linked hash map.
+     *
+     * @param <T> the type of the input elements
+     * @return an unmodifiable {@link Map} where the underlying map has a consistent order
+     */
+    public static <T, K, V> Collector<T, ?, Map<K, V>> toUnmodifiableOrderedMap(
+        Function<T, ? extends K> keyMapper,
+        Function<T, ? extends V> valueMapper
+    ) {
+        return Collectors.collectingAndThen(
+            Collectors.toMap(
+                keyMapper,
+                valueMapper,
+                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
+                (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new
+            ),
+            Collections::unmodifiableMap
+        );
+    }
+
+    /**
+     * Returns a map with a capacity sufficient to keep expectedSize elements without being resized.
+     *
+     * @param expectedSize the expected amount of elements in the map
+     * @param <K> the key type
+     * @param <V> the value type
+     * @return a new pre-sized {@link HashMap}
+     */
+    public static <K, V> Map<K, V> newMapWithExpectedSize(int expectedSize) {
+        return newHashMapWithExpectedSize(expectedSize);
+    }
+
+    /**
+     * Returns a hash map with a capacity sufficient to keep expectedSize elements without being resized.
+     *
+     * @param expectedSize the expected amount of elements in the map
+     * @param <K> the key type
+     * @param <V> the value type
+     * @return a new pre-sized {@link HashMap}
+     */
+    public static <K, V> Map<K, V> newHashMapWithExpectedSize(int expectedSize) {
+        return new HashMap<>(capacity(expectedSize));
+    }
+
+    /**
+     * Returns a linked hash map with a capacity sufficient to keep expectedSize elements without being resized.
+     *
+     * @param expectedSize the expected amount of elements in the map
+     * @param <K> the key type
+     * @param <V> the value type
+     * @return a new pre-sized {@link LinkedHashMap}
+     */
+    public static <K, V> LinkedHashMap<K, V> newLinkedHashMapWithExpectedSize(int expectedSize) {
+        return new LinkedHashMap<>(capacity(expectedSize));
+    }
+
+    static int capacity(int expectedSize) {
+        assert expectedSize >= 0;
+        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
+    }
+
+    /**
+     * This method creates a copy of the {@code source} map using {@code copyValueFunction} to create a defensive copy of each value.
+     */
+    public static <K, V> Map<K, V> copyOf(Map<K, V> source, Function<V, V> copyValueFunction) {
+        var copy = Maps.<K, V>newHashMapWithExpectedSize(source.size());
+        for (var entry : source.entrySet()) {
+            copy.put(entry.getKey(), copyValueFunction.apply(entry.getValue()));
+        }
+        return copy;
+    }
+
+    /**
+     * An immutable implementation of {@link Map.Entry}.
+     * @param key key
+     * @param value value
+     */
+    public record ImmutableEntry<KType, VType> (KType key, VType value) implements Map.Entry<KType, VType> {
+
+        @Override
+        public KType getKey() {
+            return key;
+        }
+
+        @Override
+        public VType getValue() {
+            return value;
+        }
+
+        @Override
+        public VType setValue(VType value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if ((o instanceof Map.Entry) == false) return false;
+            Map.Entry that = (Map.Entry) o;
+            return Objects.equals(key, that.getKey()) && Objects.equals(value, that.getValue());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(key) ^ Objects.hashCode(value);
+        }
     }
 }

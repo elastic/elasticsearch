@@ -11,7 +11,7 @@ IPv4 or IPv6 address.
 By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2
 ASN GeoIP2 databases from
 http://dev.maxmind.com/geoip/geoip2/geolite2/[MaxMind], shared under the
-CCA-ShareAlike 4.0 license. {es} automatically downloads updates for
+CC BY-SA 4.0 license. {es} automatically downloads updates for
 these databases from the Elastic GeoIP endpoint:
 https://geoip.elastic.co/v1/database. To get download statistics for these
 updates, use the <<geoip-stats-api,GeoIP stats API>>.
@@ -69,7 +69,7 @@ PUT _ingest/pipeline/geoip
 }
 PUT my-index-000001/_doc/my_id?pipeline=geoip
 {
-  "ip": "8.8.8.8"
+  "ip": "89.160.20.128"
 }
 GET my-index-000001/_doc/my_id
 --------------------------------------------------
@@ -86,12 +86,15 @@ Which returns:
   "_seq_no": 55,
   "_primary_term": 1,
   "_source": {
-    "ip": "8.8.8.8",
+    "ip": "89.160.20.128",
     "geoip": {
-      "continent_name": "North America",
-      "country_name": "United States",
-      "country_iso_code": "US",
-      "location": { "lat": 37.751, "lon": -97.822 }
+      "continent_name": "Europe",
+      "country_name": "Sweden",
+      "country_iso_code": "SE",
+      "city_name" : "Linköping",
+      "region_iso_code" : "SE-E",
+      "region_name" : "Östergötland County",
+      "location": { "lat": 58.4167, "lon": 15.6167 }
     }
   }
 }
@@ -119,7 +122,7 @@ PUT _ingest/pipeline/geoip
 }
 PUT my-index-000001/_doc/my_id?pipeline=geoip
 {
-  "ip": "8.8.8.8"
+  "ip": "89.160.20.128"
 }
 GET my-index-000001/_doc/my_id
 --------------------------------------------------
@@ -136,11 +139,11 @@ returns this:
   "_seq_no": 65,
   "_primary_term": 1,
   "_source": {
-    "ip": "8.8.8.8",
+    "ip": "89.160.20.128",
     "geo": {
-      "continent_name": "North America",
-      "country_name": "United States",
-      "country_iso_code": "US",
+      "continent_name": "Europe",
+      "country_name": "Sweden",
+      "country_iso_code": "SE"
     }
   }
 }
@@ -236,7 +239,7 @@ PUT _ingest/pipeline/geoip
 
 PUT my_ip_locations/_doc/1?refresh=true&pipeline=geoip
 {
-  "ip": "8.8.8.8"
+  "ip": "89.160.20.128"
 }
 
 GET /my_ip_locations/_search
@@ -250,8 +253,8 @@ GET /my_ip_locations/_search
         "geo_distance": {
           "distance": "1m",
           "geoip.location": {
-            "lon": -97.822,
-            "lat": 37.751
+            "lon": 15.6167,
+            "lat": 58.4167
           }
         }
       }
@@ -285,15 +288,18 @@ GET /my_ip_locations/_search
         "_score" : 1.0,
         "_source" : {
           "geoip" : {
-            "continent_name" : "North America",
-            "country_name" : "United States",
-            "country_iso_code" : "US",
+            "continent_name" : "Europe",
+            "country_name" : "Sweden",
+            "country_iso_code" : "SE",
+            "city_name" : "Linköping",
+            "region_iso_code" : "SE-E",
+            "region_name" : "Östergötland County",
             "location" : {
-              "lon" : -97.822,
-              "lat" : 37.751
+              "lon" : 15.6167,
+              "lat" : 58.4167
             }
           },
-          "ip" : "8.8.8.8"
+          "ip" : "89.160.20.128"
         }
       }
     ]
@@ -320,6 +326,12 @@ If you can't connect directly to the Elastic GeoIP endpoint, consider setting up
 a secure proxy. You can then specify the proxy endpoint URL in the
 <<ingest-geoip-downloader-endpoint,`ingest.geoip.downloader.endpoint`>> setting
 of each node’s `elasticsearch.yml` file.
+
+In a strict setup the following domains may need to be added to the allowed
+domains list:
+
+* `geoip.elastic.co`
+* `storage.googleapis.com`
 
 [[use-custom-geoip-endpoint]]
 **Use a custom endpoint**
@@ -352,14 +364,14 @@ docker run -v my/source/dir:/usr/share/nginx/html:ro nginx
 of each node’s `elasticsearch.yml` file.
 +
 By default, {es} checks the endpoint for updates every three days. To use
-another polling interval, use the <<cluster-update-settings,update cluster
+another polling interval, use the <<cluster-update-settings,cluster update
 settings API>> to set
 <<ingest-geoip-downloader-poll-interval,`ingest.geoip.downloader.poll.interval`>>.
 
 [[manually-update-geoip-databases]]
 **Manually update your GeoIP2 databases**
 
-. Use the <<cluster-update-settings,update cluster settings API>> to set
+. Use the <<cluster-update-settings,cluster update settings API>> to set
 `ingest.geoip.downloader.enabled` to `false`. This disables automatic updates
 that may overwrite your database changes. This also deletes all downloaded
 databases.
@@ -403,10 +415,11 @@ updates and deletes all downloaded databases. Defaults to `true`.
 [[ingest-geoip-downloader-endpoint]]
 `ingest.geoip.downloader.endpoint`::
 (<<static-cluster-setting,Static>>, string)
-Endpoint URL used to download updates for GeoIP2 databases. Defaults to
-`https://geoip.elastic.co/v1/database`. {es} stores downloaded database files in
-each node's <<es-tmpdir,temporary directory>> at
-`$ES_TMPDIR/geoip-databases/<node_id>`.
+Endpoint URL used to download updates for GeoIP2 databases. For example, `https://myDomain.com/overview.json`.
+Defaults to `https://geoip.elastic.co/v1/database`. {es} stores downloaded database files in
+each node's <<es-tmpdir,temporary directory>> at `$ES_TMPDIR/geoip-databases/<node_id>`.
+Note that {es} will make a GET request to `${ingest.geoip.downloader.endpoint}?elastic_geoip_service_tos=agree`,
+expecting the list of metadata about databases typically found in `overview.json`.
 
 [[ingest-geoip-downloader-poll-interval]]
 `ingest.geoip.downloader.poll.interval`::

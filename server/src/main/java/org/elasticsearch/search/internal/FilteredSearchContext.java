@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -63,8 +64,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void preProcess(boolean rewrite) {
-        in.preProcess(rewrite);
+    public void preProcess() {
+        in.preProcess();
     }
 
     @Override
@@ -312,7 +313,6 @@ public abstract class FilteredSearchContext extends SearchContext {
         return in.size(size);
     }
 
-
     @Override
     public boolean explain() {
         return in.explain();
@@ -359,8 +359,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
-        return in.docIdsToLoad(docIdsToLoad, docsIdsToLoadSize);
+    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
+        return in.docIdsToLoad(docIdsToLoad);
     }
 
     @Override
@@ -404,7 +404,9 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() { return in.queryCollectors();}
+    public Map<Class<?>, Collector> queryCollectors() {
+        return in.queryCollectors();
+    }
 
     @Override
     public SearchExecutionContext getSearchExecutionContext() {
@@ -444,5 +446,10 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return in.readerContext();
+    }
+
+    @Override
+    public SourceLoader newSourceLoader() {
+        return in.newSourceLoader();
     }
 }

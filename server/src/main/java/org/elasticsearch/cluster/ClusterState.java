@@ -8,13 +8,15 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,7 +27,10 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,10 +41,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -47,28 +54,52 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.StreamSupport;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
+
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
- * Represents the current state of the cluster.
+ * Represents the state of the cluster, held in memory on all nodes in the cluster with updates coordinated by the elected master.
  * <p>
- * The cluster state object is immutable with the exception of the {@link RoutingNodes} structure, which is built on demand from the {@link
- * RoutingTable}. The cluster state can be updated only on the master node. All updates are performed by on a single thread and controlled
- * by the {@link ClusterService}. After every update the {@link Discovery#publish} method publishes a new version of the cluster state to
- * all other nodes in the cluster.
+ * Conceptually immutable, but in practice it has a few components like {@link RoutingNodes} which are pure functions of the immutable state
+ * but are expensive to compute so they are built on-demand if needed.
  * <p>
- * Implements the {@link Diffable} interface in order to support publishing of cluster state differences instead of the entire state on each
- * change. The publishing mechanism only sends differences to a node if this node was present in the previous version of the cluster state.
- * If a node was not present in the previous version of the cluster state, this node is unlikely to have the previous cluster state version
- * and should be sent a complete version. In order to make sure that the differences are applied to the correct version of the cluster
- * state, each cluster state version update generates {@link #stateUUID} that uniquely identifies this version of the state. This uuid is
- * verified by the {@link ClusterStateDiff#apply} method to make sure that the correct diffs are applied. If uuids don’t match, the {@link
- * ClusterStateDiff#apply} method throws the {@link IncompatibleClusterStateVersionException}, which causes the publishing mechanism to send
- * a full version of the cluster state to the node on which this exception was thrown.
+ * The {@link Metadata} portion is written to disk on each update so it persists across full-cluster restarts. The rest of this data is
+ * maintained only in-memory and resets back to its initial state on a full-cluster restart, but it is held on all nodes so it persists
+ * across master elections (and therefore is preserved in a rolling restart).
+ * <p>
+ * Updates are triggered by submitting tasks to the {@link MasterService} on the elected master, typically using a {@link
+ * TransportMasterNodeAction} to route a request to the master on which the task is submitted with {@link
+ * ClusterService#submitStateUpdateTask}. Submitted tasks have an associated {@link ClusterStateTaskConfig} which defines a priority and a
+ * timeout. Tasks are processed in priority order, so a flood of higher-priority tasks can starve lower-priority ones from running.
+ * Therefore, avoid priorities other than {@link Priority#NORMAL} where possible. Tasks associated with client actions should typically have
+ * a timeout, or otherwise be sensitive to client cancellations, to avoid surprises caused by the execution of stale tasks long after they
+ * are submitted (since clients themselves tend to time out). In contrast, internal tasks can reasonably have an infinite timeout,
+ * especially if a timeout would simply trigger a retry.
+ * <p>
+ * Tasks that share the same {@link ClusterStateTaskExecutor} instance are processed as a batch. Each batch of tasks yields a new {@link
+ * ClusterState} which is published to the cluster by {@link ClusterStatePublisher#publish}. Publication usually works by sending a diff,
+ * computed via the {@link Diffable} interface, rather than the full state, although it will fall back to sending the full state if the
+ * receiving node is new or it has missed out on an intermediate state for some reason. States and diffs are published using the transport
+ * protocol, i.e. the {@link Writeable} interface and friends.
+ * <p>
+ * When committed, the new state is <i>applied</i> which exposes it to the node via {@link ClusterStateApplier} and {@link
+ * ClusterStateListener} callbacks registered with the {@link ClusterApplierService}. The new state is also made available via {@link
+ * ClusterService#state()}. The appliers are notified (in no particular order) before {@link ClusterService#state()} is updated, and the
+ * listeners are notified (in no particular order) afterwards. Cluster state updates run in sequence, one-by-one, so they can be a
+ * performance bottleneck. See the JavaDocs on the linked classes and methods for more details.
+ * <p>
+ * Cluster state updates can be used to trigger various actions via a {@link ClusterStateListener} rather than using a timer.
  * <p>
  * Implements {@link ToXContentFragment} to be exposed in REST APIs (e.g. {@code GET _cluster/state} and {@code POST _cluster/reroute}) and
- * to be indexed by monitoring, mostly just for diagnostics purposes. The XContent representation does not need to be 100% faithful since we
- * never reconstruct a cluster state from its XContent representation, but the more faithful it is the more useful it is for diagnostics.
+ * to be indexed by monitoring, mostly just for diagnostics purposes. The {@link XContent} representation does not need to be 100% faithful
+ * since we never reconstruct a cluster state from its XContent representation, but the more faithful it is the more useful it is for
+ * diagnostics. Note that the {@link XContent} representation of the {@link Metadata} portion does have to be faithful (in {@link
+ * Metadata.XContentContext#GATEWAY} context) since this is how it persists across full cluster restarts.
+ * <p>
+ * Security-sensitive data such as passwords or private keys should not be stored in the cluster state, since the contents of the cluster
+ * state are exposed in various APIs.
  */
 public class ClusterState implements ToXContentFragment, Diffable<ClusterState> {
 
@@ -99,10 +130,20 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public static final long UNKNOWN_VERSION = -1;
 
+    /**
+     * Monotonically increasing on (and therefore uniquely identifies) <i>committed</i> states. However sometimes a state is created/applied
+     * without committing it, for instance to add a {@link NoMasterBlockService#getNoMasterBlock}.
+     */
     private final long version;
 
+    /**
+     * Uniquely identifies this state, even if the state is not committed.
+     */
     private final String stateUUID;
 
+    /**
+     * Describes the location (and state) of all shards, used for routing actions such as searches to the relevant shards.
+     */
     private final RoutingTable routingTable;
 
     private final DiscoveryNodes nodes;
@@ -111,7 +152,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     private final ClusterBlocks blocks;
 
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final Map<String, Custom> customs;
 
     private final ClusterName clusterName;
 
@@ -121,13 +162,32 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     private volatile RoutingNodes routingNodes;
 
     public ClusterState(long version, String stateUUID, ClusterState state) {
-        this(state.clusterName, version, stateUUID, state.metadata(), state.routingTable(), state.nodes(), state.blocks(),
-                state.customs(), false);
+        this(
+            state.clusterName,
+            version,
+            stateUUID,
+            state.metadata(),
+            state.routingTable(),
+            state.nodes(),
+            state.blocks(),
+            state.customs(),
+            false,
+            state.routingNodes
+        );
     }
 
-    public ClusterState(ClusterName clusterName, long version, String stateUUID, Metadata metadata, RoutingTable routingTable,
-                        DiscoveryNodes nodes, ClusterBlocks blocks, ImmutableOpenMap<String, Custom> customs,
-                        boolean wasReadFromDiff) {
+    public ClusterState(
+        ClusterName clusterName,
+        long version,
+        String stateUUID,
+        Metadata metadata,
+        RoutingTable routingTable,
+        DiscoveryNodes nodes,
+        ClusterBlocks blocks,
+        Map<String, Custom> customs,
+        boolean wasReadFromDiff,
+        @Nullable RoutingNodes routingNodes
+    ) {
         this.version = version;
         this.stateUUID = stateUUID;
         this.clusterName = clusterName;
@@ -137,6 +197,22 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.blocks = blocks;
         this.customs = customs;
         this.wasReadFromDiff = wasReadFromDiff;
+        this.routingNodes = routingNodes;
+        assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
+    }
+
+    private static boolean assertConsistentRoutingNodes(
+        RoutingTable routingTable,
+        DiscoveryNodes nodes,
+        @Nullable RoutingNodes routingNodes
+    ) {
+        if (routingNodes == null) {
+            return true;
+        }
+        final RoutingNodes expected = RoutingNodes.immutable(routingTable, nodes);
+        assert routingNodes.equals(expected)
+            : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + expected + "]";
+        return true;
     }
 
     public long term() {
@@ -167,6 +243,17 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return nodes();
     }
 
+    /**
+     * Returns the set of nodes that should be exposed to things like REST handlers that behave differently depending on the nodes in the
+     * cluster and their versions. Specifically, if the cluster has properly formed then this is the nodes in the last-applied cluster
+     * state, but if the cluster has not properly formed then no nodes are returned.
+     *
+     * @return the nodes in the cluster if the cluster has properly formed, otherwise an empty set of nodes.
+     */
+    public DiscoveryNodes nodesIfRecovered() {
+        return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ? DiscoveryNodes.EMPTY_NODES : nodes;
+    }
+
     public Metadata metadata() {
         return this.metadata;
     }
@@ -195,11 +282,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return blocks;
     }
 
-    public ImmutableOpenMap<String, Custom> customs() {
+    public Map<String, Custom> customs() {
         return this.customs;
     }
 
-    public ImmutableOpenMap<String, Custom> getCustoms() {
+    public Map<String, Custom> getCustoms() {
         return this.customs;
     }
 
@@ -233,38 +320,109 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      * Returns a built (on demand) routing nodes view of the routing table.
      */
     public RoutingNodes getRoutingNodes() {
-        if (routingNodes != null) {
-            return routingNodes;
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
         }
-        routingNodes = new RoutingNodes(this);
-        return routingNodes;
+        r = buildRoutingNodes();
+        return r;
+    }
+
+    private synchronized RoutingNodes buildRoutingNodes() {
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
+        }
+        r = RoutingNodes.immutable(routingTable, nodes);
+        routingNodes = r;
+        return r;
+    }
+
+    /**
+     * Returns a fresh mutable copy of the routing nodes view.
+     */
+    public RoutingNodes mutableRoutingNodes() {
+        final RoutingNodes nodes = this.routingNodes;
+        // use the cheaper copy constructor if we already computed the routing nodes for this state.
+        if (nodes != null) {
+            return nodes.mutableCopy();
+        }
+        // we don't have any routing nodes for this state, likely because it's a temporary state in the reroute logic, don't compute an
+        // immutable copy that will never be used and instead directly build a mutable copy
+        return RoutingNodes.mutable(routingTable, this.nodes);
+    }
+
+    /**
+     * Initialize data structures that lazy computed for this instance in the background by using the giving executor.
+     * @param executor executor to run initialization tasks on
+     */
+    public void initializeAsync(Executor executor) {
+        if (routingNodes == null) {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    getRoutingNodes();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of routing nodes for cluster state " + version();
+                }
+            });
+        }
+        if (metadata.indicesLookupInitialized() == false) {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    metadata.getIndicesLookup();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of indices lookup for cluster state " + version();
+                }
+            });
+        }
     }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         final String TAB = "   ";
-        sb.append("cluster uuid: ").append(metadata.clusterUUID())
-            .append(" [committed: ").append(metadata.clusterUUIDCommitted()).append("]").append("\n");
+        sb.append("cluster uuid: ")
+            .append(metadata.clusterUUID())
+            .append(" [committed: ")
+            .append(metadata.clusterUUIDCommitted())
+            .append("]")
+            .append("\n");
         sb.append("version: ").append(version).append("\n");
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
         sb.append("meta data version: ").append(metadata.version()).append("\n");
         sb.append(TAB).append("coordination_metadata:\n");
         sb.append(TAB).append(TAB).append("term: ").append(coordinationMetadata().term()).append("\n");
-        sb.append(TAB).append(TAB)
-                .append("last_committed_config: ").append(coordinationMetadata().getLastCommittedConfiguration()).append("\n");
-        sb.append(TAB).append(TAB)
-                .append("last_accepted_config: ").append(coordinationMetadata().getLastAcceptedConfiguration()).append("\n");
-        sb.append(TAB).append(TAB)
-                .append("voting tombstones: ").append(coordinationMetadata().getVotingConfigExclusions()).append("\n");
+        sb.append(TAB)
+            .append(TAB)
+            .append("last_committed_config: ")
+            .append(coordinationMetadata().getLastCommittedConfiguration())
+            .append("\n");
+        sb.append(TAB)
+            .append(TAB)
+            .append("last_accepted_config: ")
+            .append(coordinationMetadata().getLastAcceptedConfiguration())
+            .append("\n");
+        sb.append(TAB).append(TAB).append("voting tombstones: ").append(coordinationMetadata().getVotingConfigExclusions()).append("\n");
         for (IndexMetadata indexMetadata : metadata) {
             sb.append(TAB).append(indexMetadata.getIndex());
-            sb.append(": v[").append(indexMetadata.getVersion())
-                    .append("], mv[").append(indexMetadata.getMappingVersion())
-                    .append("], sv[").append(indexMetadata.getSettingsVersion())
-                    .append("], av[").append(indexMetadata.getAliasesVersion())
-                    .append("]\n");
+            sb.append(": v[")
+                .append(indexMetadata.getVersion())
+                .append("], mv[")
+                .append(indexMetadata.getMappingVersion())
+                .append("], sv[")
+                .append(indexMetadata.getSettingsVersion())
+                .append("], av[")
+                .append(indexMetadata.getAliasesVersion())
+                .append("]\n");
             for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
                 sb.append(TAB).append(TAB).append(shard).append(": ");
                 sb.append("p_term [").append(indexMetadata.primaryTerm(shard)).append("], ");
@@ -273,9 +431,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
         if (metadata.customs().isEmpty() == false) {
             sb.append("metadata customs:\n");
-            for (final ObjectObjectCursor<String, Metadata.Custom> cursor : metadata.customs()) {
-                final String type = cursor.key;
-                final Metadata.Custom custom = cursor.value;
+            for (final Map.Entry<String, Metadata.Custom> cursor : metadata.customs().entrySet()) {
+                final String type = cursor.getKey();
+                final Metadata.Custom custom = cursor.getValue();
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
             sb.append("\n");
@@ -286,9 +444,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
             sb.append("customs:\n");
-            for (ObjectObjectCursor<String, Custom> cursor : customs) {
-                final String type = cursor.key;
-                final Custom custom = cursor.value;
+            for (Map.Entry<String, Custom> cursor : customs.entrySet()) {
+                final String type = cursor.getKey();
+                final Custom custom = cursor.getValue();
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
         }
@@ -302,7 +460,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      * In essence that means that all the changes from the other cluster state are also reflected by the current one
      */
     public boolean supersedes(ClusterState other) {
-        return this.nodes().getMasterNodeId() != null && this.nodes().getMasterNodeId().equals(other.nodes().getMasterNodeId())
+        return this.nodes().getMasterNodeId() != null
+            && this.nodes().getMasterNodeId().equals(other.nodes().getMasterNodeId())
             && this.version() > other.version();
 
     }
@@ -387,9 +546,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
             if (blocks().indices().isEmpty() == false) {
                 builder.startObject("indices");
-                for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : blocks().indices()) {
-                    builder.startObject(entry.key);
-                    for (ClusterBlock block : entry.value) {
+                for (Map.Entry<String, Set<ClusterBlock>> entry : blocks().indices().entrySet()) {
+                    builder.startObject(entry.getKey());
+                    for (ClusterBlock block : entry.getValue()) {
                         block.toXContent(builder, params);
                     }
                     builder.endObject();
@@ -421,10 +580,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             for (IndexRoutingTable indexRoutingTable : routingTable()) {
                 builder.startObject(indexRoutingTable.getIndex().getName());
                 builder.startObject("shards");
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
                     builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                    for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        shardRouting.toXContent(builder, params);
+                    for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                        indexShardRoutingTable.shard(copy).toXContent(builder, params);
                     }
                     builder.endArray();
                 }
@@ -457,9 +617,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.endObject();
         }
         if (metrics.contains(Metric.CUSTOMS)) {
-            for (ObjectObjectCursor<String, Custom> cursor : customs) {
-                builder.startObject(cursor.key);
-                cursor.value.toXContent(builder, params);
+            for (Map.Entry<String, Custom> cursor : customs.entrySet()) {
+                builder.startObject(cursor.getKey());
+                cursor.getValue().toXContent(builder, params);
                 builder.endObject();
             }
         }
@@ -475,7 +635,19 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return new Builder(state);
     }
 
+    public ClusterState copyAndUpdate(Consumer<Builder> updater) {
+        var builder = builder(this);
+        updater.accept(builder);
+        return builder.build();
+    }
+
+    public ClusterState copyAndUpdateMetadata(Consumer<Metadata.Builder> updater) {
+        return copyAndUpdate(builder -> builder.metadata(metadata().copyAndUpdate(updater)));
+    }
+
     public static class Builder {
+
+        private ClusterState previous;
 
         private final ClusterName clusterName;
         private long version = 0;
@@ -488,6 +660,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         private boolean fromDiff;
 
         public Builder(ClusterState state) {
+            this.previous = state;
             this.clusterName = state.clusterName;
             this.version = state.version();
             this.uuid = state.stateUUID();
@@ -515,6 +688,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         public DiscoveryNodes nodes() {
             return nodes;
+        }
+
+        public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
+            return routingTable(routingTableBuilder.build());
         }
 
         public Builder routingTable(RoutingTable routingTable) {
@@ -566,14 +743,16 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder customs(ImmutableOpenMap<String, Custom> customs) {
-            StreamSupport.stream(customs.spliterator(), false).forEach(cursor -> Objects.requireNonNull(cursor.value, cursor.key));
-            this.customs.putAll(customs);
+        public Builder customs(Map<String, Custom> customs) {
+            customs.forEach((key, value) -> Objects.requireNonNull(value, key));
+            this.customs.putAllFromMap(customs);
             return this;
         }
 
-        public Builder fromDiff(boolean fromDiff) {
-            this.fromDiff = fromDiff;
+        // set previous cluster state that this builder is created from during diff application
+        private Builder fromDiff(ClusterState previous) {
+            this.fromDiff = true;
+            this.previous = previous;
             return this;
         }
 
@@ -581,7 +760,26 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             if (UNKNOWN_UUID.equals(uuid)) {
                 uuid = UUIDs.randomBase64UUID();
             }
-            return new ClusterState(clusterName, version, uuid, metadata, routingTable, nodes, blocks, customs.build(), fromDiff);
+            final RoutingNodes routingNodes;
+            if (previous != null && routingTable.indicesRouting() == previous.routingTable.indicesRouting() && nodes == previous.nodes) {
+                // routing table contents and nodes haven't changed so we can try to reuse the previous state's routing nodes which are
+                // expensive to compute
+                routingNodes = previous.routingNodes;
+            } else {
+                routingNodes = null;
+            }
+            return new ClusterState(
+                clusterName,
+                version,
+                uuid,
+                metadata,
+                routingTable,
+                nodes,
+                blocks,
+                customs.build(),
+                fromDiff,
+                routingNodes
+            );
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
@@ -663,7 +861,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         private final Diff<ClusterBlocks> blocks;
 
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final Diff<Map<String, Custom>> customs;
 
         ClusterStateDiff(ClusterState before, ClusterState after) {
             fromUuid = before.stateUUID;
@@ -686,7 +884,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
             if (in.getVersion().before(Version.V_8_0_0)) {
                 in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }
@@ -725,7 +923,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));
-            builder.fromDiff(true);
+            builder.fromDiff(state);
             return builder.build();
         }
     }

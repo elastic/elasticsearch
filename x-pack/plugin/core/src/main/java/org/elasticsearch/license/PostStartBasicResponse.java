@@ -7,17 +7,17 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.common.ProtocolUtils;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -65,7 +65,7 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
         status = in.readEnum(Status.class);
         acknowledgeMessage = in.readOptionalString();
         int size = in.readVInt();
-        Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
+        Map<String, String[]> acknowledgeMessages = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String feature = in.readString();
             int nMessages = in.readVInt();
@@ -98,14 +98,7 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
         super.writeTo(out);
         out.writeEnum(status);
         out.writeOptionalString(acknowledgeMessage);
-        out.writeVInt(acknowledgeMessages.size());
-        for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().length);
-            for (String message : entry.getValue()) {
-                out.writeString(message);
-            }
-        }
+        out.writeMap(acknowledgeMessages, StreamOutput::writeString, StreamOutput::writeStringArray);
     }
 
     @Override
@@ -150,9 +143,9 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
         if (super.equals(o) == false) return false;
         PostStartBasicResponse that = (PostStartBasicResponse) o;
 
-        return status == that.status &&
-            ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages) &&
-            Objects.equals(acknowledgeMessage, that.acknowledgeMessage);
+        return status == that.status
+            && ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages)
+            && Objects.equals(acknowledgeMessage, that.acknowledgeMessage);
     }
 
     @Override

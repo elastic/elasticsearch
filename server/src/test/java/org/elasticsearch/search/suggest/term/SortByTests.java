@@ -37,8 +37,7 @@ public class SortByTests extends AbstractWriteableEnumTestCase {
         try {
             SortBy.resolve(doesntExist);
             fail("SortBy should not have an element " + doesntExist);
-        } catch (IllegalArgumentException e) {
-        }
+        } catch (IllegalArgumentException e) {}
         try {
             SortBy.resolve(null);
             fail("SortBy.resolve on a null value should throw an exception.");

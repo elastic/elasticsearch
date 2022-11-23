@@ -10,17 +10,17 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction.Request;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 import org.junit.Before;
 
 import java.util.Collections;
 
-public class PutDatafeedActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     private String datafeedId;
 

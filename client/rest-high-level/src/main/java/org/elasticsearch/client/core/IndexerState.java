@@ -8,7 +8,6 @@
 
 package org.elasticsearch.client.core;
 
-
 import java.util.Locale;
 
 /**

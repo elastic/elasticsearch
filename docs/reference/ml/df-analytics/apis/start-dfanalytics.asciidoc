@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[start-dfanalytics]]
 = Start {dfanalytics-jobs} API
 

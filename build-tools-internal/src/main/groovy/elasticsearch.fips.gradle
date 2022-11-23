@@ -6,10 +6,11 @@
  * Side Public License, v 1.
  */
 
+
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.testclusters.TestDistribution
 import org.elasticsearch.gradle.testclusters.TestClustersAware
+import org.elasticsearch.gradle.testclusters.TestDistribution
 
 // Common config when running with a FIPS-140 runtime JVM
 if (BuildParams.inFipsJvm) {
@@ -32,31 +33,30 @@ if (BuildParams.inFipsJvm) {
         copy 'cacerts.bcfks'
       }
 
+      def extraFipsJarsConfiguration = configurations.create("fipsImplementation") {
+        withDependencies {
+          add(bcFips)
+          add(bcTlsFips)
+        }
+      }
+
       project.afterEvaluate {
-        def extraFipsJars = configurations.detachedConfiguration(bcFips, bcTlsFips)
         // ensure that bouncycastle is on classpath for the all of test types, must happen in evaluateAfter since the rest tests explicitly
         // set the class path to help maintain pure black box testing, and here we are adding to that classpath
         tasks.withType(Test).configureEach { Test test ->
-          test.setClasspath(test.getClasspath().plus(extraFipsJars))
+          test.setClasspath(test.getClasspath().plus(extraFipsJarsConfiguration))
         }
       }
 
       pluginManager.withPlugin("elasticsearch.testclusters") {
-        afterEvaluate {
-          // This afterEvaluate hooks is required to avoid deprecated configuration resolution
-          // This configuration can be removed once system modules are available
-          def extraFipsJars = configurations.detachedConfiguration(bcFips, bcTlsFips)
-          testClusters.all {
-            extraFipsJars.files.each {
-              extraJarFile it
-            }
-          }
+        // This configuration can be removed once system modules are available
+        testClusters.configureEach {
+            extraJarFiles extraFipsJarsConfiguration
         }
-        tasks.withType(TestClustersAware) {
+        tasks.withType(TestClustersAware).configureEach {
           dependsOn 'fipsResources'
         }
-        testClusters.all {
-          setTestDistribution(TestDistribution.DEFAULT)
+        testClusters.configureEach {
           extraConfigFile "fips_java.security", fipsSecurity
           extraConfigFile "fips_java.policy", fipsPolicy
           extraConfigFile "cacerts.bcfks", fipsTrustStore
@@ -72,6 +72,7 @@ if (BuildParams.inFipsJvm) {
           setting 'xpack.security.enabled', 'false'
           setting 'xpack.security.fips_mode.enabled', 'true'
           setting 'xpack.license.self_generated.type', 'trial'
+          setting 'xpack.security.authc.password_hashing.algorithm', 'pbkdf2_stretch'
           keystorePassword 'keystore-password'
         }
       }

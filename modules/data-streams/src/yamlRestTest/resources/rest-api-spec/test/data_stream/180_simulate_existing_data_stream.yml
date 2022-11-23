@@ -1,0 +1,34 @@
+---
+"Simulate an index with the same name as a data stream that already exists":
+  - skip:
+      version: " - 8.1.99"
+      reason: "simulating index template API for an existing index has not yet been backported"
+      features: ["default_shards"]
+
+  - do:
+      indices.put_index_template:
+        name: dstest
+        body:
+          index_patterns: myds
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: myds
+
+  - do:
+      indices.simulate_index_template:
+        name: myds
+
+  - match: {template.settings.index.number_of_shards: "1"}
+  - match: {template.settings.index.number_of_replicas: "0"}
+  - match: {template.mappings.properties.field.type: "keyword"}
+  - match: {overlapping: []}

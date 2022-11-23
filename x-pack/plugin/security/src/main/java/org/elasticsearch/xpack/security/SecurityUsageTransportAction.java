@@ -11,10 +11,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -31,11 +32,11 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -54,24 +55,43 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
     private final CompositeRolesStore rolesStore;
     private final NativeRoleMappingStore roleMappingStore;
     private final IPFilter ipFilter;
+    private final ProfileService profileService;
 
     @Inject
-    public SecurityUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Settings settings, XPackLicenseState licenseState, SecurityUsageServices securityServices) {
-        super(XPackUsageFeatureAction.SECURITY.name(), transportService, clusterService, threadPool,
-              actionFilters, indexNameExpressionResolver);
+    public SecurityUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Settings settings,
+        XPackLicenseState licenseState,
+        SecurityUsageServices securityServices
+    ) {
+        super(
+            XPackUsageFeatureAction.SECURITY.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
         this.settings = settings;
         this.licenseState = licenseState;
         this.realms = securityServices.realms;
         this.rolesStore = securityServices.rolesStore;
         this.roleMappingStore = securityServices.roleMappingStore;
         this.ipFilter = securityServices.ipFilter;
+        this.profileService = securityServices.profileService;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         Map<String, Object> sslUsage = sslUsage(settings);
         Map<String, Object> tokenServiceUsage = tokenServiceUsage(settings);
         Map<String, Object> apiKeyServiceUsage = apiKeyServiceUsage(settings);
@@ -80,43 +100,62 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
         Map<String, Object> fips140Usage = fips140Usage(settings);
         Map<String, Object> operatorPrivilegesUsage = Map.of(
-            "available", licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES),
-            "enabled", OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
+            "available",
+            Security.OPERATOR_PRIVILEGES_FEATURE.checkWithoutTracking(licenseState),
+            "enabled",
+            OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
         );
 
         final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> realmsUsageRef = new AtomicReference<>();
+        final AtomicReference<Map<String, Object>> domainsUsageRef = new AtomicReference<>();
+        final AtomicReference<Map<String, Object>> userProfileUsageRef = new AtomicReference<>();
 
         final boolean enabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        final CountDown countDown = new CountDown(3);
+        final CountDown countDown = new CountDown(4);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
-                var usage = new SecurityFeatureSetUsage(enabled,
-                        realmsUsageRef.get(), rolesUsageRef.get(), roleMappingUsageRef.get(), sslUsage, auditUsage,
-                        ipFilterUsage, anonymousUsage, tokenServiceUsage, apiKeyServiceUsage, fips140Usage, operatorPrivilegesUsage);
+                var usage = new SecurityFeatureSetUsage(
+                    enabled,
+                    realmsUsageRef.get(),
+                    rolesUsageRef.get(),
+                    roleMappingUsageRef.get(),
+                    sslUsage,
+                    auditUsage,
+                    ipFilterUsage,
+                    anonymousUsage,
+                    tokenServiceUsage,
+                    apiKeyServiceUsage,
+                    fips140Usage,
+                    operatorPrivilegesUsage,
+                    domainsUsageRef.get(),
+                    userProfileUsageRef.get()
+                );
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
             }
         };
 
-        final ActionListener<Map<String, Object>> rolesStoreUsageListener =
-                ActionListener.wrap(rolesStoreUsage -> {
-                    rolesUsageRef.set(rolesStoreUsage);
-                    doCountDown.run();
-                }, listener::onFailure);
+        final ActionListener<Map<String, Object>> rolesStoreUsageListener = ActionListener.wrap(rolesStoreUsage -> {
+            rolesUsageRef.set(rolesStoreUsage);
+            doCountDown.run();
+        }, listener::onFailure);
 
-        final ActionListener<Map<String, Object>> roleMappingStoreUsageListener =
-                ActionListener.wrap(nativeRoleMappingStoreUsage -> {
-                    Map<String, Object> usage = singletonMap("native", nativeRoleMappingStoreUsage);
-                    roleMappingUsageRef.set(usage);
-                    doCountDown.run();
-                }, listener::onFailure);
+        final ActionListener<Map<String, Object>> roleMappingStoreUsageListener = ActionListener.wrap(nativeRoleMappingStoreUsage -> {
+            Map<String, Object> usage = singletonMap("native", nativeRoleMappingStoreUsage);
+            roleMappingUsageRef.set(usage);
+            doCountDown.run();
+        }, listener::onFailure);
 
-        final ActionListener<Map<String, Object>> realmsUsageListener =
-            ActionListener.wrap(realmsUsage -> {
-                realmsUsageRef.set(realmsUsage);
-                doCountDown.run();
-            }, listener::onFailure);
+        final ActionListener<Map<String, Object>> realmsUsageListener = ActionListener.wrap(realmsUsage -> {
+            realmsUsageRef.set(realmsUsage);
+            doCountDown.run();
+        }, listener::onFailure);
+
+        final ActionListener<Map<String, Object>> userProfileUsageListener = ActionListener.wrap(userProfileUsage -> {
+            userProfileUsageRef.set(userProfileUsage);
+            doCountDown.run();
+        }, listener::onFailure);
 
         if (rolesStore == null || enabled == false) {
             rolesStoreUsageListener.onResponse(Collections.emptyMap());
@@ -129,18 +168,24 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
             roleMappingStore.usageStats(roleMappingStoreUsageListener);
         }
         if (realms == null || enabled == false) {
+            domainsUsageRef.set(Map.of());
             realmsUsageListener.onResponse(Collections.emptyMap());
         } else {
+            domainsUsageRef.set(realms.domainUsageStats());
             realms.usageStats(realmsUsageListener);
         }
-
+        if (profileService == null || enabled == false) {
+            userProfileUsageListener.onResponse(Map.of());
+        } else {
+            profileService.usageStats(userProfileUsageListener);
+        }
     }
 
     static Map<String, Object> sslUsage(Settings settings) {
         // If security has been explicitly disabled in the settings, then SSL is also explicitly disabled, and we don't want to report
-        //  these http/transport settings as they would be misleading (they could report `true` even though they were ignored)
+        // these http/transport settings as they would be misleading (they could report `true` even though they were ignored)
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
-            Map<String, Object> map = new HashMap<>(2);
+            Map<String, Object> map = Maps.newMapWithExpectedSize(2);
             map.put("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
             map.put("transport", singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
             return map;
@@ -158,7 +203,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
     }
 
     static Map<String, Object> auditUsage(Settings settings) {
-        Map<String, Object> map = new HashMap<>(2);
+        Map<String, Object> map = Maps.newMapWithExpectedSize(2);
         map.put("enabled", XPackSettings.AUDIT_ENABLED.get(settings));
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {
             // the only available output type is "logfile", but the optputs=<list> is to keep compatibility with previous reporting format

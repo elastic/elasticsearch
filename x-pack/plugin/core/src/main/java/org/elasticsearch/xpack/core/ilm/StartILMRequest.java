@@ -20,8 +20,7 @@ public class StartILMRequest extends AcknowledgedRequest<StartILMRequest> {
 
     }
 
-    public StartILMRequest() {
-    }
+    public StartILMRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.common.socket;
 
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.core.CheckedRunnable;
 
 import java.io.IOException;
 import java.net.SocketPermission;
@@ -24,8 +24,7 @@ import java.security.PrivilegedExceptionAction;
  */
 public final class SocketAccess {
 
-    private SocketAccess() {
-    }
+    private SocketAccess() {}
 
     public static <R> R doPrivileged(CheckedSupplier<R, IOException> supplier) throws IOException {
         SpecialPermission.check();

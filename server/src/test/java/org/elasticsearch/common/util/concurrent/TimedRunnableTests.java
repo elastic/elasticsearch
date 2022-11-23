@@ -42,8 +42,7 @@ public final class TimedRunnableTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(final Exception e) {
-            }
+            public void onFailure(final Exception e) {}
 
             @Override
             protected void doRun() throws Exception {
@@ -131,12 +130,10 @@ public final class TimedRunnableTests extends ESTestCase {
         new TimedRunnable(new AbstractRunnable() {
 
             @Override
-            public void onFailure(final Exception e) {
-            }
+            public void onFailure(final Exception e) {}
 
             @Override
-            protected void doRun() {
-            }
+            protected void doRun() {}
 
             @Override
             public void onAfter() {

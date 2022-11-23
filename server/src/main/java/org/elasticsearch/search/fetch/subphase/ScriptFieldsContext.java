@@ -39,10 +39,9 @@ public class ScriptFieldsContext {
         }
     }
 
-    private List<ScriptField> fields = new ArrayList<>();
+    private final List<ScriptField> fields = new ArrayList<>();
 
-    public ScriptFieldsContext() {
-    }
+    public ScriptFieldsContext() {}
 
     public void add(ScriptField field) {
         this.fields.add(field);

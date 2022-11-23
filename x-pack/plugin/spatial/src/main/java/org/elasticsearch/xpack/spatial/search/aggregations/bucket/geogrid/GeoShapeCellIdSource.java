@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValue
 
 import java.util.function.LongConsumer;
 
-public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
+public class GeoShapeCellIdSource extends ValuesSource.Numeric {
     private final GeoShapeValuesSource valuesSource;
     private final GeoGridTiler encoder;
     private LongConsumer circuitBreakerConsumer;
@@ -46,7 +46,7 @@ public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        GeoShapeValues geoValues = valuesSource.geoShapeValues(ctx);
+        GeoShapeValues geoValues = valuesSource.shapeValues(ctx);
         ValuesSourceType vs = geoValues.valuesSourceType();
         if (GeoShapeValuesSourceType.instance() == vs) {
             // docValues are geo shapes

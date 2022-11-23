@@ -10,21 +10,25 @@ package org.elasticsearch.xpack.transform.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
@@ -33,11 +37,21 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Response
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
+import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+
+import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 
-
 public class TransportGetTransformAction extends AbstractTransportGetResourcesAction<TransformConfig, Request, Response> {
+
+    private static final String DANGLING_TASK_ERROR_MESSAGE_FORMAT =
+        "Found task for transform [%s], but no configuration for it. To delete this transform use DELETE with force=true.";
 
     private final ClusterService clusterService;
 
@@ -49,18 +63,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        this(GetTransformAction.NAME, transportService, actionFilters, clusterService, client, xContentRegistry);
-    }
-
-    protected TransportGetTransformAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService,
-        Client client,
-        NamedXContentRegistry xContentRegistry
-    ) {
-        super(name, transportService, actionFilters, Request::new, client, xContentRegistry);
+        super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
         this.clusterService = clusterService;
     }
 
@@ -68,10 +71,24 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
         TransformNodes.warnIfNoTransformNodes(state);
-        searchResources(request, ActionListener.wrap(
-            r -> listener.onResponse(new Response(r.results(), r.count())),
-            listener::onFailure
-        ));
+
+        // Step 2: Search for all the transform tasks (matching the request) that *do not* have corresponding transform config.
+        ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = ActionListener.wrap(r -> {
+            Set<String> transformConfigIds = r.results().stream().map(TransformConfig::getId).collect(toSet());
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findTransformTasks(
+                request.getId(),
+                state
+            );
+            List<Response.Error> errors = transformTasks.stream()
+                .map(PersistentTasksCustomMetadata.PersistentTask::getId)
+                .filter(not(transformConfigIds::contains))
+                .map(transformId -> new Response.Error("dangling_task", Strings.format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId)))
+                .collect(toList());
+            listener.onResponse(new Response(r.results(), r.count(), errors.isEmpty() ? null : errors));
+        }, listener::onFailure);
+
+        // Step 1: Search for all the transform configs matching the request.
+        searchResources(request, new TaskId(clusterService.localNode().getId(), task.getId()), searchTransformConfigsListener);
     }
 
     @Override
@@ -81,7 +98,8 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected String[] getIndices() {
-        return new String[] { TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+        return new String[] {
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
             TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED };
     }
 
@@ -92,8 +110,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected ResourceNotFoundException notFoundException(String resourceId) {
-        return new ResourceNotFoundException(
-            TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, resourceId));
+        return new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, resourceId));
     }
 
     @Override

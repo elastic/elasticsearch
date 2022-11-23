@@ -11,31 +11,32 @@ package org.elasticsearch.rest.action;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class RestActions {
 
@@ -62,15 +63,28 @@ public class RestActions {
         return (version == Versions.MATCH_ANY) ? defaultVersion : version;
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BroadcastResponse response) throws IOException {
-        buildBroadcastShardsHeader(builder, params,
-                                   response.getTotalShards(), response.getSuccessfulShards(), -1, response.getFailedShards(),
-                                   response.getShardFailures());
+    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BaseBroadcastResponse response)
+        throws IOException {
+        buildBroadcastShardsHeader(
+            builder,
+            params,
+            response.getTotalShards(),
+            response.getSuccessfulShards(),
+            -1,
+            response.getFailedShards(),
+            response.getShardFailures()
+        );
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params,
-                                                  int total, int successful, int skipped, int failed,
-                                                  ShardOperationFailedException[] shardFailures) throws IOException {
+    public static void buildBroadcastShardsHeader(
+        XContentBuilder builder,
+        Params params,
+        int total,
+        int successful,
+        int skipped,
+        int failed,
+        ShardOperationFailedException[] shardFailures
+    ) throws IOException {
         builder.startObject(_SHARDS_FIELD.getPreferredName());
         builder.field(TOTAL_FIELD.getPreferredName(), total);
         builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
@@ -87,6 +101,7 @@ public class RestActions {
         }
         builder.endObject();
     }
+
     /**
      * Create the XContent header for any {@link BaseNodesResponse}.
      *
@@ -95,9 +110,11 @@ public class RestActions {
      * @param response The response containing individual, node-level responses.
      * @see #buildNodesHeader(XContentBuilder, Params, int, int, int, List)
      */
-    public static <NodeResponse extends BaseNodeResponse> void buildNodesHeader(final XContentBuilder builder, final Params params,
-                                                                                final BaseNodesResponse<NodeResponse> response)
-            throws IOException {
+    public static <NodeResponse extends BaseNodeResponse> void buildNodesHeader(
+        final XContentBuilder builder,
+        final Params params,
+        final BaseNodesResponse<NodeResponse> response
+    ) throws IOException {
         final int successful = response.getNodes().size();
         final int failed = response.failures().size();
 
@@ -124,9 +141,14 @@ public class RestActions {
      * @param failures The failure exceptions related to {@code failed}.
      * @see #buildNodesHeader(XContentBuilder, Params, BaseNodesResponse)
      */
-    public static void buildNodesHeader(final XContentBuilder builder, final Params params,
-                                        final int total, final int successful, final int failed,
-                                        final List<FailedNodeException> failures) throws IOException {
+    public static void buildNodesHeader(
+        final XContentBuilder builder,
+        final Params params,
+        final int total,
+        final int successful,
+        final int failed,
+        final List<FailedNodeException> failures
+    ) throws IOException {
         builder.startObject("_nodes");
         builder.field("total", total);
         builder.field("successful", successful);
@@ -146,7 +168,7 @@ public class RestActions {
     }
 
     /**
-     * Automatically transform the {@link ToXContent}-compatible, nodes-level {@code response} into a a {@link BytesRestResponse}.
+     * Automatically transform the {@link ToXContent}-compatible, nodes-level {@code response} into a a {@link RestResponse}.
      * <p>
      * This looks like:
      * <code>
@@ -163,23 +185,38 @@ public class RestActions {
      * @return Never {@code null}.
      * @throws IOException if building the response causes an issue
      */
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public static <NodesResponse extends BaseNodesResponse & ToXContent> BytesRestResponse nodesResponse(final XContentBuilder builder,
-                                                                                                         final Params params,
-                                                                                                         final NodesResponse response)
-            throws IOException {
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public static <NodesResponse extends BaseNodesResponse & ToXContent> RestResponse nodesResponse(
+        final XContentBuilder builder,
+        final Params params,
+        final NodesResponse response
+    ) throws IOException {
         builder.startObject();
         RestActions.buildNodesHeader(builder, params, response);
         builder.field("cluster_name", response.getClusterName().value());
         response.toXContent(builder, params);
         builder.endObject();
 
-        return new BytesRestResponse(RestStatus.OK, builder);
+        return new RestResponse(RestStatus.OK, builder);
     }
+
+    private static final String[] queryStringParams = new String[] { "df", "analyzer", "analyze_wildcard", "lenient", "default_operator" };
 
     public static QueryBuilder urlParamsToQueryBuilder(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
+            List<String> unconsumedParams = Arrays.stream(queryStringParams).filter(key -> request.param(key) != null).toList();
+            if (unconsumedParams.isEmpty() == false) {
+                // this would lead to a non-descriptive error from RestBaseHandler#unrecognized later, so throw a better IAE here
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "request [%s] contains parameters %s but missing query string parameter 'q'.",
+                        request.path(),
+                        unconsumedParams.toString()
+                    )
+                );
+            }
             return null;
         }
         QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
@@ -192,14 +229,6 @@ public class RestActions {
             queryBuilder.defaultOperator(Operator.fromString(defaultOperator));
         }
         return queryBuilder;
-    }
-
-    public static QueryBuilder getQueryContent(XContentParser requestParser) {
-        return parseTopLevelQueryBuilder("query", requestParser);
-    }
-
-    public static QueryBuilder getQueryContent(String fieldName, XContentParser requestParser) {
-        return parseTopLevelQueryBuilder(fieldName, requestParser);
     }
 
     /**
@@ -215,8 +244,8 @@ public class RestActions {
      * });
      * </code>
      */
-    public static class NodesResponseRestListener<NodesResponse extends BaseNodesResponse<?> & ToXContent>
-        extends RestBuilderListener<NodesResponse> {
+    public static class NodesResponseRestListener<NodesResponse extends BaseNodesResponse<?> & ToXContent> extends RestBuilderListener<
+        NodesResponse> {
 
         public NodesResponseRestListener(RestChannel channel) {
             super(channel);
@@ -232,7 +261,7 @@ public class RestActions {
     /**
      * Parses a top level query including the query element that wraps it
      */
-    private static QueryBuilder parseTopLevelQueryBuilder(String fieldName, XContentParser parser) {
+    public static QueryBuilder getQueryContent(XContentParser parser) {
         try {
             QueryBuilder queryBuilder = null;
             XContentParser.Token first = parser.nextToken();
@@ -240,15 +269,16 @@ public class RestActions {
                 return null;
             } else if (first != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(
-                    parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT +
-                    "] but found [" + first + "]", parser.getTokenLocation()
+                    parser.getTokenLocation(),
+                    "Expected [" + XContentParser.Token.START_OBJECT + "] but found [" + first + "]",
+                    parser.getTokenLocation()
                 );
             }
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String currentName = parser.currentName();
-                    if (fieldName.equals(currentName)) {
-                        queryBuilder = parseInnerQueryBuilder(parser);
+                    if ("query".equals(currentName)) {
+                        queryBuilder = parseTopLevelQuery(parser);
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }

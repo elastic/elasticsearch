@@ -95,7 +95,7 @@ public class CIDRMatchFunctionPipe extends Pipe {
     @Override
     public CIDRMatchFunctionProcessor asProcessor() {
         ArrayList<Processor> processors = new ArrayList<>(addresses.size());
-        for (Pipe address: addresses) {
+        for (Pipe address : addresses) {
             processors.add(address.asProcessor());
         }
         return new CIDRMatchFunctionProcessor(input.asProcessor(), processors);

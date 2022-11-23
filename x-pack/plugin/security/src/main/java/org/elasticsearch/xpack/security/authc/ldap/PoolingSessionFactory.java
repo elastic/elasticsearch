@@ -13,14 +13,15 @@ import com.unboundid.ldap.sdk.LDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
+
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SECURE_BIND_PASSWORD;
 
@@ -56,21 +58,30 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
      * @param healthCheckDNSupplier a supplier for the dn to query for health checks
      * @param threadPool a thread pool used for async queries execution
      */
-    PoolingSessionFactory(RealmConfig config, SSLService sslService, LdapSession.GroupsResolver groupResolver,
-                          Setting.AffixSetting<Boolean> poolingEnabled, @Nullable String bindDn, Supplier<String> healthCheckDNSupplier,
-                          ThreadPool threadPool) throws LDAPException {
+    PoolingSessionFactory(
+        RealmConfig config,
+        SSLService sslService,
+        LdapSession.GroupsResolver groupResolver,
+        Setting.AffixSetting<Boolean> poolingEnabled,
+        @Nullable String bindDn,
+        Supplier<String> healthCheckDNSupplier,
+        ThreadPool threadPool
+    ) throws LDAPException {
         super(config, sslService, threadPool);
         this.groupResolver = groupResolver;
 
         final byte[] bindPassword;
         if (config.hasSetting(LEGACY_BIND_PASSWORD)) {
             if (config.hasSetting(SECURE_BIND_PASSWORD)) {
-                throw new IllegalArgumentException("You cannot specify both ["
-                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD) + "] and ["
-                        + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD) + "]");
-            } else {
-                bindPassword = CharArrays.toUtf8Bytes(config.getSetting(LEGACY_BIND_PASSWORD).getChars());
+                throw new IllegalArgumentException(
+                    "You cannot specify both ["
+                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
+                        + "] and ["
+                        + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
+                        + "]"
+                );
             }
+            bindPassword = CharArrays.toUtf8Bytes(config.getSetting(LEGACY_BIND_PASSWORD).getChars());
         } else if (config.hasSetting(SECURE_BIND_PASSWORD)) {
             bindPassword = CharArrays.toUtf8Bytes(config.getSetting(SECURE_BIND_PASSWORD).getChars());
         } else {
@@ -80,6 +91,19 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
         if (bindDn == null) {
             bindCredentials = new SimpleBindRequest();
         } else {
+            if (bindPassword == null) {
+                deprecationLogger.critical(
+                    DeprecationCategory.SECURITY,
+                    "bind_dn_set_without_password",
+                    "[{}] is set but no bind password is specified. Without a corresponding bind password, "
+                        + "all {} realm authentication will fail. Specify a bind password via [{}] or [{}]. "
+                        + "In the next major release, nodes with incomplete bind credentials will fail to start.",
+                    RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
+                    config.type(),
+                    RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
+                    RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
+                );
+            }
             bindCredentials = new SimpleBindRequest(bindDn, bindPassword);
         }
 
@@ -112,8 +136,12 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
     /**
      * Attempts to get a {@link LdapSession} using the provided credentials and makes use of the provided connection pool
      */
-    abstract void getSessionWithPool(LDAPConnectionPool connectionPool, String user, SecureString password,
-                                     ActionListener<LdapSession> listener);
+    abstract void getSessionWithPool(
+        LDAPConnectionPool connectionPool,
+        String user,
+        SecureString password,
+        ActionListener<LdapSession> listener
+    );
 
     /**
      * Attempts to get a {@link LdapSession} using the provided credentials and opens a new connection to the ldap server
@@ -135,15 +163,21 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
     /**
      * Creates the connection pool that will be used by the session factory and initializes the health check support
      */
-    static LDAPConnectionPool createConnectionPool(RealmConfig config, ServerSet serverSet, TimeValue timeout, Logger logger,
-                                                   BindRequest bindRequest,
-                                                   Supplier<String> healthCheckDnSupplier) throws LDAPException {
+    static LDAPConnectionPool createConnectionPool(
+        RealmConfig config,
+        ServerSet serverSet,
+        TimeValue timeout,
+        Logger logger,
+        BindRequest bindRequest,
+        Supplier<String> healthCheckDnSupplier
+    ) throws LDAPException {
         final int initialSize = config.getSetting(PoolingSessionFactorySettings.POOL_INITIAL_SIZE);
         final int size = config.getSetting(PoolingSessionFactorySettings.POOL_SIZE);
         LDAPConnectionPool pool = null;
         boolean success = false;
         try {
             pool = LdapUtils.privilegedConnect(() -> new LDAPConnectionPool(serverSet, bindRequest, initialSize, size));
+            pool.setConnectionPoolName("ldap-pool-" + config.identifier());
             pool.setRetryFailedOperationsDueToInvalidConnections(true);
             if (config.getSetting(PoolingSessionFactorySettings.HEALTH_CHECK_ENABLED)) {
                 String entryDn = config.getSetting(PoolingSessionFactorySettings.HEALTH_CHECK_DN).orElseGet(healthCheckDnSupplier);
@@ -153,15 +187,26 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                     // create as the LDAP server may require authentication to get an entry and a bind request has not been executed
                     // yet so we could end up never getting a connection. We do not check on checkout as we always set retry operations
                     // and the pool will handle a bad connection without the added latency on every operation
-                    LDAPConnectionPoolHealthCheck healthCheck = new GetEntryLDAPConnectionPoolHealthCheck(entryDn, timeout.millis(),
-                            false, false, false, true, false);
+                    LDAPConnectionPoolHealthCheck healthCheck = new GetEntryLDAPConnectionPoolHealthCheck(
+                        entryDn,
+                        timeout.millis(),
+                        false,
+                        false,
+                        false,
+                        true,
+                        false
+                    );
                     pool.setHealthCheck(healthCheck);
                     pool.setHealthCheckIntervalMillis(healthCheckInterval);
                 } else {
-                    logger.warn(new ParameterizedMessage("[{}] and [{}} have not been specified or are not valid distinguished names," +
-                            "so connection health checking is disabled", RealmSettings.getFullSettingKey(config,
-                            PoolingSessionFactorySettings.BIND_DN),
-                            RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.HEALTH_CHECK_DN)));
+                    logger.warn(
+                        () -> format(
+                            "[%s] and [%s] have not been specified or are not valid distinguished names,"
+                                + "so connection health checking is disabled",
+                            RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
+                            RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.HEALTH_CHECK_DN)
+                        )
+                    );
                 }
             }
 

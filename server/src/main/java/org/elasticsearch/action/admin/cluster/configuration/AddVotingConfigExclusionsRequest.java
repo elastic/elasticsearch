@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * A request to add voting config exclusions for certain master-eligible nodes, and wait for these nodes to be removed from the voting
@@ -102,8 +101,17 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
             }
         } else {
             assert nodeNames.length > 0;
-            Map<String, DiscoveryNode> existingNodes = StreamSupport.stream(allNodes.spliterator(), false)
-                .collect(Collectors.toMap(DiscoveryNode::getName, Function.identity()));
+            Map<String, DiscoveryNode> existingNodes = allNodes.stream()
+                .collect(Collectors.toMap(DiscoveryNode::getName, Function.identity(), (n1, n2) -> {
+                    throw new IllegalArgumentException(
+                        org.elasticsearch.core.Strings.format(
+                            "node name [%s] is ambiguous, matching [%s] and [%s]; specify node ID instead",
+                            n1.getName(),
+                            n1.descriptionWithoutAttributes(),
+                            n2.descriptionWithoutAttributes()
+                        )
+                    );
+                }));
 
             for (String nodeName : nodeNames) {
                 if (existingNodes.containsKey(nodeName)) {
@@ -121,20 +129,29 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         return newVotingConfigExclusions;
     }
 
-    Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(ClusterState currentState, int maxExclusionsCount,
-                                                                            String maximumSettingKey) {
+    Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(
+        ClusterState currentState,
+        int maxExclusionsCount,
+        String maximumSettingKey
+    ) {
         final Set<VotingConfigExclusion> resolvedExclusions = resolveVotingConfigExclusions(currentState);
 
         final int oldExclusionsCount = currentState.getVotingConfigExclusions().size();
         final int newExclusionsCount = resolvedExclusions.size();
         if (oldExclusionsCount + newExclusionsCount > maxExclusionsCount) {
-            throw new IllegalArgumentException("add voting config exclusions request for "
-                + (nodeNames.length > 0
-                    ? "nodes named " + Arrays.asList(nodeNames)
-                    : "nodes with ids " + Arrays.asList(nodeIds))
-                + " would add [" + newExclusionsCount + "] exclusions to the existing [" + oldExclusionsCount
-                + "] which would exceed the maximum of [" + maxExclusionsCount + "] set by ["
-                + maximumSettingKey + "]");
+            throw new IllegalArgumentException(
+                "add voting config exclusions request for "
+                    + (nodeNames.length > 0 ? "nodes named " + Arrays.asList(nodeNames) : "nodes with ids " + Arrays.asList(nodeIds))
+                    + " would add ["
+                    + newExclusionsCount
+                    + "] exclusions to the existing ["
+                    + oldExclusionsCount
+                    + "] which would exceed the maximum of ["
+                    + maxExclusionsCount
+                    + "] set by ["
+                    + maximumSettingKey
+                    + "]"
+            );
         }
         return resolvedExclusions;
     }
@@ -178,10 +195,15 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
 
     @Override
     public String toString() {
-        return "AddVotingConfigExclusionsRequest{" +
-            "nodeIds=" + Arrays.asList(nodeIds) + ", " +
-            "nodeNames=" + Arrays.asList(nodeNames) + ", " +
-            "timeout=" + timeout +
-            '}';
+        return "AddVotingConfigExclusionsRequest{"
+            + "nodeIds="
+            + Arrays.asList(nodeIds)
+            + ", "
+            + "nodeNames="
+            + Arrays.asList(nodeNames)
+            + ", "
+            + "timeout="
+            + timeout
+            + '}';
     }
 }

@@ -8,10 +8,6 @@
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.jdk.JavaVersion;
-
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.util.Arrays;
@@ -20,6 +16,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
 
 import static org.elasticsearch.common.ssl.KeyStoreUtil.inferKeyStoreType;
 import static org.elasticsearch.common.ssl.SslConfiguration.ORDERED_PROTOCOL_ALGORITHM_MAP;
@@ -60,49 +59,9 @@ import static org.elasticsearch.common.ssl.SslConfigurationKeys.VERIFICATION_MOD
 public abstract class SslConfigurationLoader {
 
     static final List<String> DEFAULT_PROTOCOLS = Collections.unmodifiableList(
-        ORDERED_PROTOCOL_ALGORITHM_MAP.containsKey("TLSv1.3") ?
-            Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1"));
-
-    private static final List<String> JDK11_CIPHERS = List.of(
-        // TLSv1.3 cipher has PFS, AEAD, hardware support
-        "TLS_AES_256_GCM_SHA384",
-        "TLS_AES_128_GCM_SHA256",
-
-        // PFS, AEAD, hardware support
-        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
-        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
-
-        // PFS, AEAD, hardware support
-        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-
-        // PFS, hardware support
-        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
-        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
-
-        // PFS, hardware support
-        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
-        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
-
-        // PFS, hardware support
-        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
-        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
-
-        // PFS, hardware support
-        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
-        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
-
-        // AEAD, hardware support
-        "TLS_RSA_WITH_AES_256_GCM_SHA384",
-        "TLS_RSA_WITH_AES_128_GCM_SHA256",
-
-        // hardware support
-        "TLS_RSA_WITH_AES_256_CBC_SHA256",
-        "TLS_RSA_WITH_AES_128_CBC_SHA256",
-
-        // hardware support
-        "TLS_RSA_WITH_AES_256_CBC_SHA",
-        "TLS_RSA_WITH_AES_128_CBC_SHA"
+        ORDERED_PROTOCOL_ALGORITHM_MAP.containsKey("TLSv1.3")
+            ? Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1")
+            : Arrays.asList("TLSv1.2", "TLSv1.1")
     );
 
     private static final List<String> JDK12_CIPHERS = List.of(
@@ -154,8 +113,7 @@ public abstract class SslConfigurationLoader {
         "TLS_RSA_WITH_AES_128_CBC_SHA"
     );
 
-    static final List<String> DEFAULT_CIPHERS =
-        JavaVersion.current().compareTo(JavaVersion.parse("12")) > -1 ? JDK12_CIPHERS : JDK11_CIPHERS;
+    static final List<String> DEFAULT_CIPHERS = JDK12_CIPHERS;
     private static final char[] EMPTY_PASSWORD = new char[0];
 
     private final String settingPrefix;
@@ -238,7 +196,6 @@ public abstract class SslConfigurationLoader {
         this.defaultProtocols = defaultProtocols;
     }
 
-
     /**
      * Apply a filter function to any keystore that is loaded.
      * @see StoreKeyConfig
@@ -249,7 +206,7 @@ public abstract class SslConfigurationLoader {
 
     /**
      * Clients of this class should implement this method to determine whether there are any settings for a given prefix.
-     * This is used to populate {@link SslConfiguration#isExplicitlyConfigured()}.
+     * This is used to populate {@link SslConfiguration#explicitlyConfigured()}.
      */
     protected abstract boolean hasSettings(String prefix);
 
@@ -309,7 +266,16 @@ public abstract class SslConfigurationLoader {
             throw new SslConfigException("no cipher suites configured in [" + settingPrefix + CIPHERS + "]");
         }
         final boolean isExplicitlyConfigured = hasSettings(settingPrefix);
-        return new SslConfiguration(isExplicitlyConfigured, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
+        return new SslConfiguration(
+            settingPrefix,
+            isExplicitlyConfigured,
+            trustConfig,
+            keyConfig,
+            verificationMode,
+            clientAuth,
+            ciphers,
+            protocols
+        );
     }
 
     protected SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {
@@ -317,8 +283,9 @@ public abstract class SslConfigurationLoader {
         final String trustStorePath = resolveSetting(TRUSTSTORE_PATH, Function.identity(), null);
 
         if (certificateAuthorities != null && trustStorePath != null) {
-            throw new SslConfigException("cannot specify both [" + settingPrefix + CERTIFICATE_AUTHORITIES + "] and [" +
-                settingPrefix + TRUSTSTORE_PATH + "]");
+            throw new SslConfigException(
+                "cannot specify both [" + settingPrefix + CERTIFICATE_AUTHORITIES + "] and [" + settingPrefix + TRUSTSTORE_PATH + "]"
+            );
         }
         if (verificationMode.isCertificateVerificationEnabled() == false) {
             return TrustEverythingConfig.TRUST_EVERYTHING;
@@ -335,12 +302,12 @@ public abstract class SslConfigurationLoader {
         return buildDefaultTrustConfig(defaultTrustConfig, keyConfig);
     }
 
-    protected SslTrustConfig buildDefaultTrustConfig(SslTrustConfig defaultTrustConfig, SslKeyConfig keyConfig) {
+    protected static SslTrustConfig buildDefaultTrustConfig(SslTrustConfig trustConfig, SslKeyConfig keyConfig) {
         final SslTrustConfig trust = keyConfig.asTrustConfig();
         if (trust == null) {
-            return defaultTrustConfig;
+            return trustConfig;
         } else {
-            return new CompositeTrustConfig(List.of(defaultTrustConfig, trust));
+            return new CompositeTrustConfig(List.of(trustConfig, trust));
         }
     }
 
@@ -350,18 +317,21 @@ public abstract class SslConfigurationLoader {
         final String keyStorePath = stringSetting(KEYSTORE_PATH);
 
         if (certificatePath != null && keyStorePath != null) {
-            throw new SslConfigException("cannot specify both [" + settingPrefix + CERTIFICATE + "] and [" +
-                settingPrefix + KEYSTORE_PATH + "]");
+            throw new SslConfigException(
+                "cannot specify both [" + settingPrefix + CERTIFICATE + "] and [" + settingPrefix + KEYSTORE_PATH + "]"
+            );
         }
 
         if (certificatePath != null || keyPath != null) {
             if (keyPath == null) {
-                throw new SslConfigException("cannot specify [" + settingPrefix + CERTIFICATE + "] without also setting [" +
-                    settingPrefix + KEY + "]");
+                throw new SslConfigException(
+                    "cannot specify [" + settingPrefix + CERTIFICATE + "] without also setting [" + settingPrefix + KEY + "]"
+                );
             }
             if (certificatePath == null) {
-                throw new SslConfigException("cannot specify [" + settingPrefix + KEYSTORE_PATH + "] without also setting [" +
-                    settingPrefix + CERTIFICATE + "]");
+                throw new SslConfigException(
+                    "cannot specify [" + settingPrefix + KEYSTORE_PATH + "] without also setting [" + settingPrefix + CERTIFICATE + "]"
+                );
             }
             final char[] password = resolvePasswordSetting(KEY_SECURE_PASSPHRASE, KEY_LEGACY_PASSPHRASE);
             return new PemKeyConfig(certificatePath, keyPath, password, basePath);
@@ -400,8 +370,9 @@ public abstract class SslConfigurationLoader {
             }
         } else {
             if (legacyPassword != null) {
-                throw new SslConfigException("cannot specify both [" + settingPrefix + secureSettingKey + "] and ["
-                    + settingPrefix + legacySettingKey + "]");
+                throw new SslConfigException(
+                    "cannot specify both [" + settingPrefix + secureSettingKey + "] and [" + settingPrefix + legacySettingKey + "]"
+                );
             } else {
                 return securePassword;
             }

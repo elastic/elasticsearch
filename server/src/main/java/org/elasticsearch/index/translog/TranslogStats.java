@@ -12,21 +12,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class TranslogStats implements Writeable, ToXContentFragment {
 
     private long translogSizeInBytes;
     private int numberOfOperations;
     private long uncommittedSizeInBytes;
-    private int  uncommittedOperations;
+    private int uncommittedOperations;
     private long earliestLastModifiedAge;
 
-    public TranslogStats() {
-    }
+    public TranslogStats() {}
 
     public TranslogStats(StreamInput in) throws IOException {
         numberOfOperations = in.readVInt();
@@ -36,8 +36,13 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         earliestLastModifiedAge = in.readVLong();
     }
 
-    public TranslogStats(int numberOfOperations, long translogSizeInBytes, int uncommittedOperations, long uncommittedSizeInBytes,
-                         long earliestLastModifiedAge) {
+    public TranslogStats(
+        int numberOfOperations,
+        long translogSizeInBytes,
+        int uncommittedOperations,
+        long uncommittedSizeInBytes,
+        long earliestLastModifiedAge
+    ) {
         if (numberOfOperations < 0) {
             throw new IllegalArgumentException("numberOfOperations must be >= 0");
         }
@@ -72,8 +77,7 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         if (this.earliestLastModifiedAge == 0) {
             this.earliestLastModifiedAge = translogStats.earliestLastModifiedAge;
         } else {
-            this.earliestLastModifiedAge =
-                Math.min(this.earliestLastModifiedAge, translogStats.earliestLastModifiedAge);
+            this.earliestLastModifiedAge = Math.min(this.earliestLastModifiedAge, translogStats.earliestLastModifiedAge);
         }
     }
 
@@ -95,15 +99,17 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         return uncommittedOperations;
     }
 
-    public long getEarliestLastModifiedAge() { return earliestLastModifiedAge; }
+    public long getEarliestLastModifiedAge() {
+        return earliestLastModifiedAge;
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("translog");
         builder.field("operations", numberOfOperations);
-        builder.humanReadableField("size_in_bytes", "size", new ByteSizeValue(translogSizeInBytes));
+        builder.humanReadableField("size_in_bytes", "size", ByteSizeValue.ofBytes(translogSizeInBytes));
         builder.field("uncommitted_operations", uncommittedOperations);
-        builder.humanReadableField("uncommitted_size_in_bytes", "uncommitted_size", new ByteSizeValue(uncommittedSizeInBytes));
+        builder.humanReadableField("uncommitted_size_in_bytes", "uncommitted_size", ByteSizeValue.ofBytes(uncommittedSizeInBytes));
         builder.field("earliest_last_modified_age", earliestLastModifiedAge);
         builder.endObject();
         return builder;
@@ -121,5 +127,28 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         out.writeVInt(uncommittedOperations);
         out.writeVLong(uncommittedSizeInBytes);
         out.writeVLong(earliestLastModifiedAge);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TranslogStats that = (TranslogStats) o;
+        return numberOfOperations == that.numberOfOperations
+            && translogSizeInBytes == that.translogSizeInBytes
+            && uncommittedOperations == that.uncommittedOperations
+            && uncommittedSizeInBytes == that.uncommittedSizeInBytes
+            && earliestLastModifiedAge == that.earliestLastModifiedAge;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            numberOfOperations,
+            translogSizeInBytes,
+            uncommittedOperations,
+            uncommittedSizeInBytes,
+            earliestLastModifiedAge
+        );
     }
 }

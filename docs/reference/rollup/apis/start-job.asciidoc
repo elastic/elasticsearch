@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-start-job]]
 === Start {rollup-jobs} API
 [subs="attributes"]
@@ -10,6 +9,9 @@
 Starts an existing, stopped {rollup-job}.
 
 experimental[]
+
+NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
+rollups as a way to reduce your storage costs for time series data.
 
 [[rollup-start-job-request]]
 ==== {api-request-title}

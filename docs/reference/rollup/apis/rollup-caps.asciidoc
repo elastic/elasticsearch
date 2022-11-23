@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-get-rollup-caps]]
 === Get {rollup-job} capabilities API
 ++++
@@ -10,6 +9,9 @@ Returns the capabilities of any {rollup-jobs} that have been configured for a
 specific index or index pattern.
 
 experimental[]
+
+NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
+rollups as a way to reduce your storage costs for time series data.
 
 [[rollup-get-rollup-caps-request]]
 ==== {api-request-title}

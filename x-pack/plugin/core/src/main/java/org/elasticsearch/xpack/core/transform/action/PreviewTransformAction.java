@@ -7,23 +7,26 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
@@ -37,7 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PreviewTransformAction extends ActionType<PreviewTransformAction.Response> {
 
@@ -54,7 +58,8 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
 
         private final TransformConfig config;
 
-        public Request(TransformConfig config) {
+        public Request(TransformConfig config, TimeValue timeout) {
+            super(timeout);
             this.config = config;
         }
 
@@ -63,7 +68,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             this.config = new TransformConfig(in);
         }
 
-        public static Request fromXContent(final XContentParser parser) throws IOException {
+        public static Request fromXContent(final XContentParser parser, TimeValue timeout) throws IOException {
             Map<String, Object> content = parser.map();
             // dest.index is not required for _preview, so we just supply our own
             Map<String, String> tempDestination = new HashMap<>();
@@ -86,7 +91,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                         BytesReference.bytes(xContentBuilder).streamInput()
                     )
             ) {
-                return new Request(TransformConfig.fromXContent(newParser, null, false));
+                return new Request(TransformConfig.fromXContent(newParser, null, false), timeout);
             }
         }
 
@@ -134,6 +139,11 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             Request other = (Request) obj;
             return Objects.equals(config, other.config);
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("preview_transform[%s]", config.getId()), parentTaskId, headers);
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -175,14 +185,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             for (int i = 0; i < size; i++) {
                 this.docs.add(in.readMap());
             }
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                this.generatedDestIndexSettings = new TransformDestIndexSettings(in);
-            } else if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                Map<String, Object> objectMap = in.readMap();
-                this.generatedDestIndexSettings = new TransformDestIndexSettings(objectMap, null, null);
-            } else {
-                this.generatedDestIndexSettings = new TransformDestIndexSettings(null, null, null);
-            }
+            this.generatedDestIndexSettings = new TransformDestIndexSettings(in);
         }
 
         public List<Map<String, Object>> getDocs() {
@@ -199,11 +202,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             for (Map<String, Object> doc : docs) {
                 out.writeMapWithConsistentOrder(doc);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                generatedDestIndexSettings.writeTo(out);
-            } else if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeMap(generatedDestIndexSettings.getMappings());
-            }
+            generatedDestIndexSettings.writeTo(out);
         }
 
         @Override

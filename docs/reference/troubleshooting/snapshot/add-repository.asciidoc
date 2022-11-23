@@ -1,0 +1,11 @@
+[[add-repository]]
+== Multiple deployments writing to the same snapshot repository
+
+Multiple {es} deployments are writing to the same snapshot repository. {es} doesn't 
+support this configuration and only one cluster is allowed to write to the same 
+repository.
+To remedy the situation mark the repository as read-only or remove it from all the
+other deployments, and re-add (recreate) the repository in the current deployment:
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/snapshot/corrupt-repository-widget.asciidoc[]
+

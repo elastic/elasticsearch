@@ -16,13 +16,15 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,11 +44,22 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testValidationErrorWithUnknownClusterPrivilegeName() {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
-        String unknownClusterPrivilegeName = "unknown_" + randomAlphaOfLengthBetween(3,9);
+        String unknownClusterPrivilegeName = "unknown_" + randomAlphaOfLengthBetween(3, 9);
         request.cluster("manage_security", unknownClusterPrivilegeName);
 
         // Fail
         assertValidationError("unknown cluster privilege [" + unknownClusterPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
+    }
+
+    public void testValidationErrorWithTooLongRoleName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(
+            randomAlphaOfLengthBetween(NativeRealmValidationUtil.MAX_NAME_LENGTH + 1, NativeRealmValidationUtil.MAX_NAME_LENGTH * 2)
+        );
+        request.cluster("manage_security");
+
+        // Fail
+        assertValidationError("Role names must be at least 1 and no more than " + NativeRealmValidationUtil.MAX_NAME_LENGTH, request);
     }
 
     public void testValidationSuccessWithCorrectClusterPrivilegeName() {
@@ -59,53 +72,141 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testValidationErrorWithUnknownIndexPrivilegeName() {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
-        String unknownIndexPrivilegeName = "unknown_" + randomAlphaOfLengthBetween(3,9);
-        request.addIndex(new String[]{randomAlphaOfLength(5)}, new String[]{"index", unknownIndexPrivilegeName}, null,
-            null, null, randomBoolean());
+        String unknownIndexPrivilegeName = "unknown_" + randomAlphaOfLengthBetween(3, 9);
+        request.addIndex(
+            new String[] { randomAlphaOfLength(5) },
+            new String[] { "index", unknownIndexPrivilegeName },
+            null,
+            null,
+            null,
+            randomBoolean()
+        );
 
         // Fail
         assertValidationError("unknown index privilege [" + unknownIndexPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
     }
 
+    public void testValidationErrorWithEmptyClustersInRemoteIndices() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        request.addRemoteIndex(
+            new String[] { randomAlphaOfLength(5), "" },
+            new String[] { randomAlphaOfLength(5) },
+            new String[] { "index", "write", "indices:data/read" },
+            null,
+            null,
+            null,
+            randomBoolean()
+        );
+        assertValidationError("remote index cluster alias cannot be an empty string", request);
+    }
+
+    public void testValidationSuccessWithCorrectRemoteIndexPrivilegeClusters() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        if (randomBoolean()) {
+            request.addRemoteIndex(
+                new String[] { randomAlphaOfLength(5), "*", "* " },
+                new String[] { randomAlphaOfLength(5) },
+                new String[] { "index", "write", "indices:data/read" },
+                null,
+                null,
+                null,
+                randomBoolean()
+            );
+        } else {
+            // Empty remote index section is valid
+            request.addRemoteIndex();
+        }
+        assertSuccessfulValidation(request);
+    }
+
     public void testValidationSuccessWithCorrectIndexPrivilegeName() {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
-        request.addIndex(new String[]{randomAlphaOfLength(5)}, new String[]{"index", "write", "indices:data/read"}, null,
-            null, null, randomBoolean());
+        request.addIndex(
+            new String[] { randomAlphaOfLength(5) },
+            new String[] { "index", "write", "indices:data/read" },
+            null,
+            null,
+            null,
+            randomBoolean()
+        );
         assertSuccessfulValidation(request);
     }
 
     public void testValidationOfApplicationPrivileges() {
-        assertSuccessfulValidation(buildRequestWithApplicationPrivilege("app", new String[]{"read"}, new String[]{"*"}));
-        assertSuccessfulValidation(buildRequestWithApplicationPrivilege("app", new String[]{"action:login"}, new String[]{"/"}));
-        assertSuccessfulValidation(buildRequestWithApplicationPrivilege("*", new String[]{"data/read:user"}, new String[]{"user/123"}));
+        assertSuccessfulValidation(buildRequestWithApplicationPrivilege("app", new String[] { "read" }, new String[] { "*" }));
+        assertSuccessfulValidation(buildRequestWithApplicationPrivilege("app", new String[] { "action:login" }, new String[] { "/" }));
+        assertSuccessfulValidation(
+            buildRequestWithApplicationPrivilege("*", new String[] { "data/read:user" }, new String[] { "user/123" })
+        );
 
         // Fail
-        assertValidationError("privilege names and actions must match the pattern",
-            buildRequestWithApplicationPrivilege("app", new String[]{"in valid"}, new String[]{"*"}));
-        assertValidationError("An application name prefix must match the pattern",
-            buildRequestWithApplicationPrivilege("000", new String[]{"all"}, new String[]{"*"}));
-        assertValidationError("An application name prefix must match the pattern",
-            buildRequestWithApplicationPrivilege("%*", new String[]{"all"}, new String[]{"*"}));
+        assertValidationError(
+            "privilege names and actions must match the pattern",
+            buildRequestWithApplicationPrivilege("app", new String[] { "in valid" }, new String[] { "*" })
+        );
+        assertValidationError(
+            "An application name prefix must match the pattern",
+            buildRequestWithApplicationPrivilege("000", new String[] { "all" }, new String[] { "*" })
+        );
+        assertValidationError(
+            "An application name prefix must match the pattern",
+            buildRequestWithApplicationPrivilege("%*", new String[] { "all" }, new String[] { "*" })
+        );
     }
 
     public void testSerialization() throws IOException {
-        final PutRoleRequest original = buildRandomRequest();
-
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
             final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
             logger.info("Serializing with version {}", version);
             out.setVersion(version);
         }
+        final boolean mayIncludeRemoteIndices = out.getVersion().onOrAfter(Version.V_8_6_0);
+        final PutRoleRequest original = buildRandomRequest(mayIncludeRemoteIndices);
         original.writeTo(out);
 
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
         in.setVersion(out.getVersion());
         final PutRoleRequest copy = new PutRoleRequest(in);
 
-        assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
+        final RoleDescriptor actual = copy.roleDescriptor();
+        final RoleDescriptor expected = original.roleDescriptor();
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
+        final BytesStreamOutput out = new BytesStreamOutput();
+        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
+        final Version version = VersionUtils.randomVersionBetween(
+            random(),
+            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
+            versionBeforeRemoteIndices
+        );
+        out.setVersion(version);
+
+        final PutRoleRequest original = buildRandomRequest(randomBoolean());
+        if (original.hasRemoteIndicesPrivileges()) {
+            final var ex = expectThrows(IllegalArgumentException.class, () -> original.writeTo(out));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before [8.6.0] can't handle remote indices privileges and attempted to send to ["
+                        + version
+                        + "]"
+                )
+            );
+        } else {
+            original.writeTo(out);
+            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+            StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
+            in.setVersion(out.getVersion());
+            final PutRoleRequest copy = new PutRoleRequest(in);
+            assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
+        }
     }
 
     private void assertSuccessfulValidation(PutRoleRequest request) {
@@ -127,17 +228,23 @@ public class PutRoleRequestTests extends ESTestCase {
             .privileges(privileges)
             .resources(resources)
             .build();
-        request.addApplicationPrivileges(new ApplicationResourcePrivileges[]{privilege});
+        request.addApplicationPrivileges(new ApplicationResourcePrivileges[] { privilege });
         return request;
     }
 
     private PutRoleRequest buildRandomRequest() {
+        return buildRandomRequest(true);
+    }
 
+    private PutRoleRequest buildRandomRequest(boolean allowRemoteIndices) {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
 
-        request.cluster(randomSubsetOf(Arrays.asList("monitor", "manage", "all", "manage_security", "manage_ml", "monitor_watcher"))
-            .toArray(Strings.EMPTY_ARRAY));
+        request.cluster(
+            randomSubsetOf(Arrays.asList("monitor", "manage", "all", "manage_security", "manage_ml", "monitor_watcher")).toArray(
+                Strings.EMPTY_ARRAY
+            )
+        );
 
         for (int i = randomIntBetween(0, 4); i > 0; i--) {
             request.addIndex(
@@ -150,8 +257,22 @@ public class PutRoleRequestTests extends ESTestCase {
             );
         }
 
-        final Supplier<String> stringWithInitialLowercase = ()
-            -> randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(3, 12);
+        if (allowRemoteIndices) {
+            for (int i = randomIntBetween(0, 4); i > 0; i--) {
+                request.addRemoteIndex(
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), false, false),
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), false, false),
+                    randomSubsetOf(randomIntBetween(1, 2), "read", "write", "index", "all").toArray(Strings.EMPTY_ARRAY),
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
+                    null,
+                    randomBoolean()
+                );
+            }
+        }
+
+        final Supplier<String> stringWithInitialLowercase = () -> randomAlphaOfLength(1).toLowerCase(Locale.ROOT)
+            + randomAlphaOfLengthBetween(3, 12);
         final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(0, 5)];
         for (int i = 0; i < applicationPrivileges.length; i++) {
             applicationPrivileges[i] = ApplicationResourcePrivileges.builder()
@@ -161,10 +282,34 @@ public class PutRoleRequestTests extends ESTestCase {
                 .build();
         }
         request.addApplicationPrivileges(applicationPrivileges);
-
-        if (randomBoolean()) {
-            final String[] appNames = randomArray(1, 4, String[]::new, stringWithInitialLowercase);
-            request.conditionalCluster(new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(appNames)));
+        switch (randomIntBetween(0, 3)) {
+            case 0:
+                request.conditionalCluster(new ConfigurableClusterPrivilege[0]);
+                break;
+            case 1:
+                request.conditionalCluster(
+                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    )
+                );
+                break;
+            case 2:
+                request.conditionalCluster(
+                    new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    )
+                );
+                break;
+            case 3:
+                request.conditionalCluster(
+                    new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    ),
+                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    )
+                );
+                break;
         }
 
         request.runAs(generateRandomStringArray(4, 3, false, true));

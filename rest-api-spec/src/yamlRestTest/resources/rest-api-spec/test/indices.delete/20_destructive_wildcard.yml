@@ -3,7 +3,7 @@ setup:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             action.destructive_requires_name: "true"
         flat_settings: true
 ---
@@ -11,7 +11,7 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             action.destructive_requires_name: "false"
         flat_settings: true
 ---

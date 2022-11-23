@@ -9,9 +9,9 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,7 +19,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<RangeAggregationBuilder> {
+public class RangeAggregationBuilderTests extends AbstractXContentSerializingTestCase<RangeAggregationBuilder> {
     @Override
     protected RangeAggregationBuilder doParseInstance(XContentParser parser) throws IOException {
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
@@ -48,20 +48,15 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
         double r = 0;
         for (int i = 0; i < rangeCount; i++) {
             switch (between(0, 2)) {
-                case 0:
-                    builder.addUnboundedFrom(randomAlphaOfLength(2), r);
-                    break;
-                case 1:
-                    builder.addUnboundedTo(randomAlphaOfLength(2), r);
-                    break;
-                case 2:
+                case 0 -> builder.addUnboundedFrom(randomAlphaOfLength(2), r);
+                case 1 -> builder.addUnboundedTo(randomAlphaOfLength(2), r);
+                case 2 -> {
                     double from = r;
                     r += randomDouble(); // less than 1
                     double to = r;
                     builder.addRange(randomAlphaOfLength(2), from, to);
-                    break;
-                default:
-                    fail();
+                }
+                default -> fail();
             }
             r += randomDouble(); // less than 1
         }
@@ -75,23 +70,16 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
         String field = builder.field();
         List<RangeAggregator.Range> ranges = builder.ranges();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(1);
-                break;
-            case 1:
-                keyed = keyed == false;
-                break;
-            case 2:
-                field += randomAlphaOfLength(1);
-                break;
-            case 3:
+            case 0 -> name += randomAlphaOfLength(1);
+            case 1 -> keyed = keyed == false;
+            case 2 -> field += randomAlphaOfLength(1);
+            case 3 -> {
                 ranges = new ArrayList<>(ranges);
                 double from = ranges.get(ranges.size() - 1).from;
                 double to = from + randomDouble();
                 ranges.add(new RangeAggregator.Range(randomAlphaOfLength(2), from, to));
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         RangeAggregationBuilder mutant = new RangeAggregationBuilder(name).keyed(keyed).field(field);
         ranges.stream().forEach(mutant::addRange);
@@ -99,9 +87,8 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
     }
 
     public void testNumericKeys() throws IOException {
-        RangeAggregationBuilder builder = doParseInstance(
-            createParser(JsonXContent.jsonXContent, "{\"test\":{\"range\":{\"field\":\"f\",\"ranges\":[{\"key\":1,\"to\":0}]}}}")
-        );
+        RangeAggregationBuilder builder = doParseInstance(createParser(JsonXContent.jsonXContent, """
+            {"test":{"range":{"field":"f","ranges":[{"key":1,"to":0}]}}}"""));
         assertThat(builder.getName(), equalTo("test"));
         assertThat(builder.field(), equalTo("f"));
         assertThat(builder.ranges, equalTo(List.of(new RangeAggregator.Range("1", null, 0d))));

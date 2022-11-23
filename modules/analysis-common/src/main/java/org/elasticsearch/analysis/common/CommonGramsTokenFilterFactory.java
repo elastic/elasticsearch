@@ -28,14 +28,15 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean queryMode;
 
     CommonGramsTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.queryMode = settings.getAsBoolean("query_mode", false);
         this.words = Analysis.parseCommonWords(env, settings, null, ignoreCase);
 
         if (this.words == null) {
             throw new IllegalArgumentException(
-                    "missing or empty [common_words] or [common_words_path] configuration for common_grams token filter");
+                "missing or empty [common_words] or [common_words_path] configuration for common_grams token filter"
+            );
         }
     }
 
@@ -54,4 +55,3 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 }
-

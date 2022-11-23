@@ -45,6 +45,7 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         if (randomBoolean()) {
             histo.missingBucket(true);
         }
+        histo.missingOrder(randomFrom(MissingOrder.values()));
         return histo;
     }
 
@@ -70,6 +71,7 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         if (randomBoolean()) {
             terms.missingBucket(true);
         }
+        terms.missingOrder(randomFrom(MissingOrder.values()));
         return terms;
     }
 
@@ -83,6 +85,7 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         if (randomBoolean()) {
             histo.missingBucket(true);
         }
+        histo.missingOrder(randomFrom(MissingOrder.values()));
         histo.interval(randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false));
         return histo;
     }
@@ -96,20 +99,11 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             int type = randomIntBetween(0, 3);
             type = 3;
             switch (type) {
-                case 0:
-                    sources.add(randomTermsSourceBuilder());
-                    break;
-                case 1:
-                    sources.add(randomDateHistogramSourceBuilder());
-                    break;
-                case 2:
-                    sources.add(randomHistogramSourceBuilder());
-                    break;
-                case 3:
-                    sources.add(randomGeoTileGridValuesSourceBuilder());
-                    break;
-                default:
-                    throw new AssertionError("wrong branch");
+                case 0 -> sources.add(randomTermsSourceBuilder());
+                case 1 -> sources.add(randomDateHistogramSourceBuilder());
+                case 2 -> sources.add(randomHistogramSourceBuilder());
+                case 3 -> sources.add(randomGeoTileGridValuesSourceBuilder());
+                default -> throw new AssertionError("wrong branch");
             }
         }
         return new CompositeAggregationBuilder(randomAlphaOfLength(10), sources);

@@ -18,9 +18,12 @@ This section summarizes the changes in each release.
 
 --
 
-include::release-notes/8.2.asciidoc[]
-include::release-notes/8.1.asciidoc[]
-include::release-notes/8.0.asciidoc[]
+include::release-notes/8.2.0.asciidoc[]
+include::release-notes/8.1.1.asciidoc[]
+include::release-notes/8.1.0.asciidoc[]
+include::release-notes/8.0.2.asciidoc[]
+include::release-notes/8.0.1.asciidoc[]
+include::release-notes/8.0.0.asciidoc[]
 include::release-notes/8.0.0-rc3.asciidoc[]
 include::release-notes/8.0.0-beta2.asciidoc[]
 include::release-notes/8.0.0-alpha1.asciidoc[]

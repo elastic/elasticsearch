@@ -17,10 +17,8 @@
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.InternalContext;
 import org.elasticsearch.common.inject.internal.InternalFactory;
-import org.elasticsearch.common.inject.internal.PrivateElementsImpl;
 import org.elasticsearch.common.inject.internal.ProviderInstanceBindingImpl;
 import org.elasticsearch.common.inject.internal.Scoping;
 import org.elasticsearch.common.inject.internal.SourceProvider;
@@ -29,8 +27,6 @@ import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.Elements;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
-import org.elasticsearch.common.inject.spi.PrivateElements;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,30 +69,7 @@ class InjectorShell {
          */
         private State state;
 
-        private InjectorImpl parent;
-        private Stage stage;
-
-        /**
-         * null unless this exists in a {@link Binder#newPrivateBinder private environment}
-         */
-        private PrivateElementsImpl privateElements;
-
-        Builder parent(InjectorImpl parent) {
-            this.parent = parent;
-            this.state = new InheritingState(parent.state);
-            return this;
-        }
-
-        Builder stage(Stage stage) {
-            this.stage = stage;
-            return this;
-        }
-
-        Builder privateElements(PrivateElements privateElements) {
-            this.privateElements = (PrivateElementsImpl) privateElements;
-            this.elements.addAll(privateElements.getElements());
-            return this;
-        }
+        private final Stage stage = Stage.DEVELOPMENT;
 
         void addModules(Iterable<? extends Module> modules) {
             for (Module module : modules) {
@@ -112,41 +85,25 @@ class InjectorShell {
         }
 
         /**
-         * Creates and returns the injector shells for the current modules. Multiple shells will be
-         * returned if any modules contain {@link Binder#newPrivateBinder private environments}. The
-         * primary injector will be first in the returned list.
+         * Creates and returns the injector shells for the current modules.
          */
-        List<InjectorShell> build(Initializer initializer, BindingProcessor bindingProcessor,
-                                  Stopwatch stopwatch, Errors errors) {
-            if (stage == null) {
-                throw new IllegalStateException("Stage not initialized");
-            }
-            if (privateElements != null && parent == null) {
-                throw new IllegalStateException("PrivateElements with no parent");
-            }
+        List<InjectorShell> build(BindingProcessor bindingProcessor, Stopwatch stopwatch, Errors errors) {
             if (state == null) {
                 throw new IllegalStateException("no state. Did you remember to lock() ?");
             }
 
-            InjectorImpl injector = new InjectorImpl(state, initializer);
-            if (privateElements != null) {
-                privateElements.initInjector(injector);
-            }
+            InjectorImpl injector = new InjectorImpl(state);
 
             // bind Stage and Singleton if this is a top-level injector
-            if (parent == null) {
-                modules.add(0, new RootModule(stage));
-                new TypeConverterBindingProcessor(errors).prepareBuiltInConverters(injector);
-            }
+            modules.add(0, new RootModule(stage));
+            new TypeConverterBindingProcessor(errors).prepareBuiltInConverters(injector);
 
             elements.addAll(Elements.getElements(stage, modules));
             stopwatch.resetAndLog("Module execution");
 
             new MessageProcessor(errors).process(injector, elements);
 
-            new TypeListenerBindingProcessor(errors).process(injector, elements);
-            List<TypeListenerBinding> listenerBindings = injector.state.getTypeListenerBindings();
-            injector.membersInjectorStore = new MembersInjectorStore(injector, listenerBindings);
+            injector.membersInjectorStore = new MembersInjectorStore(injector);
             stopwatch.resetAndLog("TypeListeners creation");
 
             new ScopeBindingProcessor(errors).process(injector, elements);
@@ -163,12 +120,6 @@ class InjectorShell {
             List<InjectorShell> injectorShells = new ArrayList<>();
             injectorShells.add(new InjectorShell(elements, injector));
 
-            // recursively build child shells
-            PrivateElementProcessor processor = new PrivateElementProcessor(errors, stage);
-            processor.process(injector, elements);
-            for (Builder builder : processor.getInjectorShellBuilders()) {
-                injectorShells.addAll(builder.build(initializer, bindingProcessor, stopwatch, errors));
-            }
             stopwatch.resetAndLog("Private environment creation");
 
             return injectorShells;
@@ -176,7 +127,7 @@ class InjectorShell {
 
         private State getState() {
             if (state == null) {
-                state = new InheritingState(State.NONE);
+                state = new InheritingState();
             }
             return state;
         }
@@ -189,10 +140,18 @@ class InjectorShell {
     private static void bindInjector(InjectorImpl injector) {
         Key<Injector> key = Key.get(Injector.class);
         InjectorFactory injectorFactory = new InjectorFactory(injector);
-        injector.state.putBinding(key,
-                new ProviderInstanceBindingImpl<>(injector, key, SourceProvider.UNKNOWN_SOURCE,
-                        injectorFactory, Scoping.UNSCOPED, injectorFactory,
-                        emptySet()));
+        injector.state.putBinding(
+            key,
+            new ProviderInstanceBindingImpl<>(
+                injector,
+                key,
+                SourceProvider.UNKNOWN_SOURCE,
+                injectorFactory,
+                Scoping.UNSCOPED,
+                injectorFactory,
+                emptySet()
+            )
+        );
     }
 
     private static class InjectorFactory implements InternalFactory<Injector>, Provider<Injector> {
@@ -203,8 +162,7 @@ class InjectorShell {
         }
 
         @Override
-        public Injector get(Errors errors, InternalContext context, Dependency<?> dependency)
-                throws ErrorsException {
+        public Injector get(Errors errors, InternalContext context, Dependency<?> dependency) {
             return injector;
         }
 
@@ -226,10 +184,18 @@ class InjectorShell {
     private static void bindLogger(InjectorImpl injector) {
         Key<Logger> key = Key.get(Logger.class);
         LoggerFactory loggerFactory = new LoggerFactory();
-        injector.state.putBinding(key,
-                new ProviderInstanceBindingImpl<>(injector, key,
-                        SourceProvider.UNKNOWN_SOURCE, loggerFactory, Scoping.UNSCOPED,
-                        loggerFactory, emptySet()));
+        injector.state.putBinding(
+            key,
+            new ProviderInstanceBindingImpl<>(
+                injector,
+                key,
+                SourceProvider.UNKNOWN_SOURCE,
+                loggerFactory,
+                Scoping.UNSCOPED,
+                loggerFactory,
+                emptySet()
+            )
+        );
     }
 
     private static class LoggerFactory implements InternalFactory<Logger>, Provider<Logger> {
@@ -237,8 +203,8 @@ class InjectorShell {
         public Logger get(Errors errors, InternalContext context, Dependency<?> dependency) {
             InjectionPoint injectionPoint = dependency.getInjectionPoint();
             return injectionPoint == null
-                    ? Logger.getAnonymousLogger()
-                    : Logger.getLogger(injectionPoint.getMember().getDeclaringClass().getName());
+                ? Logger.getAnonymousLogger()
+                : Logger.getLogger(injectionPoint.getMember().getDeclaringClass().getName());
         }
 
         @Override

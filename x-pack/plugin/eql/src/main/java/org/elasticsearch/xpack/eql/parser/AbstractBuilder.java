@@ -41,8 +41,11 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
 
         // catch old method of ?" and ?' to define unescaped strings
         if (text.startsWith("?")) {
-            throw new ParsingException(source,
-                "Use triple double quotes [\"\"\"] to define unescaped string literals, not [?{}]", text.charAt(1));
+            throw new ParsingException(
+                source,
+                "Use triple double quotes [\"\"\"] to define unescaped string literals, not [?{}]",
+                text.charAt(1)
+            );
         }
 
         // unescaped strings can be interpreted directly
@@ -59,35 +62,18 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
             if (text.charAt(i) == '\\') {
                 // ANTLR4 Grammar guarantees there is always a character after the `\`
                 switch (text.charAt(++i)) {
-                    case 't':
-                        sb.append('\t');
-                        break;
-                    case 'b':
-                        sb.append('\b');
-                        break;
-                    case 'f':
-                        sb.append('\f');
-                        break;
-                    case 'n':
-                        sb.append('\n');
-                        break;
-                    case 'r':
-                        sb.append('\r');
-                        break;
-                    case '"':
-                        sb.append('\"');
-                        break;
-                    case '\'':
-                        sb.append('\'');
-                        break;
-                    case 'u':
-                        i = handleUnicodePoints(source, sb, text, ++i);
-                        break;
-                    case '\\':
-                        sb.append('\\');
-                        // will be interpreted as regex, so we have to escape it
-                        break;
-                    default:
+                    case 't' -> sb.append('\t');
+                    case 'b' -> sb.append('\b');
+                    case 'f' -> sb.append('\f');
+                    case 'n' -> sb.append('\n');
+                    case 'r' -> sb.append('\r');
+                    case '"' -> sb.append('\"');
+                    case '\'' -> sb.append('\'');
+                    case 'u' -> i = handleUnicodePoints(source, sb, text, ++i);
+                    case '\\' -> sb.append('\\');
+
+                    // will be interpreted as regex, so we have to escape it
+                    default ->
                         // unknown escape sequence, pass through as-is, e.g: `...\w...`
                         sb.append('\\').append(text.charAt(i));
                 }
@@ -106,8 +92,12 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         unicodeSequence = text.substring(startIdx, endIdx);
         int length = unicodeSequence.length();
         if (length < 2 || length > 8) {
-            throw new ParsingException(source, "Unicode sequence should use [2-8] hex digits, [{}] has [{}]",
-                    text.substring(startIdx - 3, endIdx + 1), length);
+            throw new ParsingException(
+                source,
+                "Unicode sequence should use [2-8] hex digits, [{}] has [{}]",
+                text.substring(startIdx - 3, endIdx + 1),
+                length
+            );
         }
         sb.append(hexToUnicode(source, unicodeSequence));
         return endIdx;
@@ -128,8 +118,7 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
 
     private static void checkForSingleQuotedString(Source source, String text, int i) {
         if (text.charAt(i) == '\'') {
-            throw new ParsingException(source,
-                    "Use double quotes [\"] to define string literals, not single quotes [']");
+            throw new ParsingException(source, "Use double quotes [\"] to define string literals, not single quotes [']");
         }
     }
 }

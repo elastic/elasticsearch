@@ -11,7 +11,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -30,17 +29,26 @@ public class SFunction extends ANode {
     private final boolean isSynthetic;
     private final boolean isAutoReturnEnabled;
 
-    public SFunction(int identifier, Location location,
-            String returnCanonicalTypeName, String name, List<String> canonicalTypeNameParameters, List<String> parameterNames,
-            SBlock blockNode,
-            boolean isInternal, boolean isStatic, boolean isSynthetic, boolean isAutoReturnEnabled) {
+    public SFunction(
+        int identifier,
+        Location location,
+        String returnCanonicalTypeName,
+        String name,
+        List<String> canonicalTypeNameParameters,
+        List<String> parameterNames,
+        SBlock blockNode,
+        boolean isInternal,
+        boolean isStatic,
+        boolean isSynthetic,
+        boolean isAutoReturnEnabled
+    ) {
 
         super(identifier, location);
 
         this.returnCanonicalTypeName = Objects.requireNonNull(returnCanonicalTypeName);
         this.functionName = Objects.requireNonNull(name);
-        this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
-        this.parameterNames = Collections.unmodifiableList(Objects.requireNonNull(parameterNames));
+        this.canonicalTypeNameParameters = List.copyOf(canonicalTypeNameParameters);
+        this.parameterNames = List.copyOf(parameterNames);
         this.blockNode = Objects.requireNonNull(blockNode);
         this.isInternal = isInternal;
         this.isSynthetic = isSynthetic;

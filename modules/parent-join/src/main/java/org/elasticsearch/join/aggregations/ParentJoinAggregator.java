@@ -17,11 +17,12 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -50,16 +51,18 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
      */
     private final CollectionStrategy collectionStrategy;
 
-    public ParentJoinAggregator(String name,
-                                    AggregatorFactories factories,
-                                    AggregationContext context,
-                                    Aggregator parent,
-                                    Query inFilter,
-                                    Query outFilter,
-                                    ValuesSource.Bytes.WithOrdinals valuesSource,
-                                    long maxOrd,
-                                    CardinalityUpperBound cardinality,
-                                    Map<String, Object> metadata) throws IOException {
+    public ParentJoinAggregator(
+        String name,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        Query inFilter,
+        Query outFilter,
+        ValuesSource.Bytes.WithOrdinals valuesSource,
+        long maxOrd,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         /*
          * We have to use MANY to work around
          * https://github.com/elastic/elasticsearch/issues/59097
@@ -67,8 +70,9 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
 
         if (maxOrd > Integer.MAX_VALUE) {
-            throw new IllegalStateException("the number of parent [" + maxOrd + "] + is greater than the allowed limit " +
-                "for this aggregation: " + Integer.MAX_VALUE);
+            throw new IllegalStateException(
+                "the number of parent [" + maxOrd + "] + is greater than the allowed limit " + "for this aggregation: " + Integer.MAX_VALUE
+            );
         }
 
         // these two filters are cached in the parser
@@ -82,13 +86,16 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
-    public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
+        throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
-        final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), inFilter.scorerSupplier(ctx));
+        final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(aggCtx.getLeafReaderContext());
+        final Bits parentDocs = Lucene.asSequentialAccessBits(
+            aggCtx.getLeafReaderContext().reader().maxDoc(),
+            inFilter.scorerSupplier(aggCtx.getLeafReaderContext())
+        );
         return new LeafBucketCollector() {
             @Override
             public void collect(int docId, long owningBucketOrd) throws IOException {
@@ -115,8 +122,9 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 continue;
             }
             DocIdSetIterator childDocsIter = childDocsScorer.iterator();
-
-            final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
+            final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(
+                new AggregationExecutionContext(ctx, null, null, null)
+            );
 
             final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
             // Set the scorer, since we now replay only the child docIds
@@ -149,7 +157,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                  * structure that maps a primitive long to a list of primitive
                  * longs.
                  */
-                for (long owningBucketOrd: ordsToCollect) {
+                for (long owningBucketOrd : ordsToCollect) {
                     if (collectionStrategy.exists(owningBucketOrd, globalOrdinal)) {
                         collectBucket(sub, docId, owningBucketOrd);
                     }
@@ -172,6 +180,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
      */
     protected interface CollectionStrategy extends Releasable {
         void add(long owningBucketOrd, int globalOrdinal);
+
         boolean exists(long owningBucketOrd, int globalOrdinal);
     }
 

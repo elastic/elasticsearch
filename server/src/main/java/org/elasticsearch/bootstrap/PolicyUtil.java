@@ -8,19 +8,13 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.script.ClassPermission;
+import org.elasticsearch.secure_sm.ThreadPermission;
 
-import javax.management.MBeanPermission;
-import javax.management.MBeanServerPermission;
-import javax.management.ObjectName;
-import javax.security.auth.AuthPermission;
-import javax.security.auth.PrivateCredentialPermission;
-import javax.security.auth.kerberos.DelegationPermission;
-import javax.security.auth.kerberos.ServicePermission;
 import java.io.FilePermission;
 import java.io.IOException;
 import java.lang.reflect.ReflectPermission;
@@ -51,11 +45,20 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.PropertyPermission;
 import java.util.Properties;
+import java.util.PropertyPermission;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import javax.management.MBeanPermission;
+import javax.management.MBeanServerPermission;
+import javax.management.MBeanTrustPermission;
+import javax.management.ObjectName;
+import javax.security.auth.AuthPermission;
+import javax.security.auth.PrivateCredentialPermission;
+import javax.security.auth.kerberos.DelegationPermission;
+import javax.security.auth.kerberos.ServicePermission;
 
 public class PolicyUtil {
 
@@ -67,8 +70,7 @@ public class PolicyUtil {
         PermissionCollection namedPermissions;
         Map<String, List<String>> classPermissions;
 
-        PermissionMatcher(PermissionCollection namedPermissions,
-                          Map<String, List<String>> classPermissions) {
+        PermissionMatcher(PermissionCollection namedPermissions, Map<String, List<String>> classPermissions) {
             this.namedPermissions = namedPermissions;
             this.classPermissions = classPermissions;
         }
@@ -131,33 +133,44 @@ public class PolicyUtil {
             new AuthPermission("setLoginConfiguration"),
             new AuthPermission("createLoginConfiguration.*"),
             new AuthPermission("refreshLoginConfiguration"),
-            new MBeanPermission("*",  "*", ObjectName.WILDCARD,
-                "addNotificationListener,getAttribute,getDomains,getMBeanInfo,getObjectInstance,instantiate,invoke," +
-                "isInstanceOf,queryMBeans,queryNames,registerMBean,removeNotificationListener,setAttribute,unregisterMBean"),
-            new MBeanServerPermission("*")
+            new MBeanPermission(
+                "*",
+                "*",
+                ObjectName.WILDCARD,
+                "addNotificationListener,getAttribute,getDomains,getMBeanInfo,getObjectInstance,instantiate,invoke,"
+                    + "isInstanceOf,queryMBeans,queryNames,registerMBean,removeNotificationListener,setAttribute,unregisterMBean"
+            ),
+            new MBeanServerPermission("*"),
+            new MBeanTrustPermission("register")
         );
         // While it would be ideal to represent all allowed permissions with concrete instances so that we can
         // use the builtin implies method to match them against the parsed policy, this does not work in all
         // cases for two reasons:
         // (1) Some permissions classes do not have a name argument that can represent all possible variants.
-        //     For example, FilePermission has "<< ALL FILES >>" so all paths can be matched, but DelegationPermission
-        //     does not have anything to represent all principals.
+        // For example, FilePermission has "<< ALL FILES >>" so all paths can be matched, but DelegationPermission
+        // does not have anything to represent all principals.
         // (2) Some permissions classes are in java modules that are not accessible from the classloader used by
-        //     the policy parser. This results in those permissions being in UnresolvedPermission instances. Those
-        //     are normally resolved at runtime when that permission is checked by SecurityManager. But there is
-        //     no general purpose utility to resolve those permissions, so we must be able to match those
-        //     unresolved permissions in the policy by class and name values.
+        // the policy parser. This results in those permissions being in UnresolvedPermission instances. Those
+        // are normally resolved at runtime when that permission is checked by SecurityManager. But there is
+        // no general purpose utility to resolve those permissions, so we must be able to match those
+        // unresolved permissions in the policy by class and name values.
         // Given the above, the below map is from permission class to the list of allowed name values. A sentinel value
         // is used to mean names are accepted. We do not use this model for all permissions because many permission
         // classes have their own meaning for some form of wildcard matching of the name, which we want to delegate
         // to those permissions if possible.
         Map<String, List<String>> classPermissions = Map.of(
-            URLPermission.class, ALLOW_ALL_NAMES,
-            DelegationPermission.class, ALLOW_ALL_NAMES,
-            ServicePermission.class, ALLOW_ALL_NAMES,
-            PrivateCredentialPermission.class, ALLOW_ALL_NAMES,
-            SQLPermission.class, List.of("callAbort", "setNetworkTimeout"),
-            ClassPermission.class, ALLOW_ALL_NAMES
+            URLPermission.class,
+            ALLOW_ALL_NAMES,
+            DelegationPermission.class,
+            ALLOW_ALL_NAMES,
+            ServicePermission.class,
+            ALLOW_ALL_NAMES,
+            PrivateCredentialPermission.class,
+            ALLOW_ALL_NAMES,
+            SQLPermission.class,
+            List.of("callAbort", "setNetworkTimeout"),
+            ClassPermission.class,
+            ALLOW_ALL_NAMES
         ).entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getCanonicalName(), Map.Entry::getValue));
         PermissionCollection pluginPermissionCollection = new Permissions();
         namedPermissions.forEach(pluginPermissionCollection::add);
@@ -172,13 +185,21 @@ public class PolicyUtil {
             new RuntimePermission("createClassLoader"),
             new RuntimePermission("getFileStoreAttributes"),
             new RuntimePermission("accessUserInformation"),
-            new AuthPermission("modifyPrivateCredentials")
+            new AuthPermission("modifyPrivateCredentials"),
+            new RuntimePermission("accessSystemModules")
         );
         PermissionCollection modulePermissionCollection = new Permissions();
         namedPermissions.forEach(modulePermissionCollection::add);
         modulePermissions.forEach(modulePermissionCollection::add);
         modulePermissionCollection.setReadOnly();
-        ALLOWED_MODULE_PERMISSIONS = new PermissionMatcher(modulePermissionCollection, classPermissions);
+        Map<String, List<String>> moduleClassPermissions = new HashMap<>(classPermissions);
+        moduleClassPermissions.put(
+            // Not available to the SecurityManager ClassLoader. See classPermissions comment.
+            ThreadPermission.class.getCanonicalName(),
+            List.of("modifyArbitraryThreadGroup")
+        );
+        moduleClassPermissions = Collections.unmodifiableMap(moduleClassPermissions);
+        ALLOWED_MODULE_PERMISSIONS = new PermissionMatcher(modulePermissionCollection, moduleClassPermissions);
     }
 
     @SuppressForbidden(reason = "create permission for test")
@@ -211,7 +232,7 @@ public class PolicyUtil {
      * Reads and returns the specified {@code policyFile}.
      * <p>
      * Jar files listed in {@code codebases} location will be provided to the policy file via
-     * a system property of the short name: e.g. <code>${codebase.joda-convert-1.2.jar}</code>
+     * a system property of the short name: e.g. <code>${codebase.my-dep-1.2.jar}</code>
      * would map to full URL.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
@@ -239,7 +260,7 @@ public class PolicyUtil {
             try {
                 System.setProperties(tempProps);
                 // set codebase properties
-                for (Map.Entry<String,URL> codebase : codebases.entrySet()) {
+                for (Map.Entry<String, URL> codebase : codebases.entrySet()) {
                     String name = codebase.getKey();
                     URL url = codebase.getValue();
 
@@ -252,20 +273,29 @@ public class PolicyUtil {
 
                         Object previous = codebaseProperties.put(aliasProperty, url.toString());
                         if (previous != null) {
-                            throw new IllegalStateException("codebase property already set: " + aliasProperty + " -> " + previous +
-                                ", cannot set to " + url.toString());
+                            throw new IllegalStateException(
+                                "codebase property already set: " + aliasProperty + " -> " + previous + ", cannot set to " + url.toString()
+                            );
                         }
                     }
                     Object previous = codebaseProperties.put(property, url.toString());
                     if (previous != null) {
-                        throw new IllegalStateException("codebase property already set: " + property + " -> " + previous +
-                                                        ", cannot set to " + url.toString());
+                        throw new IllegalStateException(
+                            "codebase property already set: " + property + " -> " + previous + ", cannot set to " + url.toString()
+                        );
                     }
                 }
                 Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
                 if (unknownCodebases.isEmpty() == false) {
-                    throw new IllegalArgumentException("Unknown codebases " + unknownCodebases + " in policy file [" + policyFile + "]" +
-                        "\nAvailable codebases: " + codebaseProperties.keySet());
+                    throw new IllegalArgumentException(
+                        "Unknown codebases "
+                            + unknownCodebases
+                            + " in policy file ["
+                            + policyFile
+                            + "]"
+                            + "\nAvailable codebases: "
+                            + codebaseProperties.keySet()
+                    );
                 }
                 return policy;
             } finally {
@@ -276,9 +306,9 @@ public class PolicyUtil {
         }
     }
 
-    // pakcage private for tests
+    // package private for tests
     static PluginPolicyInfo readPolicyInfo(Path pluginRoot) throws IOException {
-        Path policyFile = pluginRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        Path policyFile = pluginRoot.resolve(PluginDescriptor.ES_PLUGIN_POLICY);
         if (Files.exists(policyFile) == false) {
             return null;
         }
@@ -314,8 +344,14 @@ public class PolicyUtil {
         return new PluginPolicyInfo(policyFile, jars, policy);
     }
 
-    private static void validatePolicyPermissionsForJar(String type, Path file, URL jar, Policy policy,
-                                                        PermissionMatcher allowedPermissions, Path tmpDir) throws IOException {
+    private static void validatePolicyPermissionsForJar(
+        String type,
+        Path file,
+        URL jar,
+        Policy policy,
+        PermissionMatcher allowedPermissions,
+        Path tmpDir
+    ) throws IOException {
         Set<Permission> jarPermissions = getPolicyPermissions(jar, policy, tmpDir);
         for (Permission permission : jarPermissions) {
             if (allowedPermissions.test(permission) == false) {
@@ -325,14 +361,14 @@ public class PolicyUtil {
         }
     }
 
-    private static void validatePolicyPermissions(String type, PluginPolicyInfo info, PermissionMatcher allowedPermissions,
-                                                  Path tmpDir) throws IOException {
+    private static void validatePolicyPermissions(String type, PluginPolicyInfo info, PermissionMatcher allowedPermissions, Path tmpDir)
+        throws IOException {
         if (info == null) {
             return;
         }
-        validatePolicyPermissionsForJar(type, info.file, null, info.policy, allowedPermissions, tmpDir);
-        for (URL jar : info.jars) {
-            validatePolicyPermissionsForJar(type, info.file, jar, info.policy, allowedPermissions, tmpDir);
+        validatePolicyPermissionsForJar(type, info.file(), null, info.policy(), allowedPermissions, tmpDir);
+        for (URL jar : info.jars()) {
+            validatePolicyPermissionsForJar(type, info.file(), jar, info.policy(), allowedPermissions, tmpDir);
         }
     }
 

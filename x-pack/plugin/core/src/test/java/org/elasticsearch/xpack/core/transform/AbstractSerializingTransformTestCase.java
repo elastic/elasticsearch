@@ -8,21 +8,22 @@
 package org.elasticsearch.xpack.core.transform;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
@@ -35,7 +36,8 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public abstract class AbstractSerializingTransformTestCase<T extends ToXContent & Writeable> extends AbstractSerializingTestCase<T> {
+public abstract class AbstractSerializingTransformTestCase<T extends ToXContent & Writeable> extends AbstractXContentSerializingTestCase<
+    T> {
 
     protected static Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
         Collections.singletonMap(TransformField.FOR_INTERNAL_STORAGE, "true")
@@ -67,6 +69,13 @@ public abstract class AbstractSerializingTransformTestCase<T extends ToXContent 
                 RetentionPolicyConfig.class,
                 TransformField.TIME.getPreferredName(),
                 TimeRetentionPolicyConfig::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                RetentionPolicyConfig.class,
+                NullRetentionPolicyConfig.NAME.getPreferredName(),
+                in -> NullRetentionPolicyConfig.INSTANCE
             )
         );
 
@@ -104,7 +113,7 @@ public abstract class AbstractSerializingTransformTestCase<T extends ToXContent 
 
     protected <X extends Writeable, Y extends Writeable> Y writeAndReadBWCObject(
         X original,
-        NamedWriteableRegistry namedWriteableRegistry,
+        NamedWriteableRegistry registry,
         Writeable.Writer<X> writer,
         Writeable.Reader<Y> reader,
         Version version

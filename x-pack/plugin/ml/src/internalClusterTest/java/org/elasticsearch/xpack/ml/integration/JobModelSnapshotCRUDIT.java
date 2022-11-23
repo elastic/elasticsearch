@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -59,14 +59,20 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
     @Before
     public void createComponents() throws Exception {
         ThreadPool tp = mockThreadPool();
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
-                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                ClusterService.USER_DEFINED_METADATA,
-                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
-        ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                    MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                    ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                    ClusterService.USER_DEFINED_METADATA,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                )
+            )
+        );
+        ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp, null);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(
@@ -91,7 +97,8 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
             () -> client().execute(
                 UpgradeJobModelSnapshotAction.INSTANCE,
                 new UpgradeJobModelSnapshotAction.Request(jobId, "snap_1", TimeValue.timeValueMinutes(10), true)
-            ).actionGet());
+            ).actionGet()
+        );
         assertThat(ex.status(), equalTo(RestStatus.CONFLICT));
         assertThat(
             ex.getMessage(),
@@ -105,14 +112,11 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
         String jobId = "update-job-model-snapshot";
         createJob(jobId);
         Date timestamp = new Date();
-        ModelSnapshot snapshot = new ModelSnapshot
-            .Builder(jobId)
-            .setMinVersion(Version.CURRENT)
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(Version.CURRENT)
             .setTimestamp(timestamp)
             .setSnapshotId("snap_1")
             .build();
         indexModelSnapshot(snapshot);
-
 
         UpdateModelSnapshotAction.Request request = new UpdateModelSnapshotAction.Request(jobId, "snap_1");
         request.setDescription("new_description");
@@ -121,8 +125,10 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
         assertThat(response.getModel().isRetain(), is(true));
         assertThat(response.getModel().getDescription(), equalTo("new_description"));
 
-        GetModelSnapshotsAction.Response getResponse =
-            client().execute(GetModelSnapshotsAction.INSTANCE, new GetModelSnapshotsAction.Request(jobId, "snap_1")).actionGet();
+        GetModelSnapshotsAction.Response getResponse = client().execute(
+            GetModelSnapshotsAction.INSTANCE,
+            new GetModelSnapshotsAction.Request(jobId, "snap_1")
+        ).actionGet();
         assertThat(getResponse.getResources().results().get(0).isRetain(), is(true));
         assertThat(getResponse.getResources().results().get(0).getDescription(), equalTo("new_description"));
         assertThat(getResponse.getResources().results().get(0).getTimestamp(), equalTo(timestamp));
@@ -131,20 +137,17 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
     public void testDeleteUnusedModelSnapshot() {
         String jobId = "delete-job-model-snapshot-unused";
         createJob(jobId);
-        ModelSnapshot snapshot = new ModelSnapshot
-            .Builder(jobId)
-            .setMinVersion(Version.CURRENT)
-            .setSnapshotId("snap_1")
-            .build();
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(Version.CURRENT).setSnapshotId("snap_1").build();
         indexModelSnapshot(snapshot);
-        GetModelSnapshotsAction.Response getResponse =
-            client().execute(GetModelSnapshotsAction.INSTANCE, new GetModelSnapshotsAction.Request(jobId, "snap_1")).actionGet();
+        GetModelSnapshotsAction.Response getResponse = client().execute(
+            GetModelSnapshotsAction.INSTANCE,
+            new GetModelSnapshotsAction.Request(jobId, "snap_1")
+        ).actionGet();
         assertThat(getResponse.getResources().results(), hasSize(1));
 
         client().execute(DeleteModelSnapshotAction.INSTANCE, new DeleteModelSnapshotAction.Request(jobId, "snap_1")).actionGet();
 
-        getResponse =
-            client().execute(GetModelSnapshotsAction.INSTANCE, new GetModelSnapshotsAction.Request(jobId, "snap_1")).actionGet();
+        getResponse = client().execute(GetModelSnapshotsAction.INSTANCE, new GetModelSnapshotsAction.Request(jobId, "snap_1")).actionGet();
         assertThat(getResponse.getResources().results(), hasSize(0));
     }
 
@@ -152,30 +155,29 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
         String jobId = "delete-job-model-snapshot-used";
         Date timestamp = new Date();
         createJob(jobId);
-        ModelSnapshot snapshot = new ModelSnapshot
-            .Builder(jobId)
-            .setMinVersion(Version.CURRENT)
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(Version.CURRENT)
             .setSnapshotId("snap_1")
             .setQuantiles(new Quantiles(jobId, timestamp, "quantiles-1"))
             .setSnapshotDocCount(1)
             .setModelSizeStats(new ModelSizeStats.Builder(jobId).setTimestamp(timestamp).setLogTime(timestamp))
             .build();
         indexModelSnapshot(snapshot);
-        GetModelSnapshotsAction.Response getResponse =
-            client().execute(GetModelSnapshotsAction.INSTANCE, new GetModelSnapshotsAction.Request(jobId, "snap_1")).actionGet();
+        GetModelSnapshotsAction.Response getResponse = client().execute(
+            GetModelSnapshotsAction.INSTANCE,
+            new GetModelSnapshotsAction.Request(jobId, "snap_1")
+        ).actionGet();
         assertThat(getResponse.getResources().results(), hasSize(1));
 
         client().execute(RevertModelSnapshotAction.INSTANCE, new RevertModelSnapshotAction.Request(jobId, "snap_1")).actionGet();
 
         // should fail?
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> client()
-                .execute(DeleteModelSnapshotAction.INSTANCE, new DeleteModelSnapshotAction.Request(jobId, "snap_1"))
-                .actionGet());
-        assertThat(ex.getMessage(),
-            containsString(
-                "Model snapshot 'snap_1' is the active snapshot for job 'delete-job-model-snapshot-used', so cannot be deleted"
-            )
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(DeleteModelSnapshotAction.INSTANCE, new DeleteModelSnapshotAction.Request(jobId, "snap_1")).actionGet()
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("Model snapshot 'snap_1' is the active snapshot for job 'delete-job-model-snapshot-used', so cannot be deleted")
         );
     }
 

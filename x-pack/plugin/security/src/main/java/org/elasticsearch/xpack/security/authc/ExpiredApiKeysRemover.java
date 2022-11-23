@@ -9,13 +9,12 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -23,13 +22,14 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -52,25 +52,24 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
 
     @Override
     public void doRun() {
-        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(RestrictedIndicesNames.SECURITY_MAIN_ALIAS);
+        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(SecuritySystemIndices.SECURITY_MAIN_ALIAS);
         if (timeout != TimeValue.MINUS_ONE) {
             expiredDbq.setTimeout(timeout);
             expiredDbq.getSearchRequest().source().timeout(timeout);
         }
         final Instant now = Instant.now();
-        expiredDbq
-            .setQuery(QueryBuilders.boolQuery()
+        expiredDbq.setQuery(
+            QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termsQuery("doc_type", "api_key"))
                 .should(QueryBuilders.termsQuery("api_key_invalidated", true))
                 .should(QueryBuilders.rangeQuery("expiration_time").lte(now.minus(EXPIRED_API_KEYS_RETENTION_PERIOD).toEpochMilli()))
                 .minimumShouldMatch(1)
-                );
+        );
 
-        executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq,
-                ActionListener.wrap(r -> {
-                    debugDbqResponse(r);
-                    markComplete();
-                }, this::onFailure));
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq, ActionListener.wrap(r -> {
+            debugDbqResponse(r);
+            markComplete();
+        }, this::onFailure));
     }
 
     void submit(ThreadPool threadPool) {
@@ -79,17 +78,30 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
         }
     }
 
-    private void debugDbqResponse(BulkByScrollResponse response) {
+    private static void debugDbqResponse(BulkByScrollResponse response) {
         if (logger.isDebugEnabled()) {
-            logger.debug("delete by query of api keys finished with [{}] deletions, [{}] bulk failures, [{}] search failures",
-                    response.getDeleted(), response.getBulkFailures().size(), response.getSearchFailures().size());
+            logger.debug(
+                "delete by query of api keys finished with [{}] deletions, [{}] bulk failures, [{}] search failures",
+                response.getDeleted(),
+                response.getBulkFailures().size(),
+                response.getSearchFailures().size()
+            );
             for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
-                logger.debug(new ParameterizedMessage("deletion failed for index [{}], id [{}]",
-                        failure.getIndex(), failure.getId()), failure.getCause());
+                logger.debug(
+                    () -> format("deletion failed for index [%s], id [%s]", failure.getIndex(), failure.getId()),
+                    failure.getCause()
+                );
             }
             for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
-                logger.debug(new ParameterizedMessage("search failed for index [{}], shard [{}] on node [{}]",
-                        failure.getIndex(), failure.getShardId(), failure.getNodeId()), failure.getReason());
+                logger.debug(
+                    () -> format(
+                        "search failed for index [%s], shard [%s] on node [%s]",
+                        failure.getIndex(),
+                        failure.getShardId(),
+                        failure.getNodeId()
+                    ),
+                    failure.getReason()
+                );
             }
         }
     }

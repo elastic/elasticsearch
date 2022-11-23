@@ -8,15 +8,13 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.MergableCustomMetadata;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -25,8 +23,7 @@ import java.util.Objects;
 /**
  * Contains metadata about registered licenses
  */
-public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom,
-        MergableCustomMetadata<LicensesMetadata> {
+public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     public static final String TYPE = "licenses";
 
@@ -41,16 +38,16 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
      * ever existed in the cluster state
      */
     public static final License LICENSE_TOMBSTONE = License.builder()
-            .type(License.LicenseType.TRIAL)
-            .issuer("elasticsearch")
-            .uid("TOMBSTONE")
-            .issuedTo("")
-            .maxNodes(0)
-            .issueDate(0)
-            .expiryDate(0)
-            .build();
+        .type(License.LicenseType.TRIAL)
+        .issuer("elasticsearch")
+        .uid("TOMBSTONE")
+        .issuedTo("")
+        .maxNodes(0)
+        .issueDate(0)
+        .expiryDate(0)
+        .build();
 
-    private License license;
+    private final License license;
 
     // This field describes the version of x-pack for which this cluster has exercised a trial. If the field
     // is null, then no trial has been exercised. We keep the version to leave open the possibility that we
@@ -58,7 +55,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
     @Nullable
     private Version trialVersion;
 
-    LicensesMetadata(License license, Version trialVersion) {
+    public LicensesMetadata(License license, Version trialVersion) {
         this.license = license;
         this.trialVersion = trialVersion;
     }
@@ -80,10 +77,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
     @Override
     public String toString() {
-        return "LicensesMetadata{" +
-                "license=" + license +
-                ", trialVersion=" + trialVersion +
-                '}';
+        return "LicensesMetadata{" + "license=" + license + ", trialVersion=" + trialVersion + '}';
     }
 
     @Override
@@ -93,8 +87,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
         LicensesMetadata that = (LicensesMetadata) o;
 
-        return Objects.equals(license, that.license)
-            && Objects.equals(trialVersion, that.trialVersion);
+        return Objects.equals(license, that.license) && Objects.equals(trialVersion, that.trialVersion);
     }
 
     @Override
@@ -201,17 +194,6 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
             }
         }
         return null;
-    }
-
-    @Override
-    public LicensesMetadata merge(LicensesMetadata other) {
-        if (other.license == null) {
-            return this;
-        } else if (license == null
-                || OperationMode.compare(other.license.operationMode(), license.operationMode()) > 0) {
-            return other;
-        }
-        return this;
     }
 
     private static final class Fields {

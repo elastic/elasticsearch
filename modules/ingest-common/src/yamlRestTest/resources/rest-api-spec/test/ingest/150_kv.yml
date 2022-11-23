@@ -27,7 +27,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "1"
         body: {
           foo: "goodbye=everybody hello=world"
@@ -36,7 +36,7 @@ teardown:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.goodbye: "everybody" }
   - match: { _source.hello: "world" }
 
@@ -78,7 +78,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "1"
         body: {
           origin: "field1",
@@ -89,7 +89,7 @@ teardown:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.bar.goodbye: "everybody" }
   - match: { _source.bar.hello: "world" }
   - match: { _source.goodbye: "everybody" }

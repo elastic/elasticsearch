@@ -47,23 +47,6 @@ public class MapBuilder<K, V> {
         return this;
     }
 
-    public MapBuilder<K, V> clear() {
-        this.map.clear();
-        return this;
-    }
-
-    public V get(K key) {
-        return map.get(key);
-    }
-
-    public boolean containsKey(K key) {
-        return map.containsKey(key);
-    }
-
-    public boolean isEmpty() {
-        return map.isEmpty();
-    }
-
     public Map<K, V> map() {
         return this.map;
     }

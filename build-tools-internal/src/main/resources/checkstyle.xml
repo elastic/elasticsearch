@@ -4,13 +4,32 @@
     "http://www.puppycrawl.com/dtds/configuration_1_3.dtd">
 
 <module name="Checker">
+  <module name="BeforeExecutionExclusionFileFilter">
+   <property name="fileNamePattern" value="module\-info\.java$"/>
+  </module>
+
   <property name="charset" value="UTF-8" />
 
   <module name="SuppressionFilter">
     <property name="file" value="${config_loc}/checkstyle_suppressions.xml" />
   </module>
 
+  <module name="SuppressionFilter">
+    <property name="file" value="${config_loc}/additional_checkstyle_suppressions.xml" />
+    <property name="optional" value="true" />
+  </module>
+
   <module name="SuppressWarningsFilter" />
+
+  <module name="RegexpMultiline">
+    <property name="id" value="MultipleHeaderJavadoc" />
+    <property name="format" value="^\s*\/\*\r?\n(\s\*[A-Za-z0-9 \.\/\;\,\.\-\(\)\\\x{22}\/\:\@\=\'\]\[\_\x{3E}\x{3C}]*\r?\n)+(\s\*\/)\s+package" />
+    <property name="fileExtensions" value="java" />
+    <property name="minimum" value="1" />
+    <property name="maximum" value="1" />
+    <property name="matchAcrossLines" value="true" />
+    <property name="message" value="Duplicate header javadocs are forbidden" />
+  </module>
 
   <!-- Checks Java files and forbids empty Javadoc comments. -->
   <!-- Although you can use the "JavadocStyle" rule for this, it considers Javadoc -->
@@ -38,7 +57,7 @@
     unfair. -->
   <module name="LineLength">
     <property name="max" value="140" />
-    <property name="ignorePattern" value="^ *\* *https?://[^ ]+$" />
+    <property name="ignorePattern" value="^(?:(?:package|import) .*| *\* *https?://[^ ]+)$" />
   </module>
 
   <module name="TreeWalker">
@@ -94,6 +113,46 @@
     <!-- Checks that all java files have a package declaration and that it
       lines up with the directory structure. -->
     <module name="PackageDeclaration" />
+
+    <!-- Checks that a local variable or a parameter does not shadow a field that is defined in the same class. -->
+    <!-- Use a forked version that understands setters that don't start with "set". -->
+    <!-- Notes on `ignoredMethodNames`:
+
+        * `createParser` creates objects so should be considered a sort-of constructor
+        * `createComponents` by its nature ends up referring to fields
+          a lot, and there's no benefit to flagging shadowed variables in
+          those methods.
+    -->
+    <!-- Disabled until existing violations are fixed -->
+    <!--
+    <module name="org.elasticsearch.gradle.internal.checkstyle.HiddenFieldCheck">
+        <property name="ignoreConstructorParameter" value="true" />
+        <property name="ignoreConstructorBody" value="true"/>
+        <property name="ignoreConstructorMethods" value="(?:ConstructingObjectParser)$"/>
+        <property name="ignoreSetter" value="true" />
+        <property name="minLineCount" value="5" />
+        <property name="ignoreFormat" value="^(?:threadPool)$"/>
+        <property name="ignoreAbstractMethods" value="true"/>
+        <property name="ignoreMethodNames" value="^(?:createParser|createComponents)$"/>
+        <property name="setterCanReturnItsClass" value="true"/>
+        <message key="hidden.field" value="''{0}'' hides a field." />
+    </module>
+    -->
+
+    <module name="org.elasticsearch.gradle.internal.checkstyle.StringFormattingCheck">
+        <message
+            key="forbidden.formatted"
+            value="''{0}'' format specifier is unsafe inside ''.formatted'' calls, as it uses the default locale. Use ''String.format'' for numeric formatting with ''Locale.ROOT'' instead." />
+    </module>
+
+    <module name="org.elasticsearch.gradle.internal.checkstyle.SwitchBetweenCheck">
+        <message
+            key="forbidden.switch.between"
+            value="Case ''{0}'' is outside the range of the ''{1}({2}, {3})'' call of the enclosing switch." />
+        <message
+            key="forbidden.switch.randomInt"
+            value="Case ''{0}'' is outside the range of the ''{1}({2})'' call of the enclosing switch." />
+    </module>
 
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use

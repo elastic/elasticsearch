@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 
 [[delete-async-eql-search-api]]
 === Delete async EQL search API

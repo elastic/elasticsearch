@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 
@@ -121,14 +122,16 @@ public interface BlobContainer {
     /**
      * Write a blob by providing a consumer that will write its contents to an output stream. This method allows serializing a blob's
      * contents directly to the blob store without having to materialize the serialized version in full before writing.
+     * This method is only used for streaming serialization of repository metadata that is known to be of limited size
+     * at any point in time and across all concurrent invocations of this method.
      *
      * @param blobName            the name of the blob to write
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      * @param atomic              whether the write should be atomic in case the implementation supports it
      * @param writer              consumer for an output stream that will write the blob contents to the stream
      */
-    void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic,
-                   CheckedConsumer<OutputStream, IOException> writer) throws IOException;
+    void writeMetadataBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
+        throws IOException;
 
     /**
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name,

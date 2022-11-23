@@ -35,7 +35,7 @@ public class TaskIdTests extends ESTestCase {
     }
 
     public void testSerializationOfEmpty() throws IOException {
-        //The size of the serialized representation of the EMPTY_TASK_ID matters a lot because many requests contain it.
+        // The size of the serialized representation of the EMPTY_TASK_ID matters a lot because many requests contain it.
         int expectedSize = 1;
         TaskId roundTripped = roundTrip(TaskId.EMPTY_TASK_ID, expectedSize);
         assertSame(TaskId.EMPTY_TASK_ID, roundTripped);

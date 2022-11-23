@@ -43,7 +43,7 @@ public class TimeProcessor extends DateTimeProcessor {
     private Object doProcess(OffsetTime time) {
         return extractor().extract(time);
     }
-    
+
     public static Integer doProcess(OffsetTime dateTime, String tzId, String extractorName) {
         return DateTimeProcessor.doProcess(asTimeAtZone(dateTime, ZoneId.of(tzId)), extractorName);
     }
@@ -59,7 +59,6 @@ public class TimeProcessor extends DateTimeProcessor {
             return false;
         }
         TimeProcessor other = (TimeProcessor) obj;
-        return Objects.equals(extractor(), other.extractor())
-                && Objects.equals(zoneId(), other.zoneId());
+        return Objects.equals(extractor(), other.extractor()) && Objects.equals(zoneId(), other.zoneId());
     }
 }

@@ -15,9 +15,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.MlAutoUpdateService;
@@ -41,31 +42,32 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        datafeedConfigProvider = new DatafeedConfigProvider(client(), xContentRegistry());
+        datafeedConfigProvider = new DatafeedConfigProvider(client(), xContentRegistry(), getInstanceFromNode(ClusterService.class));
         waitForMlTemplates();
     }
 
-    private static final String AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL = "{\n" +
-        "    \"datafeed_id\": \"farequote-datafeed-with-old-agg\",\n" +
-        "    \"job_id\": \"farequote\",\n" +
-        "    \"frequency\": \"1h\",\n" +
-        "    \"config_type\": \"datafeed\",\n" +
-        "    \"indices\": [\"farequote1\", \"farequote2\"],\n" +
-        "    \"aggregations\": {\n" +
-        "    \"buckets\": {\n" +
-        "      \"date_histogram\": {\n" +
-        "        \"field\": \"time\",\n" +
-        "        \"interval\": \"360s\",\n" +
-        "        \"time_zone\": \"UTC\"\n" +
-        "      },\n" +
-        "      \"aggregations\": {\n" +
-        "        \"time\": {\n" +
-        "          \"max\": {\"field\": \"time\"}\n" +
-        "        }\n" +
-        "      }\n" +
-        "    }\n" +
-        "  }\n" +
-        "}";
+    private static final String AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL = """
+        {
+            "datafeed_id": "farequote-datafeed-with-old-agg",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "config_type": "datafeed",
+            "indices": ["farequote1", "farequote2"],
+            "aggregations": {
+            "buckets": {
+              "date_histogram": {
+                "field": "time",
+                "interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          }
+        }""";
 
     public void testAutomaticModelUpdate() throws Exception {
         ensureGreen("_all");
@@ -77,30 +79,39 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
         AtomicReference<DatafeedConfig.Builder> getConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        blockingCall(listener -> datafeedConfigProvider.getDatafeedConfig("farequote-datafeed-with-old-agg", listener),
+        blockingCall(
+            listener -> datafeedConfigProvider.getDatafeedConfig("farequote-datafeed-with-old-agg", null, listener),
             getConfigHolder,
-            exceptionHolder);
+            exceptionHolder
+        );
         assertThat(exceptionHolder.get(), is(nullValue()));
         client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         DatafeedConfigAutoUpdater autoUpdater = new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver);
-        MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(client().threadPool(),
-            Collections.singletonList(autoUpdater));
+        MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(client().threadPool(), Collections.singletonList(autoUpdater));
 
-        ClusterChangedEvent event = new ClusterChangedEvent("test",
+        ClusterChangedEvent event = new ClusterChangedEvent(
+            "test",
             ClusterState.builder(new ClusterName("test"))
-                .nodes(DiscoveryNodes.builder().add(
-                    new DiscoveryNode("node_name",
-                        "node_id",
-                        new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        Collections.emptyMap(),
-                        Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                        Version.V_8_0_0))
-                    .localNodeId("node_id")
-                    .masterNodeId("node_id")
-                    .build())
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .add(
+                            new DiscoveryNode(
+                                "node_name",
+                                "node_id",
+                                new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                                Collections.emptyMap(),
+                                Set.of(DiscoveryNodeRole.MASTER_ROLE),
+                                Version.V_8_0_0
+                            )
+                        )
+                        .localNodeId("node_id")
+                        .masterNodeId("node_id")
+                        .build()
+                )
                 .build(),
-            ClusterState.builder(new ClusterName("test")).build());
+            ClusterState.builder(new ClusterName("test")).build()
+        );
 
         mlAutoUpdateService.clusterChanged(event);
         assertBusy(() -> {

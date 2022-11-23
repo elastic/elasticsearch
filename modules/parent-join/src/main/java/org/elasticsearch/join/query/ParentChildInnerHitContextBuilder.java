@@ -49,8 +49,13 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     private final String typeName;
     private final boolean fetchChildInnerHits;
 
-    ParentChildInnerHitContextBuilder(String typeName, boolean fetchChildInnerHits, QueryBuilder query,
-                                      InnerHitBuilder innerHitBuilder, Map<String, InnerHitContextBuilder> children) {
+    ParentChildInnerHitContextBuilder(
+        String typeName,
+        boolean fetchChildInnerHits,
+        QueryBuilder query,
+        InnerHitBuilder innerHitBuilder,
+        Map<String, InnerHitContextBuilder> children
+    ) {
         super(query, innerHitBuilder, children);
         this.typeName = typeName;
         this.fetchChildInnerHits = fetchChildInnerHits;
@@ -62,8 +67,13 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         Joiner joiner = Joiner.getJoiner(searchExecutionContext);
         if (joiner != null) {
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
-            JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(name, context, typeName,
-                fetchChildInnerHits, joiner);
+            JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(
+                name,
+                context,
+                typeName,
+                fetchChildInnerHits,
+                joiner
+            );
             setupInnerHitsContext(searchExecutionContext, joinFieldInnerHits);
             innerHitsContext.addInnerHitDefinition(joinFieldInnerHits);
         } else {
@@ -78,8 +88,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         private final boolean fetchChildInnerHits;
         private final Joiner joiner;
 
-        JoinFieldInnerHitSubContext(String name, SearchContext context, String typeName, boolean fetchChildInnerHits,
-                                    Joiner joiner) {
+        JoinFieldInnerHitSubContext(String name, SearchContext context, String typeName, boolean fetchChildInnerHits, Joiner joiner) {
             super(name, context);
             this.typeName = typeName;
             this.fetchChildInnerHits = fetchChildInnerHits;
@@ -119,10 +128,9 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                     intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
                 }
                 return new TopDocsAndMaxScore(
-                    new TopDocs(
-                        new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO),
-                        Lucene.EMPTY_SCORE_DOCS
-                    ), Float.NaN);
+                    new TopDocs(new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),
+                    Float.NaN
+                );
             } else {
                 int topN = Math.min(from() + size(), this.context.searcher().getIndexReader().maxDoc());
                 TopDocsCollector<?> topDocsCollector;

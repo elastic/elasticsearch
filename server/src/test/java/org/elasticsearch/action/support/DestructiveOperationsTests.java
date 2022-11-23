@@ -23,34 +23,33 @@ public class DestructiveOperationsTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        Settings nodeSettings = Settings.builder()
-            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), "true")
-            .build();
+        Settings nodeSettings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), "true").build();
         destructiveOperations = new DestructiveOperations(
             nodeSettings,
-            new ClusterSettings(nodeSettings, Set.of(DestructiveOperations.REQUIRES_NAME_SETTING)));
+            new ClusterSettings(nodeSettings, Set.of(DestructiveOperations.REQUIRES_NAME_SETTING))
+        );
     }
 
     public void testDestructive() {
         {
             // requests that might resolve to all indices
             assertFailsDestructive(null);
-            assertFailsDestructive(new String[]{});
-            assertFailsDestructive(new String[]{"_all"});
-            assertFailsDestructive(new String[]{"*"});
+            assertFailsDestructive(new String[] {});
+            assertFailsDestructive(new String[] { "_all" });
+            assertFailsDestructive(new String[] { "*" });
         }
         {
             // various wildcards
-            assertFailsDestructive(new String[] {"-*"});
-            assertFailsDestructive(new String[] {"index*"});
-            assertFailsDestructive(new String[] {"index", "*"});
-            assertFailsDestructive(new String[] {"index", "-*"});
-            assertFailsDestructive(new String[] {"index", "test-*-index"});
+            assertFailsDestructive(new String[] { "-*" });
+            assertFailsDestructive(new String[] { "index*" });
+            assertFailsDestructive(new String[] { "index", "*" });
+            assertFailsDestructive(new String[] { "index", "-*" });
+            assertFailsDestructive(new String[] { "index", "test-*-index" });
         }
         {
             // near versions of the "matchNone" pattern
-            assertFailsDestructive(new String[]{"-*", "*"});
-            assertFailsDestructive(new String[]{"*", "-*", "*"});
+            assertFailsDestructive(new String[] { "-*", "*" });
+            assertFailsDestructive(new String[] { "*", "-*", "*" });
         }
     }
 
@@ -63,19 +62,20 @@ public class DestructiveOperationsTests extends ESTestCase {
     public void testNonDestructive() {
         {
             // no wildcards
-            destructiveOperations.failDestructive(new String[]{"index"});
-            destructiveOperations.failDestructive(new String[]{"index", "-index2"});
+            destructiveOperations.failDestructive(new String[] { "index" });
+            destructiveOperations.failDestructive(new String[] { "index", "-index2" });
         }
         {
             // special "matchNone" pattern
-            destructiveOperations.failDestructive(new String[]{"*", "-*"});
+            destructiveOperations.failDestructive(new String[] { "*", "-*" });
         }
     }
 
     private void assertFailsDestructive(String[] aliasesOrIndices) {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> destructiveOperations.failDestructive(aliasesOrIndices));
+            () -> destructiveOperations.failDestructive(aliasesOrIndices)
+        );
 
         assertThat(e.getMessage(), equalTo("Wildcard expressions or all indices are not allowed"));
     }

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cloud.gce;
 
+import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.googleapis.compute.ComputeCredential;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpRequest;
@@ -19,23 +19,23 @@ import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.util.SecurityUtils;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,10 +47,17 @@ public class GceInstancesServiceImpl implements GceInstancesService {
     private static final Logger logger = LogManager.getLogger(GceInstancesServiceImpl.class);
 
     // all settings just used for testing - not registered by default
-    public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =
-        Setting.boolSetting("cloud.gce.validate_certificates", true, Property.NodeScope);
-    public static final Setting<String> GCE_ROOT_URL =
-        new Setting<>("cloud.gce.root_url", "https://www.googleapis.com", Function.identity(), Property.NodeScope);
+    public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES = Setting.boolSetting(
+        "cloud.gce.validate_certificates",
+        true,
+        Property.NodeScope
+    );
+    public static final Setting<String> GCE_ROOT_URL = new Setting<>(
+        "cloud.gce.root_url",
+        "https://www.googleapis.com",
+        Function.identity(),
+        Property.NodeScope
+    );
 
     private final String project;
     private final List<String> zones;
@@ -62,15 +69,21 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             try {
                 // hack around code messiness in GCE code
                 // TODO: get this fixed
-                InstanceList instanceList = Access.doPrivilegedIOException(() -> {
-                    Compute.Instances.List list = client().instances().list(project, zoneId);
-                    return list.execute();
+                return Access.doPrivilegedIOException(() -> {
+                    String nextPageToken = null;
+                    List<Instance> zoneInstances = new ArrayList<>();
+                    do {
+                        Compute.Instances.List list = client().instances().list(project, zoneId).setPageToken(nextPageToken);
+                        InstanceList instanceList = list.execute();
+                        nextPageToken = instanceList.getNextPageToken();
+                        if (instanceList.isEmpty() == false && instanceList.getItems() != null) {
+                            zoneInstances.addAll(instanceList.getItems());
+                        }
+                    } while (nextPageToken != null);
+                    return zoneInstances;
                 });
-                // assist type inference
-                return instanceList.isEmpty() || instanceList.getItems() == null ?
-                    Collections.<Instance>emptyList() : instanceList.getItems();
             } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
+                logger.warn(() -> "Problem fetching instance list for zone " + zoneId, e);
                 logger.debug("Full exception:", e);
                 // assist type inference
                 return Collections.<Instance>emptyList();
@@ -127,8 +140,9 @@ public class GceInstancesServiceImpl implements GceInstancesService {
         }
 
         try {
-            final String defaultZone =
-                getAppEngineValueFromMetadataServer("/computeMetadata/v1/project/attributes/google-compute-default-zone");
+            final String defaultZone = getAppEngineValueFromMetadataServer(
+                "/computeMetadata/v1/project/attributes/google-compute-default-zone"
+            );
             return Collections.singletonList(defaultZone);
         } catch (Exception e) {
             logger.warn("unable to resolve default zone from metadata server for GCE discovery service", e);
@@ -159,7 +173,12 @@ public class GceInstancesServiceImpl implements GceInstancesService {
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
         if (gceHttpTransport == null) {
             if (validateCerts) {
-                gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+                // Manually load the certificates in the jks format instead of the default p12 which is not compatible with FIPS.
+                KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
+                try (var is = GoogleUtils.class.getResourceAsStream("google.jks")) {
+                    SecurityUtils.loadKeyStore(certTrustStore, is, "notasecret");
+                }
+                gceHttpTransport = new NetHttpTransport.Builder().trustCertificates(certTrustStore).build();
             } else {
                 // this is only used for testing - alternative we could use the defaul keystore but this requires special configs too..
                 gceHttpTransport = new NetHttpTransport.Builder().doNotValidateCertificate().build();
@@ -170,8 +189,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
     public synchronized Compute client() {
         if (refreshInterval != null && refreshInterval.millis() != 0) {
-            if (client != null &&
-                (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
+            if (client != null && (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
                 if (logger.isTraceEnabled()) logger.trace("using cache to retrieve client");
                 return client;
             }
@@ -183,13 +201,13 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
             logger.info("starting GCE discovery service");
             // Forcing Google Token API URL as set in GCE SDK to
-            //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
+            // http://metadata/computeMetadata/v1/instance/service-accounts/default/token
             // See https://developers.google.com/compute/docs/metadata#metadataserver
-            String tokenServerEncodedUrl = GceMetadataService.GCE_HOST.get(settings) +
-                "/computeMetadata/v1/instance/service-accounts/default/token";
-            ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
-                .setTokenServerEncodedUrl(tokenServerEncodedUrl)
-                .build();
+            String tokenServerEncodedUrl = GceMetadataService.GCE_HOST.get(settings)
+                + "/computeMetadata/v1/instance/service-accounts/default/token";
+            ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory).setTokenServerEncodedUrl(
+                tokenServerEncodedUrl
+            ).build();
 
             // hack around code messiness in GCE code
             // TODO: get this fixed
@@ -199,7 +217,6 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             if (credential.getExpiresInSeconds() != null) {
                 refreshInterval = TimeValue.timeValueSeconds(credential.getExpiresInSeconds() - 1);
             }
-
 
             Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null).setApplicationName(VERSION)
                 .setRootUrl(GCE_ROOT_URL.get(settings));

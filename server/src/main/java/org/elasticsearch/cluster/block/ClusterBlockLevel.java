@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.block;
 
-
 import java.util.EnumSet;
 
 public enum ClusterBlockLevel {

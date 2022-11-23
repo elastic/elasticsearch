@@ -16,7 +16,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.749'
+  'aws': '1.12.270'
 ]
 
 dependencies {
@@ -27,8 +27,11 @@ dependencies {
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  api "joda-time:joda-time:2.10.10"
 }
 
 restResources {
@@ -42,10 +45,8 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-tasks.named("bundlePlugin").configure {
-  from('config/discovery-ec2') {
+esplugin.bundleSpec.from('config/discovery-ec2') {
     into 'config'
-  }
 }
 
 tasks.register("writeTestJavaPolicy") {
@@ -108,17 +109,8 @@ tasks.named("check").configure {
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
-          'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
           'com.amazonaws.jmespath.JmesPathExpression',
-          'com.amazonaws.jmespath.JmesPathField',
-          'com.amazonaws.jmespath.JmesPathFlatten',
-          'com.amazonaws.jmespath.JmesPathIdentity',
-          'com.amazonaws.jmespath.JmesPathLengthFunction',
-          'com.amazonaws.jmespath.JmesPathLiteral',
-          'com.amazonaws.jmespath.JmesPathProjection',
-          'com.amazonaws.jmespath.JmesPathSubExpression',
           'com.amazonaws.jmespath.ObjectMapperSingleton',
-          'com.amazonaws.jmespath.OpGreaterThan',
           'software.amazon.ion.IonReader',
           'software.amazon.ion.IonSystem',
           'software.amazon.ion.IonType',
@@ -133,6 +125,7 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
+          'javax.jms.Message',
           'javax.xml.bind.DatatypeConverter',
           'javax.xml.bind.JAXBContext'
   )

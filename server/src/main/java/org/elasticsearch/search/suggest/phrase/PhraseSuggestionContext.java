@@ -11,6 +11,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
@@ -29,8 +30,12 @@ class PhraseSuggestionContext extends SuggestionContext {
     static final float DEFAULT_RWE_ERRORLIKELIHOOD = 0.95f;
     static final float DEFAULT_MAX_ERRORS = 0.5f;
     static final String DEFAULT_SEPARATOR = " ";
-    static final WordScorer.WordScorerFactory DEFAULT_SCORER = (IndexReader reader, Terms terms, String field, double realWordLikelihood,
-            BytesRef separator) -> new StupidBackoffScorer(reader, terms, field, realWordLikelihood, separator, 0.4f);
+    static final WordScorer.WordScorerFactory DEFAULT_SCORER = (
+        IndexReader reader,
+        Terms terms,
+        String field,
+        double realWordLikelihood,
+        BytesRef separator) -> new StupidBackoffScorer(reader, terms, field, realWordLikelihood, separator, 0.4f);
 
     private float maxErrors = DEFAULT_MAX_ERRORS;
     private BytesRef separator = new BytesRef(DEFAULT_SEPARATOR);
@@ -44,7 +49,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     private TemplateScript.Factory scriptFactory;
     private boolean prune = DEFAULT_COLLATE_PRUNE;
     private List<DirectCandidateGenerator> generators = new ArrayList<>();
-    private Map<String, Object> collateScriptParams = new HashMap<>(1);
+    private Map<String, Object> collateScriptParams = Maps.newMapWithExpectedSize(1);
     private WordScorer.WordScorerFactory scorer = DEFAULT_SCORER;
 
     PhraseSuggestionContext(SearchExecutionContext searchExecutionContext) {
@@ -80,7 +85,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     }
 
     public List<DirectCandidateGenerator> generators() {
-        return this.generators ;
+        return this.generators;
     }
 
     public void setGramSize(int gramSize) {
@@ -150,7 +155,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     }
 
     public void setRequireUnigram(boolean requireUnigram) {
-        this.requireUnigram  = requireUnigram;
+        this.requireUnigram = requireUnigram;
     }
 
     public boolean getRequireUnigram() {

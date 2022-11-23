@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -34,7 +36,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
 
         if (precision == 0) {
-          return 1;
+            return 1;
         }
         GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         assert bounds.minX() <= bounds.maxX();
@@ -43,15 +45,18 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         if (bounds.minX() == bounds.maxX() && bounds.minY() == bounds.maxY()) {
             return setValue(values, geoValue, bounds);
         }
-        // TODO: optimize for when a  shape fits in a single tile an
-        //  for when brute-force is expected to be faster than rasterization, which
-        //  is when the number of tiles expected is less than the precision
+        // TODO: optimize for when a shape fits in a single tile an
+        // for when brute-force is expected to be faster than rasterization, which
+        // is when the number of tiles expected is less than the precision
         return setValuesByRasterization("", values, 0, geoValue);
     }
 
-    protected int setValuesByBruteForceScan(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue,
-                                            GeoShapeValues.BoundingBox bounds) throws IOException {
-        // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I  can
+    protected int setValuesByBruteForceScan(
+        GeoShapeCellValues values,
+        GeoShapeValues.GeoShapeValue geoValue,
+        GeoShapeValues.BoundingBox bounds
+    ) throws IOException {
+        // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I can
         // see that eventually we will be visiting twice the same cell which should not happen.
         int idx = 0;
         String min = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
@@ -67,7 +72,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
                 GeoRelation relation = relateTile(geoValue, hash);
                 if (relation != GeoRelation.QUERY_DISJOINT) {
                     values.resizeCell(idx + 1);
-                    values.add(idx++,  encode(i, j));
+                    values.add(idx++, encode(i, j));
                 }
             }
         }
@@ -89,30 +94,37 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String hash) throws IOException {
-        return validHash(hash) ? geoValue.relate(Geohash.toBoundingBox(hash)) : GeoRelation.QUERY_DISJOINT;
+        if (validHash(hash)) {
+            final Rectangle rectangle = Geohash.toBoundingBox(hash);
+            int minX = GeoEncodingUtils.encodeLongitude(rectangle.getMinLon());
+            int minY = GeoEncodingUtils.encodeLatitude(rectangle.getMinLat());
+            int maxX = GeoEncodingUtils.encodeLongitude(rectangle.getMaxLon());
+            int maxY = GeoEncodingUtils.encodeLatitude(rectangle.getMaxLat());
+            return geoValue.relate(minX, maxX == Integer.MAX_VALUE ? maxX : maxX - 1, minY, maxY == Integer.MAX_VALUE ? maxY : maxY - 1);
+        }
+        return GeoRelation.QUERY_DISJOINT;
     }
 
-    protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex,
-                                           GeoShapeValues.GeoShapeValue geoValue) throws IOException {
+    protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex, GeoShapeValues.GeoShapeValue geoValue)
+        throws IOException {
         String[] hashes = Geohash.getSubGeohashes(hash);
-        for (int i = 0; i < hashes.length; i++) {
-            GeoRelation relation = relateTile(geoValue, hashes[i]);
+        for (String s : hashes) {
+            GeoRelation relation = relateTile(geoValue, s);
             if (relation == GeoRelation.QUERY_CROSSES) {
-                if (hashes[i].length() == precision) {
+                if (s.length() == precision) {
                     values.resizeCell(valuesIndex + 1);
-                    values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
+                    values.add(valuesIndex++, Geohash.longEncode(s));
                 } else {
-                    valuesIndex =
-                        setValuesByRasterization(hashes[i], values, valuesIndex, geoValue);
+                    valuesIndex = setValuesByRasterization(s, values, valuesIndex, geoValue);
                 }
             } else if (relation == GeoRelation.QUERY_INSIDE) {
-                if (hashes[i].length() == precision) {
+                if (s.length() == precision) {
                     values.resizeCell(valuesIndex + 1);
-                    values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
+                    values.add(valuesIndex++, Geohash.longEncode(s));
                 } else {
                     int numTilesAtPrecision = getNumTilesAtPrecision(precision, hash.length());
                     values.resizeCell(getNewSize(valuesIndex, numTilesAtPrecision + 1));
-                    valuesIndex = setValuesForFullyContainedTile(hashes[i],values, valuesIndex, precision);
+                    valuesIndex = setValuesForFullyContainedTile(s, values, valuesIndex, precision);
                 }
             }
         }
@@ -120,7 +132,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     private int getNewSize(int valuesIndex, int increment) {
-        long newSize  = (long) valuesIndex + increment;
+        long newSize = (long) valuesIndex + increment;
         if (newSize > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Tile aggregation array overflow");
         }
@@ -128,22 +140,21 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     private int getNumTilesAtPrecision(int finalPrecision, int currentPrecision) {
-        final long numTilesAtPrecision  = Math.min((long) Math.pow(32, finalPrecision - currentPrecision) + 1, getMaxCells());
+        final long numTilesAtPrecision = Math.min((long) Math.pow(32, finalPrecision - currentPrecision) + 1, getMaxCells());
         if (numTilesAtPrecision > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Tile aggregation array overflow");
         }
         return (int) numTilesAtPrecision;
     }
 
-    protected int setValuesForFullyContainedTile(String hash, GeoShapeCellValues values,
-                                                 int valuesIndex, int targetPrecision) {
+    protected int setValuesForFullyContainedTile(String hash, GeoShapeCellValues values, int valuesIndex, int targetPrecision) {
         String[] hashes = Geohash.getSubGeohashes(hash);
-        for (int i = 0; i < hashes.length; i++) {
-            if (validHash(hashes[i])) {
-                if (hashes[i].length() == targetPrecision) {
-                    values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
+        for (String s : hashes) {
+            if (validHash(s)) {
+                if (s.length() == targetPrecision) {
+                    values.add(valuesIndex++, Geohash.longEncode(s));
                 } else {
-                    valuesIndex = setValuesForFullyContainedTile(hashes[i], values, valuesIndex, targetPrecision);
+                    valuesIndex = setValuesForFullyContainedTile(s, values, valuesIndex, targetPrecision);
                 }
             }
         }

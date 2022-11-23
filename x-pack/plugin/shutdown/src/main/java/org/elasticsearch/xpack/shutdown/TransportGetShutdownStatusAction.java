@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -41,11 +41,19 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus.NODE_ALLOCATION_DECISION_KEY;
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     GetShutdownStatusAction.Request,
@@ -190,7 +198,48 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0);
         }
 
-        // First, check if there are any shards currently on this node, and if there are any relocating shards
+        final RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            currentState,
+            clusterInfoService.getClusterInfo(),
+            snapshotsInfoService.snapshotShardSizes(),
+            System.nanoTime()
+        );
+        allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
+
+        // We also need the set of node IDs which are currently shutting down.
+        Set<String> shuttingDownNodes = currentState.metadata().nodeShutdowns().keySet();
+
+        // Check if we have any unassigned primary shards that have this nodeId as their lastAllocatedNodeId
+        var unassignedShards = Stream.iterate(
+            currentState.getRoutingNodes().unassigned().iterator(),
+            Iterator::hasNext,
+            UnaryOperator.identity()
+        )
+            .map(Iterator::next)
+            .filter(s -> Objects.equals(s.unassignedInfo().getLastAllocatedNodeId(), nodeId))
+            .filter(s -> s.primary() || hasShardCopyOnAnotherNode(currentState, s, shuttingDownNodes) == false)
+            .toList();
+
+        if (unassignedShards.isEmpty() == false) {
+            var shardRouting = unassignedShards.get(0);
+            ShardAllocationDecision decision = allocationService.explainShardAllocation(shardRouting, allocation);
+
+            return new ShutdownShardMigrationStatus(
+                SingleNodeShutdownMetadata.Status.STALLED,
+                unassignedShards.size(),
+                format(
+                    "shard [%s] [%s] of index [%s] is unassigned, see [%s] for details or use the cluster allocation explain API",
+                    shardRouting.shardId().getId(),
+                    shardRouting.primary() ? "primary" : "replica",
+                    shardRouting.index().getName(),
+                    NODE_ALLOCATION_DECISION_KEY
+                ),
+                decision
+            );
+        }
+
+        // Check if there are any shards currently on this node, and if there are any relocating shards
         int startedShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.STARTED);
         int relocatingShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING);
         int initializingShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.INITIALIZING);
@@ -212,18 +261,10 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         }
 
         // If there's no relocating shards and shards still on this node, we need to figure out why
-        final RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            currentState.getRoutingNodes(),
-            currentState,
-            clusterInfoService.getClusterInfo(),
-            snapshotsInfoService.snapshotShardSizes(),
-            System.nanoTime()
-        );
-        allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
+        AtomicInteger shardsToIgnoreForFinalStatus = new AtomicInteger(0);
 
         // Explain shard allocations until we find one that can't move, then stop (as `findFirst` short-circuits)
-        final Optional<ShardRouting> unmovableShard = currentState.getRoutingNodes()
+        Optional<Tuple<ShardRouting, ShardAllocationDecision>> unmovableShard = currentState.getRoutingNodes()
             .node(nodeId)
             .shardsWithState(ShardRoutingState.STARTED)
             .stream()
@@ -238,40 +279,66 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.THROTTLED) == false)
             // These shards will move as soon as possible
             .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.YES) == false)
-            .peek(pair -> {
-                if (logger.isTraceEnabled()) { // don't serialize the decision unless we have to
-                    logger.trace(
-                        "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
-                        nodeId,
-                        shutdownType,
-                        pair.v1().getId(),
-                        pair.v1().primary() ? "primary" : "replica",
-                        pair.v1().shardId().getIndexName(),
-                        Strings.toString(pair.v2())
-                    );
+            // If the shard that can't move is on every node in the cluster, we shouldn't be `STALLED` on it.
+            .filter(pair -> {
+                final boolean hasShardCopyOnOtherNode = hasShardCopyOnAnotherNode(currentState, pair.v1(), shuttingDownNodes);
+                if (hasShardCopyOnOtherNode) {
+                    shardsToIgnoreForFinalStatus.incrementAndGet();
                 }
+                return hasShardCopyOnOtherNode == false;
             })
-            .map(Tuple::v1)
+            .peek(pair -> {
+                logger.debug(
+                    "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
+                    nodeId,
+                    shutdownType,
+                    pair.v1().getId(),
+                    pair.v1().primary() ? "primary" : "replica",
+                    pair.v1().shardId().getIndexName(),
+                    Strings.toString(pair.v2())
+                );
+            })
             .findFirst();
 
-        if (unmovableShard.isPresent()) {
+        if (totalRemainingShards == shardsToIgnoreForFinalStatus.get() && unmovableShard.isEmpty()) {
+            return new ShutdownShardMigrationStatus(
+                SingleNodeShutdownMetadata.Status.COMPLETE,
+                0,
+                "["
+                    + shardsToIgnoreForFinalStatus.get()
+                    + "] shards cannot be moved away from this node but have at least one copy on another node in the cluster"
+            );
+        } else if (unmovableShard.isPresent()) {
             // We found a shard that can't be moved, so shard relocation is stalled. Blame the unmovable shard.
-            ShardRouting shardRouting = unmovableShard.get();
+            ShardRouting shardRouting = unmovableShard.get().v1();
+            ShardAllocationDecision decision = unmovableShard.get().v2();
 
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.STALLED,
                 totalRemainingShards,
-                new ParameterizedMessage(
-                    "shard [{}] [{}] of index [{}] cannot move, use the Cluster Allocation Explain API on this shard for details",
+                format(
+                    "shard [%s] [%s] of index [%s] cannot move, see [%s] for details or use the cluster allocation explain API",
                     shardRouting.shardId().getId(),
                     shardRouting.primary() ? "primary" : "replica",
-                    shardRouting.index().getName()
-                ).getFormattedMessage()
+                    shardRouting.index().getName(),
+                    NODE_ALLOCATION_DECISION_KEY
+                ),
+                decision
             );
         } else {
-            // We couldn't find any shards that can't be moved, so we're just waiting for other recoveries or initializing shards
             return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, totalRemainingShards);
         }
+    }
+
+    private static boolean hasShardCopyOnAnotherNode(ClusterState clusterState, ShardRouting shardRouting, Set<String> shuttingDownNodes) {
+        return clusterState.routingTable()
+            .allShards(shardRouting.index().getName())
+            .stream()
+            .filter(sr -> sr.id() == shardRouting.id())
+            // If any shards are both 1) `STARTED` and 2) are not on a node that's shutting down, we have at least one copy
+            // of this shard safely on a node that's not shutting down, so we don't want to report `STALLED` because of this shard.
+            .filter(ShardRouting::started)
+            .anyMatch(routing -> shuttingDownNodes.contains(routing.currentNodeId()) == false);
     }
 
     @Override

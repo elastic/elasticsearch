@@ -16,7 +16,6 @@ public class PutRoleAction extends ActionType<PutRoleResponse> {
     public static final PutRoleAction INSTANCE = new PutRoleAction();
     public static final String NAME = "cluster:admin/xpack/security/role/put";
 
-
     protected PutRoleAction() {
         super(NAME, PutRoleResponse::new);
     }

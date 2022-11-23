@@ -8,17 +8,17 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
+public class AutoscalingMetadata implements Metadata.Custom {
 
     public static final String NAME = "autoscaling";
 
@@ -74,25 +74,29 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
 
     public AutoscalingMetadata(final StreamInput in) throws IOException {
         final int size = in.readVInt();
-        final SortedMap<String, AutoscalingPolicyMetadata> policies = new TreeMap<>();
+        final SortedMap<String, AutoscalingPolicyMetadata> policiesMap = new TreeMap<>();
         for (int i = 0; i < size; i++) {
             final AutoscalingPolicyMetadata policyMetadata = new AutoscalingPolicyMetadata(in);
-            policies.put(policyMetadata.policy().name(), policyMetadata);
+            policiesMap.put(policyMetadata.policy().name(), policyMetadata);
         }
-        this.policies = policies;
+        this.policies = policiesMap;
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeVInt(policies.size());
-        for (final Map.Entry<String, AutoscalingPolicyMetadata> policy : policies.entrySet()) {
-            policy.getValue().writeTo(out);
-        }
+        out.writeCollection(policies.values());
     }
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
         return Metadata.ALL_CONTEXTS;
+    }
+
+    @Override
+    public boolean isRestorable() {
+        // currently, this is written to the snapshots, in future we might restore it
+        // if request.skipOperatorOnly for Autoscaling policies is enabled
+        return false;
     }
 
     @Override
@@ -162,9 +166,12 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
         }
 
         static Diff<AutoscalingPolicyMetadata> readFrom(final StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
+            return SimpleDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_8_0;
+        }
     }
-
 }

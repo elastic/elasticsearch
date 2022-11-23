@@ -15,13 +15,13 @@ import java.util.Map;
 
 public class InitializerTests extends ScriptTestCase {
 
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     public void testArrayInitializers() {
-        int[] ints = (int[])exec("new int[] {}");
+        int[] ints = (int[]) exec("new int[] {}");
 
         assertEquals(0, ints.length);
 
-        ints = (int[])exec("new int[] {5, 7, -1, 14}");
+        ints = (int[]) exec("new int[] {5, 7, -1, 14}");
 
         assertEquals(4, ints.length);
         assertEquals(5, ints[0]);
@@ -29,7 +29,7 @@ public class InitializerTests extends ScriptTestCase {
         assertEquals(-1, ints[2]);
         assertEquals(14, ints[3]);
 
-        ints = (int[])exec("int y = 2; int z = 3; int[] x = new int[] {y*z, y + z, y - z, y, z}; return x;");
+        ints = (int[]) exec("int y = 2; int z = 3; int[] x = new int[] {y*z, y + z, y - z, y, z}; return x;");
 
         assertEquals(5, ints.length);
         assertEquals(6, ints[0]);
@@ -38,8 +38,9 @@ public class InitializerTests extends ScriptTestCase {
         assertEquals(2, ints[3]);
         assertEquals(3, ints[4]);
 
-        Object[] objects = (Object[])exec("int y = 2; List z = new ArrayList(); String s = 'aaa';" +
-            "Object[] x = new Object[] {y, z, 1 + s, s + 'aaa'}; return x;");
+        Object[] objects = (Object[]) exec(
+            "int y = 2; List z = new ArrayList(); String s = 'aaa';" + "Object[] x = new Object[] {y, z, 1 + s, s + 'aaa'}; return x;"
+        );
 
         assertEquals(4, objects.length);
         assertEquals(Integer.valueOf(2), objects[0]);
@@ -48,13 +49,13 @@ public class InitializerTests extends ScriptTestCase {
         assertEquals("aaaaaa", objects[3]);
     }
 
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     public void testListInitializers() {
-        List list = (List)exec("[]");
+        List list = (List) exec("[]");
 
         assertEquals(0, list.size());
 
-        list = (List)exec("[5, 7, -1, 14]");
+        list = (List) exec("[5, 7, -1, 14]");
 
         assertEquals(4, list.size());
         assertEquals(5, list.get(0));
@@ -62,7 +63,7 @@ public class InitializerTests extends ScriptTestCase {
         assertEquals(-1, list.get(2));
         assertEquals(14, list.get(3));
 
-        list = (List)exec("int y = 2; int z = 3; def x = [y*z, y + z, y - z, y, z]; return x;");
+        list = (List) exec("int y = 2; int z = 3; def x = [y*z, y + z, y - z, y, z]; return x;");
 
         assertEquals(5, list.size());
         assertEquals(6, list.get(0));
@@ -71,45 +72,44 @@ public class InitializerTests extends ScriptTestCase {
         assertEquals(2, list.get(3));
         assertEquals(3, list.get(4));
 
-        list = (List)exec("int y = 2; List z = new ArrayList(); String s = 'aaa'; List x = [y, z, 1 + s, s + 'aaa']; return x;");
+        list = (List) exec("int y = 2; List z = new ArrayList(); String s = 'aaa'; List x = [y, z, 1 + s, s + 'aaa']; return x;");
 
         assertEquals(4, list.size());
         assertEquals(Integer.valueOf(2), list.get(0));
         assertEquals(new ArrayList(), list.get(1));
-        assertEquals("1aaa",  list.get(2));
+        assertEquals("1aaa", list.get(2));
         assertEquals("aaaaaa", list.get(3));
     }
 
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     public void testMapInitializers() {
-        Map map = (Map)exec("[:]");
+        Map map = (Map) exec("[:]");
 
         assertEquals(0, map.size());
 
-        map = (Map)exec("[5 : 7, -1 : 14]");
+        map = (Map) exec("[5 : 7, -1 : 14]");
 
         assertEquals(2, map.size());
         assertEquals(Integer.valueOf(7), map.get(5));
         assertEquals(Integer.valueOf(14), map.get(-1));
 
-        map = (Map)exec("int y = 2; int z = 3; Map x = [y*z : y + z, y - z : y, z : z]; return x;");
+        map = (Map) exec("int y = 2; int z = 3; Map x = [y*z : y + z, y - z : y, z : z]; return x;");
 
         assertEquals(3, map.size());
         assertEquals(Integer.valueOf(5), map.get(6));
         assertEquals(Integer.valueOf(2), map.get(-1));
         assertEquals(Integer.valueOf(3), map.get(3));
 
-        map = (Map)exec("int y = 2; List z = new ArrayList(); String s = 'aaa';" +
-            "def x = [y : z, 1 + s : s + 'aaa']; return x;");
+        map = (Map) exec("int y = 2; List z = new ArrayList(); String s = 'aaa';" + "def x = [y : z, 1 + s : s + 'aaa']; return x;");
 
         assertEquals(2, map.size());
         assertEquals(new ArrayList(), map.get(2));
         assertEquals("aaaaaa", map.get("1aaa"));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testCrazyInitializer() {
-        Map map = (Map)exec("int y = 2; int z = 3; Map x = [y*z : y + z, 's' : [y, [y : [[z], [], [:]]]], z : [z, 9]]; return x;");
+        Map map = (Map) exec("int y = 2; int z = 3; Map x = [y*z : y + z, 's' : [y, [y : [[z], [], [:]]]], z : [z, 9]]; return x;");
 
         List list0 = new ArrayList();
         list0.add(3);

@@ -10,12 +10,12 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -77,7 +77,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestRankEvalAction extends BaseRestHandler {
 
-    public static String ENDPOINT = "_rank_eval";
+    public static final String ENDPOINT = "_rank_eval";
 
     @Override
     public List<Route> routes() {
@@ -85,7 +85,8 @@ public class RestRankEvalAction extends BaseRestHandler {
             new Route(GET, "/" + ENDPOINT),
             new Route(POST, "/" + ENDPOINT),
             new Route(GET, "/{index}/" + ENDPOINT),
-            new Route(POST, "/{index}/" + ENDPOINT));
+            new Route(POST, "/{index}/" + ENDPOINT)
+        );
     }
 
     @Override
@@ -94,8 +95,11 @@ public class RestRankEvalAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             parseRankEvalRequest(rankEvalRequest, request, parser);
         }
-        return channel -> client.executeLocally(RankEvalAction.INSTANCE, rankEvalRequest,
-                new RestToXContentListener<RankEvalResponse>(channel));
+        return channel -> client.executeLocally(
+            RankEvalAction.INSTANCE,
+            rankEvalRequest,
+            new RestToXContentListener<RankEvalResponse>(channel)
+        );
     }
 
     private static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, XContentParser parser) {

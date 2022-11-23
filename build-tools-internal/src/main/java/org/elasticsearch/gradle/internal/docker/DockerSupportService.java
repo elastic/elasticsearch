@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.docker;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.GradleException;
@@ -17,20 +18,26 @@ import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
-import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
+
+import static java.util.function.Predicate.not;
 
 /**
  * Build service for detecting available Docker installation and checking for compatibility with Elasticsearch Docker image build
@@ -38,10 +45,13 @@ import java.util.stream.Collectors;
  */
 public abstract class DockerSupportService implements BuildService<DockerSupportService.Parameters> {
 
-    private static Logger LOGGER = Logging.getLogger(DockerSupportService.class);
+    private static final Logger LOGGER = Logging.getLogger(DockerSupportService.class);
     // Defines the possible locations of the Docker CLI. These will be searched in order.
-    private static String[] DOCKER_BINARIES = { "/usr/bin/docker", "/usr/local/bin/docker" };
-    private static String[] DOCKER_COMPOSE_BINARIES = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+    private static final String[] DOCKER_BINARIES = { "/usr/bin/docker", "/usr/local/bin/docker" };
+    private static final String[] DOCKER_COMPOSE_BINARIES = {
+        "/usr/local/bin/docker-compose",
+        "/usr/bin/docker-compose",
+        "/usr/libexec/docker/cli-plugins/docker-compose" };
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
     private final ExecOperations execOperations;
@@ -60,10 +70,12 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     public DockerAvailability getDockerAvailability() {
         if (this.dockerAvailability == null) {
             String dockerPath = null;
+            String dockerComposePath = null;
             Result lastResult = null;
             Version version = null;
             boolean isVersionHighEnough = false;
             boolean isComposeAvailable = false;
+            Set<Architecture> supportedArchitectures = new HashSet<>();
 
             // Check if the Docker binary exists
             final Optional<String> dockerBinary = getDockerPath();
@@ -90,6 +102,26 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                         Optional<String> composePath = getDockerComposePath();
                         if (lastResult.isSuccess() && composePath.isPresent()) {
                             isComposeAvailable = runCommand(composePath.get(), "version").isSuccess();
+                            dockerComposePath = composePath.get();
+                        }
+
+                        // Now let's check if buildx is available and what supported platforms exist
+                        if (lastResult.isSuccess()) {
+                            Result buildxResult = runCommand(dockerPath, "buildx", "inspect", "--bootstrap");
+                            if (buildxResult.isSuccess()) {
+                                supportedArchitectures = buildxResult.stdout()
+                                    .lines()
+                                    .filter(l -> l.startsWith("Platforms:"))
+                                    .map(l -> l.substring(10))
+                                    .flatMap(l -> Arrays.stream(l.split(",")).filter(not(String::isBlank)))
+                                    .map(String::trim)
+                                    .map(s -> Arrays.stream(Architecture.values()).filter(a -> a.dockerPlatform.equals(s)).findAny())
+                                    .filter(Optional::isPresent)
+                                    .map(Optional::get)
+                                    .collect(Collectors.toSet());
+                            } else {
+                                supportedArchitectures = Set.of(Architecture.current());
+                            }
                         }
                     }
                 }
@@ -102,8 +134,10 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                 isComposeAvailable,
                 isVersionHighEnough,
                 dockerPath,
+                dockerComposePath,
                 version,
-                lastResult
+                lastResult,
+                supportedArchitectures
             );
         }
 
@@ -153,8 +187,11 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         // Some other problem, print the error
         final String message = String.format(
             Locale.ROOT,
-            "a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s: \n%s\n"
-                + "the problem is that Docker exited with exit code [%d] with standard error output:\n%s",
+            """
+                a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s:
+                %s
+                the problem is that Docker exited with exit code [%d] with standard error output:
+                %s""",
             availability.path,
             availability.version == null ? "" : " v" + availability.version,
             tasks.size() > 1 ? "s" : "",
@@ -304,8 +341,8 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     /**
      * An immutable class that represents the results of a Docker search from {@link #getDockerAvailability()}}.
      */
-    public static class DockerAvailability {
-        /**
+    public record DockerAvailability(
+        /*
          * Indicates whether Docker is available and meets the required criteria.
          * True if, and only if, Docker is:
          * <ul>
@@ -315,70 +352,37 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
          *     <li>Can execute a command that requires privileges</li>
          * </ul>
          */
-        public final boolean isAvailable;
+        boolean isAvailable,
 
-        /**
-         * True if docker-compose is available.
-         */
-        public final boolean isComposeAvailable;
+        // True if docker-compose is available.
+        boolean isComposeAvailable,
 
-        /**
-         * True if the installed Docker version is &gt;= 17.05
-         */
-        public final boolean isVersionHighEnough;
+        // True if the installed Docker version is &gt,= 17.05
+        boolean isVersionHighEnough,
 
-        /**
-         * The path to the Docker CLI, or null
-         */
-        public final String path;
+        // The path to the Docker CLI, or null
+        String path,
 
-        /**
-         * The installed Docker version, or null
-         */
-        public final Version version;
+        // The path to the Docker Compose CLI, or null
+        String dockerComposePath,
 
-        /**
-         * Information about the last command executes while probing Docker, or null.
-         */
-        final Result lastCommand;
+        // The installed Docker version, or null
+        Version version,
 
-        DockerAvailability(
-            boolean isAvailable,
-            boolean isComposeAvailable,
-            boolean isVersionHighEnough,
-            String path,
-            Version version,
-            Result lastCommand
-        ) {
-            this.isAvailable = isAvailable;
-            this.isComposeAvailable = isComposeAvailable;
-            this.isVersionHighEnough = isVersionHighEnough;
-            this.path = path;
-            this.version = version;
-            this.lastCommand = lastCommand;
-        }
-    }
+        // Information about the last command executes while probing Docker, or null.
+        Result lastCommand,
+
+        // Supported build architectures
+        Set<Architecture> supportedArchitectures
+    ) {}
 
     /**
      * This class models the result of running a command. It captures the exit code, standard output and standard error.
      */
-    private static class Result {
-        final int exitCode;
-        final String stdout;
-        final String stderr;
-
-        Result(int exitCode, String stdout, String stderr) {
-            this.exitCode = exitCode;
-            this.stdout = stdout;
-            this.stderr = stderr;
-        }
+    private record Result(int exitCode, String stdout, String stderr) {
 
         boolean isSuccess() {
             return exitCode == 0;
-        }
-
-        public String toString() {
-            return "exitCode = [" + exitCode + "] " + "stdout = [" + stdout.trim() + "] " + "stderr = [" + stderr.trim() + "]";
         }
     }
 

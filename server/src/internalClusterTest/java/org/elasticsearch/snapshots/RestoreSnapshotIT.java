@@ -17,14 +17,13 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -32,6 +31,8 @@ import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -156,6 +157,67 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(restoredIndexName1, restoredIndexName2);
         assertThat(client.prepareGet(restoredIndexName1, docId).get().isExists(), equalTo(true));
         assertThat(client.prepareGet(restoredIndexName2, sameSourceIndex ? docId : docId2).get().isExists(), equalTo(true));
+    }
+
+    @TestLogging(
+        reason = "testing the logging of the start and completion of a snapshot restore",
+        value = "org.elasticsearch.snapshots.RestoreService:INFO"
+    )
+    public void testRestoreLogging() throws IllegalAccessException {
+        final MockLogAppender mockLogAppender = new MockLogAppender();
+        try {
+            String indexName = "testindex";
+            String repoName = "test-restore-snapshot-repo";
+            String snapshotName = "test-restore-snapshot";
+            Path absolutePath = randomRepoPath().toAbsolutePath();
+            logger.info("Path [{}]", absolutePath);
+            String restoredIndexName = indexName + "-restored";
+            String expectedValue = "expected";
+
+            mockLogAppender.start();
+            Loggers.addAppender(LogManager.getLogger(RestoreService.class), mockLogAppender);
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "not seen start of snapshot restore",
+                    "org.elasticsearch.snapshots.RestoreService",
+                    Level.INFO,
+                    "started restore of snapshot \\[.*" + snapshotName + ".*\\] for indices \\[.*" + indexName + ".*\\]"
+                )
+            );
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "not seen completion of snapshot restore",
+                    "org.elasticsearch.snapshots.RestoreService",
+                    Level.INFO,
+                    "completed restore of snapshot \\[.*" + snapshotName + ".*\\]"
+                )
+            );
+
+            Client client = client();
+            // Write a document
+            String docId = Integer.toString(randomInt());
+            indexDoc(indexName, docId, "value", expectedValue);
+            createRepository(repoName, "fs", absolutePath);
+            createSnapshot(repoName, snapshotName, Collections.singletonList(indexName));
+
+            RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(false)
+                .setRenamePattern(indexName)
+                .setRenameReplacement(restoredIndexName)
+                .get();
+
+            assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
+            ensureGreen(restoredIndexName);
+            assertThat(client.prepareGet(restoredIndexName, docId).get().isExists(), equalTo(true));
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(LogManager.getLogger(RestoreService.class), mockLogAppender);
+            mockLogAppender.stop();
+        }
     }
 
     public void testRestoreIncreasesPrimaryTerms() {
@@ -590,7 +652,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         client.admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b").build())
+            .setPersistentSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b").build())
             .get();
         ActionFuture<RestoreSnapshotResponse> restoreSnapshotResponse = client.admin()
             .cluster()
@@ -612,7 +674,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         client.admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build())
+            .setPersistentSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build())
             .get();
 
         // check that restore now completes quickly (i.e. within 20 seconds)

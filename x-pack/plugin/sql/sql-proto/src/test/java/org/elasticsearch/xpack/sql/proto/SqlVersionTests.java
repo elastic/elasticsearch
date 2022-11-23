@@ -98,8 +98,11 @@ public class SqlVersionTests extends ESTestCase {
     }
 
     public void testVersionCompatibile() {
-        SqlVersion client = new SqlVersion(randomIntBetween(V_7_7_0.major, 99 - 1), randomIntBetween(V_7_7_0.minor, 99),
-            randomIntBetween(0, 99));
+        SqlVersion client = new SqlVersion(
+            randomIntBetween(V_7_7_0.major, 99 - 1),
+            randomIntBetween(V_7_7_0.minor, 99),
+            randomIntBetween(0, 99)
+        );
         int serverMajor = client.major + (randomBoolean() ? 0 : 1);
         int serverMinor = randomIntBetween(client.major == serverMajor ? client.minor : 0, 99);
         int serverRevision = randomIntBetween(client.major == serverMajor && client.minor == serverMinor ? client.revision : 0, 99);

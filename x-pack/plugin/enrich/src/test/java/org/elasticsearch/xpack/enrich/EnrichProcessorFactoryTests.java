@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -30,7 +30,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -261,7 +261,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                         new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
                         InternalAggregations.EMPTY,
                         new Suggest(Collections.emptyList()),
-                        new SearchProfileShardResults(Collections.emptyMap()),
+                        new SearchProfileResults(Collections.emptyMap()),
                         false,
                         false,
                         1
@@ -288,8 +288,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             IngestDocument ingestDocument = new IngestDocument(
                 "_index",
                 "_id",
-                "_routing",
                 1L,
+                "_routing",
                 VersionType.INTERNAL,
                 Map.of("domain", "elastic.co")
             );
@@ -335,13 +335,9 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             .build();
         IndexMetadata.Builder builder = IndexMetadata.builder(EnrichPolicy.getBaseName(name) + "-1");
         builder.settings(settings);
-        builder.putMapping(
-            "{\"_meta\": {\"enrich_match_field\": \""
-                + policy.getMatchField()
-                + "\", \"enrich_policy_type\": \""
-                + policy.getType()
-                + "\"}}"
-        );
+        builder.putMapping(formatted("""
+            {"_meta": {"enrich_match_field": "%s", "enrich_policy_type": "%s"}}
+            """, policy.getMatchField(), policy.getType()));
         builder.putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName(name)).build());
         return Metadata.builder().put(builder).build();
     }

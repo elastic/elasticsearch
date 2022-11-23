@@ -9,6 +9,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.Booleans;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
@@ -22,19 +23,24 @@ import java.util.Set;
  */
 public abstract class SecureSetting<T> extends Setting<T> {
 
-    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(Property.Deprecated, Property.Consistent);
+    /** Determines whether legacy settings with sensitive values should be allowed. */
+    private static final boolean ALLOW_INSECURE_SETTINGS = Booleans.parseBoolean(System.getProperty("es.allow_insecure_settings", "false"));
 
-    private static final Property[] FIXED_PROPERTIES = {
-        Property.NodeScope
-    };
+    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(
+        Property.Deprecated,
+        Property.DeprecatedWarning,
+        Property.Consistent
+    );
+
+    private static final Property[] FIXED_PROPERTIES = { Property.NodeScope };
 
     private SecureSetting(String key, Property... properties) {
-        super(key, (String)null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES, Property.class));
+        super(key, (String) null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES, Property.class));
         assert assertAllowedProperties(properties);
         KeyStoreWrapper.validateSettingName(key);
     }
 
-    private boolean assertAllowedProperties(Setting.Property... properties) {
+    private static boolean assertAllowedProperties(Setting.Property... properties) {
         for (Setting.Property property : properties) {
             if (ALLOWED_PROPERTIES.contains(property) == false) {
                 return false;
@@ -70,8 +76,12 @@ public abstract class SecureSetting<T> extends Setting<T> {
         final SecureSettings secureSettings = settings.getSecureSettings();
         if (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false) {
             if (super.exists(settings)) {
-                throw new IllegalArgumentException("Setting [" + getKey() + "] is a secure setting" +
-                    " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml");
+                throw new IllegalArgumentException(
+                    "Setting ["
+                        + getKey()
+                        + "] is a secure setting"
+                        + " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+                );
             }
             return getFallback(settings);
         }
@@ -111,17 +121,25 @@ public abstract class SecureSetting<T> extends Setting<T> {
      * Overrides the diff operation to make this a no-op for secure settings as they shouldn't be returned in a diff
      */
     @Override
-    public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-    }
+    public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {}
 
     /**
      * A setting which contains a sensitive string.
      *
      * This may be any sensitive string, e.g. a username, a password, an auth token, etc.
      */
-    public static Setting<SecureString> secureString(String name, Setting<SecureString> fallback,
-                                                     Property... properties) {
+    public static Setting<SecureString> secureString(String name, Setting<SecureString> fallback, Property... properties) {
         return new SecureStringSetting(name, fallback, properties);
+    }
+
+    /**
+     * A setting which contains a sensitive string, but which for legacy reasons must be found outside secure settings.
+     * @see #secureString(String, Setting, Property...)
+     * @deprecated only used by S3 repository module insecure credentials functionality
+     */
+    @Deprecated
+    public static Setting<SecureString> insecureString(String name) {
+        return new InsecureStringSetting(name);
     }
 
     /**
@@ -129,8 +147,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
      *
      * This may be any sensitive file, e.g. a set of credentials normally in plaintext.
      */
-    public static Setting<InputStream> secureFile(String name, Setting<InputStream> fallback,
-                                                  Property... properties) {
+    public static Setting<InputStream> secureFile(String name, Setting<InputStream> fallback, Property... properties) {
         return new SecureFileSetting(name, fallback, properties);
     }
 
@@ -153,6 +170,25 @@ public abstract class SecureSetting<T> extends Setting<T> {
                 return fallback.get(settings);
             }
             return new SecureString(new char[0]); // this means "setting does not exist"
+        }
+    }
+
+    private static class InsecureStringSetting extends Setting<SecureString> {
+        private final String name;
+
+        private InsecureStringSetting(String name) {
+            super(name, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope);
+            this.name = name;
+        }
+
+        @Override
+        public SecureString get(Settings settings) {
+            if (ALLOW_INSECURE_SETTINGS == false && exists(settings)) {
+                throw new IllegalArgumentException(
+                    "Setting [" + name + "] is insecure, " + "but property [allow_insecure_settings] is not set"
+                );
+            }
+            return super.get(settings);
         }
     }
 

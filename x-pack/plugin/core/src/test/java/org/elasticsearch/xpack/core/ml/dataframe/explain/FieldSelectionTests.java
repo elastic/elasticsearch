@@ -7,26 +7,21 @@
 package org.elasticsearch.xpack.core.ml.dataframe.explain;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class FieldSelectionTests extends AbstractSerializingTestCase<FieldSelection> {
+public class FieldSelectionTests extends AbstractXContentSerializingTestCase<FieldSelection> {
 
     public static FieldSelection createRandom() {
-        Set<String> mappingTypes = randomSubsetOf(randomIntBetween(1, 3), "int", "float", "double", "text", "keyword", "ip")
-            .stream().collect(Collectors.toSet());
+        Set<String> mappingTypes = randomSubsetOf(randomIntBetween(1, 3), "int", "float", "double", "text", "keyword", "ip").stream()
+            .collect(Collectors.toSet());
         FieldSelection.FeatureType featureType = randomBoolean() ? null : randomFrom(FieldSelection.FeatureType.values());
         String reason = randomBoolean() ? null : randomAlphaOfLength(20);
-        return new FieldSelection(randomAlphaOfLength(10),
-            mappingTypes,
-            randomBoolean(),
-            randomBoolean(),
-            featureType,
-            reason);
+        return new FieldSelection(randomAlphaOfLength(10), mappingTypes, randomBoolean(), randomBoolean(), featureType, reason);
     }
 
     @Override

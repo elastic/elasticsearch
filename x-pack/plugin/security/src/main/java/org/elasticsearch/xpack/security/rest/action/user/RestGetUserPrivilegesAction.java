@@ -7,29 +7,26 @@
 package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -49,8 +46,7 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_security/user/_privileges")
-                .replaces(GET, "/_xpack/security/user/_privileges", RestApiVersion.V_7).build()
+            Route.builder(GET, "/_security/user/_privileges").replaces(GET, "/_xpack/security/user/_privileges", RestApiVersion.V_7).build()
         );
     }
 
@@ -83,16 +79,23 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
             builder.field(RoleDescriptor.Fields.CLUSTER.getPreferredName(), response.getClusterPrivileges());
             builder.startArray(RoleDescriptor.Fields.GLOBAL.getPreferredName());
             for (ConfigurableClusterPrivilege ccp : response.getConditionalClusterPrivileges()) {
-                ConfigurableClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS, Collections.singleton(ccp));
+                builder.startObject();
+                builder.startObject(ccp.getCategory().field.getPreferredName());
+                ccp.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+                builder.endObject();
             }
             builder.endArray();
 
             builder.field(RoleDescriptor.Fields.INDICES.getPreferredName(), response.getIndexPrivileges());
             builder.field(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), response.getApplicationPrivileges());
             builder.field(RoleDescriptor.Fields.RUN_AS.getPreferredName(), response.getRunAs());
+            if (response.hasRemoteIndicesPrivileges()) {
+                builder.field(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName(), response.getRemoteIndexPrivileges());
+            }
 
             builder.endObject();
-            return new BytesRestResponse(RestStatus.OK, builder);
+            return new RestResponse(RestStatus.OK, builder);
         }
     }
 }

@@ -40,13 +40,13 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
     }
 
+    public static final IgnoredFieldType FIELD_TYPE = new IgnoredFieldType();
+
     private static final IgnoredFieldMapper INSTANCE = new IgnoredFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     public static final class IgnoredFieldType extends StringFieldType {
-
-        public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();
 
         private IgnoredFieldType() {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
@@ -68,12 +68,12 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            return new StoredValueFetcher(context.lookup(), NAME);
         }
     }
 
     private IgnoredFieldMapper() {
-        super(IgnoredFieldType.INSTANCE);
+        super(FIELD_TYPE);
     }
 
     @Override
@@ -88,4 +88,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
 }

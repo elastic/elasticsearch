@@ -28,8 +28,7 @@ public class GetRolesRequest extends ActionRequest {
         names = in.readStringArray();
     }
 
-    public GetRolesRequest() {
-    }
+    public GetRolesRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {

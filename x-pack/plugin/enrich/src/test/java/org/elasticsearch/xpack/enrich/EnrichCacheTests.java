@@ -6,30 +6,26 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
-import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class EnrichCacheTests extends ESTestCase {
 
@@ -68,26 +64,9 @@ public class EnrichCacheTests extends ESTestCase {
             new SearchSourceBuilder().query(new MatchQueryBuilder("match_field", "2"))
         );
         // Emulated search response (content doesn't matter, since it isn't used, it just a cache entry)
-        var searchResponse = new SearchResponse(
-            new InternalSearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-                InternalAggregations.EMPTY,
-                new Suggest(Collections.emptyList()),
-                new SearchProfileShardResults(Collections.emptyMap()),
-                false,
-                false,
-                1
-            ),
-            "",
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        List<Map<?, ?>> searchResponse = List.of(Map.of("test", "entry"));
 
-        var enrichCache = new EnrichCache(3);
+        EnrichCache enrichCache = new EnrichCache(3);
         enrichCache.setMetadata(metadata);
         enrichCache.put(searchRequest1, searchResponse);
         enrichCache.put(searchRequest2, searchResponse);
@@ -155,6 +134,53 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.getHits(), equalTo(6L));
         assertThat(cacheStats.getMisses(), equalTo(6L));
         assertThat(cacheStats.getEvictions(), equalTo(4L));
+    }
+
+    public void testDeepCopy() {
+        Map<String, Object> original = new HashMap<>();
+        {
+            original.put("foo", "bar");
+            original.put("int", 123);
+            original.put("double", 123.0D);
+            Map<String, Object> innerObject = new HashMap<>();
+            innerObject.put("buzz", "hello world");
+            innerObject.put("foo_null", null);
+            innerObject.put("1", "bar");
+            innerObject.put("long", 123L);
+            List<String> innerInnerList = new ArrayList<>();
+            innerInnerList.add("item1");
+            List<Object> innerList = new ArrayList<>();
+            innerList.add(innerInnerList);
+            innerObject.put("list", innerList);
+            original.put("fizz", innerObject);
+            List<Map<String, Object>> list = new ArrayList<>();
+            Map<String, Object> value = new HashMap<>();
+            value.put("field", "value");
+            list.add(value);
+            list.add(null);
+            original.put("list", list);
+            List<String> list2 = new ArrayList<>();
+            list2.add("foo");
+            list2.add("bar");
+            list2.add("baz");
+            original.put("list2", list2);
+        }
+
+        Map<?, ?> result = EnrichCache.deepCopy(original, false);
+        assertThat(result, equalTo(original));
+        assertThat(result, not(sameInstance(original)));
+
+        result = EnrichCache.deepCopy(original, true);
+        assertThat(result, equalTo(original));
+        assertThat(result, not(sameInstance(original)));
+        Map<?, ?> innerMap = (Map<?, ?>) result.get("fizz");
+        expectThrows(UnsupportedOperationException.class, () -> innerMap.remove("x"));
+        List<?> innerList = (List<?>) result.get("list");
+        expectThrows(UnsupportedOperationException.class, () -> innerList.remove(0));
+
+        original.put("embedded_object", new byte[] { 1, 2, 3 });
+        result = EnrichCache.deepCopy(original, false);
+        assertArrayEquals(new byte[] { 1, 2, 3 }, (byte[]) result.get("embedded_object"));
     }
 
 }

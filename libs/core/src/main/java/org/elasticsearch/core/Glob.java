@@ -13,6 +13,8 @@ package org.elasticsearch.core;
  */
 public class Glob {
 
+    private Glob() {}
+
     /**
      * Match a String against the given pattern, supporting the following simple
      * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an
@@ -51,9 +53,9 @@ public class Glob {
             }
             return false;
         }
-        return (str.length() >= firstIndex &&
-            pattern.substring(0, firstIndex).equals(str.substring(0, firstIndex)) &&
-            globMatch(pattern.substring(firstIndex), str.substring(firstIndex)));
+        return (str.length() >= firstIndex
+            && pattern.substring(0, firstIndex).equals(str.substring(0, firstIndex))
+            && globMatch(pattern.substring(firstIndex), str.substring(firstIndex)));
     }
 
 }

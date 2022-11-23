@@ -8,20 +8,20 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -35,13 +35,16 @@ import java.util.Objects;
 public class ForceMergeAction implements LifecycleAction {
     private static final Logger logger = LogManager.getLogger(ForceMergeAction.class);
 
+    private static final Settings BEST_COMPRESSION_SETTINGS = Settings.builder()
+        .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC)
+        .build();
+
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
     public static final ParseField CODEC = new ParseField("index_codec");
     public static final String CONDITIONAL_SKIP_FORCE_MERGE_STEP = BranchingStep.NAME + "-forcemerge-check-prerequisites";
 
-    private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        false, a -> {
+    private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME, false, a -> {
         int maxNumSegments = (int) a[0];
         String codec = a[1] != null ? (String) a[1] : null;
         return new ForceMergeAction(maxNumSegments, codec);
@@ -61,8 +64,7 @@ public class ForceMergeAction implements LifecycleAction {
 
     public ForceMergeAction(int maxNumSegments, @Nullable String codec) {
         if (maxNumSegments <= 0) {
-            throw new IllegalArgumentException("[" + MAX_NUM_SEGMENTS_FIELD.getPreferredName()
-                + "] must be a positive integer");
+            throw new IllegalArgumentException("[" + MAX_NUM_SEGMENTS_FIELD.getPreferredName() + "] must be a positive integer");
         }
         this.maxNumSegments = maxNumSegments;
         if (codec != null && CodecService.BEST_COMPRESSION_CODEC.equals(codec) == false) {
@@ -113,14 +115,10 @@ public class ForceMergeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        Settings readOnlySettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
-        Settings bestCompressionSettings = Settings.builder()
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC).build();
-
         final boolean codecChange = codec != null && codec.equals(CodecService.BEST_COMPRESSION_CODEC);
 
         StepKey preForceMergeBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_FORCE_MERGE_STEP);
-        StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey checkNotWriteIndexKey = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
 
         StepKey closeKey = new StepKey(phase, NAME, CloseIndexStep.NAME);
@@ -131,29 +129,52 @@ public class ForceMergeAction implements LifecycleAction {
         StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
         StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
 
-        BranchingStep conditionalSkipShrinkStep = new BranchingStep(preForceMergeBranchingKey, checkNotWriteIndex, nextStepKey,
+        BranchingStep conditionalSkipShrinkStep = new BranchingStep(
+            preForceMergeBranchingKey,
+            checkNotWriteIndexKey,
+            nextStepKey,
             (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
-                    String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
-                    logger.warn("[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. " +
-                        "Skipping this action", ForceMergeAction.NAME, index.getName(), policyName);
+                    String policyName = indexMetadata.getLifecyclePolicyName();
+                    logger.warn(
+                        "[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. "
+                            + "Skipping this action",
+                        ForceMergeAction.NAME,
+                        index.getName(),
+                        policyName
+                    );
                     return true;
                 }
                 return false;
-            });
-        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
-            readOnlyKey);
-        UpdateSettingsStep readOnlyStep =
-            new UpdateSettingsStep(readOnlyKey, codecChange ? closeKey : forceMergeKey, client, readOnlySettings);
+            }
+        );
+
+        // Indices in this step key can skip the no-op step and jump directly to the step with closeKey/forcemergeKey key
+        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
+            checkNotWriteIndexKey,
+            codecChange ? closeKey : forceMergeKey
+        );
+
+        // Indices already in this step key when upgrading need to know how to move forward but stop making the index
+        // read-only. In order to achieve this we introduce a no-op step with the same key as the read-only step so that
+        // the index can safely move to the next step without performing any read-only action nor getting stuck in this step
+        NoopStep noopStep = new NoopStep(readOnlyKey, codecChange ? closeKey : forceMergeKey);
 
         CloseIndexStep closeIndexStep = new CloseIndexStep(closeKey, updateCompressionKey, client);
-        UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(updateCompressionKey,
-            openKey, client, bestCompressionSettings);
+        UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(
+            updateCompressionKey,
+            openKey,
+            client,
+            BEST_COMPRESSION_SETTINGS
+        );
         OpenIndexStep openIndexStep = new OpenIndexStep(openKey, waitForGreenIndexKey, client);
-        WaitForIndexColorStep waitForIndexGreenStep = new WaitForIndexColorStep(waitForGreenIndexKey,
-            forceMergeKey, ClusterHealthStatus.GREEN);
+        WaitForIndexColorStep waitForIndexGreenStep = new WaitForIndexColorStep(
+            waitForGreenIndexKey,
+            forceMergeKey,
+            ClusterHealthStatus.GREEN
+        );
 
         ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, countKey, client, maxNumSegments);
         SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments);
@@ -161,7 +182,7 @@ public class ForceMergeAction implements LifecycleAction {
         List<Step> mergeSteps = new ArrayList<>();
         mergeSteps.add(conditionalSkipShrinkStep);
         mergeSteps.add(checkNotWriteIndexStep);
-        mergeSteps.add(readOnlyStep);
+        mergeSteps.add(noopStep);
 
         if (codecChange) {
             mergeSteps.add(closeIndexStep);
@@ -189,8 +210,7 @@ public class ForceMergeAction implements LifecycleAction {
             return false;
         }
         ForceMergeAction other = (ForceMergeAction) obj;
-        return Objects.equals(this.maxNumSegments, other.maxNumSegments)
-            && Objects.equals(this.codec, other.codec);
+        return Objects.equals(this.maxNumSegments, other.maxNumSegments) && Objects.equals(this.codec, other.codec);
     }
 
     @Override

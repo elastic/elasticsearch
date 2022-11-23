@@ -22,7 +22,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 
@@ -35,23 +34,34 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_S
  * see {@link org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider}.
  */
 public class ShardLimitValidator {
-    public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE =
-        Setting.intSetting("cluster.max_shards_per_node", 1000, 1, Setting.Property.Dynamic, Setting.Property.NodeScope);
-    public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN =
-        Setting.intSetting("cluster.max_shards_per_node.frozen", 3000, 1, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE = Setting.intSetting(
+        "cluster.max_shards_per_node",
+        1000,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN = Setting.intSetting(
+        "cluster.max_shards_per_node.frozen",
+        3000,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     public static final String FROZEN_GROUP = "frozen";
     static final Set<String> VALID_GROUPS = Set.of("normal", FROZEN_GROUP);
-    public static final Setting<String> INDEX_SETTING_SHARD_LIMIT_GROUP =
-        Setting.simpleString("index.shard_limit.group", "normal",
-            value -> {
-                if (VALID_GROUPS.contains(value) == false) {
-                    throw new IllegalArgumentException("[" + value + "] is not a valid shard limit group");
-                }
-            },
-            Setting.Property.IndexScope,
-            Setting.Property.PrivateIndex,
-            Setting.Property.NotCopyableOnResize
-        );
+    public static final Setting<String> INDEX_SETTING_SHARD_LIMIT_GROUP = Setting.simpleString(
+        "index.shard_limit.group",
+        "normal",
+        value -> {
+            if (VALID_GROUPS.contains(value) == false) {
+                throw new IllegalArgumentException("[" + value + "] is not a valid shard limit group");
+            }
+        },
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
+    );
     protected final AtomicInteger shardLimitPerNode = new AtomicInteger();
     protected final AtomicInteger shardLimitPerNodeFrozen = new AtomicInteger();
 
@@ -59,8 +69,8 @@ public class ShardLimitValidator {
         this.shardLimitPerNode.set(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings));
         this.shardLimitPerNodeFrozen.set(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, this::setShardLimitPerNode);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
-            this::setShardLimitPerNodeFrozen);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN, this::setShardLimitPerNodeFrozen);
     }
 
     private void setShardLimitPerNode(int newValue) {
@@ -152,7 +162,7 @@ public class ShardLimitValidator {
         }
     }
 
-    private int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
+    private static int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
         IndexMetadata indexMetadata = currentState.metadata().index(index);
         int shardsInIndex = indexMetadata.getNumberOfShards();
         int oldNumberOfReplicas = indexMetadata.getNumberOfReplicas();
@@ -176,8 +186,32 @@ public class ShardLimitValidator {
         // against such mixed nodes for production use anyway.
         int frozenNodeCount = nodeCount(state, ShardLimitValidator::hasFrozen);
         int normalNodeCount = nodeCount(state, ShardLimitValidator::hasNonFrozen);
-        return checkShardLimit(newShards, state, getShardLimitPerNode(), normalNodeCount, "normal")
-            .or(() -> checkShardLimit(newFrozenShards, state, shardLimitPerNodeFrozen.get(), frozenNodeCount, "frozen"));
+        return checkShardLimit(newShards, state, getShardLimitPerNode(), normalNodeCount, "normal").or(
+            () -> checkShardLimit(newFrozenShards, state, shardLimitPerNodeFrozen.get(), frozenNodeCount, "frozen")
+        );
+    }
+
+    /**
+     * This method decides whether there is enough room in the cluster to add the given number of shards with the given number of replicas
+     * without exceeding the "cluster.max_shards_per_node.frozen" setting if the shards are going on frozen nodes or the
+     * "cluster.max_shards_per_node" setting if the shards are going on normal nodes. This check does not guarantee that the number of
+     * shards can be added, just that there is theoretically room to add them without exceeding the shards per node configuration.
+     * @param numberOfNewShards The number of primary shards that we want to be able to add to the cluster
+     * @param replicas The number of replcas of the primary shards that we want to be able to add to the cluster
+     * @param state The cluster state, used to get cluster settings and to get the number of open shards already in the cluster
+     * @param frozenNodes If true, check whether there is room to put these shards onto frozen nodes. If false, check whether there is room
+     *                    to put these shards onto normal nodes.
+     * @return True if there is room to add the requested number of shards to the cluster, and false if there is not
+     */
+    public static boolean canAddShardsToCluster(int numberOfNewShards, int replicas, ClusterState state, boolean frozenNodes) {
+        Settings clusterSettings = state.getMetadata().settings();
+        int maxShardsPerNode = frozenNodes
+            ? SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(clusterSettings)
+            : SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(clusterSettings);
+        int nodeCount = nodeCount(state, frozenNodes ? ShardLimitValidator::hasFrozen : ShardLimitValidator::hasNonFrozen);
+        String nodeGroup = frozenNodes ? FROZEN_GROUP : "normal";
+        Optional<String> errorMessage = checkShardLimit(numberOfNewShards * (1 + replicas), state, maxShardsPerNode, nodeCount, nodeGroup);
+        return errorMessage.isPresent() == false;
     }
 
     // package-private for testing
@@ -191,13 +225,25 @@ public class ShardLimitValidator {
         int currentOpenShards = state.getMetadata().getTotalOpenIndexShards();
 
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
-            Predicate<IndexMetadata> indexMetadataPredicate = imd ->
-                imd.getState().equals(IndexMetadata.State.OPEN) && group.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()));
-            long currentFilteredShards = StreamSupport.stream(state.metadata().indices().values().spliterator(), false).map(oc -> oc.value)
-                .filter(indexMetadataPredicate).mapToInt(IndexMetadata::getTotalNumberOfShards).sum();
+            Predicate<IndexMetadata> indexMetadataPredicate = imd -> imd.getState().equals(IndexMetadata.State.OPEN)
+                && group.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()));
+            long currentFilteredShards = state.metadata()
+                .indices()
+                .values()
+                .stream()
+                .filter(indexMetadataPredicate)
+                .mapToInt(IndexMetadata::getTotalNumberOfShards)
+                .sum();
             if ((currentFilteredShards + newShards) > maxShardsInCluster) {
-                String errorMessage = "this action would add [" + newShards + "] shards, but this cluster currently has [" +
-                    currentFilteredShards + "]/[" + maxShardsInCluster + "] maximum " + group + " shards open";
+                String errorMessage = "this action would add ["
+                    + newShards
+                    + "] shards, but this cluster currently has ["
+                    + currentFilteredShards
+                    + "]/["
+                    + maxShardsInCluster
+                    + "] maximum "
+                    + group
+                    + " shards open";
                 return Optional.of(errorMessage);
             }
         }
@@ -205,9 +251,7 @@ public class ShardLimitValidator {
     }
 
     private static int nodeCount(ClusterState state, Predicate<DiscoveryNode> nodePredicate) {
-        return (int)
-            StreamSupport.stream(state.getNodes().getDataNodes().values().spliterator(), false)
-                .map(oc -> oc.value).filter(nodePredicate).count();
+        return (int) state.getNodes().getDataNodes().values().stream().filter(nodePredicate).count();
     }
 
     private static boolean hasFrozen(DiscoveryNode node) {

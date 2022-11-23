@@ -19,9 +19,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -110,7 +112,6 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             .collect(Collectors.toList());
         keyConverters = values.stream().map(TermValuesSource::keyConverter).collect(Collectors.toList());
         bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
-
     }
 
     private boolean subAggsNeedScore() {
@@ -146,11 +147,11 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
     List<List<Object>> docTerms(List<TermValues> termValuesList, int doc) throws IOException {
         List<List<Object>> terms = new ArrayList<>();
         for (TermValues termValues : termValuesList) {
-            List<Object> values = termValues.collectValues(doc);
-            if (values == null) {
+            List<Object> collectValues = termValues.collectValues(doc);
+            if (collectValues == null) {
                 return null;
             }
-            terms.add(values);
+            terms.add(collectValues);
         }
         return terms;
     }
@@ -183,8 +184,8 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        List<TermValues> termValuesList = termValuesList(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        List<TermValues> termValuesList = termValuesList(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -218,6 +219,11 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
                 }
             }
         };
+    }
+
+    @Override
+    protected void doClose() {
+        Releasables.close(bucketOrds);
     }
 
     @Override
@@ -346,8 +352,8 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
      * Handles non-float and date doc values
      */
     static class LongTermValuesSource implements TermValuesSource {
-        ValuesSource.Numeric source;
-        InternalMultiTerms.KeyConverter converter;
+        final ValuesSource.Numeric source;
+        final InternalMultiTerms.KeyConverter converter;
 
         LongTermValuesSource(ValuesSourceConfig config) {
             this.source = (ValuesSource.Numeric) config.getValuesSource();
@@ -390,7 +396,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
      * Handles float and date doc values
      */
     static class DoubleTermValuesSource implements TermValuesSource {
-        ValuesSource.Numeric source;
+        final ValuesSource.Numeric source;
 
         DoubleTermValuesSource(ValuesSourceConfig config) {
             this.source = (ValuesSource.Numeric) config.getValuesSource();

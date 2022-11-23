@@ -17,18 +17,18 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 
 public class FetchScorePhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
         if (context.fetchScores() == false) {
             return null;
         }
         final IndexSearcher searcher = context.searcher();
-        final Weight weight = searcher.createWeight(searcher.rewrite(context.query()), ScoreMode.COMPLETE, 1);
+        final Weight weight = searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
         return new FetchSubPhaseProcessor() {
 
             Scorer scorer;
@@ -40,6 +40,11 @@ public class FetchScorePhase implements FetchSubPhase {
                     throw new IllegalStateException("Can't compute score on document as it doesn't match the query");
                 }
                 scorer = scorerSupplier.get(1L); // random-access
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
             }
 
             @Override

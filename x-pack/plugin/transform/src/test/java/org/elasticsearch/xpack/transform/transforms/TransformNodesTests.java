@@ -17,10 +17,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 
@@ -31,9 +32,11 @@ import java.util.HashSet;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.TRANSFORM_ROLE;
+import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class TransformNodesTests extends ESTestCase {
@@ -221,22 +224,18 @@ public class TransformNodesTests extends ESTestCase {
         assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true), isEmpty());
         assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false), isEmpty());
 
-        nodes =
-            DiscoveryNodes.builder()
-                .add(newDiscoveryNode("node-1", Version.V_7_12_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
-                .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
-                .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
-                .build();
+        nodes = DiscoveryNodes.builder()
+            .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
+            .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
+            .build();
         assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true), isEmpty());
         assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false).get().getId(), is(equalTo("node-2")));
 
-        nodes =
-            DiscoveryNodes.builder()
-                .add(newDiscoveryNode("node-1", Version.V_7_12_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
-                .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
-                .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
-                .add(newDiscoveryNode("node-4", Version.V_7_13_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
-                .build();
+        nodes = DiscoveryNodes.builder()
+            .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
+            .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
+            .add(newDiscoveryNode("node-4", Version.V_7_13_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
+            .build();
         assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true).get().getId(), is(equalTo("node-4")));
         assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false).get().getId(), is(oneOf("node-2", "node-4")));
     }
@@ -248,40 +247,65 @@ public class TransformNodesTests extends ESTestCase {
             expectThrows(ElasticsearchStatusException.class, () -> TransformNodes.throwIfNoTransformNodes(newClusterState(nodes)));
         }
         {
-            DiscoveryNodes nodes =
-                DiscoveryNodes.builder()
-                    .add(newDiscoveryNode("node-1", Version.V_7_12_0))
-                    .add(newDiscoveryNode("node-2", Version.V_7_13_0))
-                    .add(newDiscoveryNode("node-3", Version.V_7_13_0))
-                    .build();
+            DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(newDiscoveryNode("node-1", Version.V_7_12_0))
+                .add(newDiscoveryNode("node-2", Version.V_7_13_0))
+                .add(newDiscoveryNode("node-3", Version.V_7_13_0))
+                .build();
             assertThat(TransformNodes.hasAnyTransformNode(nodes), is(false));
             expectThrows(ElasticsearchStatusException.class, () -> TransformNodes.throwIfNoTransformNodes(newClusterState(nodes)));
         }
         {
-            DiscoveryNodes nodes =
-                DiscoveryNodes.builder()
-                    .add(newDiscoveryNode("node-1", Version.V_7_12_0))
-                    .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
-                    .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
-                    .add(newDiscoveryNode("node-4", Version.V_7_13_0))
-                    .build();
+            DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(newDiscoveryNode("node-1", Version.V_7_12_0))
+                .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
+                .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
+                .add(newDiscoveryNode("node-4", Version.V_7_13_0))
+                .build();
             assertThat(TransformNodes.hasAnyTransformNode(nodes), is(true));
             TransformNodes.throwIfNoTransformNodes(newClusterState(nodes));
         }
     }
 
-    private static ClusterState newClusterState(DiscoveryNodes nodes) {
-        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .nodes(nodes)
+    public void testGetAssignment() {
+        TransformTaskParams transformTaskParams1 = new TransformTaskParams(
+            "transform-1",
+            Version.CURRENT,
+            TimeValue.timeValueSeconds(10),
+            false
+        );
+        TransformTaskParams transformTaskParams2 = new TransformTaskParams(
+            "transform-2",
+            Version.CURRENT,
+            TimeValue.timeValueSeconds(10),
+            false
+        );
+        PersistentTasksCustomMetadata.Assignment assignment2 = new PersistentTasksCustomMetadata.Assignment(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        PersistentTasksCustomMetadata.TYPE,
+                        PersistentTasksCustomMetadata.builder()
+                            .addTask("transform-1", TransformTaskParams.NAME, transformTaskParams1, null)
+                            .addTask("transform-2", TransformTaskParams.NAME, transformTaskParams2, assignment2)
+                            .build()
+                    )
+            )
             .build();
+        assertThat(TransformNodes.getAssignment("transform-1", clusterState), is(nullValue()));
+        assertThat(TransformNodes.getAssignment("transform-2", clusterState), is(equalTo(assignment2)));
+        assertThat(TransformNodes.getAssignment("transform-3", clusterState), is(equalTo(INITIAL_ASSIGNMENT)));
+    }
+
+    private static ClusterState newClusterState(DiscoveryNodes nodes) {
+        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
     }
 
     private static DiscoveryNode newDiscoveryNode(String id, Version version, DiscoveryNodeRole... roles) {
-        return new DiscoveryNode(
-            id,
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            new HashSet<>(Arrays.asList(roles)),
-            version);
+        return new DiscoveryNode(id, buildNewFakeTransportAddress(), emptyMap(), new HashSet<>(Arrays.asList(roles)), version);
     }
 }

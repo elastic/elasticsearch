@@ -10,22 +10,23 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends AbstractAggregationBuilder<AB> {
 
@@ -108,14 +109,13 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
     }
 
-    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>> extends
-        ValuesSourceAggregationBuilder<AB> {
+    public abstract static class LeafOnly<AB extends ValuesSourceAggregationBuilder<AB>> extends ValuesSourceAggregationBuilder<AB> {
 
         protected LeafOnly(String name) {
             super(name);
         }
 
-        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
                 throw new AggregationInitializationException(
@@ -141,6 +141,47 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         @Override
         public final BucketCardinality bucketCardinality() {
             return BucketCardinality.NONE;
+        }
+    }
+
+    public abstract static class MetricsAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends LeafOnly<AB> {
+
+        protected MetricsAggregationBuilder(String name) {
+            super(name);
+        }
+
+        protected MetricsAggregationBuilder(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
+        }
+
+        protected MetricsAggregationBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        /** Generated metrics from this aggregation that can be accessed via
+         * {@link org.elasticsearch.search.aggregations.InternalAggregation#getProperty(String)}*/
+        public abstract Set<String> metricNames();
+    }
+
+    public abstract static class SingleMetricAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends
+        MetricsAggregationBuilder<AB> {
+
+        private static final Set<String> METRIC_NAME = Set.of("value");
+
+        protected SingleMetricAggregationBuilder(String name) {
+            super(name);
+        }
+
+        protected SingleMetricAggregationBuilder(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
+        }
+
+        protected SingleMetricAggregationBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public Set<String> metricNames() {
+            return METRIC_NAME;
         }
     }
 

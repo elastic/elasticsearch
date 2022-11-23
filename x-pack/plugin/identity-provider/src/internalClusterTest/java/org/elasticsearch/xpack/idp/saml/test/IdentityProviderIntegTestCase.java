@@ -7,21 +7,19 @@
 
 package org.elasticsearch.xpack.idp.saml.test;
 
-import io.netty.util.ThreadDeathWatcher;
-import io.netty.util.concurrent.GlobalEventExecutor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -29,8 +27,6 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.idp.LocalStateIdentityProviderPlugin;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,9 +40,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
@@ -72,25 +66,27 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
     // Local Security Cluster user
     public static final String SAMPLE_USER_NAME = "es_user";
     public static final String SAMPLE_USER_PASSWORD = "es_user_password";
-    public static final String SAMPLE_USER_PASSWORD_HASHED =
-        new String(Hasher.resolve("bcrypt9").hash(new SecureString(SAMPLE_USER_PASSWORD.toCharArray())));
+    public static final String SAMPLE_USER_PASSWORD_HASHED = new String(
+        Hasher.resolve("bcrypt9").hash(new SecureString(SAMPLE_USER_PASSWORD.toCharArray()))
+    );
     public static final String SAMPLE_USER_ROLE = "es_user_role";
     // User that is authenticated to the Security Cluster in order to perform SSO to cloud resources
     public static final String SAMPLE_IDPUSER_NAME = "idp_user";
     public static final String SAMPLE_IDPUSER_PASSWORD = "idp_user_password";
-    public static final String SAMPLE_IDPUSER_PASSWORD_HASHED =
-        new String(Hasher.resolve("bcrypt9").hash(new SecureString(SAMPLE_IDPUSER_PASSWORD.toCharArray())));
+    public static final String SAMPLE_IDPUSER_PASSWORD_HASHED = new String(
+        Hasher.resolve("bcrypt9").hash(new SecureString(SAMPLE_IDPUSER_PASSWORD.toCharArray()))
+    );
     public static final String SAMPLE_IDPUSER_ROLE = "idp_user_role";
     // Cloud console user that calls all IDP related APIs
     public static final String CONSOLE_USER_NAME = "console_user";
     public static final String CONSOLE_USER_PASSWORD = "console_user_password";
-    public static final String CONSOLE_USER_PASSWORD_HASHED =
-        new String(Hasher.resolve("bcrypt9").hash(new SecureString(CONSOLE_USER_PASSWORD.toCharArray())));
+    public static final String CONSOLE_USER_PASSWORD_HASHED = new String(
+        Hasher.resolve("bcrypt9").hash(new SecureString(CONSOLE_USER_PASSWORD.toCharArray()))
+    );
     public static final String CONSOLE_USER_ROLE = "console_user_role";
     public static final String SP_ENTITY_ID = "ec:abcdef:123456";
     public static final RequestOptions REQUEST_OPTIONS_AS_CONSOLE_USER = RequestOptions.DEFAULT.toBuilder()
-        .addHeader("Authorization", basicAuthHeaderValue(CONSOLE_USER_NAME,
-            new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
+        .addHeader("Authorization", basicAuthHeaderValue(CONSOLE_USER_NAME, new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
         .build();
     private static Path PARENT_DIR;
 
@@ -99,38 +95,9 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
         PARENT_DIR = createTempDir();
     }
 
-    /**
-     * A JUnit class level rule that runs after the AfterClass method in {@link ESIntegTestCase},
-     * which stops the cluster. After the cluster is stopped, there are a few netty threads that
-     * can linger, so we wait for them to finish otherwise these lingering threads can intermittently
-     * trigger the thread leak detector
-     */
-    @ClassRule
-    public static final ExternalResource STOP_NETTY_RESOURCE = new ExternalResource() {
-        @Override
-        protected void after() {
-            try {
-                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (IllegalStateException e) {
-                if (e.getMessage().equals("thread was not started") == false) {
-                    throw e;
-                }
-                // ignore since the thread was never started
-            }
-
-            try {
-                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-    };
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        final Path home = nodePath(PARENT_DIR, nodeOrdinal);
+        final Path home = dataPath(PARENT_DIR, nodeOrdinal);
         final Path xpackConf = home.resolve("config");
         try {
             Files.createDirectories(xpackConf);
@@ -143,8 +110,8 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
-            .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4)
+            .put(NetworkModule.HTTP_TYPE_KEY, SecurityField.NAME4)
             .put("xpack.idp.enabled", true)
             .put(IDP_ENTITY_ID.getKey(), "urn:elastic:cloud:idp")
             .put(IDP_SSO_REDIRECT_ENDPOINT.getKey(), "https://idp.org/sso/redirect")
@@ -182,8 +149,10 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Function<Client, Client> getClientWrapper() {
-        Map<String, String> headers = Collections.singletonMap("Authorization",
-            basicAuthHeaderValue(SAMPLE_USER_NAME, new SecureString(SAMPLE_USER_PASSWORD.toCharArray())));
+        Map<String, String> headers = Collections.singletonMap(
+            "Authorization",
+            basicAuthHeaderValue(SAMPLE_USER_NAME, new SecureString(SAMPLE_USER_PASSWORD.toCharArray()))
+        );
         // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
@@ -193,47 +162,67 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Path nodeConfigPath(int nodeOrdinal) {
-        return nodePath(PARENT_DIR, nodeOrdinal).resolve("config");
+        return dataPath(PARENT_DIR, nodeOrdinal).resolve("config");
     }
 
     private String configRoles() {
         // test role allows for everything
-        return SAMPLE_USER_ROLE + ":\n" +
-            "  cluster: [ ALL ]\n" +
-            "  indices:\n" +
-            "    - names: '*'\n" +
-            "      allow_restricted_indices: true\n" +
-            "      privileges: [ ALL ]\n" +
-            "\n" +
-            // IDP end user doesn't need any privileges on the security cluster
-            SAMPLE_IDPUSER_ROLE + ":\n" +
-            // Could switch to grant apikey for user and call this as console_user
-            "  cluster: ['cluster:admin/xpack/security/api_key/create']\n" +
-            "  indices: []\n" +
-            "  applications:\n " +
-            "    - application: elastic-cloud\n" +
-            "       resources: [ '" + SP_ENTITY_ID + "' ]\n" +
-            "       privileges: [ 'sso:superuser' ]\n" +
-            "\n" +
-            // Console user should be able to call all IDP related endpoints and register application privileges
-            CONSOLE_USER_ROLE + ":\n" +
-            "  cluster: ['cluster:admin/idp/*', 'cluster:admin/xpack/security/privilege/*' ]\n" +
-            "  indices: []\n";
+        // IDP end user doesn't need any privileges on the security cluster
+        // Could switch to grant apikey for user and call this as console_user
+        // Console user should be able to call all IDP related endpoints and register application privileges
+        return formatted("""
+            %s:
+              cluster: [ ALL ]
+              indices:
+                - names: '*'
+                  allow_restricted_indices: true
+                  privileges: [ ALL ]
+
+            %s:
+              cluster: ['cluster:admin/xpack/security/api_key/create']
+              indices: []
+              applications:
+                 - application: elastic-cloud
+                   resources: [ '%s' ]
+                   privileges: [ 'sso:superuser' ]
+
+            %s:
+              cluster: ['cluster:admin/idp/*', 'cluster:admin/xpack/security/privilege/*' ]
+              indices: []
+            """, SAMPLE_USER_ROLE, SAMPLE_IDPUSER_ROLE, SP_ENTITY_ID, CONSOLE_USER_ROLE);
     }
 
     private String configUsers() {
-        return SAMPLE_USER_NAME + ":" + SAMPLE_USER_PASSWORD_HASHED + "\n" +
-            SAMPLE_IDPUSER_NAME + ":" + SAMPLE_IDPUSER_PASSWORD_HASHED + "\n" +
-            CONSOLE_USER_NAME + ":" + CONSOLE_USER_PASSWORD_HASHED + "\n";
+        return SAMPLE_USER_NAME
+            + ":"
+            + SAMPLE_USER_PASSWORD_HASHED
+            + "\n"
+            + SAMPLE_IDPUSER_NAME
+            + ":"
+            + SAMPLE_IDPUSER_PASSWORD_HASHED
+            + "\n"
+            + CONSOLE_USER_NAME
+            + ":"
+            + CONSOLE_USER_PASSWORD_HASHED
+            + "\n";
     }
 
     private String configUsersRoles() {
-        return SAMPLE_USER_ROLE + ":" + SAMPLE_USER_NAME + "\n" +
-            SAMPLE_IDPUSER_ROLE + ":" + SAMPLE_IDPUSER_NAME + "\n" +
-            CONSOLE_USER_ROLE + ":" + CONSOLE_USER_NAME + "\n";
+        return SAMPLE_USER_ROLE
+            + ":"
+            + SAMPLE_USER_NAME
+            + "\n"
+            + SAMPLE_IDPUSER_ROLE
+            + ":"
+            + SAMPLE_IDPUSER_NAME
+            + "\n"
+            + CONSOLE_USER_ROLE
+            + ":"
+            + CONSOLE_USER_NAME
+            + "\n";
     }
 
-    Path nodePath(Path confDir, final int nodeOrdinal) {
+    Path dataPath(Path confDir, final int nodeOrdinal) {
         return confDir.resolve(getCurrentClusterScope() + "-" + nodeOrdinal);
     }
 
@@ -272,7 +261,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
                 Files.move(tempFile, path, REPLACE_EXISTING);
             }
         } catch (final IOException e) {
-            throw new UncheckedIOException(String.format(Locale.ROOT, "could not write file [%s]", path.toAbsolutePath()), e);
+            throw new UncheckedIOException(formatted("could not write file [%s]", path.toAbsolutePath()), e);
         } finally {
             // we are ignoring exceptions here, so we do not need handle whether or not tempFile was initialized nor if the file exists
             IOUtils.deleteFilesIgnoringExceptions(tempFile);

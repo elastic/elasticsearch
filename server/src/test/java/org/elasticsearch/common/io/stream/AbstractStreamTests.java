@@ -13,6 +13,11 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
@@ -26,11 +31,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -69,10 +72,10 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final Set<Byte> set = IntStream.range(Byte.MIN_VALUE, Byte.MAX_VALUE).mapToObj(v -> (byte) v).collect(Collectors.toSet());
         set.remove((byte) 0);
         set.remove((byte) 1);
-        final byte[] corruptBytes = new byte[]{randomFrom(set)};
+        final byte[] corruptBytes = new byte[] { randomFrom(set) };
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readBoolean());
-        final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
+        final String message = formatted("unexpected byte [0x%02x]", corruptBytes[0]);
         assertThat(e, hasToString(containsString(message)));
     }
 
@@ -104,10 +107,10 @@ public abstract class AbstractStreamTests extends ESTestCase {
         set.remove((byte) 0);
         set.remove((byte) 1);
         set.remove((byte) 2);
-        final byte[] corruptBytes = new byte[]{randomFrom(set)};
+        final byte[] corruptBytes = new byte[] { randomFrom(set) };
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readOptionalBoolean());
-        final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
+        final String message = formatted("unexpected byte [0x%02x]", corruptBytes[0]);
         assertThat(e, hasToString(containsString(message)));
     }
 
@@ -122,17 +125,16 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     public void testSpecificVLongSerialization() throws IOException {
-        List<Tuple<Long, byte[]>> values =
-            Arrays.asList(
-                new Tuple<>(0L, new byte[]{0}),
-                new Tuple<>(-1L, new byte[]{1}),
-                new Tuple<>(1L, new byte[]{2}),
-                new Tuple<>(-2L, new byte[]{3}),
-                new Tuple<>(2L, new byte[]{4}),
-                new Tuple<>(Long.MIN_VALUE, new byte[]{-1, -1, -1, -1, -1, -1, -1, -1, -1, 1}),
-                new Tuple<>(Long.MAX_VALUE, new byte[]{-2, -1, -1, -1, -1, -1, -1, -1, -1, 1})
+        List<Tuple<Long, byte[]>> values = Arrays.asList(
+            new Tuple<>(0L, new byte[] { 0 }),
+            new Tuple<>(-1L, new byte[] { 1 }),
+            new Tuple<>(1L, new byte[] { 2 }),
+            new Tuple<>(-2L, new byte[] { 3 }),
+            new Tuple<>(2L, new byte[] { 4 }),
+            new Tuple<>(Long.MIN_VALUE, new byte[] { -1, -1, -1, -1, -1, -1, -1, -1, -1, 1 }),
+            new Tuple<>(Long.MAX_VALUE, new byte[] { -2, -1, -1, -1, -1, -1, -1, -1, -1, 1 })
 
-            );
+        );
         for (Tuple<Long, byte[]> value : values) {
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeZLong(value.v1());
@@ -215,6 +217,60 @@ public abstract class AbstractStreamTests extends ESTestCase {
         assertThat(deserialized, equalTo(strings));
     }
 
+    public void testSmallBigIntArray() throws IOException {
+        assertBigIntArray(between(0, PageCacheRecycler.INT_PAGE_SIZE));
+    }
+
+    public void testLargeBigIntArray() throws IOException {
+        assertBigIntArray(between(PageCacheRecycler.INT_PAGE_SIZE, 5_000_000));
+    }
+
+    public void testBigIntArraySizeAligned() throws IOException {
+        assertBigIntArray(PageCacheRecycler.INT_PAGE_SIZE * between(2, 1000));
+    }
+
+    private void assertBigIntArray(int size) throws IOException {
+        IntArray testData = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(size, false);
+        for (int i = 0; i < size; i++) {
+            testData.set(i, randomInt());
+        }
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        testData.writeTo(out);
+
+        try (IntArray in = IntArray.readFrom(getStreamInput(out.bytes()))) {
+            assertThat(in.size(), equalTo(testData.size()));
+            for (int i = 0; i < size; i++) {
+                assertThat(in.get(i), equalTo(testData.get(i)));
+            }
+        }
+    }
+
+    public void testSmallBigDoubleArray() throws IOException {
+        assertBigDoubleArray(between(0, PageCacheRecycler.DOUBLE_PAGE_SIZE));
+    }
+
+    public void testLargeBigDoubleArray() throws IOException {
+        assertBigDoubleArray(between(PageCacheRecycler.DOUBLE_PAGE_SIZE, 10000));
+    }
+
+    private void assertBigDoubleArray(int size) throws IOException {
+        DoubleArray testData = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(size, false);
+        for (int i = 0; i < size; i++) {
+            testData.set(i, randomDouble());
+        }
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        testData.writeTo(out);
+
+        try (DoubleArray in = DoubleArray.readFrom(getStreamInput(out.bytes()))) {
+            assertThat(in.size(), equalTo(testData.size()));
+            for (int i = 0; i < size; i++) {
+                assertThat(in.get(i), equalTo(testData.get(i)));
+            }
+        }
+    }
+
     public void testCollection() throws IOException {
         class FooBar implements Writeable {
 
@@ -253,17 +309,41 @@ public abstract class AbstractStreamTests extends ESTestCase {
         }
 
         runWriteReadCollectionTest(
-            () -> new FooBar(randomInt(), randomInt()), StreamOutput::writeCollection, in -> in.readList(FooBar::new));
+            () -> new FooBar(randomInt(), randomInt()),
+            StreamOutput::writeCollection,
+            in -> in.readList(FooBar::new)
+        );
+
+        runWriteReadCollectionTest(
+            () -> new FooBar(randomInt(), randomInt()),
+            StreamOutput::writeOptionalCollection,
+            in -> in.readOptionalList(FooBar::new)
+        );
+
+        runWriteReadOptionalCollectionWithNullInput(out -> out.writeOptionalCollection(null), in -> in.readOptionalList(FooBar::new));
     }
 
     public void testStringCollection() throws IOException {
         runWriteReadCollectionTest(() -> randomUnicodeOfLength(16), StreamOutput::writeStringCollection, StreamInput::readStringList);
     }
 
+    public void testOptionalStringCollection() throws IOException {
+        runWriteReadCollectionTest(
+            () -> randomUnicodeOfLength(16),
+            StreamOutput::writeOptionalStringCollection,
+            StreamInput::readOptionalStringList
+        );
+    }
+
+    public void testOptionalStringCollectionWithNullInput() throws IOException {
+        runWriteReadOptionalCollectionWithNullInput(out -> out.writeOptionalStringCollection(null), StreamInput::readOptionalStringList);
+    }
+
     private <T> void runWriteReadCollectionTest(
         final Supplier<T> supplier,
         final CheckedBiConsumer<StreamOutput, Collection<T>, IOException> writer,
-        final CheckedFunction<StreamInput, Collection<T>, IOException> reader) throws IOException {
+        final CheckedFunction<StreamInput, Collection<T>, IOException> reader
+    ) throws IOException {
         final int length = randomIntBetween(0, 10);
         final Collection<T> collection = new ArrayList<>(length);
         for (int i = 0; i < length; i++) {
@@ -277,9 +357,21 @@ public abstract class AbstractStreamTests extends ESTestCase {
         }
     }
 
+    private <T> void runWriteReadOptionalCollectionWithNullInput(
+        final CheckedConsumer<StreamOutput, IOException> nullWriter,
+        final CheckedFunction<StreamInput, Collection<T>, IOException> reader
+    ) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            nullWriter.accept(out);
+            try (StreamInput in = getStreamInput(out.bytes())) {
+                assertNull(reader.apply(in));
+            }
+        }
+    }
+
     public void testSetOfLongs() throws IOException {
         final int size = randomIntBetween(0, 6);
-        final Set<Long> sourceSet = new HashSet<>(size);
+        final Set<Long> sourceSet = Sets.newHashSetWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             sourceSet.add(randomLongBetween(i * 1000, (i + 1) * 1000 - 1));
         }
@@ -402,11 +494,9 @@ public abstract class AbstractStreamTests extends ESTestCase {
             array[i] = randomByte();
         }
         stream.writeByteArray(array);
-        StreamInput streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), array
-            .length - 1);
+        StreamInput streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), array.length - 1);
         expectThrows(EOFException.class, streamInput::readByteArray);
-        streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), BytesReference.toBytes(stream
-            .bytes()).length);
+        streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), BytesReference.toBytes(stream.bytes()).length);
 
         assertArrayEquals(array, streamInput.readByteArray());
     }
@@ -452,12 +542,53 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     public void testObjectArrayIsWriteable() throws IOException {
-        StreamOutput.checkWriteable(new Object[] {"a", "b"});
-        assertNotWriteable(new Object[] {new Unwriteable()}, Unwriteable.class);
+        StreamOutput.checkWriteable(new Object[] { "a", "b" });
+        assertNotWriteable(new Object[] { new Unwriteable() }, Unwriteable.class);
     }
 
-    private void assertSerialization(CheckedConsumer<StreamOutput, IOException> outputAssertions,
-                                     CheckedConsumer<StreamInput, IOException> inputAssertions) throws IOException {
+    public void assertImmutableMapSerialization(Map<String, Integer> expected) throws IOException {
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.writeMap(expected, StreamOutput::writeString, StreamOutput::writeVInt);
+        final BytesReference bytesReference = output.bytes();
+
+        final StreamInput input = getStreamInput(bytesReference);
+        Map<String, Integer> got = input.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
+        assertThat(got, equalTo(expected));
+
+        expectThrows(UnsupportedOperationException.class, () -> got.put("blah", 1));
+    }
+
+    public void testImmutableMapSerialization() throws IOException {
+        assertImmutableMapSerialization(Map.of());
+        assertImmutableMapSerialization(Map.of("a", 1));
+        assertImmutableMapSerialization(Map.of("a", 1, "b", 2));
+    }
+
+    public <T> void assertImmutableListSerialization(List<T> expected, Writeable.Reader<T> reader, Writeable.Writer<T> writer)
+        throws IOException {
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.writeCollection(expected, writer);
+        final BytesReference bytesReference = output.bytes();
+
+        final StreamInput input = getStreamInput(bytesReference);
+        List<T> got = input.readImmutableList(reader);
+        assertThat(got, equalTo(expected));
+
+        expectThrows(UnsupportedOperationException.class, got::clear);
+    }
+
+    public void testImmutableListSerialization() throws IOException {
+        assertImmutableListSerialization(List.of(), StreamInput::readString, StreamOutput::writeString);
+        assertImmutableListSerialization(List.of("a"), StreamInput::readString, StreamOutput::writeString);
+        assertImmutableListSerialization(List.of("a", "b"), StreamInput::readString, StreamOutput::writeString);
+        assertImmutableListSerialization(List.of(1), StreamInput::readVInt, StreamOutput::writeVInt);
+        assertImmutableListSerialization(List.of(1, 2, 3), StreamInput::readVInt, StreamOutput::writeVInt);
+    }
+
+    private void assertSerialization(
+        CheckedConsumer<StreamOutput, IOException> outputAssertions,
+        CheckedConsumer<StreamInput, IOException> inputAssertions
+    ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             outputAssertions.accept(output);
             final StreamInput input = getStreamInput(output.bytes());
@@ -466,9 +597,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     private void assertGenericRoundtrip(Object original) throws IOException {
-        assertSerialization(output -> {
-            output.writeGenericValue(original);
-        }, input -> {
+        assertSerialization(output -> { output.writeGenericValue(original); }, input -> {
             Object read = input.readGenericValue();
             assertThat(read, equalTo(original));
         });

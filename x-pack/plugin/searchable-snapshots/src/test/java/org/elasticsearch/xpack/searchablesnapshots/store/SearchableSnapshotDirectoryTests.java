@@ -24,9 +24,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.mockfile.FilterSeekableByteChannel;
-import org.apache.lucene.search.CheckHits;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -36,6 +33,9 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
+import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -56,15 +56,15 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -88,6 +88,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
@@ -121,7 +122,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
@@ -468,17 +468,29 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     : snapshotMetadata.recoveryDiff(metadata);
 
                 assertThat(
-                    "List of different files should be empty but got [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    "List of different files should be empty but got ["
+                        + metadata.fileMetadataMap()
+                        + "] and ["
+                        + snapshotMetadata.fileMetadataMap()
+                        + ']',
                     diff.different.isEmpty(),
                     is(true)
                 );
                 assertThat(
-                    "List of missing files should be empty but got [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    "List of missing files should be empty but got ["
+                        + metadata.fileMetadataMap()
+                        + "] and ["
+                        + snapshotMetadata.fileMetadataMap()
+                        + ']',
                     diff.missing.isEmpty(),
                     is(true)
                 );
                 assertThat(
-                    "List of files should be identical [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    "List of files should be identical ["
+                        + metadata.fileMetadataMap()
+                        + "] and ["
+                        + snapshotMetadata.fileMetadataMap()
+                        + ']',
                     diff.identical.size(),
                     equalTo(metadata.size())
                 );
@@ -544,7 +556,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 if (randomBoolean()) {
                     writer.forceMerge(1, true);
                 }
-                final Map<String, String> userData = new HashMap<>(2);
+                final Map<String, String> userData = Maps.newMapWithExpectedSize(2);
                 userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, "0");
                 userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID(random()));
                 writer.setLiveCommitData(userData.entrySet());
@@ -584,7 +596,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         Settings.builder()
                             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                             .put(Environment.PATH_REPO_SETTING.getKey(), repositoryPath.toAbsolutePath())
-                            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
+                            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
                             .build(),
                         null
                     ),
@@ -618,7 +630,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                             null,
                             snapshotStatus,
                             Version.CURRENT,
-                            emptyMap(),
+                            randomMillisUpToYear9999(),
                             future
                         )
                     );
@@ -629,7 +641,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 final BlobContainer blobContainer = repository.shardContainer(indexId, shardId.id());
                 final BlobStoreIndexShardSnapshot snapshot = repository.loadShardSnapshot(blobContainer, snapshotId);
 
-                final Path shardDir = shardPath(shardId);
+                final Path shardDir = randomShardPath(shardId);
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
                 final CacheService cacheService = defaultCacheService();
@@ -721,7 +733,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     new BlobStoreIndexShardSnapshot.FileInfo(
                         blobName,
                         new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion.toString()),
-                        new ByteSizeValue(input.length)
+                        ByteSizeValue.ofBytes(input.length)
                     )
                 );
             }
@@ -737,7 +749,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final IndexId indexId = new IndexId("_id", "_uuid");
             final ShardId shardId = new ShardId(new Index("_name", "_id"), 0);
 
-            final Path shardDir = shardPath(shardId);
+            final Path shardDir = randomShardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
             final FrozenCacheService frozenCacheService = defaultFrozenCacheService();

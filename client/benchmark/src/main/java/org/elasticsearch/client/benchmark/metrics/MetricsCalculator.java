@@ -51,24 +51,28 @@ public final class MetricsCalculator {
                 it++;
             }
 
-            metrics.add(new Metrics(operationAndMetrics.getKey(),
-                samples.stream().filter((r) -> r.isSuccess()).count(),
-                samples.stream().filter((r) -> r.isSuccess() == false).count(),
-                // throughput calculation is based on the total (Wall clock) time it took to generate all samples
-                calculateThroughput(samples.size(), latestEnd - firstStart),
-                // convert ns -> ms without losing precision
-                StatUtils.percentile(serviceTimes, 50.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(serviceTimes, 90.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(serviceTimes, 95.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(serviceTimes, 99.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(serviceTimes, 99.9d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(serviceTimes, 99.99d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(latencies, 50.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(latencies, 90.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(latencies, 95.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(latencies, 99.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(latencies, 99.9d) / TimeUnit.MILLISECONDS.toNanos(1L),
-                StatUtils.percentile(latencies, 99.99d) / TimeUnit.MILLISECONDS.toNanos(1L)));
+            metrics.add(
+                new Metrics(
+                    operationAndMetrics.getKey(),
+                    samples.stream().filter((r) -> r.isSuccess()).count(),
+                    samples.stream().filter((r) -> r.isSuccess() == false).count(),
+                    // throughput calculation is based on the total (Wall clock) time it took to generate all samples
+                    calculateThroughput(samples.size(), latestEnd - firstStart),
+                    // convert ns -> ms without losing precision
+                    StatUtils.percentile(serviceTimes, 50.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                    StatUtils.percentile(serviceTimes, 90.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                    StatUtils.percentile(serviceTimes, 95.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                    StatUtils.percentile(serviceTimes, 99.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                    StatUtils.percentile(serviceTimes, 99.9d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                    StatUtils.percentile(serviceTimes, 99.99d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                    StatUtils.percentile(latencies, 50.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                    StatUtils.percentile(latencies, 90.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                    StatUtils.percentile(latencies, 95.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                    StatUtils.percentile(latencies, 99.0d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                    StatUtils.percentile(latencies, 99.9d) / TimeUnit.MILLISECONDS.toNanos(1L),
+                    StatUtils.percentile(latencies, 99.99d) / TimeUnit.MILLISECONDS.toNanos(1L)
+                )
+            );
         }
         return metrics;
     }

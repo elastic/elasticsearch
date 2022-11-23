@@ -51,8 +51,8 @@
           "none",
           "all"
         ],
-        "default":"open",
-        "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+        "default":"open,closed",
+        "description":"Whether wildcard expressions should get expanded to open, closed, or hidden indices"
       }
     }
   }

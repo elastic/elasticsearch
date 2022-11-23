@@ -1,0 +1,403 @@
+---
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          keyword: [ "a", "b" ]
+
+---
+fetch fields:
+  - skip:
+      version: ' - 8.5.99'
+      reason:  stored fields phase added in 8.6
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          profile: true
+          fields: [keyword]
+
+  - is_true: hits.hits.0._id
+  - match: { hits.hits.0.fields.keyword.0: a }
+  - match: { hits.hits.0.fields.keyword.1: b }
+  - gt: { profile.shards.0.fetch.time_in_nanos: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
+  - length: { profile.shards.0.fetch.children: 2 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
+  - match: { profile.shards.0.fetch.children.1.type: StoredFieldsPhase }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+
+---
+fetch source:
+  - skip:
+      version: ' - 8.5.99'
+      reason:  stored fields phase added in 8.6
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+
+  - is_true: hits.hits.0._id
+  - match: { hits.hits.0._source.keyword.0: a }
+  - match: { hits.hits.0._source.keyword.1: b }
+  - gt: { profile.shards.0.fetch.time_in_nanos: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
+  - length: { profile.shards.0.fetch.children: 2 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.0.debug.fast_path: 1 }
+  - match: { profile.shards.0.fetch.children.1.type: StoredFieldsPhase }
+
+---
+fetch nested source:
+  - skip:
+      version: ' - 8.5.99'
+      reason:  stored fields phase added in 8.6
+
+  - do:
+      indices.create:
+        index:  test_nested
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              nested:
+                type: nested
+                properties:
+                  text:
+                    type: text
+
+  - do:
+      index:
+        index:   test_nested
+        id:      "1"
+        refresh: true
+        body:
+          keyword: [ "a", "b" ]
+          nested:
+            - text: the quick brown fox
+            - text: jumped over the
+            - text: lazy dog
+
+  - do:
+      search:
+        index: test_nested
+        body:
+          profile: true
+          query:
+            nested:
+              path: nested
+              query:
+                match_all: {}
+              inner_hits: {}
+
+  - is_true: hits.hits.0._id
+  - match: { hits.hits.0._source.keyword.0: a }
+  - match: { hits.hits.0._source.keyword.1: b }
+  - gt: { profile.shards.0.fetch.time_in_nanos: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
+  - length: { profile.shards.0.fetch.children: 3 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.1.type: InnerHitsPhase }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.2.type: StoredFieldsPhase }
+
+---
+disabling stored fields removes fetch sub phases:
+  - skip:
+      version: ' - 7.15.99'
+      reason:  fetch profiling implemented in 7.16.0
+
+  - do:
+      search:
+        index: test
+        body:
+          stored_fields: _none_
+          profile: true
+
+  - match: { hits.hits.0._index: test }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [] }
+  - is_false: profile.shards.0.fetch.children
+
+---
+dfs knn vector profiling:
+  - skip:
+      version: ' - 8.5.99'
+      reason: dfs profiling implemented in 8.6.0
+
+  - do:
+      indices.create:
+        index: images
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              image:
+                type: "dense_vector"
+                dims: 3
+                index: true
+                similarity: "l2_norm"
+
+  - do:
+      index:
+        index: images
+        id: "1"
+        refresh: true
+        body:
+          image: [1, 5, -20]
+
+  - do:
+      search:
+        index: images
+        body:
+          profile: true
+          knn:
+            field: "image"
+            query_vector: [-5, 9, -12]
+            k: 1
+            num_candidates: 100
+
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.dfs.knn.query.0.type: "DocAndScoreQuery" }
+  - match: { profile.shards.0.dfs.knn.query.0.description: "DocAndScore[100]" }
+  - gt: { profile.shards.0.dfs.knn.query.0.time_in_nanos: 0 }
+  - match: { profile.shards.0.dfs.knn.query.0.breakdown.set_min_competitive_score_count: 0 }
+  - match: { profile.shards.0.dfs.knn.query.0.breakdown.set_min_competitive_score: 0 }
+  - match: { profile.shards.0.dfs.knn.query.0.breakdown.match_count: 0 }
+  - match: { profile.shards.0.dfs.knn.query.0.breakdown.match: 0 }
+  - match: { profile.shards.0.dfs.knn.query.0.breakdown.shallow_advance_count: 0 }
+  - match: { profile.shards.0.dfs.knn.query.0.breakdown.shallow_advance: 0 }
+  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.next_doc_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.next_doc: 0 }
+  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.score_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.score: 0 }
+  - match: { profile.shards.0.dfs.knn.query.0.breakdown.compute_max_score_count: 0 }
+  - match: { profile.shards.0.dfs.knn.query.0.breakdown.compute_max_score: 0 }
+  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.advance_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.advance: 0 }
+  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.build_scorer_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.build_scorer: 0 }
+  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.create_weight: 0 }
+  - gt: { profile.shards.0.dfs.knn.query.0.breakdown.create_weight_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.rewrite_time: 0 }
+  - match: { profile.shards.0.dfs.knn.collector.0.name: "SimpleTopScoreDocCollector" }
+  - match: { profile.shards.0.dfs.knn.collector.0.reason: "search_top_hits" }
+  - gt: { profile.shards.0.dfs.knn.collector.0.time_in_nanos: 0 }
+
+---
+dfs profile for search with dfs_query_then_fetch:
+  - skip:
+      version: ' - 8.5.99'
+      reason: dfs profiling implemented in 8.6.0
+
+  - do:
+      indices.create:
+        index: keywords
+        body:
+          settings:
+            index.number_of_shards: 2
+          mappings:
+            properties:
+              keyword:
+                type: "keyword"
+
+  # test with no indexed documents
+  # expect both shards to have dfs profiles
+  - do:
+      search:
+        index: keywords
+        search_type: dfs_query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+
+  - match: { hits.total.value: 0 }
+  - match: { profile.shards.0.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.0.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.0.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.0.dfs.statistics.breakdown
+  - match: { profile.shards.1.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.1.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.1.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.1.dfs.statistics.breakdown
+
+  # expect no shards to have dfs profiles
+  - do:
+      search:
+        index: keywords
+        search_type: query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+
+  - match: { hits.total.value: 0 }
+  - is_false: profile.shards.0.dfs
+
+  # test with two indexed documents
+  - do:
+      index:
+        index: keywords
+        id: "1"
+        refresh: true
+        body:
+          keyword: "a"
+
+  - do:
+      index:
+        index: keywords
+        id: "2"
+        refresh: true
+        body:
+          keyword: "b"
+
+  # expect both shards to have dfs profiles
+  - do:
+      search:
+        index: keywords
+        search_type: dfs_query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.0.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.0.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.0.dfs.statistics.breakdown
+  - match: { profile.shards.1.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.1.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.1.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.1.dfs.statistics.breakdown
+
+  - do:
+      search:
+        index: keywords
+        search_type: dfs_query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "b"
+
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.0.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.0.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.0.dfs.statistics.breakdown
+  - match: { profile.shards.1.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.1.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.1.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.1.dfs.statistics.breakdown
+
+  - do:
+      search:
+        index: keywords
+        search_type: dfs_query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "c"
+
+  - match: { hits.total.value: 0 }
+  - match: { profile.shards.0.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.0.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.0.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.0.dfs.statistics.breakdown
+  - match: { profile.shards.1.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.1.dfs.statistics.description: "collect term statistics" }
+  - gte: { profile.shards.1.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.1.dfs.statistics.breakdown
+
+  # expect no shards to have dfs profiles
+  - do:
+      search:
+        index: keywords
+        search_type: query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+
+  - match: { hits.total.value: 1 }
+  - is_false: profile.shards.0.dfs
+
+  - do:
+      search:
+        index: keywords
+        search_type: query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "b"
+
+  - match: { hits.total.value: 1 }
+  - is_false: profile.shards.0.dfs
+
+  - do:
+      search:
+        index: keywords
+        search_type: query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "c"
+
+  - match: { hits.total.value: 0 }
+  - is_false: profile.shards.0.dfs

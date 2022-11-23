@@ -40,7 +40,7 @@ abstract class SortedDocsProducer {
      * Returns true if the queue is full and the current <code>leadSourceBucket</code> did not produce any competitive
      * composite buckets.
      */
-    protected boolean processBucket(
+    protected static boolean processBucket(
         CompositeValuesCollectorQueue queue,
         LeafReaderContext context,
         DocIdSetIterator iterator,

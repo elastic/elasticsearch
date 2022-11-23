@@ -22,6 +22,7 @@ public interface PreProcessor extends NamedXContentObject, NamedWriteable, Accou
     class PreProcessorParseContext {
         public static final PreProcessorParseContext DEFAULT = new PreProcessorParseContext(false);
         final boolean defaultIsCustomValue;
+
         public PreProcessorParseContext(boolean defaultIsCustomValue) {
             this.defaultIsCustomValue = defaultIsCustomValue;
         }

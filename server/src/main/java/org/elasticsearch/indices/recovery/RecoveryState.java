@@ -11,20 +11,19 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -97,29 +96,39 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private final VerifyIndex verifyIndex;
     private final Timer timer;
 
-    private RecoverySource recoverySource;
-    private ShardId shardId;
+    private final RecoverySource recoverySource;
+    private final ShardId shardId;
     @Nullable
-    private DiscoveryNode sourceNode;
-    private DiscoveryNode targetNode;
-    private boolean primary;
+    private final DiscoveryNode sourceNode;
+    private final DiscoveryNode targetNode;
+    private final boolean primary;
 
-    public RecoveryState(ShardRouting shardRouting,
-                         DiscoveryNode targetNode,
-                         @Nullable DiscoveryNode sourceNode) {
+    public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
         this(shardRouting, targetNode, sourceNode, new Index());
     }
 
-    public RecoveryState(ShardRouting shardRouting,
-                         DiscoveryNode targetNode,
-                         @Nullable DiscoveryNode sourceNode,
-                         Index index) {
+    public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, Index index) {
+        this(shardRouting.shardId(), shardRouting.primary(), shardRouting.recoverySource(), sourceNode, targetNode, index, new Timer());
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
-        RecoverySource recoverySource = shardRouting.recoverySource();
-        assert (recoverySource.getType() == RecoverySource.Type.PEER) == (sourceNode != null) :
-            "peer recovery requires source node, recovery type: " + recoverySource.getType() + " source node: " + sourceNode;
-        this.shardId = shardRouting.shardId();
-        this.primary = shardRouting.primary();
+        assert (shardRouting.recoverySource().getType() == RecoverySource.Type.PEER) == (sourceNode != null)
+            : "peer recovery requires source node, recovery type: "
+                + shardRouting.recoverySource().getType()
+                + " source node: "
+                + sourceNode;
+        timer.start();
+    }
+
+    private RecoveryState(
+        ShardId shardId,
+        boolean primary,
+        RecoverySource recoverySource,
+        DiscoveryNode sourceNode,
+        DiscoveryNode targetNode,
+        Index index,
+        Timer timer
+    ) {
+        this.shardId = shardId;
+        this.primary = primary;
         this.recoverySource = recoverySource;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
@@ -127,11 +136,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
-        timer = new Timer();
-        timer.start();
+        this.timer = timer;
     }
 
-    public RecoveryState(StreamInput in) throws IOException {
+    private RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
         stage = Stage.fromId(in.readByte());
         shardId = new ShardId(in);
@@ -166,12 +174,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return this.stage;
     }
 
-
     protected void validateAndSetStage(Stage expected, Stage next) {
         if (stage != expected) {
             assert false : "can't move recovery to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])";
-            throw new IllegalStateException("can't move recovery to stage [" + next + "]. current stage: ["
-                    + stage + "] (expected [" + expected + "])");
+            throw new IllegalStateException(
+                "can't move recovery to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])"
+            );
         }
         stage = next;
     }
@@ -186,40 +194,47 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
     public synchronized RecoveryState setStage(Stage stage) {
         switch (stage) {
-            case INIT:
+            case INIT -> {
                 // reinitializing stop remove all state except for start time
                 this.stage = Stage.INIT;
                 getIndex().reset();
                 getVerifyIndex().reset();
                 getTranslog().reset();
-                break;
-            case INDEX:
+            }
+            case INDEX -> {
                 validateAndSetStage(Stage.INIT, stage);
                 getIndex().start();
-                break;
-            case VERIFY_INDEX:
+            }
+            case VERIFY_INDEX -> {
                 validateAndSetStage(Stage.INDEX, stage);
                 getIndex().stop();
                 getVerifyIndex().start();
-                break;
-            case TRANSLOG:
+            }
+            case TRANSLOG -> {
                 validateAndSetStage(Stage.VERIFY_INDEX, stage);
                 getVerifyIndex().stop();
                 getTranslog().start();
-                break;
-            case FINALIZE:
+            }
+            case FINALIZE -> {
                 assert getIndex().bytesStillToRecover() >= 0 : "moving to stage FINALIZE without completing file details";
                 validateAndSetStage(Stage.TRANSLOG, stage);
                 getTranslog().stop();
-                break;
-            case DONE:
+            }
+            case DONE -> {
                 validateAndSetStage(Stage.FINALIZE, stage);
                 getTimer().stop();
-                break;
-            default:
-                throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
+            }
+            default -> throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;
+    }
+
+    /**
+     * Resets the stage to the initial state and clears all index, verify index and translog information keeping the original timing
+     * information
+     */
+    public RecoveryState reset() {
+        return new RecoveryState(shardId, primary, recoverySource, sourceNode, targetNode, new Index(), timer);
     }
 
     public synchronized RecoveryState setLocalTranslogStage() {
@@ -284,26 +299,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(timer.time()));
 
         if (recoverySource.getType() == RecoverySource.Type.PEER) {
-            builder.startObject(Fields.SOURCE);
-            builder.field(Fields.ID, sourceNode.getId());
-            builder.field(Fields.HOST, sourceNode.getHostName());
-            builder.field(Fields.TRANSPORT_ADDRESS, sourceNode.getAddress().toString());
-            builder.field(Fields.IP, sourceNode.getHostAddress());
-            builder.field(Fields.NAME, sourceNode.getName());
-            builder.endObject();
+            toXContentNode(Fields.SOURCE, builder, sourceNode);
         } else {
             builder.startObject(Fields.SOURCE);
             recoverySource.addAdditionalFields(builder, params);
             builder.endObject();
         }
 
-        builder.startObject(Fields.TARGET);
-        builder.field(Fields.ID, targetNode.getId());
-        builder.field(Fields.HOST, targetNode.getHostName());
-        builder.field(Fields.TRANSPORT_ADDRESS, targetNode.getAddress().toString());
-        builder.field(Fields.IP, targetNode.getHostAddress());
-        builder.field(Fields.NAME, targetNode.getName());
-        builder.endObject();
+        toXContentNode(Fields.TARGET, builder, targetNode);
 
         builder.startObject(Fields.INDEX);
         index.toXContent(builder, params);
@@ -318,6 +321,16 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.endObject();
 
         return builder;
+    }
+
+    private static void toXContentNode(String fieldName, XContentBuilder builder, DiscoveryNode node) throws IOException {
+        builder.startObject(fieldName);
+        builder.field(Fields.ID, node.getId());
+        builder.field(Fields.HOST, node.getHostName());
+        builder.field(Fields.TRANSPORT_ADDRESS, node.getAddress().toString());
+        builder.field(Fields.IP, node.getHostAddress());
+        builder.field(Fields.NAME, node.getName());
+        builder.endObject();
     }
 
     static final class Fields {
@@ -369,8 +382,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         protected long time = -1;
         protected long stopTime = 0;
 
-        public Timer() {
-        }
+        public Timer() {}
 
         public Timer(StreamInput in) throws IOException {
             startTime = in.readVLong();
@@ -438,8 +450,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public static class VerifyIndex extends Timer implements ToXContentFragment, Writeable {
         private volatile long checkIndexTime;
 
-        public VerifyIndex() {
-        }
+        public VerifyIndex() {}
 
         public VerifyIndex(StreamInput in) throws IOException {
             super(in);
@@ -481,8 +492,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         private int totalOnStart = UNKNOWN;
         private int totalLocal = UNKNOWN;
 
-        public Translog() {
-        }
+        public Translog() {}
 
         public Translog(StreamInput in) throws IOException {
             super(in);
@@ -495,10 +505,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVInt(recovered);
-            out.writeVInt(total);
-            out.writeVInt(totalOnStart);
-            out.writeVInt(totalLocal);
+            synchronized (this) {
+                out.writeVInt(recovered);
+                out.writeVInt(total);
+                out.writeVInt(totalOnStart);
+                out.writeVInt(totalLocal);
+            }
         }
 
         public synchronized void reset() {
@@ -511,24 +523,23 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public synchronized void incrementRecoveredOperations() {
             recovered++;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total +
-                "], recovered [" + recovered + "]";
+            assert total == UNKNOWN || total >= recovered
+                : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 
         public synchronized void incrementRecoveredOperations(int ops) {
             recovered += ops;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total +
-                "], recovered [" + recovered + "]";
+            assert total == UNKNOWN || total >= recovered
+                : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 
         public synchronized void decrementRecoveredOperations(int ops) {
             recovered -= ops;
-            assert recovered >= 0 : "recovered operations must be non-negative. Because [" + recovered +
-                "] after decrementing [" + ops + "]";
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" +
-                total + "], recovered [" + recovered + "]";
+            assert recovered >= 0
+                : "recovered operations must be non-negative. Because [" + recovered + "] after decrementing [" + ops + "]";
+            assert total == UNKNOWN || total >= recovered
+                : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
-
 
         /**
          * returns the total number of translog operations recovered so far
@@ -549,8 +560,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public synchronized void totalOperations(int total) {
             this.total = totalLocal == UNKNOWN ? total : totalLocal + total;
-            assert total == UNKNOWN || this.total >= recovered : "total, if known, should be > recovered. total [" + total +
-                "], recovered [" + recovered + "]";
+            assert total == UNKNOWN || this.total >= recovered
+                : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 
         /**
@@ -602,10 +613,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class FileDetail implements ToXContentObject, Writeable {
-        private String name;
-        private long length;
+        private final String name;
+        private final long length;
         private long recovered;
-        private boolean reused;
+        private final boolean reused;
         private long recoveredFromSnapshot;
 
         public FileDetail(String name, long length, boolean reused) {
@@ -697,11 +708,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.NAME, name);
-            builder.humanReadableField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, new ByteSizeValue(length));
+            builder.humanReadableField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, ByteSizeValue.ofBytes(length));
             builder.field(Fields.REUSED, reused);
-            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recovered));
+            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, ByteSizeValue.ofBytes(recovered));
             builder.humanReadableField(
-                Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES, Fields.RECOVERED_FROM_SNAPSHOT, new ByteSizeValue(recoveredFromSnapshot)
+                Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES,
+                Fields.RECOVERED_FROM_SNAPSHOT,
+                ByteSizeValue.ofBytes(recoveredFromSnapshot)
             );
             builder.endObject();
             return builder;
@@ -709,13 +722,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj instanceof FileDetail) {
-                FileDetail other = (FileDetail) obj;
-                return name.equals(other.name) &&
-                    length == other.length() &&
-                    reused == other.reused() &&
-                    recovered == other.recovered &&
-                    recoveredFromSnapshot == other.recoveredFromSnapshot;
+            if (obj instanceof FileDetail other) {
+                return name.equals(other.name)
+                    && length == other.length()
+                    && reused == other.reused()
+                    && recovered == other.recovered
+                    && recoveredFromSnapshot == other.recoveredFromSnapshot;
             }
             return false;
         }
@@ -732,24 +744,31 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         @Override
         public String toString() {
-            return "file (name [" + name + "], reused [" + reused + "], length [" + length + "], " +
-                "recovered [" + recovered + "], recovered from snapshot [" + recoveredFromSnapshot + "]) ";
+            return "file (name ["
+                + name
+                + "], reused ["
+                + reused
+                + "], length ["
+                + length
+                + "], "
+                + "recovered ["
+                + recovered
+                + "], recovered from snapshot ["
+                + recoveredFromSnapshot
+                + "]) ";
         }
     }
 
     public static class RecoveryFilesDetails implements ToXContentFragment, Writeable {
-        protected final Map<String, FileDetail> fileDetails = new HashMap<>();
+        protected final Map<String, FileDetail> fileDetails;
         protected boolean complete;
 
         public RecoveryFilesDetails() {
+            fileDetails = new HashMap<>();
         }
 
         RecoveryFilesDetails(StreamInput in) throws IOException {
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                FileDetail file = new FileDetail(in);
-                fileDetails.put(file.name, file);
-            }
+            fileDetails = in.readMapValues(FileDetail::new, FileDetail::name);
             if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 complete = in.readBoolean();
             } else {
@@ -763,11 +782,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            final FileDetail[] files = values().toArray(new FileDetail[0]);
-            out.writeVInt(files.length);
-            for (FileDetail file : files) {
-                file.writeTo(out);
-            }
+            out.writeCollection(values());
             if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 out.writeBoolean(complete);
             }
@@ -776,11 +791,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (params.paramAsBoolean("detailed", false)) {
-                builder.startArray(Fields.DETAILS);
-                for (FileDetail file : values()) {
-                    file.toXContent(builder, params);
-                }
-                builder.endArray();
+                builder.xContentList(Fields.DETAILS, values(), params);
             }
 
             return builder;
@@ -1091,11 +1102,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             // stream size first, as it matters more and the files section can be long
             builder.startObject(Fields.SIZE);
-            builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(totalBytes()));
-            builder.humanReadableField(Fields.REUSED_IN_BYTES, Fields.REUSED, new ByteSizeValue(reusedBytes()));
-            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, new ByteSizeValue(recoveredBytes()));
+            builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, ByteSizeValue.ofBytes(totalBytes()));
+            builder.humanReadableField(Fields.REUSED_IN_BYTES, Fields.REUSED, ByteSizeValue.ofBytes(reusedBytes()));
+            builder.humanReadableField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, ByteSizeValue.ofBytes(recoveredBytes()));
             builder.humanReadableField(
-                Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES, Fields.RECOVERED_FROM_SNAPSHOT, new ByteSizeValue(recoveredFromSnapshotBytes())
+                Fields.RECOVERED_FROM_SNAPSHOT_IN_BYTES,
+                Fields.RECOVERED_FROM_SNAPSHOT,
+                ByteSizeValue.ofBytes(recoveredFromSnapshotBytes())
             );
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredBytesPercent()));
             builder.endObject();
@@ -1115,15 +1128,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         @Override
         public synchronized String toString() {
-            try {
-                XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-                builder.startObject();
-                toXContent(builder, EMPTY_PARAMS);
-                builder.endObject();
-                return Strings.toString(builder);
-            } catch (IOException e) {
-                return "{ \"error\" : \"" + e.getMessage() + "\"}";
-            }
+            return Strings.toString(this);
         }
 
         public synchronized FileDetail getFileDetails(String dest) {

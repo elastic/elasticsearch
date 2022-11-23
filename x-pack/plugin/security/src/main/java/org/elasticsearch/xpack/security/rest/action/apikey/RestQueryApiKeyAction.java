@@ -7,44 +7,44 @@
 
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Rest action to search for API keys
  */
-public final class RestQueryApiKeyAction extends SecurityBaseRestHandler {
+public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<QueryApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "query_api_key_request",
-        a -> new QueryApiKeyRequest((QueryBuilder) a[0], (Integer) a[1], (Integer) a[2],
-            (List<FieldSortBuilder>) a[3], (SearchAfterBuilder) a[4]));
+    private static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
+        "query_api_key_request_payload",
+        a -> new Payload((QueryBuilder) a[0], (Integer) a[1], (Integer) a[2], (List<FieldSortBuilder>) a[3], (SearchAfterBuilder) a[4])
+    );
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseInnerQueryBuilder(p), new ParseField("query"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseTopLevelQuery(p), new ParseField("query"));
         PARSER.declareInt(optionalConstructorArg(), new ParseField("from"));
         PARSER.declareInt(optionalConstructorArg(), new ParseField("size"));
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> {
@@ -59,8 +59,12 @@ public final class RestQueryApiKeyAction extends SecurityBaseRestHandler {
                 throw new IllegalArgumentException("mal-formatted sort object");
             }
         }, new ParseField("sort"));
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> SearchAfterBuilder.fromXContent(p),
-            new ParseField("search_after"), ObjectParser.ValueType.VALUE_ARRAY);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> SearchAfterBuilder.fromXContent(p),
+            new ParseField("search_after"),
+            ObjectParser.ValueType.VALUE_ARRAY
+        );
     }
 
     /**
@@ -74,9 +78,7 @@ public final class RestQueryApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_security/_query/api_key"),
-            new Route(POST, "/_security/_query/api_key"));
+        return List.of(new Route(GET, "/_security/_query/api_key"), new Route(POST, "/_security/_query/api_key"));
     }
 
     @Override
@@ -86,9 +88,30 @@ public final class RestQueryApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final QueryApiKeyRequest queryApiKeyRequest =
-            request.hasContentOrSourceParam() ? PARSER.parse(request.contentOrSourceParamParser(), null) : new QueryApiKeyRequest();
+        final boolean withLimitedBy = request.paramAsBoolean("with_limited_by", false);
 
+        final QueryApiKeyRequest queryApiKeyRequest;
+        if (request.hasContentOrSourceParam()) {
+            final Payload payload = PARSER.parse(request.contentOrSourceParamParser(), null);
+            queryApiKeyRequest = new QueryApiKeyRequest(
+                payload.queryBuilder,
+                payload.from,
+                payload.size,
+                payload.fieldSortBuilders,
+                payload.searchAfterBuilder,
+                withLimitedBy
+            );
+        } else {
+            queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, withLimitedBy);
+        }
         return channel -> client.execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest, new RestToXContentListener<>(channel));
     }
+
+    private record Payload(
+        @Nullable QueryBuilder queryBuilder,
+        @Nullable Integer from,
+        @Nullable Integer size,
+        @Nullable List<FieldSortBuilder> fieldSortBuilders,
+        @Nullable SearchAfterBuilder searchAfterBuilder
+    ) {}
 }

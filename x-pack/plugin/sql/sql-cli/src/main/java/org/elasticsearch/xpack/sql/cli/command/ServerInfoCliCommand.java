@@ -14,8 +14,7 @@ import java.util.Locale;
 
 public class ServerInfoCliCommand extends AbstractServerCliCommand {
 
-    public ServerInfoCliCommand() {
-    }
+    public ServerInfoCliCommand() {}
 
     @Override
     public boolean doHandle(CliTerminal terminal, CliSession cliSession, String line) {
@@ -30,10 +29,13 @@ public class ServerInfoCliCommand extends AbstractServerCliCommand {
             return true;
         }
         terminal.line()
-                .text("Node:").em(info.getNodeName())
-                .text(" Cluster:").em(info.getClusterName())
-                .text(" Version:").em(info.getVersion())
-                .ln();
+            .text("Node:")
+            .em(info.getNodeName())
+            .text(" Cluster:")
+            .em(info.getClusterName())
+            .text(" Version:")
+            .em(info.getVersion())
+            .ln();
         return true;
     }
 }

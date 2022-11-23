@@ -18,11 +18,25 @@ import org.elasticsearch.transport.TransportService;
 
 public abstract class XPackUsageFeatureTransportAction extends TransportMasterNodeAction<XPackUsageRequest, XPackUsageFeatureResponse> {
 
-    public XPackUsageFeatureTransportAction(String name, TransportService transportService, ClusterService clusterService,
-                                            ThreadPool threadPool, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(name, transportService, clusterService, threadPool, actionFilters, XPackUsageRequest::new, indexNameExpressionResolver,
-                XPackUsageFeatureResponse::new, ThreadPool.Names.MANAGEMENT);
+    public XPackUsageFeatureTransportAction(
+        String name,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            name,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            XPackUsageRequest::new,
+            indexNameExpressionResolver,
+            XPackUsageFeatureResponse::new,
+            ThreadPool.Names.MANAGEMENT
+        );
     }
 
     @Override

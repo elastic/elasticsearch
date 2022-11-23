@@ -11,8 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
@@ -21,8 +22,6 @@ import java.time.Clock;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * This step wraps an {@link ClusterStateWaitStep} in order to be able to manipulate what the next step will be, depending on the result of
@@ -58,8 +57,7 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
         IndexMetadata idxMeta = clusterState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists",
-                getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return new Result(false, null);
         }
 
@@ -69,18 +67,21 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
             // checking the threshold after we execute the step to make sure we execute the wrapped step at least once (because time is a
             // wonderful thing)
             TimeValue retryThreshold = LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING.get(idxMeta.getSettings());
-            LifecycleExecutionState lifecycleState = fromIndexMetadata(idxMeta);
+            LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
             if (stepToExecute.isCompletable() == false) {
                 // we may not have passed the time threshold, but the step is not completable due to a different reason
                 thresholdPassed.set(true);
 
-                String message = String.format(Locale.ROOT, "[%s] lifecycle step, as part of [%s] action, for index [%s] Is not " +
-                        "completable, reason: [%s]. Abandoning execution and moving to the next fallback step [%s]",
-                    getKey().getName(),
-                    getKey().getAction(),
+                String message = String.format(
+                    Locale.ROOT,
+                    "[%s] lifecycle step, as part of [%s] action, for index [%s] Is not "
+                        + "completable, reason: [%s]. Abandoning execution and moving to the next fallback step [%s]",
+                    getKey().name(),
+                    getKey().action(),
                     idxMeta.getIndex().getName(),
                     Strings.toString(stepResult.getInfomationContext()),
-                    nextKeyOnThresholdBreach);
+                    nextKeyOnThresholdBreach
+                );
                 logger.debug(message);
 
                 return new Result(true, new SingleMessageFieldInfo(message));
@@ -89,10 +90,16 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
                 // we retried this step enough, next step will be the configured to {@code nextKeyOnThresholdBreach}
                 thresholdPassed.set(true);
 
-                String message = String.format(Locale.ROOT, "[%s] lifecycle step, as part of [%s] action, for index [%s] executed for" +
-                        " more than [%s]. Abandoning execution and moving to the next fallback step [%s]",
-                    getKey().getName(), getKey().getAction(), idxMeta.getIndex().getName(), retryThreshold,
-                    nextKeyOnThresholdBreach);
+                String message = String.format(
+                    Locale.ROOT,
+                    "[%s] lifecycle step, as part of [%s] action, for index [%s] executed for"
+                        + " more than [%s]. Abandoning execution and moving to the next fallback step [%s]",
+                    getKey().name(),
+                    getKey().action(),
+                    idxMeta.getIndex().getName(),
+                    retryThreshold,
+                    nextKeyOnThresholdBreach
+                );
                 logger.debug(message);
 
                 return new Result(true, new SingleMessageFieldInfo(message));
@@ -103,10 +110,10 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
     }
 
     static boolean waitedMoreThanThresholdLevel(@Nullable TimeValue retryThreshold, LifecycleExecutionState lifecycleState, Clock clock) {
-        assert lifecycleState.getStepTime() != null : "lifecycle state [" + lifecycleState + "] does not have the step time set";
+        assert lifecycleState.stepTime() != null : "lifecycle state [" + lifecycleState + "] does not have the step time set";
         if (retryThreshold != null) {
             // return true if the threshold was surpassed and false otherwise
-            return (lifecycleState.getStepTime() + retryThreshold.millis()) < clock.millis();
+            return (lifecycleState.stepTime() + retryThreshold.millis()) < clock.millis();
         }
         return false;
     }

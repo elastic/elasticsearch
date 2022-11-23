@@ -8,15 +8,16 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.common.FieldMemoryStats;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class CompletionStats implements Writeable, ToXContentFragment {
 
@@ -29,8 +30,7 @@ public class CompletionStats implements Writeable, ToXContentFragment {
     @Nullable
     private FieldMemoryStats fields;
 
-    public CompletionStats() {
-    }
+    public CompletionStats() {}
 
     public CompletionStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
@@ -47,7 +47,7 @@ public class CompletionStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getSize() {
-        return new ByteSizeValue(sizeInBytes);
+        return ByteSizeValue.ofBytes(sizeInBytes);
     }
 
     public FieldMemoryStats getFields() {
@@ -83,5 +83,18 @@ public class CompletionStats implements Writeable, ToXContentFragment {
                 fields.add(completion.fields);
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CompletionStats that = (CompletionStats) o;
+        return sizeInBytes == that.sizeInBytes && Objects.equals(fields, that.fields);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(sizeInBytes, fields);
     }
 }

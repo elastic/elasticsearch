@@ -20,9 +20,7 @@ import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -35,8 +33,12 @@ public class MultiOrdinals extends Ordinals {
     /**
      * Return true if this impl is going to be smaller than {@link SinglePackedOrdinals} by at least 20%.
      */
-    public static boolean significantlySmallerThanSinglePackedOrdinals(int maxDoc, int numDocsWithValue, long numOrds,
-            float acceptableOverheadRatio) {
+    public static boolean significantlySmallerThanSinglePackedOrdinals(
+        int maxDoc,
+        int numDocsWithValue,
+        long numOrds,
+        float acceptableOverheadRatio
+    ) {
         int bitsPerOrd = PackedInts.bitsRequired(numOrds);
         bitsPerOrd = PackedInts.fastestFormatAndBits(numDocsWithValue, bitsPerOrd, acceptableOverheadRatio).bitsPerValue;
         // Compute the worst-case number of bits per value for offsets in the worst case, eg. if no docs have a value at the
@@ -84,10 +86,7 @@ public class MultiOrdinals extends Ordinals {
 
     @Override
     public Collection<Accountable> getChildResources() {
-        List<Accountable> resources = new ArrayList<>();
-        resources.add(Accountables.namedAccountable("offsets", endOffsets));
-        resources.add(Accountables.namedAccountable("ordinals", ords));
-        return Collections.unmodifiableCollection(resources);
+        return List.of(Accountables.namedAccountable("offsets", endOffsets), Accountables.namedAccountable("ordinals", ords));
     }
 
     @Override
@@ -183,6 +182,11 @@ public class MultiOrdinals extends Ordinals {
             } else {
                 return ords.get(currentOffset++);
             }
+        }
+
+        @Override
+        public int docValueCount() {
+            return Math.toIntExact(currentEndOffset - currentOffset);
         }
 
         @Override

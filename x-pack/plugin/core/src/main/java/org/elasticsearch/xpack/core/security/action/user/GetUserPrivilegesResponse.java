@@ -12,8 +12,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -33,11 +33,12 @@ import java.util.stream.Collectors;
  */
 public final class GetUserPrivilegesResponse extends ActionResponse {
 
-    private Set<String> cluster;
-    private Set<ConfigurableClusterPrivilege> configurableClusterPrivileges;
-    private Set<Indices> index;
-    private Set<RoleDescriptor.ApplicationResourcePrivileges> application;
-    private Set<String> runAs;
+    private final Set<String> cluster;
+    private final Set<ConfigurableClusterPrivilege> configurableClusterPrivileges;
+    private final Set<Indices> index;
+    private final Set<RoleDescriptor.ApplicationResourcePrivileges> application;
+    private final Set<String> runAs;
+    private final Set<RemoteIndices> remoteIndex;
 
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
@@ -46,17 +47,27 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         index = Collections.unmodifiableSet(in.readSet(Indices::new));
         application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
         runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        if (in.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+            remoteIndex = Collections.unmodifiableSet(in.readSet(RemoteIndices::new));
+        } else {
+            remoteIndex = Collections.emptySet();
+        }
     }
 
-    public GetUserPrivilegesResponse(Set<String> cluster, Set<ConfigurableClusterPrivilege> conditionalCluster,
-                                     Set<Indices> index,
-                                     Set<RoleDescriptor.ApplicationResourcePrivileges> application,
-                                     Set<String> runAs) {
+    public GetUserPrivilegesResponse(
+        Set<String> cluster,
+        Set<ConfigurableClusterPrivilege> conditionalCluster,
+        Set<Indices> index,
+        Set<RoleDescriptor.ApplicationResourcePrivileges> application,
+        Set<String> runAs,
+        Set<RemoteIndices> remoteIndex
+    ) {
         this.cluster = Collections.unmodifiableSet(cluster);
         this.configurableClusterPrivileges = Collections.unmodifiableSet(conditionalCluster);
         this.index = Collections.unmodifiableSet(index);
         this.application = Collections.unmodifiableSet(application);
         this.runAs = Collections.unmodifiableSet(runAs);
+        this.remoteIndex = Collections.unmodifiableSet(remoteIndex);
     }
 
     public Set<String> getClusterPrivileges() {
@@ -71,12 +82,20 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         return index;
     }
 
+    public Set<RemoteIndices> getRemoteIndexPrivileges() {
+        return remoteIndex;
+    }
+
     public Set<RoleDescriptor.ApplicationResourcePrivileges> getApplicationPrivileges() {
         return application;
     }
 
     public Set<String> getRunAs() {
         return runAs;
+    }
+
+    public boolean hasRemoteIndicesPrivileges() {
+        return false == remoteIndex.isEmpty();
     }
 
     @Override
@@ -86,6 +105,17 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         out.writeCollection(index);
         out.writeCollection(application);
         out.writeCollection(runAs, StreamOutput::writeString);
+        if (out.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+            out.writeCollection(remoteIndex);
+        } else if (hasRemoteIndicesPrivileges()) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + RoleDescriptor.VERSION_REMOTE_INDICES
+                    + "] can't handle remote indices privileges and attempted to send to ["
+                    + out.getVersion()
+                    + "]"
+            );
+        }
     }
 
     @Override
@@ -97,16 +127,38 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             return false;
         }
         final GetUserPrivilegesResponse that = (GetUserPrivilegesResponse) other;
-        return Objects.equals(cluster, that.cluster) &&
-            Objects.equals(configurableClusterPrivileges, that.configurableClusterPrivileges) &&
-            Objects.equals(index, that.index) &&
-            Objects.equals(application, that.application) &&
-            Objects.equals(runAs, that.runAs);
+        return Objects.equals(cluster, that.cluster)
+            && Objects.equals(configurableClusterPrivileges, that.configurableClusterPrivileges)
+            && Objects.equals(index, that.index)
+            && Objects.equals(application, that.application)
+            && Objects.equals(runAs, that.runAs)
+            && Objects.equals(remoteIndex, that.remoteIndex);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cluster, configurableClusterPrivileges, index, application, runAs);
+        return Objects.hash(cluster, configurableClusterPrivileges, index, application, runAs, remoteIndex);
+    }
+
+    public record RemoteIndices(Indices indices, Set<String> remoteClusters) implements ToXContentObject, Writeable {
+
+        public RemoteIndices(StreamInput in) throws IOException {
+            this(new Indices(in), Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString))));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            indices.innerToXContent(builder);
+            builder.field(RoleDescriptor.Fields.REMOTE_CLUSTERS.getPreferredName(), remoteClusters);
+            return builder.endObject();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            indices.writeTo(out);
+            out.writeStringCollection(remoteClusters);
+        }
     }
 
     /**
@@ -120,9 +172,13 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         private final Set<BytesReference> queries;
         private final boolean allowRestrictedIndices;
 
-        public Indices(Collection<String> indices, Collection<String> privileges,
-                Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity, Set<BytesReference> queries,
-                boolean allowRestrictedIndices) {
+        public Indices(
+            Collection<String> indices,
+            Collection<String> privileges,
+            Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity,
+            Set<BytesReference> queries,
+            boolean allowRestrictedIndices
+        ) {
             // The use of TreeSet is to provide a consistent order that can be relied upon in tests
             this.indices = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(indices)));
             this.privileges = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(privileges)));
@@ -166,11 +222,13 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder(getClass().getSimpleName())
-                .append("[")
-                .append("indices=[").append(Strings.collectionToCommaDelimitedString(indices))
-                .append("], allow_restricted_indices=[").append(allowRestrictedIndices)
-                .append("], privileges=[").append(Strings.collectionToCommaDelimitedString(privileges))
+            StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append("[")
+                .append("indices=[")
+                .append(Strings.collectionToCommaDelimitedString(indices))
+                .append("], allow_restricted_indices=[")
+                .append(allowRestrictedIndices)
+                .append("], privileges=[")
+                .append(Strings.collectionToCommaDelimitedString(privileges))
                 .append("]");
             if (fieldSecurity.isEmpty() == false) {
                 sb.append(", fls=[").append(Strings.collectionToCommaDelimitedString(fieldSecurity)).append("]");
@@ -206,12 +264,18 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            innerToXContent(builder);
+            return builder.endObject();
+        }
+
+        void innerToXContent(XContentBuilder builder) throws IOException {
             builder.field(RoleDescriptor.Fields.NAMES.getPreferredName(), indices);
             builder.field(RoleDescriptor.Fields.PRIVILEGES.getPreferredName(), privileges);
             if (fieldSecurity.stream().anyMatch(g -> nonEmpty(g.getGrantedFields()) || nonEmpty(g.getExcludedFields()))) {
                 builder.startArray(RoleDescriptor.Fields.FIELD_PERMISSIONS.getPreferredName());
-                final List<FieldPermissionsDefinition.FieldGrantExcludeGroup> sortedFieldSecurity =
-                    this.fieldSecurity.stream().sorted().collect(Collectors.toUnmodifiableList());
+                final List<FieldPermissionsDefinition.FieldGrantExcludeGroup> sortedFieldSecurity = this.fieldSecurity.stream()
+                    .sorted()
+                    .toList();
                 for (FieldPermissionsDefinition.FieldGrantExcludeGroup group : sortedFieldSecurity) {
                     builder.startObject();
                     if (nonEmpty(group.getGrantedFields())) {
@@ -232,10 +296,9 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 builder.endArray();
             }
             builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
-            return builder.endObject();
         }
 
-        private boolean nonEmpty(String[] grantedFields) {
+        private static boolean nonEmpty(String[] grantedFields) {
             return grantedFields != null && grantedFields.length != 0;
         }
 

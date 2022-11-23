@@ -14,11 +14,14 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,7 +84,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         Map<Object, List<B>> buckets = new HashMap<>();
         InternalRareTerms<A, B> referenceTerms = null;
         SetBackedScalingCuckooFilter filter = null;
@@ -89,7 +92,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         for (InternalAggregation aggregation : aggregations) {
             // Unmapped rare terms don't have a cuckoo filter so we'll skip all this work
             // and save some type casting headaches later.
-            if (aggregation.isMapped() == false) {
+            if (aggregation.canLeadReduction() == false) {
                 continue;
             }
 
@@ -137,6 +140,23 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         }
         CollectionUtil.introSort(rare, order.comparator());
         return createWithFilter(name, rare, filter);
+    }
+
+    @Override
+    public A finalizeSampling(SamplingContext samplingContext) {
+        return createWithFilter(
+            name,
+            getBuckets().stream()
+                .map(
+                    b -> createBucket(
+                        samplingContext.scaleUp(b.getDocCount()),
+                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext),
+                        b
+                    )
+                )
+                .toList(),
+            filter
+        );
     }
 
     public abstract boolean containsTerm(SetBackedScalingCuckooFilter filter, B bucket);

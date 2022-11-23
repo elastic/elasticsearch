@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -24,7 +23,8 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotFeatureSetUsage;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
+
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 
 public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -60,8 +60,8 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
         int numFullCopySnapIndices = 0;
         int numSharedCacheSnapIndices = 0;
         for (IndexMetadata indexMetadata : state.metadata()) {
-            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
-                if (SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings())) {
+            if (indexMetadata.isSearchableSnapshot()) {
+                if (indexMetadata.isPartialSearchableSnapshot()) {
                     numSharedCacheSnapIndices++;
                 } else {
                     numFullCopySnapIndices++;
@@ -71,7 +71,7 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
         listener.onResponse(
             new XPackUsageFeatureResponse(
                 new SearchableSnapshotFeatureSetUsage(
-                    licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS),
+                    SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState),
                     numFullCopySnapIndices,
                     numSharedCacheSnapIndices
                 )

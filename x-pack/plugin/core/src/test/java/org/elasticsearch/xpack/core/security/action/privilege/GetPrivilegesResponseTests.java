@@ -31,8 +31,10 @@ public class GetPrivilegesResponseTests extends ESTestCase {
     }
 
     private static GetPrivilegesResponse randomResponse() {
-        ApplicationPrivilegeDescriptor[] application = randomArray(6, ApplicationPrivilegeDescriptor[]::new, () ->
-            new ApplicationPrivilegeDescriptor(
+        ApplicationPrivilegeDescriptor[] application = randomArray(
+            6,
+            ApplicationPrivilegeDescriptor[]::new,
+            () -> new ApplicationPrivilegeDescriptor(
                 randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT),
                 randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT),
                 Sets.newHashSet(randomArray(3, String[]::new, () -> randomAlphaOfLength(3).toLowerCase(Locale.ROOT) + "/*")),

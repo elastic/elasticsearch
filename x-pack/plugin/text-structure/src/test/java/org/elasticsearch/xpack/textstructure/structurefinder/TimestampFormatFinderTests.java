@@ -18,97 +18,67 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalQueries;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 public class TimestampFormatFinderTests extends TextStructureTestCase {
+    private static final boolean ECS_COMPATIBILITY_DISABLED = false;
+    private static final boolean ECS_COMPATIBILITY_ENABLED = true;
 
+    private static final Collection<Boolean> ecsCompatibilityModes = Arrays.asList(ECS_COMPATIBILITY_ENABLED, ECS_COMPATIBILITY_DISABLED);
+
+    @SuppressWarnings("checkstyle:linelength")
     private static final String EXCEPTION_TRACE_SAMPLE =
-        "[2018-02-28T14:49:40,517][DEBUG][o.e.a.b.TransportShardBulkAction] [an_index][2] failed to execute bulk item "
-            + "(index) BulkShardRequest [[an_index][2]] containing [33] requests\n"
-            + "java.lang.IllegalArgumentException: Document contains at least one immense term in field=\"message.keyword\" (whose UTF8 "
-            + "encoding is longer than the max length 32766), all of which were skipped.  Please correct the analyzer to not produce "
-            + "such terms.  The prefix of the first immense term is: '[60, 83, 79, 65, 80, 45, 69, 78, 86, 58, 69, 110, 118, 101, 108, "
-            + "111, 112, 101, 32, 120, 109, 108, 110, 115, 58, 83, 79, 65, 80, 45]...', original message: bytes can be at most 32766 "
-            + "in length; got 49023\n"
-            + "\tat org.apache.lucene.index.DefaultIndexingChain$PerField.invert(DefaultIndexingChain.java:796) "
-            + "~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]\n"
-            + "\tat org.apache.lucene.index.DefaultIndexingChain.processField(DefaultIndexingChain.java:430) "
-            + "~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]\n"
-            + "\tat org.apache.lucene.index.DefaultIndexingChain.processDocument(DefaultIndexingChain.java:392) "
-            + "~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]\n"
-            + "\tat org.apache.lucene.index.DocumentsWriterPerThread.updateDocument(DocumentsWriterPerThread.java:240) "
-            + "~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]\n"
-            + "\tat org.apache.lucene.index.DocumentsWriter.updateDocument(DocumentsWriter.java:496) "
-            + "~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]\n"
-            + "\tat org.apache.lucene.index.IndexWriter.updateDocument(IndexWriter.java:1729) "
-            + "~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]\n"
-            + "\tat org.apache.lucene.index.IndexWriter.addDocument(IndexWriter.java:1464) "
-            + "~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]\n"
-            + "\tat org.elasticsearch.index.engine.InternalEngine.index(InternalEngine.java:1070) ~[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.index.engine.InternalEngine.indexIntoLucene(InternalEngine.java:1012) "
-            + "~[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.index.engine.InternalEngine.index(InternalEngine.java:878) ~[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.index.shard.IndexShard.index(IndexShard.java:738) ~[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.index.shard.IndexShard.applyIndexOperation(IndexShard.java:707) ~[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.index.shard.IndexShard.applyIndexOperationOnPrimary(IndexShard.java:673) "
-            + "~[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequestOnPrimary(TransportShardBulkAction.java:548) "
-            + "~[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequest(TransportShardBulkAction.java:140) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.bulk.TransportShardBulkAction.executeBulkItemRequest(TransportShardBulkAction.java:236) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.bulk.TransportShardBulkAction.performOnPrimary(TransportShardBulkAction.java:123) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.bulk.TransportShardBulkAction.shardOperationOnPrimary(TransportShardBulkAction.java:110) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.bulk.TransportShardBulkAction.shardOperationOnPrimary(TransportShardBulkAction.java:72) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.TransportReplicationAction$PrimaryShardReference.perform"
-            + "(TransportReplicationAction.java:1034) [elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.TransportReplicationAction$PrimaryShardReference.perform"
-            + "(TransportReplicationAction.java:1012) [elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.ReplicationOperation.execute(ReplicationOperation.java:103) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.TransportReplicationAction$AsyncPrimaryAction.onResponse"
-            + "(TransportReplicationAction.java:359) [elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.TransportReplicationAction$AsyncPrimaryAction.onResponse"
-            + "(TransportReplicationAction.java:299) [elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.TransportReplicationAction$1.onResponse"
-            + "(TransportReplicationAction.java:975) [elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.TransportReplicationAction$1.onResponse"
-            + "(TransportReplicationAction.java:972) [elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.index.shard.IndexShardOperationPermits.acquire(IndexShardOperationPermits.java:238) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.index.shard.IndexShard.acquirePrimaryOperationPermit(IndexShard.java:2220) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.TransportReplicationAction.acquirePrimaryShardReference"
-            + "(TransportReplicationAction.java:984) [elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.TransportReplicationAction.access$500(TransportReplicationAction.java:98) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.TransportReplicationAction$AsyncPrimaryAction.doRun"
-            + "(TransportReplicationAction.java:320) [elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.common.util.concurrent.AbstractRunnable.run(AbstractRunnable.java:37) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.TransportReplicationAction$PrimaryOperationTransportHandler"
-            + ".messageReceived(TransportReplicationAction.java:295) [elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.action.support.replication.TransportReplicationAction$PrimaryOperationTransportHandler"
-            + ".messageReceived(TransportReplicationAction.java:282) [elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.transport.RequestHandlerRegistry.processMessageReceived(RequestHandlerRegistry.java:66) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.transport.TransportService$7.doRun(TransportService.java:656) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.common.util.concurrent.ThreadContext$ContextPreservingAbstractRunnable.doRun(ThreadContext.java:635) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat org.elasticsearch.common.util.concurrent.AbstractRunnable.run(AbstractRunnable.java:37) "
-            + "[elasticsearch-6.2.1.jar:6.2.1]\n"
-            + "\tat java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_144]\n"
-            + "\tat java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_144]\n"
-            + "\tat java.lang.Thread.run(Thread.java:748) [?:1.8.0_144]\n";
+        """
+            [2018-02-28T14:49:40,517][DEBUG][o.e.a.b.TransportShardBulkAction] [an_index][2] failed to execute bulk item (index) BulkShardRequest [[an_index][2]] containing [33] requests
+            java.lang.IllegalArgumentException: Document contains at least one immense term in field="message.keyword" (whose UTF8 encoding is longer than the max length 32766), all of which were skipped.  Please correct the analyzer to not produce such terms.  The prefix of the first immense term is: '[60, 83, 79, 65, 80, 45, 69, 78, 86, 58, 69, 110, 118, 101, 108, 111, 112, 101, 32, 120, 109, 108, 110, 115, 58, 83, 79, 65, 80, 45]...', original message: bytes can be at most 32766 in length; got 49023
+                at org.apache.lucene.index.DefaultIndexingChain$PerField.invert(DefaultIndexingChain.java:796) ~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]
+                at org.apache.lucene.index.DefaultIndexingChain.processField(DefaultIndexingChain.java:430) ~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]
+                at org.apache.lucene.index.DefaultIndexingChain.processDocument(DefaultIndexingChain.java:392) ~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]
+                at org.apache.lucene.index.DocumentsWriterPerThread.updateDocument(DocumentsWriterPerThread.java:240) ~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]
+                at org.apache.lucene.index.DocumentsWriter.updateDocument(DocumentsWriter.java:496) ~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]
+                at org.apache.lucene.index.IndexWriter.updateDocument(IndexWriter.java:1729) ~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]
+                at org.apache.lucene.index.IndexWriter.addDocument(IndexWriter.java:1464) ~[lucene-core-7.2.1.jar:7.2.1 b2b6438b37073bee1fca40374e85bf91aa457c0b - ubuntu - 2018-01-10 00:48:43]
+                at org.elasticsearch.index.engine.InternalEngine.index(InternalEngine.java:1070) ~[elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.index.engine.InternalEngine.indexIntoLucene(InternalEngine.java:1012) ~[elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.index.engine.InternalEngine.index(InternalEngine.java:878) ~[elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.index.shard.IndexShard.index(IndexShard.java:738) ~[elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.index.shard.IndexShard.applyIndexOperation(IndexShard.java:707) ~[elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.index.shard.IndexShard.applyIndexOperationOnPrimary(IndexShard.java:673) ~[elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequestOnPrimary(TransportShardBulkAction.java:548) ~[elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequest(TransportShardBulkAction.java:140) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.bulk.TransportShardBulkAction.executeBulkItemRequest(TransportShardBulkAction.java:236) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.bulk.TransportShardBulkAction.performOnPrimary(TransportShardBulkAction.java:123) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.bulk.TransportShardBulkAction.shardOperationOnPrimary(TransportShardBulkAction.java:110) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.bulk.TransportShardBulkAction.shardOperationOnPrimary(TransportShardBulkAction.java:72) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.TransportReplicationAction$PrimaryShardReference.perform(TransportReplicationAction.java:1034) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.TransportReplicationAction$PrimaryShardReference.perform(TransportReplicationAction.java:1012) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.ReplicationOperation.execute(ReplicationOperation.java:103) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.TransportReplicationAction$AsyncPrimaryAction.onResponse(TransportReplicationAction.java:359) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.TransportReplicationAction$AsyncPrimaryAction.onResponse(TransportReplicationAction.java:299) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.TransportReplicationAction$1.onResponse(TransportReplicationAction.java:975) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.TransportReplicationAction$1.onResponse(TransportReplicationAction.java:972) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.index.shard.IndexShardOperationPermits.acquire(IndexShardOperationPermits.java:238) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.index.shard.IndexShard.acquirePrimaryOperationPermit(IndexShard.java:2220) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.TransportReplicationAction.acquirePrimaryShardReference(TransportReplicationAction.java:984) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.TransportReplicationAction.access$500(TransportReplicationAction.java:98) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.TransportReplicationAction$AsyncPrimaryAction.doRun(TransportReplicationAction.java:320) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.common.util.concurrent.AbstractRunnable.run(AbstractRunnable.java:37) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.TransportReplicationAction$PrimaryOperationTransportHandler.messageReceived(TransportReplicationAction.java:295) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.action.support.replication.TransportReplicationAction$PrimaryOperationTransportHandler.messageReceived(TransportReplicationAction.java:282) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.transport.RequestHandlerRegistry.processMessageReceived(RequestHandlerRegistry.java:66) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.transport.TransportService$7.doRun(TransportService.java:656) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.common.util.concurrent.ThreadContext$ContextPreservingAbstractRunnable.doRun(ThreadContext.java:635) [elasticsearch-6.2.1.jar:6.2.1]
+                at org.elasticsearch.common.util.concurrent.AbstractRunnable.run(AbstractRunnable.java:37) [elasticsearch-6.2.1.jar:6.2.1]
+                at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149) [?:1.8.0_144]
+                at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624) [?:1.8.0_144]
+                at java.lang.Thread.run(Thread.java:748) [?:1.8.0_144]
+            """;
 
     public void testValidOverrideFormatToGrokAndRegex() {
 
@@ -173,59 +143,72 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
 
     public void testMakeCandidateFromOverrideFormat() {
 
-        // Override is a special format
-        assertSame(
-            TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT,
-            TimestampFormatFinder.makeCandidateFromOverrideFormat("ISO8601", NOOP_TIMEOUT_CHECKER)
-        );
-        assertSame(
-            TimestampFormatFinder.UNIX_MS_CANDIDATE_FORMAT,
-            TimestampFormatFinder.makeCandidateFromOverrideFormat("UNIX_MS", NOOP_TIMEOUT_CHECKER)
-        );
-        assertSame(
-            TimestampFormatFinder.UNIX_CANDIDATE_FORMAT,
-            TimestampFormatFinder.makeCandidateFromOverrideFormat("UNIX", NOOP_TIMEOUT_CHECKER)
-        );
-        assertSame(
-            TimestampFormatFinder.TAI64N_CANDIDATE_FORMAT,
-            TimestampFormatFinder.makeCandidateFromOverrideFormat("TAI64N", NOOP_TIMEOUT_CHECKER)
-        );
+        Consumer<Boolean> testMakeCandidateFromOverrideFormatGivenEcsCompatibility = (ecsCompatibility) -> {
+            // Override is a special format
+            assertSame(
+                TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT,
+                TimestampFormatFinder.makeCandidateFromOverrideFormat("ISO8601", NOOP_TIMEOUT_CHECKER, ecsCompatibility)
+            );
+            assertSame(
+                TimestampFormatFinder.UNIX_MS_CANDIDATE_FORMAT,
+                TimestampFormatFinder.makeCandidateFromOverrideFormat("UNIX_MS", NOOP_TIMEOUT_CHECKER, ecsCompatibility)
+            );
+            assertSame(
+                TimestampFormatFinder.UNIX_CANDIDATE_FORMAT,
+                TimestampFormatFinder.makeCandidateFromOverrideFormat("UNIX", NOOP_TIMEOUT_CHECKER, ecsCompatibility)
+            );
+            assertSame(
+                TimestampFormatFinder.TAI64N_CANDIDATE_FORMAT,
+                TimestampFormatFinder.makeCandidateFromOverrideFormat("TAI64N", NOOP_TIMEOUT_CHECKER, ecsCompatibility)
+            );
 
-        // Override is covered by a built-in format
-        TimestampFormatFinder.CandidateTimestampFormat candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat(
-            "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            NOOP_TIMEOUT_CHECKER
-        );
-        assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.outputGrokPatternName, candidate.outputGrokPatternName);
-        assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.strictGrokPattern, candidate.strictGrokPattern);
-        // Can't compare Grok objects as Grok doesn't implement equals()
-        assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.simplePattern.pattern(), candidate.simplePattern.pattern());
-        // Exact format supplied is returned if it matches
-        assertEquals(
-            Collections.singletonList("yyyy-MM-dd'T'HH:mm:ss.SSS"),
-            candidate.javaTimestampFormatSupplier.apply("2018-05-15T16:14:56.374")
-        );
-        // Other supported formats are returned if exact format doesn't match
-        assertEquals(Collections.singletonList("ISO8601"), candidate.javaTimestampFormatSupplier.apply("2018-05-15T16:14:56,374"));
+            // Override is covered by a built-in format
+            TimestampFormatFinder.CandidateTimestampFormat candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.outputGrokPatternName, candidate.outputGrokPatternName);
+            assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.strictGrokPattern, candidate.strictGrokPattern);
+            // Can't compare Grok objects as Grok doesn't implement equals()
+            assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.simplePattern.pattern(), candidate.simplePattern.pattern());
+            // Exact format supplied is returned if it matches
+            assertEquals(
+                Collections.singletonList("yyyy-MM-dd'T'HH:mm:ss.SSS"),
+                candidate.javaTimestampFormatSupplier.apply("2018-05-15T16:14:56.374")
+            );
+            // Other supported formats are returned if exact format doesn't match
+            assertEquals(Collections.singletonList("ISO8601"), candidate.javaTimestampFormatSupplier.apply("2018-05-15T16:14:56,374"));
 
-        // Override is supported but not covered by any built-in format
-        candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat("MM/dd/yyyy H:mm:ss zzz", NOOP_TIMEOUT_CHECKER);
-        assertEquals(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, candidate.outputGrokPatternName);
-        assertEquals("%{MONTHNUM2}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}", candidate.strictGrokPattern);
-        assertEquals("\\b\\d{2}/\\d{2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [A-Z]{3}\\b", candidate.simplePattern.pattern());
-        assertEquals(
-            Collections.singletonList("MM/dd/yyyy H:mm:ss zzz"),
-            candidate.javaTimestampFormatSupplier.apply("05/15/2018 16:14:56 UTC")
-        );
+            // Override is supported but not covered by any built-in format
+            candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat(
+                "MM/dd/yyyy H:mm:ss zzz",
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            assertEquals(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, candidate.outputGrokPatternName);
+            assertEquals("%{MONTHNUM2}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}", candidate.strictGrokPattern);
+            assertEquals("\\b\\d{2}/\\d{2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [A-Z]{3}\\b", candidate.simplePattern.pattern());
+            assertEquals(
+                Collections.singletonList("MM/dd/yyyy H:mm:ss zzz"),
+                candidate.javaTimestampFormatSupplier.apply("05/15/2018 16:14:56 UTC")
+            );
 
-        candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat("M/d/yyyy H:mm:ss zzz", NOOP_TIMEOUT_CHECKER);
-        assertEquals(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, candidate.outputGrokPatternName);
-        assertEquals("%{MONTHNUM}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}", candidate.strictGrokPattern);
-        assertEquals("\\b\\d{1,2}/\\d{1,2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [A-Z]{3}\\b", candidate.simplePattern.pattern());
-        assertEquals(
-            Collections.singletonList("M/d/yyyy H:mm:ss zzz"),
-            candidate.javaTimestampFormatSupplier.apply("5/15/2018 16:14:56 UTC")
-        );
+            candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat(
+                "M/d/yyyy H:mm:ss zzz",
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            assertEquals(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, candidate.outputGrokPatternName);
+            assertEquals("%{MONTHNUM}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}", candidate.strictGrokPattern);
+            assertEquals("\\b\\d{1,2}/\\d{1,2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [A-Z]{3}\\b", candidate.simplePattern.pattern());
+            assertEquals(
+                Collections.singletonList("M/d/yyyy H:mm:ss zzz"),
+                candidate.javaTimestampFormatSupplier.apply("5/15/2018 16:14:56 UTC")
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testMakeCandidateFromOverrideFormatGivenEcsCompatibility);
     }
 
     public void testRequiresTimezoneDependentParsing() {
@@ -837,10 +820,8 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             TimestampFormatFinder.findBoundsForCandidate(TimestampFormatFinder.TAI64N_CANDIDATE_FORMAT, numberPosBitSet)
         );
 
-        numberPosBitSet = TimestampFormatFinder.stringToNumberPosBitSet(
-            "192.168.62.101 - - [29/Jun/2016:12:11:31 +0000] "
-                + "\"POST //apiserv:8080/engine/v2/jobs HTTP/1.1\" 201 42 \"-\" \"curl/7.46.0\" 384"
-        );
+        numberPosBitSet = TimestampFormatFinder.stringToNumberPosBitSet("""
+            192.168.62.101 - - [29/Jun/2016:12:11:31 +0000] "POST //apiserv:8080/engine/v2/jobs HTTP/1.1" 201 42 "-" "curl/7.46.0" 384""");
         assertEquals(
             new Tuple<>(-1, -1),
             TimestampFormatFinder.findBoundsForCandidate(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT, numberPosBitSet)
@@ -867,375 +848,491 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
 
     public void testFindFormatGivenOnlyIso8601() {
 
-        validateTimestampMatch(
-            "2018-05-15T16:14:56,374Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56,374+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56,374+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56,374",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896374L
-        );
+        Consumer<Boolean> testFindFormatGivenOnlyIso8601AndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch(
+                "2018-05-15T16:14:56,374Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56,374+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56,374+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56,374",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896374L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "2018-05-15T16:14:56Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14:56",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "2018-05-15T16:14:56Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14:56",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "2018-05-15T16:14Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15T17:14",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "ISO8601",
-            1526400840000L
-        );
+            validateTimestampMatch(
+                "2018-05-15T16:14Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15T17:14",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "ISO8601",
+                1526400840000L,
+                ecsCompatibility
+            );
 
-        // TIMESTAMP_ISO8601 doesn't match ISO8601 if it's only a date with no time
-        validateTimestampMatch("2018-05-15", "CUSTOM_TIMESTAMP", "\\b\\d{4}-\\d{2}-\\d{2}\\b", "ISO8601", 1526338800000L);
+            // TIMESTAMP_ISO8601 doesn't match ISO8601 if it's only a date with no time
+            validateTimestampMatch(
+                "2018-05-15",
+                "CUSTOM_TIMESTAMP",
+                "\\b\\d{4}-\\d{2}-\\d{2}\\b",
+                "ISO8601",
+                1526338800000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "2018-05-15 16:14:56,374Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ss,SSSXX",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56,374+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ss,SSSXX",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56,374+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ss,SSSXXX",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56,374",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ss,SSS",
-            1526400896374L
-        );
+            validateTimestampMatch(
+                "2018-05-15 16:14:56,374Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ss,SSSXX",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56,374+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ss,SSSXX",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56,374+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ss,SSSXXX",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56,374",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ss,SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "2018-05-15 16:14:56Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ssXX",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ssXX",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ssXXX",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14:56",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm:ss",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "2018-05-15 16:14:56Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ssXX",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ssXX",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ssXXX",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14:56",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "2018-05-15 16:14Z",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mmXX",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14+0100",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mmXX",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14+01:00",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mmXXX",
-            1526400840000L
-        );
-        validateTimestampMatch(
-            "2018-05-15 17:14",
-            "TIMESTAMP_ISO8601",
-            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
-            "yyyy-MM-dd HH:mm",
-            1526400840000L
-        );
+            validateTimestampMatch(
+                "2018-05-15 16:14Z",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mmXX",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14+0100",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mmXX",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14+01:00",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mmXXX",
+                1526400840000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "2018-05-15 17:14",
+                "TIMESTAMP_ISO8601",
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                "yyyy-MM-dd HH:mm",
+                1526400840000L,
+                ecsCompatibility
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testFindFormatGivenOnlyIso8601AndEcsCompatibility);
+
     }
 
     public void testFindFormatGivenOnlyKnownTimestampFormat() {
 
         // Note: some of the time formats give millisecond accuracy, some second accuracy and some minute accuracy
 
-        validateTimestampMatch(
-            "2018-05-15 17:14:56,374 +0100",
-            "TOMCAT_DATESTAMP",
-            "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
-            "yyyy-MM-dd HH:mm:ss,SSS XX",
-            1526400896374L
-        );
+        Consumer<Boolean> testFindFormatGivenOnlyKnownTimestampFormatAndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch(
+                "2018-05-15 17:14:56,374 +0100",
+                "TOMCAT_DATESTAMP",
+                "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
+                "yyyy-MM-dd HH:mm:ss,SSS XX",
+                1526400896374L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "Tue May 15 18 16:14:56 UTC",
-            "DATESTAMP_RFC822",
-            "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{1,2} \\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("EEE MMM dd yy HH:mm:ss zzz", "EEE MMM d yy HH:mm:ss zzz"),
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "Tue May 15 18 16:14:56 UTC",
+                "DATESTAMP_RFC822",
+                "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{1,2} \\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
+                Arrays.asList("EEE MMM dd yy HH:mm:ss zzz", "EEE MMM d yy HH:mm:ss zzz"),
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "Tue, 15 May 2018 17:14:56 +01:00",
-            "DATESTAMP_RFC2822",
-            "\\b[A-Z]\\S{2}, \\d{1,2} [A-Z]\\S{2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
-            "EEE, dd MMM yyyy HH:mm:ss XXX",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "Tue, 15 May 2018 17:14:56 +0100",
-            "DATESTAMP_RFC2822",
-            "\\b[A-Z]\\S{2}, \\d{1,2} [A-Z]\\S{2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
-            "EEE, dd MMM yyyy HH:mm:ss XX",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "Tue, 15 May 2018 17:14:56 +01:00",
+                "DATESTAMP_RFC2822",
+                "\\b[A-Z]\\S{2}, \\d{1,2} [A-Z]\\S{2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
+                "EEE, dd MMM yyyy HH:mm:ss XXX",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "Tue, 15 May 2018 17:14:56 +0100",
+                "DATESTAMP_RFC2822",
+                "\\b[A-Z]\\S{2}, \\d{1,2} [A-Z]\\S{2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
+                "EEE, dd MMM yyyy HH:mm:ss XX",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "Tue May 15 16:14:56 UTC 2018",
-            "DATESTAMP_OTHER",
-            "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("EEE MMM dd HH:mm:ss zzz yyyy", "EEE MMM d HH:mm:ss zzz yyyy"),
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "Tue May 15 16:14:56 UTC 2018",
+                "DATESTAMP_OTHER",
+                "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
+                Arrays.asList("EEE MMM dd HH:mm:ss zzz yyyy", "EEE MMM d HH:mm:ss zzz yyyy"),
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch("20180515171456", "DATESTAMP_EVENTLOG", "\\b\\d{14}\\b", "yyyyMMddHHmmss", 1526400896000L);
+            validateTimestampMatch(
+                "20180515171456",
+                "DATESTAMP_EVENTLOG",
+                "\\b\\d{14}\\b",
+                "yyyyMMddHHmmss",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "Tue May 15 17:14:56 2018",
-            "HTTPDERROR_DATE",
-            "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
-            "EEE MMM dd HH:mm:ss yyyy",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "Tue May 15 17:14:56 2018",
+                "HTTPDERROR_DATE",
+                "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
+                "EEE MMM dd HH:mm:ss yyyy",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "May 15 17:14:56.725",
-            "SYSLOGTIMESTAMP",
-            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("MMM dd HH:mm:ss.SSS", "MMM  d HH:mm:ss.SSS", "MMM d HH:mm:ss.SSS"),
-            1526400896725L
-        );
-        validateTimestampMatch(
-            "May 15 17:14:56",
-            "SYSLOGTIMESTAMP",
-            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss", "MMM d HH:mm:ss"),
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "May 15 17:14:56.725",
+                "SYSLOGTIMESTAMP",
+                "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
+                Arrays.asList("MMM dd HH:mm:ss.SSS", "MMM  d HH:mm:ss.SSS", "MMM d HH:mm:ss.SSS"),
+                1526400896725L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "May 15 17:14:56",
+                "SYSLOGTIMESTAMP",
+                "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
+                Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss", "MMM d HH:mm:ss"),
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "15/May/2018:17:14:56 +0100",
-            "HTTPDATE",
-            "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ",
-            "dd/MMM/yyyy:HH:mm:ss XX",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "15/May/2018:17:14:56 +0100",
+                "HTTPDATE",
+                "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ",
+                "dd/MMM/yyyy:HH:mm:ss XX",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "May 15, 2018 5:14:56 PM",
-            "CATALINA_DATESTAMP",
-            "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
-            "MMM dd, yyyy h:mm:ss a",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "May 15, 2018 5:14:56 PM",
+                "CATALINA_DATESTAMP",
+                "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
+                "MMM dd, yyyy h:mm:ss a",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "May 15 2018 17:14:56",
-            "CISCOTIMESTAMP",
-            "\\b[A-Z]\\S{2} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
-            Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"),
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "May 15 2018 17:14:56",
+                "CISCOTIMESTAMP",
+                "\\b[A-Z]\\S{2} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
+                Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"),
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch(
-            "05/15/2018 17:14:56,374",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "MM/dd/yyyy HH:mm:ss,SSS",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "05-15-2018-17:14:56.374",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "MM-dd-yyyy-HH:mm:ss.SSS",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "15/05/2018 17:14:56.374",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd/MM/yyyy HH:mm:ss.SSS",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "15-05-2018-17:14:56,374",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd-MM-yyyy-HH:mm:ss,SSS",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "15.05.2018 17:14:56.374",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd.MM.yyyy HH:mm:ss.SSS",
-            1526400896374L
-        );
-        validateTimestampMatch(
-            "05/15/2018 17:14:56",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "MM/dd/yyyy HH:mm:ss",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "05-15-2018-17:14:56",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "MM-dd-yyyy-HH:mm:ss",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "15/05/2018 17:14:56",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd/MM/yyyy HH:mm:ss",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "15-05-2018-17:14:56",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd-MM-yyyy-HH:mm:ss",
-            1526400896000L
-        );
-        validateTimestampMatch(
-            "15.05.2018 17:14:56",
-            "DATESTAMP",
-            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
-            "dd.MM.yyyy HH:mm:ss",
-            1526400896000L
-        );
+            validateTimestampMatch(
+                "05/15/2018 17:14:56,374",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "MM/dd/yyyy HH:mm:ss,SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "05-15-2018-17:14:56.374",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "MM-dd-yyyy-HH:mm:ss.SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15/05/2018 17:14:56.374",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd/MM/yyyy HH:mm:ss.SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15-05-2018-17:14:56,374",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd-MM-yyyy-HH:mm:ss,SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15.05.2018 17:14:56.374",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd.MM.yyyy HH:mm:ss.SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "05/15/2018 17:14:56",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "MM/dd/yyyy HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "05-15-2018-17:14:56",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "MM-dd-yyyy-HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15/05/2018 17:14:56",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd/MM/yyyy HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15-05-2018-17:14:56",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd-MM-yyyy-HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15.05.2018 17:14:56",
+                "DATESTAMP",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+                "dd.MM.yyyy HH:mm:ss",
+                1526400896000L,
+                ecsCompatibility
+            );
 
-        validateTimestampMatch("05/15/2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "MM/dd/yyyy", 1526338800000L);
-        validateTimestampMatch("05-15-2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "MM-dd-yyyy", 1526338800000L);
-        validateTimestampMatch("15/05/2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd/MM/yyyy", 1526338800000L);
-        validateTimestampMatch("15-05-2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd-MM-yyyy", 1526338800000L);
-        validateTimestampMatch("15.05.2018", "DATE", "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b", "dd.MM.yyyy", 1526338800000L);
+            validateTimestampMatch(
+                "05/15/2018",
+                "DATE",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b",
+                "MM/dd/yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "05-15-2018",
+                "DATE",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b",
+                "MM-dd-yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15/05/2018",
+                "DATE",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b",
+                "dd/MM/yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15-05-2018",
+                "DATE",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b",
+                "dd-MM-yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
+            validateTimestampMatch(
+                "15.05.2018",
+                "DATE",
+                "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b",
+                "dd.MM.yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
 
-        // The Kibana export format doesn't correspond to a built-in Grok pattern, so it has to be custom
-        validateTimestampMatch(
-            "May 15, 2018 @ 17:14:56.374",
-            "CUSTOM_TIMESTAMP",
-            "\\b[A-Z]\\S{2} \\d{2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b",
-            "MMM dd, yyyy @ HH:mm:ss.SSS",
-            1526400896374L
-        );
+            // The Kibana export format doesn't correspond to a built-in Grok pattern, so it has to be custom
+            validateTimestampMatch(
+                "May 15, 2018 @ 17:14:56.374",
+                "CUSTOM_TIMESTAMP",
+                "\\b[A-Z]\\S{2} \\d{1,2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b",
+                "MMM d, yyyy @ HH:mm:ss.SSS",
+                1526400896374L,
+                ecsCompatibility
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testFindFormatGivenOnlyKnownTimestampFormatAndEcsCompatibility);
     }
 
     public void testFindFormatGivenOnlySystemDate() {
 
-        validateTimestampMatch("1000000000000", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1000000000000L);
-        validateTimestampMatch("1526400896374", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1526400896374L);
-        validateTimestampMatch("2999999999999", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 2999999999999L);
+        Consumer<Boolean> testFindFormatGivenOnlySystemDateAndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch("1000000000000", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1000000000000L, ecsCompatibility);
+            validateTimestampMatch("1526400896374", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1526400896374L, ecsCompatibility);
+            validateTimestampMatch("2999999999999", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 2999999999999L, ecsCompatibility);
 
-        validateTimestampMatch("1000000000", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1000000000000L);
-        validateTimestampMatch("1526400896.736", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896736L);
-        validateTimestampMatch("1526400896", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896000L);
-        validateTimestampMatch("2999999999.999", "NUMBER", "\\b\\d{10}\\b", "UNIX", 2999999999999L);
+            validateTimestampMatch("1000000000", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1000000000000L, ecsCompatibility);
+            validateTimestampMatch("1526400896.736", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896736L, ecsCompatibility);
+            validateTimestampMatch("1526400896", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896000L, ecsCompatibility);
+            validateTimestampMatch("2999999999.999", "NUMBER", "\\b\\d{10}\\b", "UNIX", 2999999999999L, ecsCompatibility);
 
-        validateTimestampMatch("400000005afb078a164ac980", "BASE16NUM", "\\b[0-9A-Fa-f]{24}\\b", "TAI64N", 1526400896374L);
+            validateTimestampMatch(
+                "400000005afb078a164ac980",
+                "BASE16NUM",
+                "\\b[0-9A-Fa-f]{24}\\b",
+                "TAI64N",
+                1526400896374L,
+                ecsCompatibility
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testFindFormatGivenOnlySystemDateAndEcsCompatibility);
+
     }
 
     public void testCustomOverrideMatchingBuiltInFormat() {
@@ -1245,36 +1342,42 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         String expectedSimpleRegex = "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}";
         String expectedGrokPatternName = "TIMESTAMP_ISO8601";
 
-        TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            overrideFormat,
-            true,
-            true,
-            true,
-            NOOP_TIMEOUT_CHECKER
-        );
-        strictTimestampFormatFinder.addSample(text);
-        assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
-        assertEquals(Collections.emptyMap(), strictTimestampFormatFinder.getCustomGrokPatternDefinitions());
-        assertEquals(expectedSimpleRegex, strictTimestampFormatFinder.getSimplePattern().pattern());
-        assertEquals(Collections.singletonList(overrideFormat), strictTimestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(1, strictTimestampFormatFinder.getNumMatchedFormats());
+        Consumer<Boolean> testCustomOverrideMatchingBuiltInFormatGivenEcsCompatibility = (ecsCompatibility) -> {
+            TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                overrideFormat,
+                true,
+                true,
+                true,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            strictTimestampFormatFinder.addSample(text);
+            assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
+            assertEquals(Collections.emptyMap(), strictTimestampFormatFinder.getCustomGrokPatternDefinitions());
+            assertEquals(expectedSimpleRegex, strictTimestampFormatFinder.getSimplePattern().pattern());
+            assertEquals(Collections.singletonList(overrideFormat), strictTimestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(1, strictTimestampFormatFinder.getNumMatchedFormats());
 
-        TimestampFormatFinder lenientTimestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            overrideFormat,
-            false,
-            false,
-            false,
-            NOOP_TIMEOUT_CHECKER
-        );
-        lenientTimestampFormatFinder.addSample(text);
-        lenientTimestampFormatFinder.selectBestMatch();
-        assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
-        assertEquals(Collections.emptyMap(), lenientTimestampFormatFinder.getCustomGrokPatternDefinitions());
-        assertEquals(expectedSimpleRegex, lenientTimestampFormatFinder.getSimplePattern().pattern());
-        assertEquals(Collections.singletonList(overrideFormat), lenientTimestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
+            TimestampFormatFinder lenientTimestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                overrideFormat,
+                false,
+                false,
+                false,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            lenientTimestampFormatFinder.addSample(text);
+            lenientTimestampFormatFinder.selectBestMatch();
+            assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
+            assertEquals(Collections.emptyMap(), lenientTimestampFormatFinder.getCustomGrokPatternDefinitions());
+            assertEquals(expectedSimpleRegex, lenientTimestampFormatFinder.getSimplePattern().pattern());
+            assertEquals(Collections.singletonList(overrideFormat), lenientTimestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
+        };
+
+        ecsCompatibilityModes.forEach(testCustomOverrideMatchingBuiltInFormatGivenEcsCompatibility);
     }
 
     public void testCustomOverridesNotMatchingBuiltInFormat() {
@@ -1311,6 +1414,20 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
                 "%{MONTHDAY}\\.%{MONTHNUM2}\\. %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}"
             )
         );
+
+        validateCustomOverrideNotMatchingBuiltInFormat(
+            // This pattern is very close to HTTPDERROR_DATE, differing only because it contains a "d" instead of a "dd".
+            // This test therefore proves that we don't decide that this override can be replaced with the built in
+            // HTTPDERROR_DATE format, but do preserve it as a custom format.
+            "EEE MMM d HH:mm:ss yyyy",
+            "Mon Mar 7 15:03:23 2022",
+            "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
+            "CUSTOM_TIMESTAMP",
+            Collections.singletonMap(
+                TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME,
+                "%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:%{SECOND} %{YEAR}"
+            )
+        );
     }
 
     private void validateCustomOverrideNotMatchingBuiltInFormat(
@@ -1320,36 +1437,42 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         String expectedGrokPatternName,
         Map<String, String> expectedCustomGrokPatternDefinitions
     ) {
-        TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            overrideFormat,
-            true,
-            true,
-            true,
-            NOOP_TIMEOUT_CHECKER
-        );
-        strictTimestampFormatFinder.addSample(text);
-        assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
-        assertEquals(expectedCustomGrokPatternDefinitions, strictTimestampFormatFinder.getCustomGrokPatternDefinitions());
-        assertEquals(expectedSimpleRegex, strictTimestampFormatFinder.getSimplePattern().pattern());
-        assertEquals(Collections.singletonList(overrideFormat), strictTimestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(1, strictTimestampFormatFinder.getNumMatchedFormats());
+        Consumer<Boolean> validateCustomOverrideNotMatchingBuiltInFormatGivenEcsCompatibility = (ecsCompatibility) -> {
+            TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                overrideFormat,
+                true,
+                true,
+                true,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            strictTimestampFormatFinder.addSample(text);
+            assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
+            assertEquals(expectedCustomGrokPatternDefinitions, strictTimestampFormatFinder.getCustomGrokPatternDefinitions());
+            assertEquals(expectedSimpleRegex, strictTimestampFormatFinder.getSimplePattern().pattern());
+            assertEquals(Collections.singletonList(overrideFormat), strictTimestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(1, strictTimestampFormatFinder.getNumMatchedFormats());
 
-        TimestampFormatFinder lenientTimestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            overrideFormat,
-            false,
-            false,
-            false,
-            NOOP_TIMEOUT_CHECKER
-        );
-        lenientTimestampFormatFinder.addSample(text);
-        lenientTimestampFormatFinder.selectBestMatch();
-        assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
-        assertEquals(expectedCustomGrokPatternDefinitions, lenientTimestampFormatFinder.getCustomGrokPatternDefinitions());
-        assertEquals(expectedSimpleRegex, lenientTimestampFormatFinder.getSimplePattern().pattern());
-        assertEquals(Collections.singletonList(overrideFormat), lenientTimestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
+            TimestampFormatFinder lenientTimestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                overrideFormat,
+                false,
+                false,
+                false,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            lenientTimestampFormatFinder.addSample(text);
+            lenientTimestampFormatFinder.selectBestMatch();
+            assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
+            assertEquals(expectedCustomGrokPatternDefinitions, lenientTimestampFormatFinder.getCustomGrokPatternDefinitions());
+            assertEquals(expectedSimpleRegex, lenientTimestampFormatFinder.getSimplePattern().pattern());
+            assertEquals(Collections.singletonList(overrideFormat), lenientTimestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
+        };
+
+        ecsCompatibilityModes.forEach(validateCustomOverrideNotMatchingBuiltInFormatGivenEcsCompatibility);
     }
 
     public void testFindFormatGivenRealLogMessages() {
@@ -1375,7 +1498,7 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         validateFindInFullMessage(
             "Aug 29, 2009 12:03:57 AM org.apache.tomcat.util.http.Parameters processParameters",
             "",
-            "CATALINA_DATESTAMP",
+            "CATALINA7_DATESTAMP",
             "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
             "MMM dd, yyyy h:mm:ss a"
         );
@@ -1435,72 +1558,66 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             "yyyy-MM-dd HH:mm:ss.SSSSSS"
         );
 
-        // Non-matching required format specified
-        TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            randomFrom("UNIX", "EEE MMM dd yyyy HH:mm zzz"),
-            false,
-            false,
-            false,
-            NOOP_TIMEOUT_CHECKER
-        );
-        timestampFormatFinder.addSample(
-            "2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client "
-                + " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)"
-        );
-        assertEquals(Collections.emptyList(), timestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(0, timestampFormatFinder.getNumMatchedFormats());
+        Consumer<Boolean> testFindFormatWithNonMatchingRequiredFormatGivenEcsCompatibility = (ecsCompatibility) -> {
+            // Non-matching required format specified
+            TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                randomFrom("UNIX", "EEE MMM dd yyyy HH:mm zzz"),
+                false,
+                false,
+                false,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            timestampFormatFinder.addSample(
+                "2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client "
+                    + " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5)"
+                    + " by client 'User1'(id:2) in channel '3er Instanz'(id:2)"
+            );
+            assertEquals(Collections.emptyList(), timestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(0, timestampFormatFinder.getNumMatchedFormats());
+        };
+
+        ecsCompatibilityModes.forEach(testFindFormatWithNonMatchingRequiredFormatGivenEcsCompatibility);
     }
 
     public void testSelectBestMatchGivenAllSame() {
-        String sample = "[2018-06-27T11:59:22,125][INFO ][o.e.n.Node               ] [node-0] initializing ...\n"
-            + "[2018-06-27T11:59:22,201][INFO ][o.e.e.NodeEnvironment    ] [node-0] using [1] data paths, mounts [[/ (/dev/disk1)]], "
-            + "net usable_space [216.1gb], net total_space [464.7gb], types [hfs]\n"
-            + "[2018-06-27T11:59:22,202][INFO ][o.e.e.NodeEnvironment    ] [node-0] heap size [494.9mb], "
-            + "compressed ordinary object pointers [true]\n"
-            + "[2018-06-27T11:59:22,204][INFO ][o.e.n.Node               ] [node-0] node name [node-0], node ID [Ha1gD8nNSDqjd6PIyu3DJA]\n"
-            + "[2018-06-27T11:59:22,204][INFO ][o.e.n.Node               ] [node-0] version[6.4.0-SNAPSHOT], pid[2785], "
-            + "build[default/zip/3c60efa/2018-06-26T14:55:15.206676Z], OS[Mac OS X/10.12.6/x86_64], "
-            + "JVM[\"Oracle Corporation\"/Java HotSpot(TM) 64-Bit Server VM/10/10+46]\n"
-            + "[2018-06-27T11:59:22,205][INFO ][o.e.n.Node               ] [node-0] JVM arguments [-Xms1g, -Xmx1g, "
-            + "-XX:+UseConcMarkSweepGC, -XX:CMSInitiatingOccupancyFraction=75, -XX:+UseCMSInitiatingOccupancyOnly, "
-            + "-XX:+AlwaysPreTouch, -Xss1m, -Djava.awt.headless=true, -Dfile.encoding=UTF-8, -Djna.nosys=true, "
-            + "-XX:-OmitStackTraceInFastThrow, -Dio.netty.noUnsafe=true, -Dio.netty.noKeySetOptimization=true, "
-            + "-Dio.netty.recycler.maxCapacityPerThread=0, -Dlog4j.shutdownHookEnabled=false, -Dlog4j2.disable.jmx=true, "
-            + "-Djava.io.tmpdir=/var/folders/k5/5sqcdlps5sg3cvlp783gcz740000h0/T/elasticsearch.nFUyeMH1, "
-            + "-XX:+HeapDumpOnOutOfMemoryError, -XX:HeapDumpPath=data, -XX:ErrorFile=logs/hs_err_pid%p.log, "
-            + "-Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m, "
-            + "-Djava.locale.providers=COMPAT, -Dio.netty.allocator.type=unpooled, -ea, -esa, -Xms512m, -Xmx512m, "
-            + "-Des.path.home=/Users/dave/elasticsearch/distribution/build/cluster/run node0/elasticsearch-6.4.0-SNAPSHOT, "
-            + "-Des.path.conf=/Users/dave/elasticsearch/distribution/build/cluster/run node0/elasticsearch-6.4.0-SNAPSHOT/config, "
-            + "-Des.distribution.flavor=default, -Des.distribution.type=zip]\n"
-            + "[2018-06-27T11:59:22,205][WARN ][o.e.n.Node               ] [node-0] version [6.4.0-SNAPSHOT] is a pre-release version of "
-            + "Elasticsearch and is not suitable for production\n"
-            + "[2018-06-27T11:59:23,585][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [aggs-matrix-stats]\n"
-            + "[2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [analysis-common]\n"
-            + "[2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [ingest-common]\n"
-            + "[2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [lang-expression]\n"
-            + "[2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [lang-mustache]\n"
-            + "[2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [lang-painless]\n"
-            + "[2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [mapper-extras]\n"
-            + "[2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [parent-join]\n"
-            + "[2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [percolator]\n"
-            + "[2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [rank-eval]\n"
-            + "[2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [reindex]\n"
-            + "[2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [repository-url]\n"
-            + "[2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [transport-netty4]\n"
-            + "[2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-core]\n"
-            + "[2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-deprecation]\n"
-            + "[2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-graph]\n"
-            + "[2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-logstash]\n"
-            + "[2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-ml]\n"
-            + "[2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-monitoring]\n"
-            + "[2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-rollup]\n"
-            + "[2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-security]\n"
-            + "[2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-sql]\n"
-            + "[2018-06-27T11:59:23,588][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-upgrade]\n"
-            + "[2018-06-27T11:59:23,588][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-watcher]\n"
-            + "[2018-06-27T11:59:23,588][INFO ][o.e.p.PluginsService     ] [node-0] no plugins loaded\n";
+        @SuppressWarnings("checkstyle:linelength")
+        String sample =
+            """
+                [2018-06-27T11:59:22,125][INFO ][o.e.n.Node               ] [node-0] initializing ...
+                [2018-06-27T11:59:22,201][INFO ][o.e.e.NodeEnvironment    ] [node-0] using [1] data paths, mounts [[/ (/dev/disk1)]], net usable_space [216.1gb], net total_space [464.7gb], types [hfs]
+                [2018-06-27T11:59:22,202][INFO ][o.e.e.NodeEnvironment    ] [node-0] heap size [494.9mb], compressed ordinary object pointers [true]
+                [2018-06-27T11:59:22,204][INFO ][o.e.n.Node               ] [node-0] node name [node-0], node ID [Ha1gD8nNSDqjd6PIyu3DJA]
+                [2018-06-27T11:59:22,204][INFO ][o.e.n.Node               ] [node-0] version[6.4.0-SNAPSHOT], pid[2785], build[default/zip/3c60efa/2018-06-26T14:55:15.206676Z], OS[Mac OS X/10.12.6/x86_64], JVM["Oracle Corporation"/Java HotSpot(TM) 64-Bit Server VM/10/10+46]
+                [2018-06-27T11:59:22,205][INFO ][o.e.n.Node               ] [node-0] JVM arguments [-Xms1g, -Xmx1g, -XX:+UseConcMarkSweepGC, -XX:CMSInitiatingOccupancyFraction=75, -XX:+UseCMSInitiatingOccupancyOnly, -XX:+AlwaysPreTouch, -Xss1m, -Djava.awt.headless=true, -Dfile.encoding=UTF-8, -Djna.nosys=true, -XX:-OmitStackTraceInFastThrow, -Dio.netty.noUnsafe=true, -Dio.netty.noKeySetOptimization=true, -Dio.netty.recycler.maxCapacityPerThread=0, -Dlog4j.shutdownHookEnabled=false, -Dlog4j2.disable.jmx=true, -Djava.io.tmpdir=/var/folders/k5/5sqcdlps5sg3cvlp783gcz740000h0/T/elasticsearch.nFUyeMH1, -XX:+HeapDumpOnOutOfMemoryError, -XX:HeapDumpPath=data, -XX:ErrorFile=logs/hs_err_pid%p.log, -Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m, -Djava.locale.providers=COMPAT, -Dio.netty.allocator.type=unpooled, -ea, -esa, -Xms512m, -Xmx512m, -Des.path.home=/Users/dave/elasticsearch/distribution/build/cluster/run node0/elasticsearch-6.4.0-SNAPSHOT, -Des.path.conf=/Users/dave/elasticsearch/distribution/build/cluster/run node0/elasticsearch-6.4.0-SNAPSHOT/config, -Des.distribution.flavor=default, -Des.distribution.type=zip]
+                [2018-06-27T11:59:22,205][WARN ][o.e.n.Node               ] [node-0] version [6.4.0-SNAPSHOT] is a pre-release version of Elasticsearch and is not suitable for production
+                [2018-06-27T11:59:23,585][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [aggs-matrix-stats]
+                [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [analysis-common]
+                [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [ingest-common]
+                [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [lang-expression]
+                [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [lang-mustache]
+                [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [lang-painless]
+                [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [mapper-extras]
+                [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [parent-join]
+                [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [percolator]
+                [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [rank-eval]
+                [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [reindex]
+                [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [repository-url]
+                [2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [transport-netty4]
+                [2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-core]
+                [2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-deprecation]
+                [2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-graph]
+                [2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-logstash]
+                [2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-ml]
+                [2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-monitoring]
+                [2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-rollup]
+                [2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-security]
+                [2018-06-27T11:59:23,587][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-sql]
+                [2018-06-27T11:59:23,588][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-upgrade]
+                [2018-06-27T11:59:23,588][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-watcher]
+                [2018-06-27T11:59:23,588][INFO ][o.e.p.PluginsService     ] [node-0] no plugins loaded
+                """;
 
         TimestampFormatFinder timestampFormatFinder = LogTextStructureFinder.populateTimestampFormatFinder(
             explanation,
@@ -1598,14 +1715,16 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         String expectedGrokPatternName,
         String expectedSimpleRegex,
         String expectedJavaTimestampFormat,
-        long expectedEpochMs
+        long expectedEpochMs,
+        boolean ecsCompatibility
     ) {
         validateTimestampMatch(
             text,
             expectedGrokPatternName,
             expectedSimpleRegex,
             Collections.singletonList(expectedJavaTimestampFormat),
-            expectedEpochMs
+            expectedEpochMs,
+            ecsCompatibility
         );
     }
 
@@ -1614,16 +1733,23 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         String expectedGrokPatternName,
         String expectedSimpleRegex,
         List<String> expectedJavaTimestampFormats,
-        long expectedEpochMs
+        long expectedEpochMs,
+        boolean ecsCompatibility
     ) {
 
         Pattern expectedSimplePattern = Pattern.compile(expectedSimpleRegex);
         assertTrue(expectedSimplePattern.matcher(text).find());
         validateJavaTimestampFormats(expectedJavaTimestampFormats, text, expectedEpochMs);
 
-        TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
+        TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(
+            explanation,
+            true,
+            true,
+            true,
+            NOOP_TIMEOUT_CHECKER,
+            ecsCompatibility
+        );
         strictTimestampFormatFinder.addSample(text);
-        assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
         assertEquals(expectedSimplePattern.pattern(), strictTimestampFormatFinder.getSimplePattern().pattern());
         assertEquals(expectedJavaTimestampFormats, strictTimestampFormatFinder.getJavaTimestampFormats());
         assertEquals(1, strictTimestampFormatFinder.getNumMatchedFormats());
@@ -1633,14 +1759,27 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             false,
             false,
             false,
-            NOOP_TIMEOUT_CHECKER
+            NOOP_TIMEOUT_CHECKER,
+            ecsCompatibility
         );
         lenientTimestampFormatFinder.addSample(text);
         lenientTimestampFormatFinder.selectBestMatch();
-        assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
         assertEquals(expectedSimplePattern.pattern(), lenientTimestampFormatFinder.getSimplePattern().pattern());
         assertEquals(expectedJavaTimestampFormats, lenientTimestampFormatFinder.getJavaTimestampFormats());
         assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
+
+        if (ecsCompatibility) {
+            if ("TOMCAT_DATESTAMP".equals(expectedGrokPatternName)) {
+                assertEquals("TOMCATLEGACY_DATESTAMP", strictTimestampFormatFinder.getGrokPatternName());
+                assertEquals("TOMCATLEGACY_DATESTAMP", lenientTimestampFormatFinder.getGrokPatternName());
+            } else if ("CATALINA_DATESTAMP".equals(expectedGrokPatternName)) {
+                assertEquals("CATALINA7_DATESTAMP", strictTimestampFormatFinder.getGrokPatternName());
+                assertEquals("CATALINA7_DATESTAMP", lenientTimestampFormatFinder.getGrokPatternName());
+            }
+        } else {
+            assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
+            assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
+        }
     }
 
     private void validateFindInFullMessage(
@@ -1703,24 +1842,35 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         List<String> expectedJavaTimestampFormats
     ) {
 
-        Pattern expectedSimplePattern = Pattern.compile(expectedSimpleRegex);
-        assertTrue(expectedSimplePattern.matcher(message).find());
+        Consumer<Boolean> validateFindInFullMessageGivenEcsCompatibility = (ecsCompatibility) -> {
+            Pattern expectedSimplePattern = Pattern.compile(expectedSimpleRegex);
+            assertTrue(expectedSimplePattern.matcher(message).find());
 
-        TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            timestampFormatOverride,
-            false,
-            false,
-            false,
-            NOOP_TIMEOUT_CHECKER
-        );
-        timestampFormatFinder.addSample(message);
-        timestampFormatFinder.selectBestMatch();
-        assertEquals(expectedGrokPatternName, timestampFormatFinder.getGrokPatternName());
-        assertEquals(expectedSimplePattern.pattern(), timestampFormatFinder.getSimplePattern().pattern());
-        assertEquals(expectedJavaTimestampFormats, timestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(Collections.singletonList(expectedPreface), timestampFormatFinder.getPrefaces());
-        assertEquals(1, timestampFormatFinder.getNumMatchedFormats());
+            TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                timestampFormatOverride,
+                false,
+                false,
+                false,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            timestampFormatFinder.addSample(message);
+            timestampFormatFinder.selectBestMatch();
+            if ("CATALINA7_DATESTAMP".equals(expectedGrokPatternName)) {
+                if (ecsCompatibility) {
+                    assertEquals(expectedGrokPatternName, timestampFormatFinder.getGrokPatternName());
+                } else {
+                    assertEquals("CATALINA_DATESTAMP", timestampFormatFinder.getGrokPatternName());
+                }
+            }
+            assertEquals(expectedSimplePattern.pattern(), timestampFormatFinder.getSimplePattern().pattern());
+            assertEquals(expectedJavaTimestampFormats, timestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(Collections.singletonList(expectedPreface), timestampFormatFinder.getPrefaces());
+            assertEquals(1, timestampFormatFinder.getNumMatchedFormats());
+        };
+
+        ecsCompatibilityModes.forEach(validateFindInFullMessageGivenEcsCompatibility);
     }
 
     private void validateJavaTimestampFormats(List<String> javaTimestampFormats, String text, long expectedEpochMs) {
@@ -1733,19 +1883,11 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             try {
                 String timestampFormat = javaTimestampFormats.get(i);
                 switch (timestampFormat) {
-                    case "ISO8601":
-                        actualEpochMs = DateFormatter.forPattern("iso8601").withZone(defaultZone).parseMillis(text);
-                        break;
-                    case "UNIX_MS":
-                        actualEpochMs = Long.parseLong(text);
-                        break;
-                    case "UNIX":
-                        actualEpochMs = (long) (Double.parseDouble(text) * 1000.0);
-                        break;
-                    case "TAI64N":
-                        actualEpochMs = parseMillisFromTai64n(text);
-                        break;
-                    default:
+                    case "ISO8601" -> actualEpochMs = DateFormatter.forPattern("iso8601").withZone(defaultZone).parseMillis(text);
+                    case "UNIX_MS" -> actualEpochMs = Long.parseLong(text);
+                    case "UNIX" -> actualEpochMs = (long) (Double.parseDouble(text) * 1000.0);
+                    case "TAI64N" -> actualEpochMs = parseMillisFromTai64n(text);
+                    default -> {
                         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().appendPattern(timestampFormat);
                         if (timestampFormat.indexOf('y') == -1) {
                             builder.parseDefaulting(ChronoField.YEAR_OF_ERA, 2018);
@@ -1773,7 +1915,7 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
                             parsed = parser.withZone(defaultZone).parse(text);
                         }
                         actualEpochMs = Instant.from(parsed).toEpochMilli();
-                        break;
+                    }
                 }
                 if (expectedEpochMs == actualEpochMs) {
                     break;

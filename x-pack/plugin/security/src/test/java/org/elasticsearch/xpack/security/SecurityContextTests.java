@@ -12,27 +12,34 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.Before;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SecurityContextTests extends ESTestCase {
@@ -43,9 +50,7 @@ public class SecurityContextTests extends ESTestCase {
 
     @Before
     public void buildSecurityContext() throws IOException {
-        settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .build();
+        settings = Settings.builder().put("path.home", createTempDir()).build();
         threadContext = new ThreadContext(settings);
         securityContext = new SecurityContext(settings, threadContext);
     }
@@ -57,7 +62,10 @@ public class SecurityContextTests extends ESTestCase {
 
     public void testGetAuthenticationAndUser() throws IOException {
         final User user = new User("test");
-        final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("ldap", "foo", "node1"))
+            .build(false);
         authentication.writeToContext(threadContext);
 
         assertEquals(authentication, securityContext.getAuthentication());
@@ -72,16 +80,18 @@ public class SecurityContextTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(EOFException.class));
     }
 
-    public void testSetUser() {
-        final User user = new User("test");
+    public void testSetInternalUser() {
+        final User internalUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
-        securityContext.setUser(user, Version.CURRENT);
-        assertEquals(user, securityContext.getUser());
+        securityContext.setInternalUser(internalUser, Version.CURRENT);
+        assertEquals(internalUser, securityContext.getUser());
         assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
 
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-                () -> securityContext.setUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> securityContext.setInternalUser(randomFrom(internalUser, SystemUser.INSTANCE), Version.CURRENT)
+        );
         assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }
 
@@ -89,19 +99,28 @@ public class SecurityContextTests extends ESTestCase {
         final User original;
         if (randomBoolean()) {
             original = new User("test");
-            final Authentication authentication = new Authentication(original, new RealmRef("ldap", "foo", "node1"), null);
+            final Authentication authentication = AuthenticationTestHelper.builder()
+                .realm()
+                .user(original)
+                .realmRef(new RealmRef("ldap", "foo", "node1"))
+                .build(false);
             authentication.writeToContext(threadContext);
         } else {
             original = null;
         }
 
-        final User executionUser = new User("executor");
+        final User executionUser = randomFrom(
+            SystemUser.INSTANCE,
+            XPackUser.INSTANCE,
+            XPackSecurityUser.INSTANCE,
+            AsyncSearchUser.INSTANCE
+        );
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
-        securityContext.executeAsUser(executionUser, (originalCtx) -> {
+        securityContext.executeAsInternalUser(executionUser, Version.CURRENT, (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());
             assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
-        }, Version.CURRENT);
+        });
 
         final User userAfterExecution = securityContext.getUser();
         assertEquals(original, userAfterExecution);
@@ -115,20 +134,39 @@ public class SecurityContextTests extends ESTestCase {
     }
 
     public void testExecuteAfterRewritingAuthentication() throws IOException {
-        User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("ldap", "foo", "node1");
-        final Authentication original = new Authentication(user, authBy, authBy);
+        final Authentication original = AuthenticationTestHelper.builder()
+            .user(new User("authUser"))
+            .realmRef(authBy)
+            .runAs()
+            .user(new User("test"))
+            .realmRef(authBy)
+            .build();
         original.writeToContext(threadContext);
+        final Map<String, String> requestHeaders = Map.of(
+            AuthenticationField.PRIVILEGE_CATEGORY_KEY,
+            randomAlphaOfLengthBetween(3, 10),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8),
+            Task.X_OPAQUE_ID_HTTP_HEADER,
+            randomAlphaOfLength(10),
+            Task.TRACE_ID,
+            randomAlphaOfLength(20)
+        );
+        threadContext.putHeader(requestHeaders);
 
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertEquals(original.getUser(), authentication.getUser());
-            assertEquals(original.getAuthenticatedBy(), authentication.getAuthenticatedBy());
-            assertEquals(original.getLookedUpBy(), authentication.getLookedUpBy());
-            assertEquals(VersionUtils.getPreviousVersion(), authentication.getVersion());
+            assertEquals(original.getEffectiveSubject().getUser(), authentication.getEffectiveSubject().getUser());
+            assertEquals(original.getAuthenticatingSubject().getRealm(), authentication.getAuthenticatingSubject().getRealm());
+            assertEquals(original.isRunAs(), authentication.isRunAs());
+            assertEquals(original.getEffectiveSubject().getRealm(), authentication.getEffectiveSubject().getRealm());
+            assertEquals(VersionUtils.getPreviousVersion(), authentication.getEffectiveSubject().getVersion());
             assertEquals(original.getAuthenticationType(), securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
+            // Other request headers should be preserved
+            requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
         }, VersionUtils.getPreviousVersion());
 
         final Authentication authAfterExecution = securityContext.getAuthentication();
@@ -140,55 +178,75 @@ public class SecurityContextTests extends ESTestCase {
     }
 
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteNewApiKeyMetadata() throws IOException {
-        User user = new User("test", null, new User("authUser"));
-        RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
-        final Map<String, Object> metadata = Map.of(
-            API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
-            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
+        metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"));
+        metadata.put(
+            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+            new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         );
-        final Authentication original = new Authentication(user, authBy, authBy, Version.V_8_0_0,
-            AuthenticationType.API_KEY, metadata);
+
+        final Authentication original = AuthenticationTestHelper.builder().apiKey().metadata(metadata).version(Version.V_8_0_0).build();
         original.writeToContext(threadContext);
 
         // If target is old node, rewrite new style API key metadata to old format
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertEquals(Map.of("a role", Map.of("cluster", List.of("all"))),
-                authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY));
-            assertEquals(Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
-                authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY));
+            assertEquals(
+                Map.of("a role", Map.of("cluster", List.of("all"))),
+                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
+            );
+            assertEquals(
+                Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
+                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+            );
         }, Version.V_7_8_0);
 
         // If target is new node, no need to rewrite the new style API key metadata
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertSame(metadata, authentication.getMetadata());
+            assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
         }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
     }
 
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
-        User user = new User("test", null, new User("authUser"));
-        RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
-        final Map<String, Object> metadata = Map.of(
-            API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))),
-            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Map.of("limitedBy role", Map.of("cluster", List.of("all")))
+        final Authentication original = AuthenticationTestHelper.builder().apiKey().version(Version.V_7_8_0).build();
+
+        // original authentication has the old style of role descriptor maps
+        assertThat(
+            original.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY),
+            instanceOf(Map.class)
         );
-        final Authentication original = new Authentication(user, authBy, authBy, Version.V_7_8_0, AuthenticationType.API_KEY, metadata);
+        assertThat(
+            original.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+            instanceOf(Map.class)
+        );
+
         original.writeToContext(threadContext);
 
         // If target is old node, no need to rewrite old style API key metadata
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertSame(metadata, authentication.getMetadata());
+            assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
         }, Version.V_7_8_0);
 
-        // If target is new old, ensure old map style API key metadata is rewritten to bytesreference
+        // If target is new node, ensure old map style API key metadata is rewritten to bytesreference
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertEquals("{\"a role\":{\"cluster\":[\"all\"]}}",
-                ((BytesReference)authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY)).utf8ToString());
-            assertEquals("{\"limitedBy role\":{\"cluster\":[\"all\"]}}",
-                ((BytesReference)authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).utf8ToString());
+            List.of(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                .forEach(key -> {
+                    assertThat(authentication.getAuthenticatingSubject().getMetadata().get(key), instanceOf(BytesReference.class));
+
+                    assertThat(
+                        XContentHelper.convertToMap(
+                            (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(key),
+                            false,
+                            XContentType.JSON
+                        ).v2(),
+                        equalTo(original.getAuthenticatingSubject().getMetadata().get(key))
+                    );
+                });
         }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
     }
 }

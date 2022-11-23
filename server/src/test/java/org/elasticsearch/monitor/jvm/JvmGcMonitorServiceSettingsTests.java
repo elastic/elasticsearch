@@ -30,33 +30,38 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
 
     public void testEmptySettingsAreOkay() throws InterruptedException {
         AtomicBoolean scheduled = new AtomicBoolean();
-        execute(Settings.EMPTY,
-                (command, interval, name) -> {
-                    scheduled.set(true);
-                    return new MockCancellable();
-                },
-            () -> assertTrue(scheduled.get()));
+        execute(Settings.EMPTY, (command, interval, name) -> {
+            scheduled.set(true);
+            return new MockCancellable();
+        }, () -> assertTrue(scheduled.get()));
     }
 
     public void testDisabledSetting() throws InterruptedException {
         Settings settings = Settings.builder().put("monitor.jvm.gc.enabled", "false").build();
         AtomicBoolean scheduled = new AtomicBoolean();
-        execute(settings,
-                (command, interval, name) -> {
-                    scheduled.set(true);
-                    return new MockCancellable();
-                },
-            () -> assertFalse(scheduled.get()));
+        execute(settings, (command, interval, name) -> {
+            scheduled.set(true);
+            return new MockCancellable();
+        }, () -> assertFalse(scheduled.get()));
     }
 
     public void testNegativeSetting() throws InterruptedException {
         String collector = randomAlphaOfLength(5);
-        final String timeValue = "-" + randomTimeValue(2,1000); // -1 is handled separately
+        final String timeValue = "-" + randomTimeValue(2, 1000); // -1 is handled separately
         Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", timeValue).build();
         execute(settings, (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), equalTo("failed to parse setting [monitor.jvm.gc.collector." + collector + ".warn] " +
-                "with value [" + timeValue + "] as a time value"));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "failed to parse setting [monitor.jvm.gc.collector."
+                        + collector
+                        + ".warn] "
+                        + "with value ["
+                        + timeValue
+                        + "] as a time value"
+                )
+            );
         }, true, null);
     }
 
@@ -66,8 +71,17 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", timeValue).build();
         execute(settings, (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), equalTo("invalid gc_threshold [monitor.jvm.gc.collector." + collector + ".warn] " +
-                "value [" + timeValue + "]: value cannot be negative"));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "invalid gc_threshold [monitor.jvm.gc.collector."
+                        + collector
+                        + ".warn] "
+                        + "value ["
+                        + timeValue
+                        + "]: value cannot be negative"
+                )
+            );
         }, true, null);
     }
 
@@ -117,31 +131,53 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         infoWarnOutOfOrderBuilder.put("monitor.jvm.gc.overhead.warn", warn);
         execute(infoWarnOutOfOrderBuilder.build(), (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), containsString("[monitor.jvm.gc.overhead.warn] must be greater than "
-                + "[monitor.jvm.gc.overhead.info] [" + info + "] but was [" + warn + "]"));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "[monitor.jvm.gc.overhead.warn] must be greater than "
+                        + "[monitor.jvm.gc.overhead.info] ["
+                        + info
+                        + "] but was ["
+                        + warn
+                        + "]"
+                )
+            );
         }, true, null);
 
         final Settings.Builder debugInfoOutOfOrderBuilder = Settings.builder();
         debugInfoOutOfOrderBuilder.put("monitor.jvm.gc.overhead.info", info);
         final int debug = randomIntBetween(info + 1, 99);
         debugInfoOutOfOrderBuilder.put("monitor.jvm.gc.overhead.debug", debug);
-        debugInfoOutOfOrderBuilder.put("monitor.jvm.gc.overhead.warn",
-            randomIntBetween(debug + 1, 100)); // or the test will fail for the wrong reason
+        debugInfoOutOfOrderBuilder.put("monitor.jvm.gc.overhead.warn", randomIntBetween(debug + 1, 100)); // or the test will fail for the
+                                                                                                          // wrong reason
         execute(debugInfoOutOfOrderBuilder.build(), (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), containsString("[monitor.jvm.gc.overhead.info] must be greater than "
-                + "[monitor.jvm.gc.overhead.debug] [" + debug + "] but was [" + info + "]"));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "[monitor.jvm.gc.overhead.info] must be greater than "
+                        + "[monitor.jvm.gc.overhead.debug] ["
+                        + debug
+                        + "] but was ["
+                        + info
+                        + "]"
+                )
+            );
         }, true, null);
     }
 
-    private static void execute(Settings settings, TriFunction<Runnable, TimeValue, String, Cancellable> scheduler,
-                                Runnable asserts) throws InterruptedException {
+    private static void execute(Settings settings, TriFunction<Runnable, TimeValue, String, Cancellable> scheduler, Runnable asserts)
+        throws InterruptedException {
         execute(settings, scheduler, null, false, asserts);
     }
 
-    private static void execute(Settings settings, TriFunction<Runnable, TimeValue, String, Cancellable> scheduler,
-                                Consumer<Throwable> consumer, boolean constructionShouldFail,
-                                Runnable asserts) throws InterruptedException {
+    private static void execute(
+        Settings settings,
+        TriFunction<Runnable, TimeValue, String, Cancellable> scheduler,
+        Consumer<Throwable> consumer,
+        boolean constructionShouldFail,
+        Runnable asserts
+    ) throws InterruptedException {
         assert constructionShouldFail == (consumer != null);
         assert constructionShouldFail == (asserts == null);
         ThreadPool threadPool = null;

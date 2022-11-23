@@ -26,17 +26,20 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     public static final ScriptContext<Factory> CONTEXT = newContext("keyword_field", Factory.class);
 
-    public static final StringFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (StringFieldScript.LeafFactory) ctx -> new StringFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
+    public static final StringFieldScript.Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public void execute() {
-            emitFromSource();
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
+            return ctx -> new StringFieldScript(field, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    emitFromSource();
+                }
+            };
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return true;
         }
     };
 
@@ -80,7 +83,7 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     /**
      * Execute the script for the provided {@code docId}.
-     * <p>
+     *
      * @return a mutable {@link List} that contains the results of the script
      * and will be modified the next time you call {@linkplain #resultsForDoc}.
      */
@@ -97,6 +100,15 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     }
 
     @Override
+    protected void emitValueFromCompositeScript(Object value) {
+        if (value != null) {
+            String string = value.toString();
+            checkMaxChars(string);
+            emit(string);
+        }
+    }
+
+    @Override
     protected void emitFromObject(Object v) {
         if (v != null) {
             emit(v.toString());
@@ -104,7 +116,10 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     }
 
     public final void emit(String v) {
-        checkMaxSize(results.size());
+        results.add(v);
+    }
+
+    private void checkMaxChars(String v) {
         chars += v.length();
         if (chars > MAX_CHARS) {
             throw new IllegalArgumentException(
@@ -117,7 +132,6 @@ public abstract class StringFieldScript extends AbstractFieldScript {
                 )
             );
         }
-        results.add(v);
     }
 
     public static class Emit {
@@ -128,6 +142,8 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         }
 
         public void emit(String v) {
+            script.checkMaxSize(script.results.size());
+            script.checkMaxChars(v);
             script.emit(v);
         }
     }

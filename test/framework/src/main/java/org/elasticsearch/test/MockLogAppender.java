@@ -10,7 +10,7 @@ package org.elasticsearch.test;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.apache.logging.log4j.core.config.Property;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.List;
@@ -27,10 +27,10 @@ public class MockLogAppender extends AbstractAppender {
 
     private static final String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
 
-    private List<LoggingExpectation> expectations;
+    private final List<LoggingExpectation> expectations;
 
-    public MockLogAppender() throws IllegalAccessException {
-        super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
+    public MockLogAppender() {
+        super("mock", null, null, false, Property.EMPTY_ARRAY);
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
@@ -150,12 +150,13 @@ public class MockLogAppender extends AbstractAppender {
         private final String exceptionMessage;
 
         public ExceptionSeenEventExpectation(
-                final String name,
-                final String logger,
-                final Level level,
-                final String message,
-                final Class<? extends Exception> clazz,
-                final String exceptionMessage) {
+            final String name,
+            final String logger,
+            final Level level,
+            final String message,
+            final Class<? extends Exception> clazz,
+            final String exceptionMessage
+        ) {
             super(name, logger, level, message);
             this.clazz = clazz;
             this.exceptionMessage = exceptionMessage;
@@ -164,8 +165,8 @@ public class MockLogAppender extends AbstractAppender {
         @Override
         public boolean innerMatch(final LogEvent event) {
             return event.getThrown() != null
-                    && event.getThrown().getClass() == clazz
-                    && event.getThrown().getMessage().equals(exceptionMessage);
+                && event.getThrown().getClass() == clazz
+                && event.getThrown().getMessage().equals(exceptionMessage);
         }
 
     }

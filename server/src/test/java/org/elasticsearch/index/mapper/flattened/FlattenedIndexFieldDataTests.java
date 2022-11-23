@@ -15,16 +15,17 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldData;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -33,19 +34,19 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
-
+public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase {
 
     public void testGlobalFieldDataCaching() throws IOException {
         // Set up the index service.
         IndexService indexService = createIndex("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
+        IndexFieldDataService ifdService = new IndexFieldDataService(
+            indexService.getIndexSettings(),
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService()
         );
 
-        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("flattened").build(new ContentPath(1));
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("flattened").build(MapperBuilderContext.root(false));
         MappedFieldType fieldType1 = fieldMapper.fieldType().getChildFieldType("key");
 
         AtomicInteger onCacheCalled = new AtomicInteger();
@@ -67,14 +68,10 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
         writer.addDocument(doc);
         writer.commit();
         writer.addDocument(doc);
-        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(
-            DirectoryReader.open(writer),
-            new ShardId("test", "_na_", 1));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("test", "_na_", 1));
 
         // Load global field data for subfield 'key'.
-        IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1, "test", () -> {
-            throw new UnsupportedOperationException("search lookup not available");
-        });
+        IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1, FieldDataContext.noRuntimeFields("test"));
         assertTrue(ifd1 instanceof KeyedFlattenedFieldData);
 
         KeyedFlattenedFieldData fieldData1 = (KeyedFlattenedFieldData) ifd1;
@@ -84,9 +81,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
 
         // Load global field data for the subfield 'other_key'.
         MappedFieldType fieldType2 = fieldMapper.fieldType().getChildFieldType("other_key");
-        IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, "test", () -> {
-            throw new UnsupportedOperationException("search lookup not available");
-        });
+        IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, FieldDataContext.noRuntimeFields("test"));
         assertTrue(ifd2 instanceof KeyedFlattenedFieldData);
 
         KeyedFlattenedFieldData fieldData2 = (KeyedFlattenedFieldData) ifd2;

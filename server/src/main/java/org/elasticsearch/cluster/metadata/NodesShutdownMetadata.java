@@ -9,20 +9,19 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +40,7 @@ import java.util.stream.Collectors;
 public class NodesShutdownMetadata implements Metadata.Custom {
     public static final String TYPE = "node_shutdown";
     public static final Version NODE_SHUTDOWN_VERSION = Version.V_7_13_0;
+    public static final NodesShutdownMetadata EMPTY = new NodesShutdownMetadata(Map.of());
 
     private static final ParseField NODES_FIELD = new ParseField("nodes");
 
@@ -70,19 +70,33 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
     public static Optional<NodesShutdownMetadata> getShutdowns(final ClusterState state) {
         assert state != null : "cluster state should never be null";
-        return Optional.ofNullable(state)
-            .map(ClusterState::metadata)
-            .map(m -> m.custom(TYPE));
+        return Optional.of(state).map(ClusterState::metadata).map(m -> m.custom(TYPE));
+    }
+
+    /**
+     * Returns true if the given node is marked as shutting down with any
+     * shutdown type.
+     */
+    public static boolean isNodeShuttingDown(final ClusterState state, final String nodeId) {
+        // Right now we make no distinction between the type of shutdown, but maybe in the future we might?
+        return NodesShutdownMetadata.getShutdowns(state)
+            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
+            .map(allNodes -> allNodes.get(nodeId))
+            .isPresent();
+    }
+
+    public static NodesShutdownMetadata getShutdownsOrEmpty(final ClusterState state) {
+        return getShutdowns(state).orElse(EMPTY);
     }
 
     private final Map<String, SingleNodeShutdownMetadata> nodes;
 
     public NodesShutdownMetadata(Map<String, SingleNodeShutdownMetadata> nodes) {
-        this.nodes = nodes;
+        this.nodes = Map.copyOf(nodes);
     }
 
     public NodesShutdownMetadata(StreamInput in) throws IOException {
-        this.nodes = in.readMap(StreamInput::readString, SingleNodeShutdownMetadata::new);
+        this(in.readImmutableMap(StreamInput::readString, SingleNodeShutdownMetadata::new));
     }
 
     @Override
@@ -94,7 +108,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
      * @return A map of NodeID to shutdown metadata.
      */
     public Map<String, SingleNodeShutdownMetadata> getAllNodeMetadataMap() {
-        return Collections.unmodifiableMap(nodes);
+        return nodes;
     }
 
     /**
@@ -180,9 +194,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(
-                nodesDiff.apply(((NodesShutdownMetadata) part).nodes)
-            );
+            TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(nodesDiff.apply(((NodesShutdownMetadata) part).nodes));
             return new NodesShutdownMetadata(newNodes);
         }
 
@@ -197,8 +209,14 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         }
 
         static Diff<SingleNodeShutdownMetadata> readNodesDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(SingleNodeShutdownMetadata::new, in);
+            return SimpleDiffable.readDiffFrom(SingleNodeShutdownMetadata::new, in);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return NODE_SHUTDOWN_VERSION;
+        }
+
     }
 
 }

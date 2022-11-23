@@ -11,11 +11,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.After;
 
@@ -43,8 +43,12 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
     }
 
-    protected <T> void assertAsync(Consumer<ActionListener<T>> function, T expected, CheckedConsumer<T, ? extends Exception> onAnswer,
-            Consumer<Exception> onException) throws InterruptedException {
+    protected <T> void assertAsync(
+        Consumer<ActionListener<T>> function,
+        T expected,
+        CheckedConsumer<T, ? extends Exception> onAnswer,
+        Consumer<Exception> onException
+    ) throws InterruptedException {
 
         CountDownLatch latch = new CountDownLatch(1);
 

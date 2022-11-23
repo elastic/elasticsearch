@@ -24,28 +24,33 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
@@ -53,6 +58,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 public class TransportGetShutdownStatusActionTests extends ESTestCase {
     public static final String SHUTTING_DOWN_NODE_ID = "node1";
@@ -78,44 +86,50 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         canRemain.set((r, n, a) -> { throw new UnsupportedOperationException("canRemain not initiated in this test"); });
 
         clusterInfoService = EmptyClusterInfoService.INSTANCE;
-        allocationDeciders = new AllocationDeciders(List.of(new NodeShutdownAllocationDecider(), new AllocationDecider() {
-            @Override
-            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return canAllocate.get().test(shardRouting, node, allocation);
-            }
+        allocationDeciders = new AllocationDeciders(
+            List.of(new NodeShutdownAllocationDecider(), new NodeReplacementAllocationDecider(), new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return canAllocate.get().test(shardRouting, node, allocation);
+                }
 
-            @Override
-            public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-                // No behavior should change based on rebalance decisions
-                return Decision.NO;
-            }
+                @Override
+                public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+                    // No behavior should change based on rebalance decisions
+                    return Decision.NO;
+                }
 
-            @Override
-            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return canRemain.get().test(shardRouting, node, allocation);
-            }
+                @Override
+                public Decision canRemain(
+                    IndexMetadata indexMetadata,
+                    ShardRouting shardRouting,
+                    RoutingNode node,
+                    RoutingAllocation allocation
+                ) {
+                    return canRemain.get().test(shardRouting, node, allocation);
+                }
 
-            @Override
-            public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-                // No behavior relevant to these tests should change based on auto expansion decisions
-                throw new UnsupportedOperationException();
-            }
+                @Override
+                public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+                    // No behavior relevant to these tests should change based on auto expansion decisions
+                    throw new UnsupportedOperationException();
+                }
 
-            @Override
-            public Decision canRebalance(RoutingAllocation allocation) {
-                // No behavior should change based on rebalance decisions
-                return Decision.NO;
-            }
-        }));
-        snapshotsInfoService = () -> new SnapshotShardSizeInfo(
-            new ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long>().build()
+                @Override
+                public Decision canRebalance(RoutingAllocation allocation) {
+                    // No behavior should change based on rebalance decisions
+                    return Decision.NO;
+                }
+            })
         );
+        snapshotsInfoService = () -> new SnapshotShardSizeInfo(Map.of());
         allocationService = new AllocationService(
             allocationDeciders,
             new BalancedShardsAllocator(Settings.EMPTY),
             clusterInfoService,
             snapshotsInfoService
         );
+        allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
     }
 
     /**
@@ -343,6 +357,96 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         );
     }
 
+    /**
+     * Ensure we can detect stalled migrations when we have unassigned shards that had the shutting down node as their last known
+     * node id
+     */
+    public void testStalledUnassigned() {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = spy(generateIndexMetadata(index, 3, 0));
+        // make sure the TestGatewayAllocator stays in sync always, avoid flaky tests
+        doAnswer(i -> {
+            if ((Integer) i.getArgument(0) < 2) {
+                return Set.of(LIVE_NODE_ID);
+            }
+            return Set.of(SHUTTING_DOWN_NODE_ID);
+        }).when(imd).inSyncAllocationIds(anyInt());
+
+        var shard0 = TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED);
+        var shard1 = TestShardRouting.newShardRouting(new ShardId(index, 1), LIVE_NODE_ID, true, ShardRoutingState.STARTED);
+
+        // we should stall the node if we find an unassigned shard with lastAllocatedNodeId matching the shutting down node
+        var unassigned = makeUnassignedShard(index, 2, SHUTTING_DOWN_NODE_ID, true);
+
+        assertShardMigration(
+            getUnassignedShutdownStatus(index, imd, shard0, shard1, unassigned),
+            SingleNodeShutdownMetadata.Status.STALLED,
+            1,
+            allOf(containsString(index.getName()), containsString("[2] [primary]"))
+        );
+
+        // if the shard is unassigned, but it's not a primary on this node, we shouldn't stall
+        var shard2 = TestShardRouting.newShardRouting(new ShardId(index, 2), LIVE_NODE_ID, true, ShardRoutingState.STARTED);
+        var unassignedReplica = makeUnassignedShard(index, 2, SHUTTING_DOWN_NODE_ID, false);
+
+        var s = getUnassignedShutdownStatus(index, imd, shard0, shard1, shard2, unassignedReplica);
+        assertShardMigration(s, SingleNodeShutdownMetadata.Status.COMPLETE, 0, nullValue());
+
+        // check if we correctly count all of the unassigned shards
+        var unassigned3 = makeUnassignedShard(index, 3, SHUTTING_DOWN_NODE_ID, true);
+
+        assertShardMigration(
+            getUnassignedShutdownStatus(index, imd, shard0, shard1, unassigned3, unassigned),
+            SingleNodeShutdownMetadata.Status.STALLED,
+            2,
+            allOf(containsString(index.getName()), containsString("[2] [primary]"))
+        );
+
+        // check if we correctly walk all of the unassigned shards, shard 2 replica, shard 3 primary
+        assertShardMigration(
+            getUnassignedShutdownStatus(index, imd, shard0, shard1, shard2, unassignedReplica, unassigned3),
+            SingleNodeShutdownMetadata.Status.STALLED,
+            1,
+            allOf(containsString(index.getName()), containsString("[3] [primary]"))
+        );
+    }
+
+    public void testNotStalledIfAllShardsHaveACopyOnAnotherNode() {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = generateIndexMetadata(index, 3, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, false, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
+        canAllocate.set((r, n, a) -> Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
+
+        assertShardMigration(
+            status,
+            SingleNodeShutdownMetadata.Status.COMPLETE,
+            0,
+            containsString("[1] shards cannot be moved away from this node but have at least one copy on another node in the cluster")
+        );
+    }
+
     public void testOnlyInitializingShardsRemaining() {
         Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
         IndexMetadata imd = generateIndexMetadata(index, 3, 0);
@@ -377,13 +481,13 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
     public void testNodeNotInCluster() {
         String bogusNodeId = randomAlphaOfLength(10);
-        ImmutableOpenMap.Builder<String, IndexMetadata> indicesTable = ImmutableOpenMap.<String, IndexMetadata>builder();
+        Map<String, IndexMetadata> indicesTable = new HashMap<>();
         RoutingTable.Builder routingTable = RoutingTable.builder();
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
                 Metadata.builder()
-                    .indices(indicesTable.build())
+                    .indices(indicesTable)
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
@@ -474,13 +578,13 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         List<IndexMetadata> indices,
         SingleNodeShutdownMetadata.Type shutdownType
     ) {
-        ImmutableOpenMap.Builder<String, IndexMetadata> indicesTable = ImmutableOpenMap.<String, IndexMetadata>builder();
-        indices.forEach(imd -> { indicesTable.fPut(imd.getIndex().getName(), imd); });
+        Map<String, IndexMetadata> indicesTable = new HashMap<>();
+        indices.forEach(imd -> { indicesTable.put(imd.getIndex().getName(), imd); });
 
         return ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
                 Metadata.builder()
-                    .indices(indicesTable.build())
+                    .indices(indicesTable)
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
@@ -530,10 +634,61 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .build();
     }
 
-    private static class TestSnapshotInfoService implements SnapshotsInfoService {
-        @Override
-        public SnapshotShardSizeInfo snapshotShardSizes() {
-            return new SnapshotShardSizeInfo(new ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long>().build());
+    private UnassignedInfo makeUnassignedInfo(String nodeId) {
+        return new UnassignedInfo(
+            UnassignedInfo.Reason.ALLOCATION_FAILED,
+            "testing",
+            null,
+            1,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            false,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            nodeId
+        );
+    }
+
+    private ShardRouting makeUnassignedShard(Index index, int shardId, String nodeId, boolean primary) {
+        var unsignedInfo = makeUnassignedInfo(nodeId);
+
+        return TestShardRouting.newShardRouting(
+            new ShardId(index, shardId),
+            null,
+            null,
+            primary,
+            ShardRoutingState.UNASSIGNED,
+            unsignedInfo
+        );
+    }
+
+    private ShutdownShardMigrationStatus getUnassignedShutdownStatus(Index index, IndexMetadata imd, ShardRouting... shards) {
+        var indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+
+        for (var routing : shards) {
+            indexRoutingTableBuilder.addShard(routing);
         }
+
+        var indexRoutingTable = indexRoutingTableBuilder.build();
+
+        // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
+        canAllocate.set((r, n, a) -> Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        return TransportGetShutdownStatusAction.shardMigrationStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
     }
 }

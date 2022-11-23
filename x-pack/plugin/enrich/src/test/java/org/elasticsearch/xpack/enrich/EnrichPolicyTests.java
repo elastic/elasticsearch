@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.ByteArrayOutputStream;
@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy> {
+public class EnrichPolicyTests extends AbstractXContentSerializingTestCase<EnrichPolicy> {
 
     @Override
     protected EnrichPolicy doParseInstance(XContentParser parser) throws IOException {
@@ -97,4 +97,19 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
         assertThat(newInstance.getMatchField(), equalTo(expectedInstance.getMatchField()));
         assertThat(newInstance.getEnrichFields(), equalTo(expectedInstance.getEnrichFields()));
     }
+
+    public void testIsPolicyForIndex() {
+        String policy1 = "policy-1";
+        String policy2 = "policy-10"; // the first policy is a prefix of the second policy!
+
+        String index1 = EnrichPolicy.getIndexName(policy1, 1000);
+        String index2 = EnrichPolicy.getIndexName(policy2, 2000);
+
+        assertTrue(EnrichPolicy.isPolicyForIndex(policy1, index1));
+        assertTrue(EnrichPolicy.isPolicyForIndex(policy2, index2));
+
+        assertFalse(EnrichPolicy.isPolicyForIndex(policy1, index2));
+        assertFalse(EnrichPolicy.isPolicyForIndex(policy2, index1));
+    }
+
 }

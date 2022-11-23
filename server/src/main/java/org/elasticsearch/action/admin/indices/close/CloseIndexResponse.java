@@ -10,34 +10,34 @@ package org.elasticsearch.action.admin.indices.close;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.unmodifiableList;
-
 public class CloseIndexResponse extends ShardsAcknowledgedResponse {
+
+    public static final CloseIndexResponse EMPTY = new CloseIndexResponse(true, false, List.of());
 
     private final List<IndexResult> indices;
 
     CloseIndexResponse(StreamInput in) throws IOException {
         super(in, true);
-        indices = unmodifiableList(in.readList(IndexResult::new));
+        indices = in.readImmutableList(IndexResult::new);
     }
 
     public CloseIndexResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<IndexResult> indices) {
         super(acknowledged, shardsAcknowledged);
-        this.indices = unmodifiableList(Objects.requireNonNull(indices));
+        this.indices = List.copyOf(indices);
     }
 
     public List<IndexResult> getIndices() {

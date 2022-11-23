@@ -6,17 +6,16 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -39,10 +38,8 @@ public class RestGetRolesAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_security/role/")
-                .replaces(GET, "/_xpack/security/role/", RestApiVersion.V_7).build(),
-            Route.builder(GET, "/_security/role/{name}")
-                .replaces(GET, "/_xpack/security/role/{name}", RestApiVersion.V_7).build()
+            Route.builder(GET, "/_security/role/").replaces(GET, "/_xpack/security/role/", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_security/role/{name}").replaces(GET, "/_xpack/security/role/{name}", RestApiVersion.V_7).build()
         );
     }
 
@@ -54,9 +51,7 @@ public class RestGetRolesAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
-        return channel -> new GetRolesRequestBuilder(client)
-            .names(roles)
-            .execute(new RestBuilderListener<>(channel) {
+        return channel -> new GetRolesRequestBuilder(client).names(roles).execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(GetRolesResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
@@ -68,12 +63,12 @@ public class RestGetRolesAction extends SecurityBaseRestHandler {
                 // if the user asked for specific roles, but none of them were found
                 // we'll return an empty result and 404 status code
                 if (roles.length != 0 && response.roles().length == 0) {
-                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                    return new RestResponse(RestStatus.NOT_FOUND, builder);
                 }
 
                 // either the user asked for all roles, or at least one of the roles
                 // the user asked for was found
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }

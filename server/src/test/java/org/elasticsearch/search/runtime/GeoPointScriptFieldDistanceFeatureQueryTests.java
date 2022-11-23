@@ -9,21 +9,23 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.geo.GeoTestUtil;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -64,23 +66,12 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
         double lon = orig.lon();
         double pivot = orig.pivot();
         switch (randomInt(4)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                lat = randomValueOtherThan(lat, GeoTestUtil::nextLatitude);
-                break;
-            case 3:
-                lon = randomValueOtherThan(lon, GeoTestUtil::nextLongitude);
-                break;
-            case 4:
-                pivot = randomValueOtherThan(pivot, () -> randomDouble() * GeoUtils.EARTH_EQUATOR);
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> lat = randomValueOtherThan(lat, GeoTestUtil::nextLatitude);
+            case 3 -> lon = randomValueOtherThan(lon, GeoTestUtil::nextLongitude);
+            case 4 -> pivot = randomValueOtherThan(pivot, () -> randomDouble() * GeoUtils.EARTH_EQUATOR);
+            default -> fail();
         }
         return new GeoPointScriptFieldDistanceFeatureQuery(script, leafFactory, fieldName, lat, lon, pivot);
     }
@@ -92,24 +83,22 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"location\": [-3.56, -45.98]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchLookup searchLookup = new SearchLookup(null, null);
-                Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new GeoPointFieldScript(
+                SearchLookup searchLookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider());
+                Function<LeafReaderContext, GeoPointFieldScript> leafFactory = ctx -> new GeoPointFieldScript(
                     "test",
                     Map.of(),
                     searchLookup,
                     ctx
                 ) {
-                    final GeoPoint point = new GeoPoint();
-
                     @Override
                     public void execute() {
-                        GeoUtils.parseGeoPoint(searchLookup.source().get("location"), point, true);
+                        GeoPoint point = GeoUtils.parseGeoPoint(searchLookup.source().source().get("location"), true);
                         emit(point.lat(), point.lon());
                     }
                 };
                 GeoPointScriptFieldDistanceFeatureQuery query = new GeoPointScriptFieldDistanceFeatureQuery(
                     randomScript(),
-                    leafFactory,
+                    GeoPointScriptFieldType.valuesEncodedAsLong(searchLookup, "test", leafFactory),
                     "test",
                     0,
                     0,

@@ -94,7 +94,8 @@ public class RelevantScriptFeatureExtractorTests extends ESTestCase {
         results = extractor.extractFeatures("8*1ゟ12----");
         assertThat(results.length, equalTo(1));
         assertThat(results[0].getRow(), equalTo(ScriptDetector.Script.kScriptHiragana.toInt()));
-        assertThat(results[0].getWeight(), closeTo(1.0, eps));;
+        assertThat(results[0].getWeight(), closeTo(1.0, eps));
+        ;
     }
 
 }

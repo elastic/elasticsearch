@@ -16,10 +16,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
 import java.util.List;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
@@ -31,16 +31,15 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled
-            = updateableBoolParam("enabled", m -> toType(m).enabled, false);
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", m -> toType(m).enabled, false);
 
         private Builder() {
             super(NAME);
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(enabled);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { enabled };
         }
 
         @Override
@@ -57,14 +56,14 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return lookup -> List.of();
+                return (lookup, doc, ignoredValues) -> List.of();
             }
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new SizeFieldMapper(new Explicit<>(false, false), new SizeFieldType()),
+        c -> new SizeFieldMapper(Explicit.IMPLICIT_FALSE, new SizeFieldType()),
         c -> new Builder()
     );
 
@@ -85,17 +84,22 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(DocumentParserContext context) throws IOException {
+    public void postParse(DocumentParserContext context) {
         // we post parse it so we get the size stored, possibly compressed (source will be preParse)
         if (enabled.value() == false) {
             return;
         }
         final int value = context.sourceToParse().source().length();
-        context.doc().addAll(NumberType.INTEGER.createFields(name(), value, true, true, true));
+        NumberType.INTEGER.addFields(context.doc(), name(), value, true, true, true);
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder().init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

@@ -38,8 +38,7 @@ public class HttpResponseInputStream extends FilterInputStream {
     private static class EmptyInputStream extends InputStream {
         public static final EmptyInputStream INSTANCE = new EmptyInputStream();
 
-        private EmptyInputStream() {
-        }
+        private EmptyInputStream() {}
 
         @Override
         public int available() {
@@ -47,12 +46,10 @@ public class HttpResponseInputStream extends FilterInputStream {
         }
 
         @Override
-        public void close() {
-        }
+        public void close() {}
 
         @Override
-        public void mark(final int readLimit) {
-        }
+        public void mark(final int readLimit) {}
 
         @Override
         public boolean markSupported() {
@@ -75,8 +72,7 @@ public class HttpResponseInputStream extends FilterInputStream {
         }
 
         @Override
-        public void reset() {
-        }
+        public void reset() {}
 
         @Override
         public long skip(final long n) {

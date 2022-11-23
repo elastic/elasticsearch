@@ -1,0 +1,341 @@
+[[release-notes-8.1.0]]
+== {es} version 8.1.0
+
+Also see <<breaking-changes-8.1,Breaking changes in 8.1>>.
+
+[[breaking-8.1.0]]
+[float]
+=== Breaking changes
+
+Geo::
+* Fields API should return normalize geometries {es-pull}80649[#80649] (issues: {es-issue}79232[#79232], {es-issue}63739[#63739])
+
+[[bug-8.1.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Reenable `BooleanTermsIT` {es-pull}83421[#83421] (issue: {es-issue}83351[#83351])
+* backward compatibility with version 7.17.0 {es-pull}83715[#83715]
+* ip prefix bucket reduction {es-pull}83637[#83637]
+* reduce float and half-float values to their stored precision {es-pull}83213[#83213]
+
+Allocation::
+* Fix `updateMinNode` condition {es-pull}80403[#80403] (issue: {es-issue}41194[#41194])
+* Make `*.routing.allocation.*` list-based setting {es-pull}80420[#80420] (issue: {es-issue}77773[#77773])
+* Permit metadata updates on flood-stage-blocked indices {es-pull}81781[#81781]
+* Reroute after cluster recovery {es-pull}82856[#82856] (issue: {es-issue}82456[#82456])
+
+Authorization::
+* Capture anonymous roles when creating API keys {es-pull}81427[#81427] (issue: {es-issue}81024[#81024])
+* Extend fleet-server service account privileges {es-pull}82600[#82600]
+
+Autoscaling::
+* Fix autoscaling of follower data streams {es-pull}83302[#83302] (issue: {es-issue}82857[#82857])
+
+Client::
+* Fix for self-suppression in REST client {es-pull}83568[#83568] (issue: {es-issue}42223[#42223])
+
+Distributed::
+* [GCE Discovery] Correctly handle large zones with 500 or more instances {es-pull}83785[#83785] (issue: {es-issue}83783[#83783])
+
+Engine::
+* Fork to `WRITE` thread when failing shard {es-pull}84606[#84606] (issue: {es-issue}84602[#84602])
+
+Geo::
+* Handle bounds properly when grid tiles crosses the dateline {es-pull}83348[#83348] (issue: {es-issue}83299[#83299])
+* `GeometryNormalizer` should not fail if it cannot compute signed area {es-pull}84051[#84051] (issue: {es-issue}83946[#83946])
+
+ILM+SLM::
+* Fix `PolicyStepsRegistry`'s `cachedSteps` null handling {es-pull}84588[#84588]
+
+Indices APIs::
+* Allow removing unreferenced composable data stream templates {es-pull}84376[#84376] (issues: {es-issue}84171[#84171], {es-issue}84188[#84188])
+* Simplify and speed up `ExecutorSelector` {es-pull}83514[#83514] (issue: {es-issue}82450[#82450])
+
+Infra/Core::
+* Always re-run Feature migrations which have encountered errors {es-pull}83918[#83918] (issue: {es-issue}83917[#83917])
+* Copy `trace.id` in threadcontext stash {es-pull}83218[#83218]
+* Preserve context in `ResultDeduplicator` {es-pull}84038[#84038] (issue: {es-issue}84036[#84036])
+* Registration of `SystemIndexMigrationTask` named xcontent objects {es-pull}84192[#84192] (issue: {es-issue}84115[#84115])
+* Update system index mappings if `_meta` is null {es-pull}83896[#83896] (issue: {es-issue}83890[#83890])
+
+Infra/REST API::
+* Do not allow safelisted media types on Content-Type {es-pull}83448[#83448]
+
+Infra/Scripting::
+* Fix duplicated allow lists upon script engine creation {es-pull}82820[#82820] (issue: {es-issue}82778[#82778])
+* Fix plumbing in double and keyword runtime fields for the scripting fields API {es-pull}83392[#83392]
+
+Ingest::
+* Fix `GeoIpDownloader` startup during rolling upgrade {es-pull}84000[#84000]
+* Short circuit date patterns after first match {es-pull}83764[#83764]
+
+Machine Learning::
+* Allow autoscaling to work when vertical scaling is possible {es-pull}84242[#84242] (issue: {es-issue}84198[#84198])
+* Correctly capture min stats for `inference.ingest_processors` in ML usage {es-pull}82352[#82352]
+* Fail queued inference requests with cause if the process crashes {es-pull}81584[#81584]
+* Fix NLP tokenization `never_split` handling around punctuation {es-pull}82982[#82982]
+* Fix `ZeroShotClassificationConfig` update mixing fields {es-pull}82848[#82848]
+* Fix bug where initial scale from 0->1 could scale too high {es-pull}84244[#84244]
+* Fix submit after shutdown in process worker service {es-pull}83645[#83645] (issue: {es-issue}83633[#83633])
+* Fixes `categorize_text` parameter validation to be parse order independent {es-pull}82628[#82628] (issue: {es-issue}82629[#82629])
+* Record node shutdown start time for each node {es-pull}84355[#84355]
+* Register the named X-content parser for snapshot upgrade params {es-pull}84420[#84420] (issue: {es-issue}84419[#84419])
+* Retry anomaly detection job recovery during relocation {es-pull}83456[#83456]
+* Return `zxx` for `lang_ident_model_1` if no valid text is found for language identification {es-pull}82746[#82746] (issue: {es-issue}81933[#81933])
+* Text structure finder caps exclude lines pattern at 1000 characters {es-pull}84236[#84236] (issue: {es-issue}83434[#83434])
+* Validate vocabulary on model deployment {es-pull}81548[#81548] (issue: {es-issue}81470[#81470])
+* Wait for model process to stop in stop deployment {es-pull}83644[#83644]
+
+Mapping::
+* Add support for sub-fields to `search_as_you_type` fields {es-pull}82430[#82430] (issue: {es-issue}56326[#56326])
+* Better exception message for `MappingParser.parse` {es-pull}80696[#80696]
+* Completion field to support multiple completion multi-fields {es-pull}83595[#83595] (issue: {es-issue}83534[#83534])
+
+Network::
+* Throw `NoSeedNodeLeftException` on proxy failure {es-pull}80961[#80961] (issue: {es-issue}80898[#80898])
+
+Packaging::
+* Add `log4j-slf4j-impl` to `repository-azure` {es-pull}83661[#83661] (issue: {es-issue}83652[#83652])
+* Restart ES after keystore upgrade in postinst {es-pull}84224[#84224] (issue: {es-issue}82433[#82433])
+
+Recovery::
+* Add missing `indices.recovery.internal_action_retry_timeout` to list of settings {es-pull}83354[#83354]
+* Add missing max overcommit factor to list of (dynamic) settings {es-pull}83350[#83350]
+
+SQL::
+* Fix txt format for empty result sets {es-pull}83376[#83376]
+
+Search::
+* Avoid eagerly loading `StoredFieldsReader` in fetch phase {es-pull}83693[#83693] (issue: {es-issue}82777[#82777])
+* Do not deserialise the document when not needed in the fields fetch phase {es-pull}84184[#84184]
+* Returns valid PIT when no index matched {es-pull}83424[#83424]
+
+Security::
+* Add validation for API key role descriptors {es-pull}82049[#82049] (issue: {es-issue}67311[#67311])
+
+Snapshot/Restore::
+* Adjust `LinuxFileSystemNatives.allocatedSizeInBytes` for aarch64 architectures {es-pull}81376[#81376] (issues: {es-issue}80437[#80437], {es-issue}81362[#81362])
+* Distinguish "missing repository" from "missing repository plugin" {es-pull}82457[#82457] (issue: {es-issue}81758[#81758])
+* Fix `DirectBlobContainerIndexInput` cloning method {es-pull}84341[#84341] (issue: {es-issue}84238[#84238])
+* Move get snapshots serialization to management pool {es-pull}83215[#83215]
+* Preserve context in `snapshotDeletionListeners` {es-pull}84089[#84089] (issue: {es-issue}84036[#84036])
+
+TSDB::
+* Fix time series timestamp meta missing {es-pull}80695[#80695]
+
+Transform::
+* Fix NPE in transform version check {es-pull}81756[#81756]
+* Fix condition on which the transform stops processing buckets {es-pull}82852[#82852]
+* Prevent stopping of transforms due to threadpool limitation {es-pull}81912[#81912] (issue: {es-issue}81796[#81796])
+
+Watcher::
+* Tolerate empty types array in Watch definitions {es-pull}83524[#83524] (issue: {es-issue}83235[#83235])
+
+[[deprecation-8.1.0]]
+[float]
+=== Deprecations
+
+CRUD::
+* Bulk actions JSON must be well-formed {es-pull}78876[#78876] (issue: {es-issue}43774[#43774])
+
+Cluster Coordination::
+* Remove last few mentions of Zen discovery {es-pull}80410[#80410]
+
+SQL::
+* Deprecate `index_include_frozen` request parameter {es-pull}83943[#83943] (issue: {es-issue}81939[#81939])
+
+[[enhancement-8.1.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Add an aggregator for IPv4 and IPv6 subnets {es-pull}82410[#82410]
+* Fail shards early when we can detect a type missmatch {es-pull}79869[#79869] (issue: {es-issue}72276[#72276])
+* Optimize `significant_text` aggregation to only parse the field it requires from `_source` {es-pull}79651[#79651]
+
+Allocation::
+* Identify other node in `SameShardAllocDec` message {es-pull}82890[#82890] (issue: {es-issue}80767[#80767])
+* Make `AllocationService#adaptAutoExpandReplicas` Faster {es-pull}83092[#83092]
+* Speed up same host check {es-pull}80767[#80767]
+
+Analysis::
+* Expose Japanese completion filter to kuromoji analysis plugin {es-pull}81858[#81858]
+
+Authentication::
+* Enable `run_as` for all authentication schemes {es-pull}79809[#79809]
+* Return API key name in `_authentication` response {es-pull}78946[#78946] (issue: {es-issue}70306[#70306])
+
+Authorization::
+* Avoid loading authorized indices when requested indices are all concrete names {es-pull}81237[#81237]
+* Optimize DLS bitset building for `matchAll` query {es-pull}81030[#81030] (issue: {es-issue}80904[#80904])
+
+Cluster Coordination::
+* Add detail to slow cluster state warning message {es-pull}83221[#83221]
+* Batch Index Settings Update Requests {es-pull}82896[#82896] (issue: {es-issue}79866[#79866])
+* Improve node-join task descriptions {es-pull}80090[#80090]
+* Make `PeerFinder` log messages happier {es-pull}83222[#83222]
+* More compact serialization of metadata {es-pull}82608[#82608] (issue: {es-issue}77466[#77466])
+* Paginate persisted cluster state {es-pull}78875[#78875]
+* Reduce verbosity-increase timeout to 3 minutes {es-pull}81118[#81118]
+* Use network recycler for publications {es-pull}80650[#80650] (issue: {es-issue}80111[#80111])
+
+Data streams::
+* Defer reroute when autocreating datastream {es-pull}82412[#82412] (issue: {es-issue}82159[#82159])
+
+ILM+SLM::
+* Expose the index age in ILM explain output {es-pull}81273[#81273] (issue: {es-issue}64429[#64429])
+
+Indices APIs::
+* Batch auto create index cluster state updates {es-pull}82159[#82159]
+* Expose 'features' option in Get Index API {es-pull}83083[#83083] (issue: {es-issue}82948[#82948])
+* Expose index health and status to the `_stats` API {es-pull}81954[#81954] (issue: {es-issue}80413[#80413])
+* Force merge REST API support `wait_for_completion` {es-pull}80463[#80463] (issues: {es-issue}80129[#80129], {es-issue}80129[#80129])
+
+Infra/Circuit Breakers::
+* Allow dynamically changing the `use_real_memory` setting {es-pull}78288[#78288] (issue: {es-issue}77324[#77324])
+
+Infra/Core::
+* Use `VarHandles` for number conversions {es-pull}80367[#80367] (issue: {es-issue}78823[#78823])
+* Use `VarHandles` in `ByteUtils` {es-pull}80442[#80442] (issue: {es-issue}78823[#78823])
+* `FilterPathBasedFilter` support match fieldname with dot {es-pull}83178[#83178] (issues: {es-issue}83148[#83148], {es-issue}83152[#83152])
+
+Infra/REST API::
+* Allow for customised content-type validation {es-pull}80906[#80906] (issue: {es-issue}80482[#80482])
+* Update YAML REST tests to check for product header on all responses {es-pull}83290[#83290]
+
+Infra/Scripting::
+* Add '$' syntax as a shortcut for 'field' in Painless {es-pull}80518[#80518]
+* Add `BinaryDocValuesField` to replace `BytesRef` `(ScriptDocValues)` {es-pull}79760[#79760]
+* Add a geo point field for the scripting fields api {es-pull}81395[#81395]
+* Add date fields to the scripting fields api {es-pull}81272[#81272]
+* Add half float mapping to the scripting fields API {es-pull}82294[#82294]
+* Add scaled float to the scripting fields API {es-pull}82275[#82275]
+* Add support for `GeoShape` to the scripting fields API {es-pull}81617[#81617]
+* Fields API for IP mapped type {es-pull}81396[#81396]
+* Fields API for byte, double, float, integer, long, short {es-pull}81126[#81126] (issue: {es-issue}79105[#79105])
+* Fields API for flattened mapped type {es-pull}82590[#82590]
+* Fields API for x-pack `constant_keyword` {es-pull}82292[#82292]
+* Fields API for x-pack version, doc version, seq no, mumur3 {es-pull}81476[#81476]
+* Improve support for joda datetime to java datetime in Painless {es-pull}83099[#83099]
+* Keyword fields API support {es-pull}81266[#81266]
+* Make wildcard accessible from the scripting field API {es-pull}82763[#82763]
+* Ordinal field data plumbing {es-pull}80970[#80970] (issue: {es-issue}79105[#79105])
+* Support boolean fields in Fields API {es-pull}80043[#80043] (issue: {es-issue}79105[#79105])
+* Time series compile and cache evict metrics {es-pull}79078[#79078] (issue: {es-issue}62899[#62899])
+
+Infra/Settings::
+* Optimize duplicated code block in `MetadataUpdateSettingsService` {es-pull}82048[#82048]
+
+Machine Learning::
+* Add ability to update the truncation option at inference {es-pull}80267[#80267]
+* Add error counts to trained model stats {es-pull}82705[#82705]
+* Add latest search interval to datafeed stats {es-pull}82620[#82620] (issue: {es-issue}82405[#82405])
+* Adds new MPNet tokenization for NLP models {es-pull}82234[#82234]
+* Force delete trained models {es-pull}80595[#80595]
+* Improve error message on starting scrolling datafeed with no matching indices {es-pull}81069[#81069] (issue: {es-issue}81013[#81013])
+* Report thread settings per node for trained model deployments {es-pull}81723[#81723] (issue: {es-issue}81149[#81149])
+* Set default value of 30 days for model prune window {es-pull}81377[#81377]
+* Track token positions and use source string to tag NER entities {es-pull}81275[#81275]
+* Warn when creating job with an unusual bucket span {es-pull}82145[#82145] (issue: {es-issue}81645[#81645])
+
+Mapping::
+* Allow doc-values only search on geo_point fields {es-pull}83395[#83395]
+* Implement all queries on doc-values only keyword fields {es-pull}83404[#83404]
+* Optimize source filtering in `SourceFieldMapper` {es-pull}81970[#81970] (issues: {es-issue}77154[#77154], {es-issue}81575[#81575])
+
+Monitoring::
+* Add Enterprise Search monitoring index templates {es-pull}82743[#82743]
+* Add `beats_stats.metrics.apm-server.sampling.tail` to Stack Monitoring templates {es-pull}82401[#82401]
+
+Network::
+* Report close connection exceptions at INFO {es-pull}81768[#81768] (issues: {es-issue}51612[#51612], {es-issue}66473[#66473])
+* Serialize outbound messages on netty buffers {es-pull}80111[#80111]
+* Track histogram of transport handling times {es-pull}80581[#80581] (issue: {es-issue}80428[#80428])
+
+Recovery::
+* Adjust `indices.recovery.max_bytes_per_sec` according to external settings {es-pull}82819[#82819]
+
+SQL::
+* Compress Cursors {es-pull}83591[#83591]
+* Extend Tableau connector to reconnect with catalog {es-pull}81321[#81321]
+
+Search::
+* Add `scripted_metric` agg context to `unsigned_long` {es-pull}64422[#64422] (issue: {es-issue}64347[#64347])
+* Add field usage support for vectors {es-pull}80608[#80608]
+* Allow doc-values only search on boolean fields {es-pull}82925[#82925] (issues: {es-issue}82409[#82409], {es-issue}81210[#81210], {es-issue}52728[#52728])
+* Allow doc-values only search on date types {es-pull}82602[#82602] (issues: {es-issue}82409[#82409], {es-issue}81210[#81210], {es-issue}52728[#52728])
+* Allow doc-values only search on ip fields {es-pull}82929[#82929] (issues: {es-issue}82409[#82409], {es-issue}81210[#81210], {es-issue}52728[#52728])
+* Allow doc-values only search on keyword fields {es-pull}82846[#82846] (issues: {es-issue}82409[#82409], {es-issue}81210[#81210], {es-issue}52728[#52728])
+* Allow doc-values only search on number types {es-pull}82409[#82409] (issues: {es-issue}81210[#81210], {es-issue}52728[#52728])
+* Rewrite `match` and `match_phrase` queries to `term` queries on `keyword` fields {es-pull}82612[#82612] (issue: {es-issue}82515[#82515])
+* Short cut if reader has point values {es-pull}80268[#80268]
+* Support combining `_shards` preference param with `<custom-string>` {es-pull}80024[#80024] (issue: {es-issue}80021[#80021])
+
+Security::
+* Activate user profile API {es-pull}82400[#82400]
+* Add an initial `ProfileService` for user profiles {es-pull}81899[#81899]
+* Add new system index for user profile documents {es-pull}81355[#81355]
+* Add update user profile data API {es-pull}82772[#82772]
+* Add user profile API for get profile by UID {es-pull}81910[#81910]
+* Update Kibana system user privileges {es-pull}82781[#82781]
+
+Snapshot/Restore::
+* Add Linux x86-64bits native method to retrieve the number of allocated bytes on disk for a file {es-pull}80437[#80437] (issue: {es-issue}79698[#79698])
+
+Stats::
+* Add index pressure stats in cluster stats {es-pull}80303[#80303] (issue: {es-issue}79788[#79788])
+* Optimize `getIndices` in `IndicesSegmentResponse` {es-pull}80064[#80064]
+* Speed up `MappingStats` Computation on Coordinating Node {es-pull}82830[#82830]
+
+TSDB::
+* Add `_tsid` field to `time_series` indices {es-pull}80276[#80276]
+* Make time boundaries settings required in TSDB indices {es-pull}81146[#81146]
+
+Transform::
+* Introduce `deduce_mappings` transform setting {es-pull}82256[#82256] (issue: {es-issue}82559[#82559])
+* Make it possible to clear retention policy on an existing transform {es-pull}82703[#82703] (issue: {es-issue}82560[#82560])
+* Report transforms without config as erroneous {es-pull}81141[#81141] (issue: {es-issue}80955[#80955])
+
+[[feature-8.1.0]]
+[float]
+=== New features
+
+Authentication::
+* Initial version of JWT Realm {es-pull}82175[#82175]
+* Introduce domain setting to associate realms {es-pull}81968[#81968]
+
+Distributed::
+* Add desired nodes API {es-pull}82975[#82975]
+
+Geo::
+* New `GeoHexGrid` aggregation {es-pull}82924[#82924]
+
+Health::
+* Model for the new health reporting api {es-pull}83398[#83398]
+
+TSDB::
+* Handle `fields.with.dots` in `routing_path` {es-pull}83148[#83148]
+
+Transform::
+* Add transform reset API {es-pull}79828[#79828] (issue: {es-issue}75768[#75768])
+
+[[upgrade-8.1.0]]
+[float]
+=== Upgrades
+
+Geo::
+* Update vector tiles google protobuf to 3.16.1 {es-pull}83402[#83402]
+
+Network::
+* Upgrade to Netty 4.1.73 {es-pull}82844[#82844]
+
+Packaging::
+* Bump bundled JDK to 17.0.2+8 {es-pull}83243[#83243] (issue: {es-issue}83242[#83242])
+
+Security::
+* Upgrade jANSI dependency to 2.4.0 {es-pull}83566[#83566]
+
+
+

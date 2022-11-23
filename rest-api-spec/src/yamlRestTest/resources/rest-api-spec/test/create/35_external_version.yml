@@ -5,7 +5,7 @@
       catch:              bad_request
       create:
           index:          test
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external
           version:        0
@@ -18,7 +18,7 @@
       catch:              bad_request
       create:
           index:          test
-          id:             2
+          id:             "2"
           body:           { foo: bar }
           version_type:   external
           version:        5

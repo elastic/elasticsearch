@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-search]]
 === Rollup search
 ++++
@@ -9,6 +8,9 @@
 Enables searching rolled-up data using the standard Query DSL.
 
 experimental[]
+
+NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
+rollups as a way to reduce your storage costs for time series data.
 
 [[rollup-search-request]]
 ==== {api-request-title}

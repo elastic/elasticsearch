@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[xpack-ccr]]
 == {ccr-cap}
 With {ccr}, you can replicate indices across clusters to:
@@ -32,7 +31,7 @@ If newer, the versions must also be compatible as outlined in the following matr
 [[ccr-version-compatibility]]
 .Version compatibility matrix
 ====
-include::../modules/remote-clusters.asciidoc[tag=remote-cluster-compatibility-matrix]
+include::../modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
 [discrete]
@@ -52,9 +51,15 @@ secondary cluster
 
 Watch the
 https://www.elastic.co/webinars/replicate-elasticsearch-data-with-cross-cluster-replication-ccr[{ccr} webinar] to learn more about the following use cases.
-Then, <<ccr-getting-started,set up {ccr}>> on your local machine and work
+Then, <<ccr-getting-started-tutorial,set up {ccr}>> on your local machine and work
 through the demo from the webinar.
 
+IMPORTANT: In all of these use cases, you must
+<<manually-configure-security,configure security>> independently on every
+cluster. The security configuration is not replicated when configuring {ccr} for 
+disaster recovery. To ensure that the {es} `security` feature state is backed up,
+<<back-up-specific-feature-state,take snapshots>> regularly. You can then restore
+the native users, roles, and tokens from your security configuration.
 [discrete]
 [[ccr-disaster-recovery]]
 ==== Disaster recovery and high availability
@@ -163,7 +168,7 @@ image::images/ccr-arch-central-reporting.png[Three clusters in different regions
 [discrete]
 [[ccr-replication-mechanics]]
 === Replication mechanics
-Although you <<ccr-getting-started,set up {ccr}>> at the index level, {es}
+Although you <<ccr-getting-started-tutorial,set up {ccr}>> at the index level, {es}
 achieves replication at the shard level. When a follower index is created,
 each shard in that index pulls changes from its corresponding shard in the
 leader index, which means that a follower index has the same number of
@@ -194,7 +199,12 @@ follower shard pauses
 ==== Processing updates
 You can't manually modify a follower index's mappings or aliases. To make
 changes, you must update the leader index. Because they are read-only, follower
-indices reject writes in all configurations. 
+indices reject writes in all configurations.
+
+NOTE: Although changes to aliases on the leader index are replicated to follower
+indices, write indices are ignored. Follower indices can't accept direct writes,
+so if any leader aliases have `is_write_index` set to `true`, that value is
+forced to `false`.
 
 For example, you index a document named `doc_1` in Datacenter A, which
 replicates to Datacenter B. If a client connects to Datacenter B and attempts
@@ -212,19 +222,11 @@ To manage how operations are replicated from the leader index, you can
 configure settings when
 <<ccr-getting-started-follower-index,creating the follower index>>.
 
-The follower index automatically retrieves some updates applied to the leader
-index, while other updates are retrieved as needed:
-
-[cols="3"]
-|===
-h| Update type h| Automatic  h| As needed
-| Alias        | {yes-icon} | {no-icon}
-| Mapping      | {no-icon}  | {yes-icon}
-| Settings     | {no-icon}  | {yes-icon}
-|===
-
-For example, changing the number of replicas on the leader index is not
-replicated by the follower index, so that setting might not be retrieved.
+Changes in the index mapping on the leader index are replicated to the
+follower index as soon as possible. This behavior is true for index
+settings as well, except for some settings that are local to the leader
+index. For example, changing the number of replicas on the leader index is
+not replicated by the follower index, so that setting might not be retrieved.
 
 If you apply a non-dynamic settings change to the leader index that is
 needed by the follower index, the follower index closes itself, applies the
@@ -306,10 +308,36 @@ enabled.
 This following sections provide more information about how to configure
 and use {ccr}:
 
-* <<ccr-getting-started>>
+* <<ccr-getting-started-tutorial>>
 * <<ccr-managing>>
 * <<ccr-auto-follow>>
 * <<ccr-upgrading>>
+
+[discrete]
+[[ccr-limitations]]
+=== {ccr-cap} limitations
+{ccr-cap} is designed to replicate user-generated indices only, and doesn't 
+currently replicate any of the following:
+
+* <<system-indices,System indices>>
+* {ml-docs}/machine-learning-intro.html[Machine learning jobs]
+* <<index-templates,index templates>>
+* <<index-lifecycle-management,{ilm-cap}>> and
+<<snapshot-lifecycle-management-api,{slm}>> polices
+* {ref}/mapping-roles.html[User permissions and role mappings]
+* <<snapshots-register-repository,Snapshot repository settings>>
+* <<modules-cluster,Cluster settings>>
+* <<searchable-snapshots,Searchable snapshot>>
+
+If you want to replicate any of this data, you must replicate it to a remote
+cluster manually. 
+
+NOTE: Data for <<searchable-snapshots,searchable snapshot>> indices is stored in 
+the snapshot repository. {ccr-cap} won't replicate these indices completely, even
+though they're either partially or fully-cached on the {es} nodes. To achieve
+searchable snapshots in a remote cluster, configure snapshot repositories on
+the remote cluster and use the same {ilm} policy from the local cluster to move 
+data into the cold or frozen tiers on the remote cluster.
 
 include::getting-started.asciidoc[]
 include::managing.asciidoc[]

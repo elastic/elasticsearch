@@ -1,8 +1,8 @@
 ---
 "Dynamic templates":
   - skip:
-      version: " - 7.12.99"
-      reason: "Dynamic templates parameter is added to bulk requests in 7.13"
+      version: " - 8.1.0"
+      reason: "Error message has changed in 8.1.0"
 
   - do:
       indices.create:
@@ -166,6 +166,6 @@
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: mapper_parsing_exception }
-  - match: { items.0.index.error.reason: "Field [foo] must be an object; but it's configured as [keyword] in dynamic template [string]"}
+  - match: { items.0.index.error.reason: "failed to parse field [foo] of type [keyword] in document with id 'id_11'. Preview of field's value: '{bar=hello world}'"}
   - match: { items.1.index.status: 201 }
   - match: { items.1.index.result: created }

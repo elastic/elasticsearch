@@ -9,16 +9,17 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.net.ConnectException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -96,12 +96,13 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 3, -1);
         task.coordinateReads();
-        assertThat(shardChangesRequests, contains(new long[]{0L, 8L})); // treat this a peak request
+        assertThat(shardChangesRequests, contains(new long[] { 0L, 8L })); // treat this a peak request
         shardChangesRequests.clear();
         task.innerHandleReadResponse(0, 5L, generateShardChangesResponse(0, 5L, 0L, 0L, 1L, 60L));
-        assertThat(shardChangesRequests, contains(new long[][]{
-            {6L, 8L}, {14L, 8L}, {22L, 8L}, {30L, 8L}, {38L, 8L}, {46L, 8L}, {54L, 7L}}
-        ));
+        assertThat(
+            shardChangesRequests,
+            contains(new long[][] { { 6L, 8L }, { 14L, 8L }, { 22L, 8L }, { 30L, 8L }, { 38L, 8L }, { 46L, 8L }, { 54L, 7L } })
+        );
         ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.outstandingReadRequests(), equalTo(7));
         assertThat(status.lastRequestedSeqNo(), equalTo(60L));
@@ -297,8 +298,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                     assertThat(shardNotFoundException.getShardId().getId(), equalTo(0));
                 } else {
                     assertThat(entry.getValue().v2().getCause(), instanceOf(EsRejectedExecutionException.class));
-                    final EsRejectedExecutionException rejectedExecutionException =
-                        (EsRejectedExecutionException) entry.getValue().v2().getCause();
+                    final EsRejectedExecutionException rejectedExecutionException = (EsRejectedExecutionException) entry.getValue()
+                        .v2()
+                        .getCause();
                     assertThat(rejectedExecutionException.getMessage(), equalTo("leader_index rejected"));
                 }
             }
@@ -317,7 +319,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.outstandingReadRequests(), equalTo(1));
         assertThat(status.outstandingWriteRequests(), equalTo(0));
-        assertThat(status.failedReadRequests(), equalTo((long)max));
+        assertThat(status.failedReadRequests(), equalTo((long) max));
         assertThat(status.successfulReadRequests(), equalTo(1L));
         // the fetch failure has cleared
         assertThat(status.readExceptions().entrySet(), hasSize(0));
@@ -1040,7 +1042,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowTaskParams params = new ShardFollowTaskParams();
         params.maxReadRequestOperationCount = 64;
         params.maxOutstandingReadRequests = 1;
-        params.maxWriteRequestSize = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+        params.maxWriteRequestSize = ByteSizeValue.ofBytes(1);
         params.maxOutstandingWriteRequests = 128;
 
         ShardFollowNodeTask task = createShardFollowTask(params);
@@ -1137,10 +1139,10 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            new ByteSizeValue(Long.MAX_VALUE),
-            new ByteSizeValue(Long.MAX_VALUE),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE),
             Integer.MAX_VALUE,
-            new ByteSizeValue(Long.MAX_VALUE),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE),
             TimeValue.ZERO,
             TimeValue.ZERO,
             Collections.emptyMap()
@@ -1155,7 +1157,16 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         final Phaser updates = new Phaser(1);
         final ShardFollowNodeTask shardFollowNodeTask = new ShardFollowNodeTask(
-            1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), followTask, scheduler, System::nanoTime) {
+            1L,
+            "type",
+            ShardFollowTask.NAME,
+            "description",
+            null,
+            Collections.emptyMap(),
+            followTask,
+            scheduler,
+            System::nanoTime
+        ) {
             @Override
             protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
                 updates.register();
@@ -1190,18 +1201,23 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             }
 
             @Override
-            protected void innerSendBulkShardOperationsRequest(String followerHistoryUUID,
-                                                               List<Translog.Operation> operations,
-                                                               long leaderMaxSeqNoOfUpdatesOrDeletes,
-                                                               Consumer<BulkShardOperationsResponse> handler,
-                                                               Consumer<Exception> errorHandler) {
+            protected void innerSendBulkShardOperationsRequest(
+                String followerHistoryUUID,
+                List<Translog.Operation> operations,
+                long leaderMaxSeqNoOfUpdatesOrDeletes,
+                Consumer<BulkShardOperationsResponse> handler,
+                Consumer<Exception> errorHandler
+            ) {
 
             }
 
             @Override
-            protected void innerSendShardChangesRequest(long from, int maxOperationCount,
-                                                        Consumer<ShardChangesAction.Response> handler,
-                                                        Consumer<Exception> errorHandler) {
+            protected void innerSendShardChangesRequest(
+                long from,
+                int maxOperationCount,
+                Consumer<ShardChangesAction.Response> handler,
+                Consumer<Exception> errorHandler
+            ) {
 
             }
 
@@ -1245,13 +1261,13 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         private ShardId followShardId = new ShardId("follow_index", "", 0);
         private ShardId leaderShardId = new ShardId("leader_index", "", 0);
         private int maxReadRequestOperationCount = Integer.MAX_VALUE;
-        private ByteSizeValue maxReadRequestSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        private ByteSizeValue maxReadRequestSize = ByteSizeValue.ofBytes(Long.MAX_VALUE);
         private int maxOutstandingReadRequests = Integer.MAX_VALUE;
         private int maxWriteRequestOperationCount = Integer.MAX_VALUE;
-        private ByteSizeValue maxWriteRequestSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        private ByteSizeValue maxWriteRequestSize = ByteSizeValue.ofBytes(Long.MAX_VALUE);
         private int maxOutstandingWriteRequests = Integer.MAX_VALUE;
         private int maxWriteBufferCount = Integer.MAX_VALUE;
-        private ByteSizeValue maxWriteBufferSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        private ByteSizeValue maxWriteBufferSize = ByteSizeValue.ofBytes(Long.MAX_VALUE);
         private TimeValue maxRetryDelay = TimeValue.ZERO;
         private TimeValue readPollTimeout = TimeValue.ZERO;
         private Map<String, String> headers = Collections.emptyMap();
@@ -1292,7 +1308,16 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         responseSizes = new LinkedList<>();
         pendingBulkShardRequests = new LinkedList<>();
         return new ShardFollowNodeTask(
-                1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), followTask, scheduler, System::nanoTime) {
+            1L,
+            "type",
+            ShardFollowTask.NAME,
+            "description",
+            null,
+            Collections.emptyMap(),
+            followTask,
+            scheduler,
+            System::nanoTime
+        ) {
 
             @Override
             protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
@@ -1338,10 +1363,12 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
             @Override
             protected void innerSendBulkShardOperationsRequest(
-                String followerHistoryUUID, final List<Translog.Operation> operations,
+                String followerHistoryUUID,
+                final List<Translog.Operation> operations,
                 final long maxSeqNoOfUpdates,
                 final Consumer<BulkShardOperationsResponse> handler,
-                final Consumer<Exception> errorHandler) {
+                final Consumer<Exception> errorHandler
+            ) {
                 bulkShardOperationRequests.add(operations);
                 Exception writeFailure = ShardFollowNodeTaskTests.this.writeFailures.poll();
                 if (writeFailure != null) {
@@ -1360,10 +1387,14 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             }
 
             @Override
-            protected void innerSendShardChangesRequest(long from, int requestBatchSize, Consumer<ShardChangesAction.Response> handler,
-                                                        Consumer<Exception> errorHandler) {
+            protected void innerSendShardChangesRequest(
+                long from,
+                int requestBatchSize,
+                Consumer<ShardChangesAction.Response> handler,
+                Consumer<Exception> errorHandler
+            ) {
                 beforeSendShardChangesRequest.accept(getStatus());
-                shardChangesRequests.add(new long[]{from, requestBatchSize});
+                shardChangesRequests.add(new long[] { from, requestBatchSize });
                 Exception readFailure = ShardFollowNodeTaskTests.this.readFailures.poll();
                 if (readFailure != null) {
                     errorHandler.accept(readFailure);
@@ -1390,18 +1421,19 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             @Override
             protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(final LongSupplier followerGlobalCheckpoint) {
                 if (scheduleRetentionLeaseRenewal.get()) {
-                    final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
-                    final ScheduledFuture<?> future = scheduler.scheduleWithFixedDelay(
-                            () -> retentionLeaseRenewal.accept(followerGlobalCheckpoint.getAsLong()),
-                            0,
-                            TimeValue.timeValueMillis(200).millis(),
-                            TimeUnit.MILLISECONDS);
+                    final ScheduledThreadPoolExecutor testScheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
+                    final ScheduledFuture<?> future = testScheduler.scheduleWithFixedDelay(
+                        () -> retentionLeaseRenewal.accept(followerGlobalCheckpoint.getAsLong()),
+                        0,
+                        TimeValue.timeValueMillis(200).millis(),
+                        TimeUnit.MILLISECONDS
+                    );
                     return new Scheduler.Cancellable() {
 
                         @Override
                         public boolean cancel() {
                             final boolean cancel = future.cancel(true);
-                            scheduler.shutdown();
+                            testScheduler.shutdown();
                             return cancel;
                         }
 
@@ -1440,17 +1472,18 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         };
     }
 
-    private static ShardChangesAction.Response generateShardChangesResponse(long fromSeqNo,
-                                                                            long toSeqNo,
-                                                                            long mappingVersion,
-                                                                            long settingsVersion,
-                                                                            long aliasesVersion,
-                                                                            long leaderGlobalCheckPoint) {
+    private static ShardChangesAction.Response generateShardChangesResponse(
+        long fromSeqNo,
+        long toSeqNo,
+        long mappingVersion,
+        long settingsVersion,
+        long aliasesVersion,
+        long leaderGlobalCheckPoint
+    ) {
         List<Translog.Operation> ops = new ArrayList<>();
         for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
             String id = UUIDs.randomBase64UUID();
-            byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-            ops.add(new Translog.Index(id, seqNo, 0, source));
+            ops.add(TranslogOperationsUtils.indexOp(id, seqNo, 0));
         }
         return new ShardChangesAction.Response(
             mappingVersion,
@@ -1468,6 +1501,5 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         // The call the updateMapping is a noop, so noting happens.
         task.start("uuid", leaderGlobalCheckpoint, leaderGlobalCheckpoint, followerGlobalCheckpoint, followerGlobalCheckpoint);
     }
-
 
 }

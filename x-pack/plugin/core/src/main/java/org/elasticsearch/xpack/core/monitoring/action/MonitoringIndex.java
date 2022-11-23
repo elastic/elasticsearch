@@ -42,7 +42,7 @@ public enum MonitoringIndex implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeByte((byte)ordinal());
+        out.writeByte((byte) ordinal());
     }
 
     public static MonitoringIndex readFrom(StreamInput in) throws IOException {

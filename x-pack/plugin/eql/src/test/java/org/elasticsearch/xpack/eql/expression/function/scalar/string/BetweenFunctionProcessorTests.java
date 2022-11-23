@@ -24,8 +24,10 @@ public class BetweenFunctionProcessorTests extends ESTestCase {
 
         // The source parameter can be null. Expect exception if any of other parameters is null.
         if ((source != null) && (left == null || right == null || greedy == null || caseInsensitive == null)) {
-            QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
-                () -> BetweenFunctionProcessor.doProcess(source, left, right, greedy, caseInsensitive));
+            QlIllegalArgumentException e = expectThrows(
+                QlIllegalArgumentException.class,
+                () -> BetweenFunctionProcessor.doProcess(source, left, right, greedy, caseInsensitive)
+            );
             if (left == null || right == null) {
                 assertThat(e.getMessage(), equalTo("A string/char is required; received [null]"));
             } else {

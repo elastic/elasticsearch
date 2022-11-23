@@ -34,18 +34,30 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<FieldUsageStatsRequest, FieldUsageStatsResponse,
+public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
+    FieldUsageStatsRequest,
+    FieldUsageStatsResponse,
     FieldUsageShardResponse> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportFieldUsageAction(ClusterService clusterService,
-                                     TransportService transportService,
-                                     IndicesService indexServices, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(FieldUsageStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-            FieldUsageStatsRequest::new, ThreadPool.Names.SAME);
+    public TransportFieldUsageAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indexServices,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            FieldUsageStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            FieldUsageStatsRequest::new,
+            ThreadPool.Names.SAME
+        );
         this.indicesService = indexServices;
     }
 
@@ -55,20 +67,20 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<Fi
     }
 
     @Override
-    protected FieldUsageStatsResponse newResponse(FieldUsageStatsRequest request, int totalShards, int successfulShards, int failedShards,
-                                                  List<FieldUsageShardResponse> fieldUsages,
-                                                  List<DefaultShardOperationFailedException> shardFailures,
-                                                  ClusterState clusterState) {
+    protected FieldUsageStatsResponse newResponse(
+        FieldUsageStatsRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<FieldUsageShardResponse> fieldUsages,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
         final Map<String, List<FieldUsageShardResponse>> combined = new HashMap<>();
         for (FieldUsageShardResponse response : fieldUsages) {
             combined.computeIfAbsent(response.shardRouting.shardId().getIndexName(), i -> new ArrayList<>()).add(response);
         }
-        return new FieldUsageStatsResponse(
-            totalShards,
-            successfulShards,
-            shardFailures.size(),
-            shardFailures,
-            combined);
+        return new FieldUsageStatsResponse(totalShards, successfulShards, shardFailures.size(), shardFailures, combined);
     }
 
     @Override
@@ -77,13 +89,21 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<Fi
     }
 
     @Override
-    protected void shardOperation(FieldUsageStatsRequest request, ShardRouting shardRouting, Task task,
-                                  ActionListener<FieldUsageShardResponse> listener) {
+    protected void shardOperation(
+        FieldUsageStatsRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        ActionListener<FieldUsageShardResponse> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             final ShardId shardId = shardRouting.shardId();
             final IndexShard shard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-            return new FieldUsageShardResponse(shard.getShardUuid(), shardRouting,
-                shard.getShardCreationTime(), shard.fieldUsageStats(request.fields()));
+            return new FieldUsageShardResponse(
+                shard.getShardUuid(),
+                shardRouting,
+                shard.getShardCreationTime(),
+                shard.fieldUsageStats(request.fields())
+            );
         });
     }
 
@@ -98,8 +118,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<Fi
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, FieldUsageStatsRequest request,
-                                                      String[] concreteIndices) {
+    protected ClusterBlockException checkRequestBlock(ClusterState state, FieldUsageStatsRequest request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

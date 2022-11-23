@@ -12,13 +12,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -187,32 +187,24 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
 
     public String randomNumericField() {
         int randomInt = randomInt(3);
-        switch (randomInt) {
-            case 0:
-                return DATE_FIELD_NAME;
-            case 1:
-                return DOUBLE_FIELD_NAME;
-            case 2:
-            default:
-                return INT_FIELD_NAME;
-        }
+        return switch (randomInt) {
+            case 0 -> DATE_FIELD_NAME;
+            case 1 -> DOUBLE_FIELD_NAME;
+            case 2 -> INT_FIELD_NAME;
+            default -> INT_FIELD_NAME;
+        };
     }
 
     protected void randomFieldOrScript(ValuesSourceAggregationBuilder<?> factory, String field) {
         int choice = randomInt(2);
         switch (choice) {
-        case 0:
-            factory.field(field);
-            break;
-        case 1:
-            factory.field(field);
-            factory.script(mockScript("_value + 1"));
-            break;
-        case 2:
-            factory.script(mockScript("doc[" + field + "] + 1"));
-            break;
-        default:
-            throw new AssertionError("Unknown random operation [" + choice + "]");
+            case 0 -> factory.field(field);
+            case 1 -> {
+                factory.field(field);
+                factory.script(mockScript("_value + 1"));
+            }
+            case 2 -> factory.script(mockScript("doc[" + field + "] + 1"));
+            default -> throw new AssertionError("Unknown random operation [" + choice + "]");
         }
     }
 

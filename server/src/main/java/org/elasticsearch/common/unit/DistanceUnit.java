@@ -45,7 +45,7 @@ public enum DistanceUnit implements Writeable {
     private double meters;
     private final String[] names;
 
-    DistanceUnit(double meters, String...names) {
+    DistanceUnit(double meters, String... names) {
         this.meters = meters;
         this.names = names;
     }
@@ -57,24 +57,6 @@ public enum DistanceUnit implements Writeable {
      */
     public double getEarthCircumference() {
         return GeoUtils.EARTH_EQUATOR / meters;
-    }
-
-    /**
-     * Measures the radius of earth in this unit
-     *
-     * @return length of earth radius in this unit
-     */
-    public double getEarthRadius() {
-        return GeoUtils.EARTH_SEMI_MAJOR_AXIS / meters;
-    }
-
-    /**
-     * Measures a longitude in this unit
-     *
-     * @return length of a longitude degree in this unit
-     */
-    public double getDistancePerDegree() {
-        return GeoUtils.EARTH_EQUATOR / (360.0 * meters);
     }
 
     /**
@@ -173,30 +155,12 @@ public enum DistanceUnit implements Writeable {
     public static DistanceUnit fromString(String unit) {
         for (DistanceUnit dunit : values()) {
             for (String name : dunit.names) {
-                if(name.equals(unit)) {
+                if (name.equals(unit)) {
                     return dunit;
                 }
             }
         }
         throw new IllegalArgumentException("No distance unit match [" + unit + "]");
-    }
-
-    /**
-     * Parses the suffix of a given distance string and return the corresponding {@link DistanceUnit}
-     *
-     * @param distance string representing a distance
-     * @param defaultUnit default unit to use, if no unit is provided by the string
-     * @return unit of the given distance
-     */
-    public static DistanceUnit parseUnit(String distance, DistanceUnit defaultUnit) {
-        for (DistanceUnit unit : values()) {
-            for (String name : unit.names) {
-                if(distance.endsWith(name)) {
-                    return unit;
-                }
-            }
-        }
-        return defaultUnit;
     }
 
     /**
@@ -220,7 +184,7 @@ public enum DistanceUnit implements Writeable {
          * @return converted distance
          */
         public Distance convert(DistanceUnit unit) {
-            if(this.unit == unit) {
+            if (this.unit == unit) {
                 return this;
             } else {
                 return new Distance(DistanceUnit.convert(value, this.unit, unit), unit);
@@ -229,10 +193,9 @@ public enum DistanceUnit implements Writeable {
 
         @Override
         public boolean equals(Object obj) {
-            if(obj == null) {
+            if (obj == null) {
                 return false;
-            } else if (obj instanceof Distance) {
-                Distance other = (Distance) obj;
+            } else if (obj instanceof Distance other) {
                 return DistanceUnit.convert(value, unit, other.unit) == other.value;
             } else {
                 return false;
@@ -276,7 +239,7 @@ public enum DistanceUnit implements Writeable {
         private static Distance parseDistance(String distance, DistanceUnit defaultUnit) {
             for (DistanceUnit unit : values()) {
                 for (String name : unit.names) {
-                    if(distance.endsWith(name)) {
+                    if (distance.endsWith(name)) {
                         return new Distance(Double.parseDouble(distance.substring(0, distance.length() - name.length())), unit);
                     }
                 }

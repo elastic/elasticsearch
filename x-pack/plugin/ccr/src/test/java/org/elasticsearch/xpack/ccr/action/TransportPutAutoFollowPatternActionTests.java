@@ -42,13 +42,9 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         final int numberOfReplicas = randomIntBetween(0, 4);
         request.setSettings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numberOfReplicas).build());
 
-        ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metadata(Metadata.builder())
-            .build();
+        ClusterState localState = ClusterState.builder(new ClusterName("us_cluster")).metadata(Metadata.builder()).build();
 
-        ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster"))
-            .metadata(Metadata.builder())
-            .build();
+        ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster")).metadata(Metadata.builder()).build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
         AutoFollowMetadata autoFollowMetadata = result.metadata().custom(AutoFollowMetadata.TYPE);
@@ -70,7 +66,8 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         );
         assertThat(
             IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(autoFollowMetadata.getPatterns().get("name1").getSettings()),
-            equalTo(numberOfReplicas));
+            equalTo(numberOfReplicas)
+        );
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("name1").size(), equalTo(0));
     }
@@ -85,36 +82,27 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
             request.setLeaderIndexExclusionPatterns(Collections.singletonList("logs-excluded-*"));
         }
 
-        ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metadata(Metadata.builder())
-            .build();
+        ClusterState localState = ClusterState.builder(new ClusterName("us_cluster")).metadata(Metadata.builder()).build();
 
         int numLeaderIndices = randomIntBetween(1, 8);
         int numMatchingLeaderIndices = randomIntBetween(1, 8);
         int numExcludedLeaderIndices = randomIntBetween(1, 8);
         Metadata.Builder mdBuilder = Metadata.builder();
         for (int i = 0; i < numLeaderIndices; i++) {
-            mdBuilder.put(IndexMetadata.builder("transactions-" + i)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0));
+            mdBuilder.put(
+                IndexMetadata.builder("transactions-" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
+            );
         }
         for (int i = 0; i < numMatchingLeaderIndices; i++) {
-            mdBuilder.put(IndexMetadata.builder("logs-" + i)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0));
+            mdBuilder.put(IndexMetadata.builder("logs-" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
         }
         for (int i = 0; i < numExcludedLeaderIndices; i++) {
-            mdBuilder.put(IndexMetadata.builder("logs-excluded-" + i)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0));
+            mdBuilder.put(
+                IndexMetadata.builder("logs-excluded-" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
+            );
         }
 
-        ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster"))
-            .metadata(mdBuilder)
-            .build();
+        ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster")).metadata(mdBuilder).build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
         AutoFollowMetadata autoFollowMetadata = result.metadata().custom(AutoFollowMetadata.TYPE);
@@ -131,8 +119,9 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
             assertThat(exclusionPatterns.size(), equalTo(0));
         }
 
-        final int expectedAutoFollowIndexCount =
-            withExclusionPatterns ? numMatchingLeaderIndices : numMatchingLeaderIndices + numExcludedLeaderIndices;
+        final int expectedAutoFollowIndexCount = withExclusionPatterns
+            ? numMatchingLeaderIndices
+            : numMatchingLeaderIndices + numExcludedLeaderIndices;
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("name1").size(), equalTo(expectedAutoFollowIndexCount));
     }
@@ -168,7 +157,9 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null));
+                null
+            )
+        );
         Map<String, List<String>> existingAlreadyFollowedIndexUUIDS = new HashMap<>();
         List<String> existingUUIDS = new ArrayList<>();
         existingUUIDS.add("_val");
@@ -177,29 +168,28 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         existingHeaders.put("name1", Collections.singletonMap("key", "val"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
-                new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        AutoFollowMetadata.TYPE,
+                        new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)
+                    )
+            )
             .build();
 
         int numLeaderIndices = randomIntBetween(1, 8);
         Metadata.Builder mdBuilder = Metadata.builder();
         for (int i = 0; i < numLeaderIndices; i++) {
-            mdBuilder.put(IndexMetadata.builder("logs-" + i)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0));
+            mdBuilder.put(IndexMetadata.builder("logs-" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
         }
         int numExcludedLeaderIndices = randomIntBetween(1, 8);
         for (int i = 0; i < numExcludedLeaderIndices; i++) {
-            mdBuilder.put(IndexMetadata.builder("logs-excluded-" + i)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0));
+            mdBuilder.put(
+                IndexMetadata.builder("logs-excluded-" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
+            );
         }
 
-        ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster"))
-            .metadata(mdBuilder)
-            .build();
+        ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster")).metadata(mdBuilder).build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
         AutoFollowMetadata autoFollowMetadata = result.metadata().custom(AutoFollowMetadata.TYPE);
@@ -216,8 +206,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         } else {
             assertThat(exclusionPatterns.size(), equalTo(0));
         }
-        final int expectedAutoFollowIndexCount =
-            withExclusionPatterns ? numLeaderIndices : numLeaderIndices + numExcludedLeaderIndices;
+        final int expectedAutoFollowIndexCount = withExclusionPatterns ? numLeaderIndices : numLeaderIndices + numExcludedLeaderIndices;
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("name1").size(), equalTo(expectedAutoFollowIndexCount + 1));
         assertThat(autoFollowMetadata.getHeaders().size(), equalTo(1));

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -114,11 +114,10 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
         return mapHits(searchResponse);
     }
 
-    private SearchResponse doSearch(Object [] searchAfterValues) {
+    private SearchResponse doSearch(Object[] searchAfterValues) {
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
-        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder()
-            .size(batchSize)
+        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder().size(batchSize)
             .query(getQuery())
             .fetchSource(shouldFetchSource())
             .sort(sortField()));

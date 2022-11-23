@@ -20,7 +20,7 @@ public class LocalStateIdentityProviderPlugin extends LocalStateCompositeXPackPl
     public LocalStateIdentityProviderPlugin(Settings settings, Path configPath) throws Exception {
         super(settings, configPath);
         LocalStateIdentityProviderPlugin thisVar = this;
-        plugins.add(new Security(settings, configPath) {
+        plugins.add(new Security(settings) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();

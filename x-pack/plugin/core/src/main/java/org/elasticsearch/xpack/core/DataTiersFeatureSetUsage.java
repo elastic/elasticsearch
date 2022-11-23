@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,8 +58,8 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
-        for (Map.Entry<String, TierSpecificStats> tierStats : tierStats.entrySet()) {
-            builder.field(tierStats.getKey(), tierStats.getValue());
+        for (Map.Entry<String, TierSpecificStats> entry : tierStats.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
         }
     }
 
@@ -77,9 +77,9 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
             return false;
         }
         DataTiersFeatureSetUsage other = (DataTiersFeatureSetUsage) obj;
-        return Objects.equals(available, other.available) &&
-            Objects.equals(enabled, other.enabled) &&
-            Objects.equals(tierStats, other.tierStats);
+        return Objects.equals(available, other.available)
+            && Objects.equals(enabled, other.enabled)
+            && Objects.equals(tierStats, other.tierStats);
     }
 
     @Override
@@ -116,8 +116,17 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
             this.primaryShardBytesMAD = in.readVLong();
         }
 
-        public TierSpecificStats(int nodeCount, int indexCount, int totalShardCount, int primaryShardCount, long docCount,
-                                 long totalByteCount, long primaryByteCount, long primaryByteCountMedian, long primaryShardBytesMAD) {
+        public TierSpecificStats(
+            int nodeCount,
+            int indexCount,
+            int totalShardCount,
+            int primaryShardCount,
+            long docCount,
+            long totalByteCount,
+            long primaryByteCount,
+            long primaryByteCountMedian,
+            long primaryShardBytesMAD
+        ) {
             this.nodeCount = nodeCount;
             this.indexCount = indexCount;
             this.totalShardCount = totalShardCount;
@@ -150,22 +159,40 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field("total_shard_count", totalShardCount);
             builder.field("primary_shard_count", primaryShardCount);
             builder.field("doc_count", docCount);
-            builder.humanReadableField("total_size_bytes", "total_size", new ByteSizeValue(totalByteCount));
-            builder.humanReadableField("primary_size_bytes", "primary_size", new ByteSizeValue(primaryByteCount));
-            builder.humanReadableField("primary_shard_size_avg_bytes", "primary_shard_size_avg",
-                new ByteSizeValue(primaryShardCount == 0 ? 0 : (primaryByteCount / primaryShardCount)));
-            builder.humanReadableField("primary_shard_size_median_bytes", "primary_shard_size_median",
-                new ByteSizeValue(primaryByteCountMedian));
-            builder.humanReadableField("primary_shard_size_mad_bytes", "primary_shard_size_mad",
-                new ByteSizeValue(primaryShardBytesMAD));
+            builder.humanReadableField("total_size_bytes", "total_size", ByteSizeValue.ofBytes(totalByteCount));
+            builder.humanReadableField("primary_size_bytes", "primary_size", ByteSizeValue.ofBytes(primaryByteCount));
+            builder.humanReadableField(
+                "primary_shard_size_avg_bytes",
+                "primary_shard_size_avg",
+                ByteSizeValue.ofBytes(primaryShardCount == 0 ? 0 : (primaryByteCount / primaryShardCount))
+            );
+            builder.humanReadableField(
+                "primary_shard_size_median_bytes",
+                "primary_shard_size_median",
+                ByteSizeValue.ofBytes(primaryByteCountMedian)
+            );
+            builder.humanReadableField(
+                "primary_shard_size_mad_bytes",
+                "primary_shard_size_mad",
+                ByteSizeValue.ofBytes(primaryShardBytesMAD)
+            );
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(this.nodeCount, this.indexCount, this.totalShardCount, this.primaryShardCount, this.totalByteCount,
-                this.primaryByteCount, this.docCount, this.primaryByteCountMedian, this.primaryShardBytesMAD);
+            return Objects.hash(
+                this.nodeCount,
+                this.indexCount,
+                this.totalShardCount,
+                this.primaryShardCount,
+                this.totalByteCount,
+                this.primaryByteCount,
+                this.docCount,
+                this.primaryByteCountMedian,
+                this.primaryShardBytesMAD
+            );
         }
 
         @Override
@@ -177,15 +204,15 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
                 return false;
             }
             TierSpecificStats other = (TierSpecificStats) obj;
-            return nodeCount == other.nodeCount &&
-                indexCount == other.indexCount &&
-                totalShardCount == other.totalShardCount &&
-                primaryShardCount == other.primaryShardCount &&
-                docCount == other.docCount &&
-                totalByteCount == other.totalByteCount &&
-                primaryByteCount == other.primaryByteCount &&
-                primaryByteCountMedian == other.primaryByteCountMedian &&
-                primaryShardBytesMAD == other.primaryShardBytesMAD;
+            return nodeCount == other.nodeCount
+                && indexCount == other.indexCount
+                && totalShardCount == other.totalShardCount
+                && primaryShardCount == other.primaryShardCount
+                && docCount == other.docCount
+                && totalByteCount == other.totalByteCount
+                && primaryByteCount == other.primaryByteCount
+                && primaryByteCountMedian == other.primaryByteCountMedian
+                && primaryShardBytesMAD == other.primaryShardBytesMAD;
         }
 
         @Override

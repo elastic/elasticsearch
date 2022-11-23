@@ -22,8 +22,8 @@ public class FetchSeparatorCliCommand extends AbstractCliCommand {
 
     @Override
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, Matcher m, String line) {
-        cliSession.setFetchSeparator(m.group(1));
-        terminal.line().text("fetch separator set to \"").em(cliSession.getFetchSeparator()).text("\"").end();
+        cliSession.cfg().setFetchSeparator(m.group(1));
+        terminal.line().text("fetch separator set to \"").em(cliSession.cfg().getFetchSeparator()).text("\"").end();
         return true;
     }
 }

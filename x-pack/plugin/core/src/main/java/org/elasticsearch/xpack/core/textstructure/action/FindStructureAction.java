@@ -6,19 +6,21 @@
  */
 package org.elasticsearch.xpack.core.textstructure.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.grok.Grok;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.io.IOException;
@@ -30,6 +32,8 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class FindStructureAction extends ActionType<FindStructureAction.Response> {
+    public static final String ECS_COMPATIBILITY_DISABLED = Grok.ECS_COMPATIBILITY_MODES[0];
+    public static final String ECS_COMPATIBILITY_V1 = Grok.ECS_COMPATIBILITY_MODES[1];
 
     public static final FindStructureAction INSTANCE = new FindStructureAction();
     public static final String NAME = "cluster:monitor/text_structure/findstructure";
@@ -107,8 +111,11 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
         public static final ParseField TIMESTAMP_FORMAT = new ParseField("timestamp_format");
         public static final ParseField TIMESTAMP_FIELD = TextStructure.TIMESTAMP_FIELD;
 
-        private static final String ARG_INCOMPATIBLE_WITH_FORMAT_TEMPLATE =
-            "[%s] may only be specified if [" + FORMAT.getPreferredName() + "] is [%s]";
+        public static final ParseField ECS_COMPATIBILITY = TextStructure.ECS_COMPATIBILITY;
+
+        private static final String ARG_INCOMPATIBLE_WITH_FORMAT_TEMPLATE = "[%s] may only be specified if ["
+            + FORMAT.getPreferredName()
+            + "] is [%s]";
 
         private Integer linesToSample;
         private Integer lineMergeSizeLimit;
@@ -121,12 +128,12 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
         private Character quote;
         private Boolean shouldTrimFields;
         private String grokPattern;
+        private String ecsCompatibility;
         private String timestampFormat;
         private String timestampField;
         private BytesReference sample;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -141,11 +148,15 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             quote = in.readBoolean() ? (char) in.readVInt() : null;
             shouldTrimFields = in.readOptionalBoolean();
             grokPattern = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+                ecsCompatibility = in.readOptionalString();
+            } else {
+                ecsCompatibility = null;
+            }
             timestampFormat = in.readOptionalString();
             timestampField = in.readOptionalString();
             sample = in.readBytesReference();
         }
-
 
         public Integer getLinesToSample() {
             return linesToSample;
@@ -263,6 +274,14 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             this.grokPattern = (grokPattern == null || grokPattern.isEmpty()) ? null : grokPattern;
         }
 
+        public String getEcsCompatibility() {
+            return ecsCompatibility;
+        }
+
+        public void setEcsCompatibility(String ecsCompatibility) {
+            this.ecsCompatibility = (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? null : ecsCompatibility;
+        }
+
         public String getTimestampFormat() {
             return timestampFormat;
         }
@@ -287,10 +306,15 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             this.sample = sample;
         }
 
-        private static ActionRequestValidationException addIncompatibleArgError(ParseField arg, TextStructure.Format format,
-                                                                                ActionRequestValidationException validationException) {
-            return addValidationError(String.format(Locale.ROOT, ARG_INCOMPATIBLE_WITH_FORMAT_TEMPLATE, arg.getPreferredName(), format),
-                validationException);
+        private static ActionRequestValidationException addIncompatibleArgError(
+            ParseField arg,
+            TextStructure.Format format,
+            ActionRequestValidationException validationException
+        ) {
+            return addValidationError(
+                String.format(Locale.ROOT, ARG_INCOMPATIBLE_WITH_FORMAT_TEMPLATE, arg.getPreferredName(), format),
+                validationException
+            );
         }
 
         @Override
@@ -299,11 +323,14 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             if (linesToSample != null && linesToSample < MIN_SAMPLE_LINE_COUNT) {
                 validationException = addValidationError(
                     "[" + LINES_TO_SAMPLE.getPreferredName() + "] must be at least [" + MIN_SAMPLE_LINE_COUNT + "] if specified",
-                    validationException);
+                    validationException
+                );
             }
             if (lineMergeSizeLimit != null && lineMergeSizeLimit <= 0) {
-                validationException = addValidationError("[" + LINE_MERGE_SIZE_LIMIT.getPreferredName() + "] must be positive if specified",
-                    validationException);
+                validationException = addValidationError(
+                    "[" + LINE_MERGE_SIZE_LIMIT.getPreferredName() + "] must be positive if specified",
+                    validationException
+                );
             }
             if (format != TextStructure.Format.DELIMITED) {
                 if (columnNames != null) {
@@ -324,10 +351,25 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             }
             if (format != TextStructure.Format.SEMI_STRUCTURED_TEXT) {
                 if (grokPattern != null) {
-                    validationException =
-                        addIncompatibleArgError(GROK_PATTERN, TextStructure.Format.SEMI_STRUCTURED_TEXT, validationException);
+                    validationException = addIncompatibleArgError(
+                        GROK_PATTERN,
+                        TextStructure.Format.SEMI_STRUCTURED_TEXT,
+                        validationException
+                    );
                 }
             }
+
+            if (ecsCompatibility != null && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+                validationException = addValidationError(
+                    "["
+                        + ECS_COMPATIBILITY.getPreferredName()
+                        + "] must be one of ["
+                        + String.join(", ", Grok.ECS_COMPATIBILITY_MODES)
+                        + "] if specified",
+                    validationException
+                );
+            }
+
             if (sample == null || sample.length() == 0) {
                 validationException = addValidationError("sample must be specified", validationException);
             }
@@ -368,6 +410,9 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             }
             out.writeOptionalBoolean(shouldTrimFields);
             out.writeOptionalString(grokPattern);
+            if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+                out.writeOptionalString(ecsCompatibility);
+            }
             out.writeOptionalString(timestampFormat);
             out.writeOptionalString(timestampField);
             out.writeBytesReference(sample);
@@ -375,8 +420,21 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
 
         @Override
         public int hashCode() {
-            return Objects.hash(linesToSample, lineMergeSizeLimit, timeout, charset, format, columnNames, hasHeaderRow, delimiter,
-                grokPattern, timestampFormat, timestampField, sample);
+            return Objects.hash(
+                linesToSample,
+                lineMergeSizeLimit,
+                timeout,
+                charset,
+                format,
+                columnNames,
+                hasHeaderRow,
+                delimiter,
+                grokPattern,
+                ecsCompatibility,
+                timestampFormat,
+                timestampField,
+                sample
+            );
         }
 
         @Override
@@ -391,18 +449,19 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             }
 
             Request that = (Request) other;
-            return Objects.equals(this.linesToSample, that.linesToSample) &&
-                Objects.equals(this.lineMergeSizeLimit, that.lineMergeSizeLimit) &&
-                Objects.equals(this.timeout, that.timeout) &&
-                Objects.equals(this.charset, that.charset) &&
-                Objects.equals(this.format, that.format) &&
-                Objects.equals(this.columnNames, that.columnNames) &&
-                Objects.equals(this.hasHeaderRow, that.hasHeaderRow) &&
-                Objects.equals(this.delimiter, that.delimiter) &&
-                Objects.equals(this.grokPattern, that.grokPattern) &&
-                Objects.equals(this.timestampFormat, that.timestampFormat) &&
-                Objects.equals(this.timestampField, that.timestampField) &&
-                Objects.equals(this.sample, that.sample);
+            return Objects.equals(this.linesToSample, that.linesToSample)
+                && Objects.equals(this.lineMergeSizeLimit, that.lineMergeSizeLimit)
+                && Objects.equals(this.timeout, that.timeout)
+                && Objects.equals(this.charset, that.charset)
+                && Objects.equals(this.format, that.format)
+                && Objects.equals(this.columnNames, that.columnNames)
+                && Objects.equals(this.hasHeaderRow, that.hasHeaderRow)
+                && Objects.equals(this.delimiter, that.delimiter)
+                && Objects.equals(this.grokPattern, that.grokPattern)
+                && Objects.equals(this.ecsCompatibility, that.ecsCompatibility)
+                && Objects.equals(this.timestampFormat, that.timestampFormat)
+                && Objects.equals(this.timestampField, that.timestampField)
+                && Objects.equals(this.sample, that.sample);
         }
     }
 }

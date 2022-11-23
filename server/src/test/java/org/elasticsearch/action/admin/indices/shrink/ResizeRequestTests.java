@@ -21,11 +21,12 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -33,7 +34,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests.assertAliasesEqual;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -67,14 +68,16 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
             ResizeRequest request = new ResizeRequest("target", "source");
             request.setMaxPrimaryShardSize(new ByteSizeValue(100, ByteSizeUnit.MB));
             String actualRequestBody = Strings.toString(request);
-            assertEquals("{\"settings\":{},\"aliases\":{},\"max_primary_shard_size\":\"100mb\"}", actualRequestBody);
+            assertEquals("""
+                {"settings":{},"aliases":{},"max_primary_shard_size":"100mb"}""", actualRequestBody);
         }
         {
             ResizeRequest request = new ResizeRequest();
             CreateIndexRequest target = new CreateIndexRequest("target");
             Alias alias = new Alias("test_alias");
             alias.routing("1");
-            alias.filter("{\"term\":{\"year\":2016}}");
+            alias.filter("""
+                {"term":{"year":2016}}""");
             alias.writeIndex(true);
             target.alias(alias);
             Settings.Builder settings = Settings.builder();
@@ -82,9 +85,26 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
             target.settings(settings);
             request.setTargetIndex(target);
             String actualRequestBody = Strings.toString(request);
-            String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}}," +
-                    "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
-            assertEquals(expectedRequestBody, actualRequestBody);
+            String expectedRequestBody = """
+                {
+                  "settings": {
+                    "index": {
+                      "number_of_shards": "10"
+                    }
+                  },
+                  "aliases": {
+                    "test_alias": {
+                      "filter": {
+                        "term": {
+                          "year": 2016
+                        }
+                      },
+                      "routing": "1",
+                      "is_write_index": true
+                    }
+                  }
+                }""";
+            assertEquals(XContentHelper.stripWhitespace(expectedRequestBody), actualRequestBody);
         }
     }
 
@@ -136,7 +156,9 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
     }
 
     @Override
-    protected Writeable.Reader<ResizeRequest> instanceReader() { return ResizeRequest::new; }
+    protected Writeable.Reader<ResizeRequest> instanceReader() {
+        return ResizeRequest::new;
+    }
 
     @Override
     protected ResizeRequest createTestInstance() {
@@ -145,7 +167,7 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
             resizeRequest.setTargetIndex(RandomCreateIndexGenerator.randomCreateIndexRequest());
         }
         if (randomBoolean()) {
-            resizeRequest.setMaxPrimaryShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
+            resizeRequest.setMaxPrimaryShardSize(ByteSizeValue.ofBytes(randomIntBetween(1, 100)));
         }
         return resizeRequest;
     }

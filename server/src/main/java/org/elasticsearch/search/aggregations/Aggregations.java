@@ -9,14 +9,14 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -71,7 +71,7 @@ public class Aggregations implements Iterable<Aggregation>, ToXContentFragment {
      */
     public final Map<String, Aggregation> getAsMap() {
         if (aggregationsAsMap == null) {
-            Map<String, Aggregation> newAggregationsAsMap = new HashMap<>(aggregations.size());
+            Map<String, Aggregation> newAggregationsAsMap = Maps.newMapWithExpectedSize(aggregations.size());
             for (Aggregation aggregation : aggregations) {
                 newAggregationsAsMap.put(aggregation.getName(), aggregation);
             }

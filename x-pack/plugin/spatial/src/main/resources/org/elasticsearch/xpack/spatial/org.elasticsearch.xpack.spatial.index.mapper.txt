@@ -1,0 +1,4 @@
+class org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper$GeoShapeDocValuesField {
+  GeoShapeValues.GeoShapeValue get(GeoShapeValues.GeoShapeValue)
+  GeoShapeValues.GeoShapeValue get(int, GeoShapeValues.GeoShapeValue)
+}

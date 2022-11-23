@@ -9,21 +9,21 @@ package org.elasticsearch.xpack.monitoring.collector.enrich;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -82,42 +82,40 @@ public class EnrichCoordinatorDocTests extends BaseMonitoringDocTestCase<EnrichC
         assertThat(
             xContent.utf8ToString(),
             equalTo(
-                "{"
-                    + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":\""
-                    + DATE_TIME_FORMATTER.formatMillis(timestamp)
-                    + "\","
-                    + "\"interval_ms\":"
-                    + intervalMillis
-                    + ","
-                    + "\"type\":\"enrich_coordinator_stats\","
-                    + "\"source_node\":{"
-                    + "\"uuid\":\"_uuid\","
-                    + "\"host\":\"_host\","
-                    + "\"transport_address\":\"_addr\","
-                    + "\"ip\":\"_ip\","
-                    + "\"name\":\"_name\","
-                    + "\"timestamp\":\""
-                    + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp)
-                    + "\""
-                    + "},"
-                    + "\"enrich_coordinator_stats\":{"
-                    + "\"node_id\":\""
-                    + stats.getNodeId()
-                    + "\","
-                    + "\"queue_size\":"
-                    + stats.getQueueSize()
-                    + ","
-                    + "\"remote_requests_current\":"
-                    + stats.getRemoteRequestsCurrent()
-                    + ","
-                    + "\"remote_requests_total\":"
-                    + stats.getRemoteRequestsTotal()
-                    + ","
-                    + "\"executed_searches_total\":"
-                    + stats.getExecutedSearchesTotal()
-                    + "}"
-                    + "}"
+                XContentHelper.stripWhitespace(
+                    formatted(
+                        """
+                            {
+                              "cluster_uuid": "_cluster",
+                              "timestamp": "%s",
+                              "interval_ms": %s,
+                              "type": "enrich_coordinator_stats",
+                              "source_node": {
+                                "uuid": "_uuid",
+                                "host": "_host",
+                                "transport_address": "_addr",
+                                "ip": "_ip",
+                                "name": "_name",
+                                "timestamp": "%s"
+                              },
+                              "enrich_coordinator_stats": {
+                                "node_id": "%s",
+                                "queue_size": %s,
+                                "remote_requests_current": %s,
+                                "remote_requests_total": %s,
+                                "executed_searches_total": %s
+                              }
+                            }""",
+                        DATE_TIME_FORMATTER.formatMillis(timestamp),
+                        intervalMillis,
+                        DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),
+                        stats.getNodeId(),
+                        stats.getQueueSize(),
+                        stats.getRemoteRequestsCurrent(),
+                        stats.getRemoteRequestsTotal(),
+                        stats.getExecutedSearchesTotal()
+                    )
+                )
             )
         );
     }
@@ -129,9 +127,12 @@ public class EnrichCoordinatorDocTests extends BaseMonitoringDocTestCase<EnrichC
         builder.endObject();
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
+        byte[] loadedTemplate = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(MonitoredSystem.ES).loadBytes();
         Map<String, Object> template = XContentHelper.convertToMap(
             XContentType.JSON.xContent(),
-            MonitoringTemplateUtils.loadTemplate("es"),
+            loadedTemplate,
+            0,
+            loadedTemplate.length,
             false
         );
         Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues.extractValue(

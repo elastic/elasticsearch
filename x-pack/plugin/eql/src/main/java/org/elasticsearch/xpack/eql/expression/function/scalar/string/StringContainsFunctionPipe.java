@@ -102,7 +102,6 @@ public class StringContainsFunctionPipe extends Pipe {
         }
 
         StringContainsFunctionPipe other = (StringContainsFunctionPipe) obj;
-        return Objects.equals(string(), other.string())
-                && Objects.equals(substring(), other.substring());
+        return Objects.equals(string(), other.string()) && Objects.equals(substring(), other.substring());
     }
 }

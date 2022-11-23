@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -16,8 +16,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
-public class TrainedModelInputTests extends AbstractSerializingTestCase<TrainedModelInput> {
+public class TrainedModelInputTests extends AbstractXContentSerializingTestCase<TrainedModelInput> {
 
     private boolean lenient;
 
@@ -42,9 +41,7 @@ public class TrainedModelInputTests extends AbstractSerializingTestCase<TrainedM
     }
 
     public static TrainedModelInput createRandomInput() {
-        return new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
-            .limit(randomInt(10))
-            .collect(Collectors.toList()));
+        return new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10)).limit(randomInt(10)).collect(Collectors.toList()));
     }
 
     @Override

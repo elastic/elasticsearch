@@ -71,7 +71,7 @@ public class ResultsFilterBuilder {
         }
 
         // Implemented as "NOT isInterim == true" so that not present and null
-        // are equivalent to false.  This improves backwards compatibility.
+        // are equivalent to false. This improves backwards compatibility.
         // Also, note how for a boolean field, unlike numeric term queries, the
         // term value is supplied as a string.
         TermQueryBuilder interimFilter = QueryBuilders.termQuery(Result.IS_INTERIM.getPreferredName(), true);

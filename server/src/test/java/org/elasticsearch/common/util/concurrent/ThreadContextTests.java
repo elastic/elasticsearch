@@ -10,6 +10,8 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -18,11 +20,19 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ThreadContextTests extends ESTestCase {
@@ -61,8 +71,11 @@ public class ThreadContextTests extends ESTestCase {
         }
 
         // foo is the only existing transient header that is cleared
-        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(false, randomFrom(List.of("foo", "foo"),
-                List.of("foo"), List.of("foo", "acme")))) {
+        try (
+            ThreadContext.StoredContext stashed = threadContext.newStoredContext(
+                randomFrom(List.of("foo", "foo"), List.of("foo"), List.of("foo", "acme"))
+            )
+        ) {
             // only the requested transient header is cleared
             assertNull(threadContext.getTransient("foo"));
             // missing header is still missing
@@ -98,24 +111,15 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("qux", threadContext.getResponseHeaders().get("bar").get(0));
 
         // test stashed missing header stays missing
-        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(randomBoolean(), randomFrom(Arrays.asList("acme", "acme"),
-                Arrays.asList("acme")))) {
+        try (
+            ThreadContext.StoredContext stashed = threadContext.newStoredContext(
+                randomFrom(Arrays.asList("acme", "acme"), Arrays.asList("acme"))
+            )
+        ) {
             assertNull(threadContext.getTransient("acme"));
             threadContext.putTransient("acme", "foo");
         }
         assertNull(threadContext.getTransient("acme"));
-
-        // test preserved response headers
-        try (ThreadContext.StoredContext stashed = threadContext.newStoredContext(true, randomFrom(List.of("foo", "foo"),
-                List.of("foo"), List.of("foo", "acme")))) {
-            threadContext.addResponseHeader("baz", "bar");
-            threadContext.addResponseHeader("foo", "baz");
-        }
-        assertEquals("bar", threadContext.getResponseHeaders().get("foo").get(0));
-        assertEquals("baz", threadContext.getResponseHeaders().get("foo").get(1));
-        assertEquals(2, threadContext.getResponseHeaders().get("foo").size());
-        assertEquals("bar", threadContext.getResponseHeaders().get("baz").get(0));
-        assertEquals(1, threadContext.getResponseHeaders().get("baz").size());
     }
 
     public void testStashWithOrigin() {
@@ -175,7 +179,7 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
-        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(false);
+        ThreadContext.StoredContext storedContext = threadContext.newStoredContext();
         threadContext.putHeader("foo.bar", "baz");
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             assertNull(threadContext.getHeader("foo"));
@@ -437,9 +441,9 @@ public class ThreadContextTests extends ESTestCase {
         // Create a runnable that should run with some header
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             threadContext.putHeader("foo", "bar");
-            withContext = threadContext.preserveContext(sometimesAbstractRunnable(() -> {
-                assertEquals("bar", threadContext.getHeader("foo"));
-            }));
+            withContext = threadContext.preserveContext(
+                sometimesAbstractRunnable(() -> { assertEquals("bar", threadContext.getHeader("foo")); })
+            );
         }
 
         // We don't see the header outside of the runnable
@@ -460,9 +464,9 @@ public class ThreadContextTests extends ESTestCase {
         // Create a runnable that should run with some header
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             threadContext.putHeader("foo", "bar");
-            withContext = threadContext.preserveContext(sometimesAbstractRunnable(() -> {
-                assertEquals("bar", threadContext.getHeader("foo"));
-            }));
+            withContext = threadContext.preserveContext(
+                sometimesAbstractRunnable(() -> { assertEquals("bar", threadContext.getHeader("foo")); })
+            );
         }
 
         // Now attempt to rewrap it
@@ -671,9 +675,75 @@ public class ThreadContextTests extends ESTestCase {
         threadContext.putHeader(Collections.<String, String>emptyMap());
         threadContext.putHeader(Collections.<String, String>singletonMap("foo", "bar"));
         assertEquals("bar", threadContext.getHeader("foo"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            threadContext.putHeader(Collections.<String, String>singletonMap("foo", "boom")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> threadContext.putHeader(Collections.<String, String>singletonMap("foo", "boom"))
+        );
         assertEquals("value for key [foo] already present", e.getMessage());
+    }
+
+    public void testHeadersCopiedOnStash() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "x-opaque-id");
+            threadContext.putHeader(Task.TRACE_ID, "0af7651916cd43dd8448eb211c80319c");
+            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
+
+            try (ThreadContext.StoredContext ignored2 = threadContext.stashContext()) {
+                assertEquals("x-opaque-id", threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER));
+                assertEquals("0af7651916cd43dd8448eb211c80319c", threadContext.getHeader(Task.TRACE_ID));
+                assertEquals("kibana", threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER));
+            }
+
+            assertEquals("x-opaque-id", threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER));
+            assertEquals("0af7651916cd43dd8448eb211c80319c", threadContext.getHeader(Task.TRACE_ID));
+            assertEquals("kibana", threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER));
+        }
+    }
+
+    public void testSanitizeHeaders() {
+        for (boolean randomizeHeaders : List.of(true, false)) {
+            final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            final String authorizationHeader = randomCase("authorization");
+            final String authorizationHeader2 = randomCase("es-secondary-authorization");
+            final String authorizationHeader3 = randomCase("ES-Client-Authentication");
+            Set<String> possibleHeaders = Set.of(authorizationHeader, authorizationHeader2, authorizationHeader3);
+            Set<String> headers = randomizeHeaders
+                ? randomSet(0, possibleHeaders.size(), () -> randomFrom(possibleHeaders))
+                : possibleHeaders;
+
+            headers.forEach(header -> threadContext.putHeader(header, randomAsciiLettersOfLengthBetween(1, 10)));
+
+            Set<Tuple<String, String>> additionalHeaders = IntStream.range(0, randomInt(10))
+                .mapToObj(i -> new Tuple<>(randomAsciiLettersOfLengthBetween(1, 10) + i, randomAsciiLettersOfLengthBetween(1, 10)))
+                .collect(Collectors.toSet());
+            additionalHeaders.forEach(t -> threadContext.putHeader(t.v1(), t.v2()));
+            Set<String> requestHeaders = threadContext.getHeaders().keySet();
+            threadContext.addResponseHeader("authorization", randomAsciiLettersOfLengthBetween(1, 10));
+            threadContext.putTransient("authorization", randomAsciiLettersOfLengthBetween(1, 10));
+            assertThat(
+                requestHeaders,
+                containsInAnyOrder(Stream.concat(additionalHeaders.stream().map(Tuple::v1), headers.stream()).toArray())
+            );
+
+            threadContext.sanitizeHeaders();
+
+            requestHeaders = threadContext.getHeaders().keySet();
+            assertThat(requestHeaders, not(hasItem(authorizationHeader)));
+            assertThat(requestHeaders, not(hasItem(authorizationHeader2)));
+            assertThat(requestHeaders, not(hasItem(authorizationHeader3)));
+            assertThat(requestHeaders, containsInAnyOrder(additionalHeaders.stream().map(Tuple::v1).toArray()));
+            assertThat(threadContext.getTransient("authorization"), instanceOf(String.class)); // we don't sanitize transients
+            assertThat(threadContext.getResponseHeaders().keySet(), containsInAnyOrder("authorization")); // we don't sanitize responses
+        }
+    }
+
+    private String randomCase(String original) {
+        int i = randomInt(original.length() - 1);
+        StringBuilder sb = new StringBuilder(original);
+        sb.setCharAt(i, Character.toUpperCase(original.toCharArray()[i]));
+        return sb.toString();
     }
 
     /**

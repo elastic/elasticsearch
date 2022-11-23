@@ -8,6 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 public interface SignificanceHeuristicBuilder extends ToXContentFragment {}

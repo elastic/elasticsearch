@@ -35,11 +35,15 @@ public class InboundAggregator implements Releasable {
     private boolean canTripBreaker = true;
     private boolean isClosed = false;
 
-    public InboundAggregator(Supplier<CircuitBreaker> circuitBreaker,
-                             Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction) {
+    public InboundAggregator(
+        Supplier<CircuitBreaker> circuitBreaker,
+        Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
+        boolean ignoreDeserializationErrors
+    ) {
         this(circuitBreaker, (Predicate<String>) actionName -> {
             final RequestHandlerRegistry<TransportRequest> reg = registryFunction.apply(actionName);
             if (reg == null) {
+                assert ignoreDeserializationErrors : actionName;
                 throw new ActionNotFoundTransportException(actionName);
             } else {
                 return reg.canTripCircuitBreaker();

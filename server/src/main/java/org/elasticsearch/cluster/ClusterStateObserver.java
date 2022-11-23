@@ -12,12 +12,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -31,21 +30,21 @@ public class ClusterStateObserver {
 
     protected final Logger logger;
 
-    private final Predicate<ClusterState> MATCH_ALL_CHANGES_PREDICATE = state -> true;
+    public static final Predicate<ClusterState> NON_NULL_MASTER_PREDICATE = state -> state.nodes().getMasterNode() != null;
+
+    private static final Predicate<ClusterState> MATCH_ALL_CHANGES_PREDICATE = state -> true;
 
     private final ClusterApplierService clusterApplierService;
     private final ThreadPool threadPool;
     private final ThreadContext contextHolder;
     volatile TimeValue timeOutValue;
 
-
-    final AtomicReference<StoredState> lastObservedState;
+    private volatile long lastObservedVersion;
     final TimeoutClusterStateListener clusterStateListener = new ObserverClusterStateListener();
     // observingContext is not null when waiting on cluster state changes
     final AtomicReference<ObservingContext> observingContext = new AtomicReference<>(null);
     volatile Long startTimeMS;
     volatile boolean timedOut;
-
 
     public ClusterStateObserver(ClusterService clusterService, Logger logger, ThreadContext contextHolder) {
         this(clusterService, new TimeValue(60000), logger, contextHolder);
@@ -59,21 +58,32 @@ public class ClusterStateObserver {
     public ClusterStateObserver(ClusterService clusterService, @Nullable TimeValue timeout, Logger logger, ThreadContext contextHolder) {
         this(clusterService.state(), clusterService, timeout, logger, contextHolder);
     }
+
     /**
      * @param timeout        a global timeout for this observer. After it has expired the observer
      *                       will fail any existing or new #waitForNextChange calls. Set to null
      *                       to wait indefinitely
      */
-    public ClusterStateObserver(ClusterState initialState, ClusterService clusterService, @Nullable TimeValue timeout, Logger logger,
-                                ThreadContext contextHolder) {
-        this(initialState, clusterService.getClusterApplierService(), timeout, logger, contextHolder);
+    public ClusterStateObserver(
+        ClusterState initialState,
+        ClusterService clusterService,
+        @Nullable TimeValue timeout,
+        Logger logger,
+        ThreadContext contextHolder
+    ) {
+        this(initialState.version(), clusterService.getClusterApplierService(), timeout, logger, contextHolder);
     }
 
-    public ClusterStateObserver(ClusterState initialState, ClusterApplierService clusterApplierService, @Nullable TimeValue timeout,
-                                Logger logger, ThreadContext contextHolder) {
+    public ClusterStateObserver(
+        long initialVersion,
+        ClusterApplierService clusterApplierService,
+        @Nullable TimeValue timeout,
+        Logger logger,
+        ThreadContext contextHolder
+    ) {
         this.clusterApplierService = clusterApplierService;
         this.threadPool = clusterApplierService.threadPool();
-        this.lastObservedState = new AtomicReference<>(new StoredState(initialState));
+        this.lastObservedVersion = initialVersion;
         this.timeOutValue = timeout;
         if (timeOutValue != null) {
             this.startTimeMS = threadPool.relativeTimeInMillis();
@@ -88,7 +98,7 @@ public class ClusterStateObserver {
             throw new ElasticsearchException("cannot set current cluster state while waiting for a cluster state change");
         }
         ClusterState clusterState = clusterApplierService.state();
-        lastObservedState.set(new StoredState(clusterState));
+        lastObservedVersion = clusterState.version();
         return clusterState;
     }
 
@@ -130,11 +140,14 @@ public class ClusterStateObserver {
                 timeoutTimeLeftMS = timeOutValue.millis() - timeSinceStartMS;
                 if (timeoutTimeLeftMS <= 0L) {
                     // things have timeout while we were busy -> notify
-                    logger.trace("observer timed out. notifying listener. timeout setting [{}], time since start [{}]",
-                        timeOutValue, new TimeValue(timeSinceStartMS));
+                    logger.trace(
+                        "observer timed out. notifying listener. timeout setting [{}], time since start [{}]",
+                        timeOutValue,
+                        new TimeValue(timeSinceStartMS)
+                    );
                     // update to latest, in case people want to retry
                     timedOut = true;
-                    lastObservedState.set(new StoredState(clusterApplierService.state()));
+                    lastObservedVersion = clusterApplierService.state().version();
                     listener.onTimeout(timeOutValue);
                     return;
                 }
@@ -151,10 +164,10 @@ public class ClusterStateObserver {
         // sample a new state. This state maybe *older* than the supplied state if we are called from an applier,
         // which wants to wait for something else to happen
         ClusterState newState = clusterApplierService.state();
-        if (lastObservedState.get().isOlderOrDifferentMaster(newState) && statePredicate.test(newState)) {
+        if (lastObservedVersion < newState.version() && statePredicate.test(newState)) {
             // good enough, let's go.
             logger.trace("observer: sampled state accepted by predicate ({})", newState);
-            lastObservedState.set(new StoredState(newState));
+            lastObservedVersion = newState.version();
             listener.onNewClusterState(newState);
         } else {
             logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState);
@@ -162,8 +175,10 @@ public class ClusterStateObserver {
             if (observingContext.compareAndSet(null, context) == false) {
                 throw new ElasticsearchException("already waiting for a cluster state change");
             }
-            clusterApplierService.addTimeoutListener(timeoutTimeLeftMS == null ?
-                null : new TimeValue(timeoutTimeLeftMS), clusterStateListener);
+            clusterApplierService.addTimeoutListener(
+                timeoutTimeLeftMS == null ? null : new TimeValue(timeoutTimeLeftMS),
+                clusterStateListener
+            );
         }
     }
 
@@ -181,11 +196,14 @@ public class ClusterStateObserver {
                 if (observingContext.compareAndSet(context, null)) {
                     clusterApplierService.removeTimeoutListener(this);
                     logger.trace("observer: accepting cluster state change ({})", state);
-                    lastObservedState.set(new StoredState(state));
+                    lastObservedVersion = state.version();
                     context.listener.onNewClusterState(state);
                 } else {
-                    logger.trace("observer: predicate approved change but observing context has changed " +
-                        "- ignoring (new cluster state version [{}])", state.version());
+                    logger.trace(
+                        "observer: predicate approved change but observing context has changed "
+                            + "- ignoring (new cluster state version [{}])",
+                        state.version()
+                    );
                 }
             } else {
                 logger.trace("observer: predicate rejected change (new cluster state version [{}])", state.version());
@@ -200,16 +218,18 @@ public class ClusterStateObserver {
                 return;
             }
             ClusterState newState = clusterApplierService.state();
-            if (lastObservedState.get().isOlderOrDifferentMaster(newState) && context.statePredicate.test(newState)) {
+            if (lastObservedVersion < newState.version() && context.statePredicate.test(newState)) {
                 // double check we're still listening
                 if (observingContext.compareAndSet(context, null)) {
                     logger.trace("observer: post adding listener: accepting current cluster state ({})", newState);
                     clusterApplierService.removeTimeoutListener(this);
-                    lastObservedState.set(new StoredState(newState));
+                    lastObservedVersion = newState.version();
                     context.listener.onNewClusterState(newState);
                 } else {
-                    logger.trace("observer: postAdded - predicate approved state but observing context has changed - ignoring ({})",
-                        newState);
+                    logger.trace(
+                        "observer: postAdded - predicate approved state but observing context has changed - ignoring ({})",
+                        newState
+                    );
                 }
             } else {
                 logger.trace("observer: postAdded - predicate rejected state ({})", newState);
@@ -233,10 +253,13 @@ public class ClusterStateObserver {
             if (context != null) {
                 clusterApplierService.removeTimeoutListener(this);
                 long timeSinceStartMS = threadPool.relativeTimeInMillis() - startTimeMS;
-                logger.trace("observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]",
-                    timeOutValue, new TimeValue(timeSinceStartMS));
+                logger.trace(
+                    "observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]",
+                    timeOutValue,
+                    new TimeValue(timeSinceStartMS)
+                );
                 // update to latest, in case people want to retry
-                lastObservedState.set(new StoredState(clusterApplierService.state()));
+                lastObservedVersion = clusterApplierService.state().version();
                 timedOut = true;
                 context.listener.onTimeout(timeOutValue);
             }
@@ -245,26 +268,6 @@ public class ClusterStateObserver {
         @Override
         public String toString() {
             return "ClusterStateObserver[" + observingContext.get() + "]";
-        }
-    }
-
-    /**
-     * The observer considers two cluster states to be the same if they have the same version and master node id (i.e. null or set)
-     */
-    private static class StoredState {
-        private final String masterNodeId;
-        private final long version;
-
-        StoredState(ClusterState clusterState) {
-            this.masterNodeId = clusterState.nodes().getMasterNodeId();
-            this.version = clusterState.version();
-        }
-
-        /**
-         * returns true if stored state is older then given state or they are from a different master, meaning they can't be compared
-         * */
-        public boolean isOlderOrDifferentMaster(ClusterState clusterState) {
-            return version < clusterState.version() || Objects.equals(masterNodeId, clusterState.nodes().getMasterNodeId()) == false;
         }
     }
 
@@ -298,7 +301,6 @@ public class ClusterStateObserver {
         private final Listener delegate;
         private final Supplier<ThreadContext.StoredContext> contextSupplier;
 
-
         private ContextPreservingListener(Listener delegate, Supplier<ThreadContext.StoredContext> contextSupplier) {
             this.contextSupplier = contextSupplier;
             this.delegate = delegate;
@@ -306,21 +308,21 @@ public class ClusterStateObserver {
 
         @Override
         public void onNewClusterState(ClusterState state) {
-            try (ThreadContext.StoredContext context  = contextSupplier.get()) {
+            try (ThreadContext.StoredContext context = contextSupplier.get()) {
                 delegate.onNewClusterState(state);
             }
         }
 
         @Override
         public void onClusterServiceClose() {
-            try (ThreadContext.StoredContext context  = contextSupplier.get()) {
+            try (ThreadContext.StoredContext context = contextSupplier.get()) {
                 delegate.onClusterServiceClose();
             }
         }
 
         @Override
         public void onTimeout(TimeValue timeout) {
-            try (ThreadContext.StoredContext context  = contextSupplier.get()) {
+            try (ThreadContext.StoredContext context = contextSupplier.get()) {
                 delegate.onTimeout(timeout);
             }
         }

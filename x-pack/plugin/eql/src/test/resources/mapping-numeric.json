@@ -34,6 +34,9 @@
         "scaled_float_field": {
             "type" : "scaled_float"
         },
+        "unsigned_long_field" : {
+          "type": "unsigned_long"
+        },
         "wrong_int_type_field": {
             "type" : "int"
         }

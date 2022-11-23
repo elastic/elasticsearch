@@ -25,14 +25,13 @@ public class SizeLimitInputStreamTests extends ESTestCase {
 
     public void testLimitReached() {
         int length = scaledRandomIntBetween(1, 100);
-        IOException e = expectThrows(IOException.class, () -> test(length+1, length));
+        IOException e = expectThrows(IOException.class, () -> test(length + 1, length));
         assertThat(e.getMessage(), is("Maximum limit of [" + length + "] bytes reached"));
     }
 
     public void testMarking() {
         ByteSizeValue byteSizeValue = new ByteSizeValue(1, ByteSizeUnit.BYTES);
-        SizeLimitInputStream is = new SizeLimitInputStream(byteSizeValue,
-                new ByteArrayInputStream("empty".getBytes(UTF_8)));
+        SizeLimitInputStream is = new SizeLimitInputStream(byteSizeValue, new ByteArrayInputStream("empty".getBytes(UTF_8)));
         assertThat(is.markSupported(), is(false));
         expectThrows(UnsupportedOperationException.class, () -> is.mark(10));
         IOException e = expectThrows(IOException.class, () -> is.reset());
@@ -42,8 +41,7 @@ public class SizeLimitInputStreamTests extends ESTestCase {
     private void test(int inputStreamLength, int maxAllowedSize) throws IOException {
         String data = randomAlphaOfLength(inputStreamLength);
         ByteSizeValue byteSizeValue = new ByteSizeValue(maxAllowedSize, ByteSizeUnit.BYTES);
-        SizeLimitInputStream is = new SizeLimitInputStream(byteSizeValue,
-                new ByteArrayInputStream(data.getBytes(UTF_8)));
+        SizeLimitInputStream is = new SizeLimitInputStream(byteSizeValue, new ByteArrayInputStream(data.getBytes(UTF_8)));
 
         if (randomBoolean()) {
             is.read(new byte[inputStreamLength]);

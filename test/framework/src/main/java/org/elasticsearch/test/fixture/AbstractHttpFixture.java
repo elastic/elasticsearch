@@ -9,8 +9,9 @@
 package org.elasticsearch.test.fixture;
 
 import com.sun.net.httpserver.HttpServer;
-import org.elasticsearch.core.SuppressForbidden;
+
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -77,7 +78,7 @@ public abstract class AbstractHttpFixture {
         final HttpServer httpServer = HttpServer.create(socketAddress, 0);
 
         try {
-            if(exposePidAndPort) {
+            if (exposePidAndPort) {
                 /// Writes the PID of the current Java process in a `pid` file located in the working directory
                 writeFile(workingDirectory, "pid", ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
 
@@ -162,28 +163,12 @@ public abstract class AbstractHttpFixture {
     /**
      * Represents an HTTP Response.
      */
-    protected static class Response {
+    protected record Response(int status, Map<String, String> headers, byte[] body) {
 
-        private final int status;
-        private final Map<String, String> headers;
-        private final byte[] body;
-
-        public Response(final int status, final Map<String, String> headers, final byte[] body) {
+        public Response(int status, Map<String, String> headers, byte[] body) {
             this.status = status;
             this.headers = Objects.requireNonNull(headers);
             this.body = Objects.requireNonNull(body);
-        }
-
-        public int getStatus() {
-            return status;
-        }
-
-        public Map<String, String> getHeaders() {
-            return headers;
-        }
-
-        public byte[] getBody() {
-            return body;
         }
 
         public String getContentType() {
@@ -193,11 +178,6 @@ public abstract class AbstractHttpFixture {
                 }
             }
             return null;
-        }
-
-        @Override
-        public String toString() {
-            return "Response{" + "status=" + status + ", headers=" + headers + ", body=" + new String(body, UTF_8) + '}';
         }
     }
 

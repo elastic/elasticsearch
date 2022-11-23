@@ -9,17 +9,18 @@
 package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A action that will be retried on failure if {@link RetryableAction#shouldRetry(Exception)} returns true.
@@ -41,13 +42,24 @@ public abstract class RetryableAction<Response> {
 
     private volatile Scheduler.ScheduledCancellable retryTask;
 
-    public RetryableAction(Logger logger, ThreadPool threadPool, TimeValue initialDelay, TimeValue timeoutValue,
-                           ActionListener<Response> listener) {
+    public RetryableAction(
+        Logger logger,
+        ThreadPool threadPool,
+        TimeValue initialDelay,
+        TimeValue timeoutValue,
+        ActionListener<Response> listener
+    ) {
         this(logger, threadPool, initialDelay, timeoutValue, listener, ThreadPool.Names.SAME);
     }
 
-    public RetryableAction(Logger logger, ThreadPool threadPool, TimeValue initialDelay, TimeValue timeoutValue,
-                           ActionListener<Response> listener, String executor) {
+    public RetryableAction(
+        Logger logger,
+        ThreadPool threadPool,
+        TimeValue initialDelay,
+        TimeValue timeoutValue,
+        ActionListener<Response> listener,
+        String executor
+    ) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.initialDelayMillis = initialDelay.getMillis();
@@ -93,7 +105,7 @@ public abstract class RetryableAction<Response> {
             public void onRejection(Exception e) {
                 retryTask = null;
                 // TODO: The only implementations of this class use SAME which means the execution will not be
-                //  rejected. Future implementations can adjust this functionality as needed.
+                // rejected. Future implementations can adjust this functionality as needed.
                 onFailure(e);
             }
         };
@@ -107,12 +119,11 @@ public abstract class RetryableAction<Response> {
         return Math.min(previousDelayBound * 2, Integer.MAX_VALUE);
     }
 
-    protected long minimumDelayMillis() {
+    protected static long minimumDelayMillis() {
         return 0L;
     }
 
-    public void onFinished() {
-    }
+    public void onFinished() {}
 
     private class RetryingListener implements ActionListener<Response> {
 
@@ -139,8 +150,7 @@ public abstract class RetryableAction<Response> {
             if (shouldRetry(e)) {
                 final long elapsedMillis = threadPool.relativeTimeInMillis() - startMillis;
                 if (elapsedMillis >= timeoutMillis) {
-                    logger.debug(() -> new ParameterizedMessage("retryable action timed out after {}",
-                        TimeValue.timeValueMillis(elapsedMillis)), e);
+                    logger.debug(() -> format("retryable action timed out after %s", TimeValue.timeValueMillis(elapsedMillis)), e);
                     onFinalFailure(e);
                 } else {
                     addException(e);
@@ -153,7 +163,7 @@ public abstract class RetryableAction<Response> {
                     assert delayMillis > 0;
                     if (isDone.get() == false) {
                         final TimeValue delay = TimeValue.timeValueMillis(delayMillis);
-                        logger.debug(() -> new ParameterizedMessage("retrying action that failed in {}", delay), e);
+                        logger.debug(() -> format("retrying action that failed in %s", delay), e);
                         try {
                             retryTask = threadPool.schedule(runnable, delay, executor);
                         } catch (EsRejectedExecutionException ree) {
@@ -164,6 +174,11 @@ public abstract class RetryableAction<Response> {
             } else {
                 onFinalFailure(e);
             }
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getName() + "/" + finalListener;
         }
 
         private void onFinalFailure(Exception e) {

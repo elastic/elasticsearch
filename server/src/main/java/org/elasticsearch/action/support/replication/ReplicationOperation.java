@@ -8,9 +8,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -21,11 +19,12 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -43,11 +42,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class ReplicationOperation<
-            Request extends ReplicationRequest<Request>,
-            ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
-            PrimaryResultT extends ReplicationOperation.PrimaryResult<ReplicaRequest>
-        > {
+    Request extends ReplicationRequest<Request>,
+    ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+    PrimaryResultT extends ReplicationOperation.PrimaryResult<ReplicaRequest>> {
     private final Logger logger;
     private final ThreadPool threadPool;
     private final Request request;
@@ -79,11 +79,18 @@ public class ReplicationOperation<
 
     private final List<ReplicationResponse.ShardInfo.Failure> shardReplicaFailures = Collections.synchronizedList(new ArrayList<>());
 
-    public ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
-                                ActionListener<PrimaryResultT> listener,
-                                Replicas<ReplicaRequest> replicas,
-                                Logger logger, ThreadPool threadPool, String opType, long primaryTerm, TimeValue initialRetryBackoffBound,
-                                TimeValue retryTimeout) {
+    public ReplicationOperation(
+        Request request,
+        Primary<Request, ReplicaRequest, PrimaryResultT> primary,
+        ActionListener<PrimaryResultT> listener,
+        Replicas<ReplicaRequest> replicas,
+        Logger logger,
+        ThreadPool threadPool,
+        String opType,
+        long primaryTerm,
+        TimeValue initialRetryBackoffBound,
+        TimeValue retryTimeout
+    ) {
         this.replicasProxy = replicas;
         this.primary = primary;
         this.resultListener = listener;
@@ -101,8 +108,15 @@ public class ReplicationOperation<
         final ShardRouting primaryRouting = primary.routingEntry();
         final ShardId primaryId = primaryRouting.shardId();
         if (activeShardCountFailure != null) {
-            finishAsFailed(new UnavailableShardsException(primaryId,
-                "{} Timeout: [{}], request: [{}]", activeShardCountFailure, request.timeout(), request));
+            finishAsFailed(
+                new UnavailableShardsException(
+                    primaryId,
+                    "{} Timeout: [{}], request: [{}]",
+                    activeShardCountFailure,
+                    request.timeout(),
+                    request
+                )
+            );
             return;
         }
 
@@ -141,11 +155,12 @@ public class ReplicationOperation<
             @Override
             public void onResponse(Void aVoid) {
                 successfulShards.incrementAndGet();
-                try {
-                    updateCheckPoints(primary.routingEntry(), primary::localCheckpoint, primary::globalCheckpoint);
-                } finally {
-                    decPendingAndFinishIfNeeded();
-                }
+                updateCheckPoints(
+                    primary.routingEntry(),
+                    primary::localCheckpoint,
+                    primary::globalCheckpoint,
+                    () -> decPendingAndFinishIfNeeded()
+                );
             }
 
             @Override
@@ -162,14 +177,22 @@ public class ReplicationOperation<
         // if inSyncAllocationIds contains allocation ids of shards that don't exist in RoutingTable, mark copies as stale
         for (String allocationId : replicationGroup.getUnavailableInSyncShards()) {
             pendingActions.incrementAndGet();
-            replicasProxy.markShardCopyAsStaleIfNeeded(replicaRequest.shardId(), allocationId, primaryTerm,
-                ActionListener.wrap(r -> decPendingAndFinishIfNeeded(), ReplicationOperation.this::onNoLongerPrimary));
+            replicasProxy.markShardCopyAsStaleIfNeeded(
+                replicaRequest.shardId(),
+                allocationId,
+                primaryTerm,
+                ActionListener.wrap(r -> decPendingAndFinishIfNeeded(), ReplicationOperation.this::onNoLongerPrimary)
+            );
         }
     }
 
-    private void performOnReplicas(final ReplicaRequest replicaRequest, final long globalCheckpoint,
-                                   final long maxSeqNoOfUpdatesOrDeletes, final ReplicationGroup replicationGroup,
-                                   final PendingReplicationActions pendingReplicationActions) {
+    private void performOnReplicas(
+        final ReplicaRequest replicaRequest,
+        final long globalCheckpoint,
+        final long maxSeqNoOfUpdatesOrDeletes,
+        final ReplicationGroup replicationGroup,
+        final PendingReplicationActions pendingReplicationActions
+    ) {
         // for total stats, add number of unassigned shards and
         // number of initializing shards that are not ready yet to receive operations (recovery has not opened engine yet on the target)
         totalShards.addAndGet(replicationGroup.getSkippedShards().size());
@@ -183,9 +206,13 @@ public class ReplicationOperation<
         }
     }
 
-    private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest,
-                                  final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes,
-                                  final PendingReplicationActions pendingReplicationActions) {
+    private void performOnReplica(
+        final ShardRouting shard,
+        final ReplicaRequest replicaRequest,
+        final long globalCheckpoint,
+        final long maxSeqNoOfUpdatesOrDeletes,
+        final PendingReplicationActions pendingReplicationActions
+    ) {
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
@@ -195,27 +222,42 @@ public class ReplicationOperation<
             @Override
             public void onResponse(ReplicaResponse response) {
                 successfulShards.incrementAndGet();
-                try {
-                    updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint);
-                } finally {
-                    decPendingAndFinishIfNeeded();
-                }
+                updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint, () -> decPendingAndFinishIfNeeded());
             }
 
             @Override
             public void onFailure(Exception replicaException) {
-                logger.trace(() -> new ParameterizedMessage(
-                    "[{}] failure while performing [{}] on replica {}, request [{}]",
-                    shard.shardId(), opType, shard, replicaRequest), replicaException);
+                logger.trace(
+                    () -> format(
+                        "[%s] failure while performing [%s] on replica %s, request [%s]",
+                        shard.shardId(),
+                        opType,
+                        shard,
+                        replicaRequest
+                    ),
+                    replicaException
+                );
                 // Only report "critical" exceptions - TODO: Reach out to the master node to get the latest shard state then report.
                 if (TransportActions.isShardNotAvailableException(replicaException) == false) {
                     RestStatus restStatus = ExceptionsHelper.status(replicaException);
-                    shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(
-                        shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
+                    shardReplicaFailures.add(
+                        new ReplicationResponse.ShardInfo.Failure(
+                            shard.shardId(),
+                            shard.currentNodeId(),
+                            replicaException,
+                            restStatus,
+                            false
+                        )
+                    );
                 }
                 String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
-                replicasProxy.failShardIfNeeded(shard, primaryTerm, message, replicaException,
-                    ActionListener.wrap(r -> decPendingAndFinishIfNeeded(), ReplicationOperation.this::onNoLongerPrimary));
+                replicasProxy.failShardIfNeeded(
+                    shard,
+                    primaryTerm,
+                    message,
+                    replicaException,
+                    ActionListener.wrap(r -> decPendingAndFinishIfNeeded(), ReplicationOperation.this::onNoLongerPrimary)
+                );
             }
 
             @Override
@@ -225,8 +267,13 @@ public class ReplicationOperation<
         };
 
         final String allocationId = shard.allocationId().getId();
-        final RetryableAction<ReplicaResponse> replicationAction = new RetryableAction<>(logger, threadPool, initialRetryBackoffBound,
-                retryTimeout, replicationListener) {
+        final RetryableAction<ReplicaResponse> replicationAction = new RetryableAction<>(
+            logger,
+            threadPool,
+            initialRetryBackoffBound,
+            retryTimeout,
+            replicationListener
+        ) {
 
             @Override
             public void tryAction(ActionListener<ReplicaResponse> listener) {
@@ -242,9 +289,9 @@ public class ReplicationOperation<
             @Override
             public boolean shouldRetry(Exception e) {
                 final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                return cause instanceof CircuitBreakingException ||
-                    cause instanceof EsRejectedExecutionException ||
-                    cause instanceof ConnectTransportException;
+                return cause instanceof CircuitBreakingException
+                    || cause instanceof EsRejectedExecutionException
+                    || cause instanceof ConnectTransportException;
             }
         };
 
@@ -252,39 +299,101 @@ public class ReplicationOperation<
         replicationAction.run();
     }
 
-    private void updateCheckPoints(ShardRouting shard, LongSupplier localCheckpointSupplier, LongSupplier globalCheckpointSupplier) {
+    private void updateCheckPoints(
+        ShardRouting shard,
+        LongSupplier localCheckpointSupplier,
+        LongSupplier globalCheckpointSupplier,
+        Runnable onCompletion
+    ) {
+        boolean forked = false;
         try {
             primary.updateLocalCheckpointForShard(shard.allocationId().getId(), localCheckpointSupplier.getAsLong());
             primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), globalCheckpointSupplier.getAsLong());
         } catch (final AlreadyClosedException e) {
             // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
         } catch (final Exception e) {
-            // fail the primary but fall through and let the rest of operation processing complete
-            final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
-            primary.failShard(message, e);
+            threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    assert false : e;
+                }
+
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+
+                @Override
+                protected void doRun() {
+                    // fail the primary but fall through and let the rest of operation processing complete
+                    primary.failShard(String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard), e);
+                }
+
+                @Override
+                public void onAfter() {
+                    onCompletion.run();
+                }
+            });
+            forked = true;
+        } finally {
+            if (forked == false) {
+                onCompletion.run();
+            }
         }
     }
 
     private void onNoLongerPrimary(Exception failure) {
         final Throwable cause = ExceptionsHelper.unwrapCause(failure);
         final boolean nodeIsClosing = cause instanceof NodeClosedException;
-        final String message;
         if (nodeIsClosing) {
-            message = String.format(Locale.ROOT,
-                "node with primary [%s] is shutting down while failing replica shard", primary.routingEntry());
             // We prefer not to fail the primary to avoid unnecessary warning log
             // when the node with the primary shard is gracefully shutting down.
+            finishAsFailed(
+                new RetryOnPrimaryException(
+                    primary.routingEntry().shardId(),
+                    String.format(
+                        Locale.ROOT,
+                        "node with primary [%s] is shutting down while failing replica shard",
+                        primary.routingEntry()
+                    ),
+                    failure
+                )
+            );
         } else {
-            if (Assertions.ENABLED) {
-                if (failure instanceof ShardStateAction.NoLongerPrimaryShardException == false) {
-                    throw new AssertionError("unexpected failure", failure);
+            assert failure instanceof ShardStateAction.NoLongerPrimaryShardException : failure;
+            threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    // we are no longer the primary, fail ourselves and start over
+                    final var message = String.format(
+                        Locale.ROOT,
+                        "primary shard [%s] was demoted while failing replica shard",
+                        primary.routingEntry()
+                    );
+                    primary.failShard(message, failure);
+                    finishAsFailed(new RetryOnPrimaryException(primary.routingEntry().shardId(), message, failure));
                 }
-            }
-            // we are no longer the primary, fail ourselves and start over
-            message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard", primary.routingEntry());
-            primary.failShard(message, failure);
+
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    e.addSuppressed(failure);
+                    assert false : e;
+                    logger.error(() -> "unexpected failure while failing primary [" + primary.routingEntry() + "]", e);
+                    finishAsFailed(
+                        new RetryOnPrimaryException(
+                            primary.routingEntry().shardId(),
+                            String.format(Locale.ROOT, "unexpected failure while failing primary [%s]", primary.routingEntry()),
+                            e
+                        )
+                    );
+                }
+            });
         }
-        finishAsFailed(new RetryOnPrimaryException(primary.routingEntry().shardId(), message, failure));
     }
 
     /**
@@ -301,13 +410,26 @@ public class ReplicationOperation<
         if (waitForActiveShards.enoughShardsActive(shardRoutingTable)) {
             return null;
         } else {
-            final String resolvedShards = waitForActiveShards == ActiveShardCount.ALL ? Integer.toString(shardRoutingTable.shards().size())
-                                              : waitForActiveShards.toString();
-            logger.trace("[{}] not enough active copies to meet shard count of [{}] (have {}, needed {}), scheduling a retry. op [{}], " +
-                         "request [{}]", shardId, waitForActiveShards, shardRoutingTable.activeShards().size(),
-                         resolvedShards, opType, request);
-            return "Not enough active copies to meet shard count of [" + waitForActiveShards + "] (have " +
-                       shardRoutingTable.activeShards().size() + ", needed " + resolvedShards + ").";
+            final String resolvedShards = waitForActiveShards == ActiveShardCount.ALL
+                ? Integer.toString(shardRoutingTable.size())
+                : waitForActiveShards.toString();
+            logger.trace(
+                "[{}] not enough active copies to meet shard count of [{}] (have {}, needed {}), scheduling a retry. op [{}], "
+                    + "request [{}]",
+                shardId,
+                waitForActiveShards,
+                shardRoutingTable.activeShards().size(),
+                resolvedShards,
+                opType,
+                request
+            );
+            return "Not enough active copies to meet shard count of ["
+                + waitForActiveShards
+                + "] (have "
+                + shardRoutingTable.activeShards().size()
+                + ", needed "
+                + resolvedShards
+                + ").";
         }
     }
 
@@ -327,12 +449,7 @@ public class ReplicationOperation<
                 failuresArray = new ReplicationResponse.ShardInfo.Failure[shardReplicaFailures.size()];
                 shardReplicaFailures.toArray(failuresArray);
             }
-            primaryResult.setShardInfo(new ReplicationResponse.ShardInfo(
-                    totalShards.get(),
-                    successfulShards.get(),
-                    failuresArray
-                )
-            );
+            primaryResult.setShardInfo(new ReplicationResponse.ShardInfo(totalShards.get(), successfulShards.get(), failuresArray));
             resultListener.onResponse(primaryResult);
         }
     }
@@ -347,10 +464,9 @@ public class ReplicationOperation<
      * An encapsulation of an operation that is to be performed on the primary shard
      */
     public interface Primary<
-                RequestT extends ReplicationRequest<RequestT>,
-                ReplicaRequestT extends ReplicationRequest<ReplicaRequestT>,
-                PrimaryResultT extends PrimaryResult<ReplicaRequestT>
-            > {
+        RequestT extends ReplicationRequest<RequestT>,
+        ReplicaRequestT extends ReplicationRequest<ReplicaRequestT>,
+        PrimaryResultT extends PrimaryResult<ReplicaRequestT>> {
 
         /**
          * routing entry for this primary
@@ -451,8 +567,14 @@ public class ReplicationOperation<
          *                                   after this replication was executed on it.
          * @param listener                   callback for handling the response or failure
          */
-        void performOn(ShardRouting replica, RequestT replicaRequest,
-                       long primaryTerm, long globalCheckpoint, long maxSeqNoOfUpdatesOrDeletes, ActionListener<ReplicaResponse> listener);
+        void performOn(
+            ShardRouting replica,
+            RequestT replicaRequest,
+            long primaryTerm,
+            long globalCheckpoint,
+            long maxSeqNoOfUpdatesOrDeletes,
+            ActionListener<ReplicaResponse> listener
+        );
 
         /**
          * Fail the specified shard if needed, removing it from the current set
@@ -522,7 +644,8 @@ public class ReplicationOperation<
          * @return null if no operation needs to be sent to a replica
          * (for example when the operation failed on the primary due to a parsing exception)
          */
-        @Nullable RequestT replicaRequest();
+        @Nullable
+        RequestT replicaRequest();
 
         void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
 

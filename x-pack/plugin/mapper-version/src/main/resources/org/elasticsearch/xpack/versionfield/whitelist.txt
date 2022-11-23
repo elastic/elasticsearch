@@ -1,5 +1,0 @@
-
-class org.elasticsearch.xpack.versionfield.VersionScriptDocValues {
-    String get(int)
-    String getValue()
-}

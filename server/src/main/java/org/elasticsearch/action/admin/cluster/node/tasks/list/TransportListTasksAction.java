@@ -38,18 +38,30 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
     @Inject
     public TransportListTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
-        super(ListTasksAction.NAME, clusterService, transportService, actionFilters,
-            ListTasksRequest::new, ListTasksResponse::new, TaskInfo::new, ThreadPool.Names.MANAGEMENT);
+        super(
+            ListTasksAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            ListTasksRequest::new,
+            ListTasksResponse::new,
+            TaskInfo::from,
+            ThreadPool.Names.MANAGEMENT
+        );
     }
 
     @Override
-    protected ListTasksResponse newResponse(ListTasksRequest request, List<TaskInfo> tasks,
-            List<TaskOperationFailure> taskOperationFailures, List<FailedNodeException> failedNodeExceptions) {
+    protected ListTasksResponse newResponse(
+        ListTasksRequest request,
+        List<TaskInfo> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
     }
 
     @Override
-    protected void taskOperation(ListTasksRequest request, Task task, ActionListener<TaskInfo> listener) {
+    protected void taskOperation(Task actionTask, ListTasksRequest request, Task task, ActionListener<TaskInfo> listener) {
         listener.onResponse(task.taskInfo(clusterService.localNode().getId(), request.getDetailed()));
     }
 

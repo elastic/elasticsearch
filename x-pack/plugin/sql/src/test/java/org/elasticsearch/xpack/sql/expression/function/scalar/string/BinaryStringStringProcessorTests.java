@@ -23,9 +23,10 @@ public class BinaryStringStringProcessorTests extends AbstractWireSerializingTes
     @Override
     protected BinaryStringStringProcessor createTestInstance() {
         return new BinaryStringStringProcessor(
-                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(1, 128)),
-                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(1, 128)),
-                randomFrom(BinaryStringStringOperation.values()));
+            new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(1, 128)),
+            new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(1, 128)),
+            randomFrom(BinaryStringStringOperation.values())
+        );
     }
 
     @Override
@@ -54,11 +55,15 @@ public class BinaryStringStringProcessorTests extends AbstractWireSerializingTes
     }
 
     public void testPositionFunctionInputsValidation() {
-        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Position(EMPTY, l(5), l("foo")).makePipe().asProcessor().process(null));
+        SqlIllegalArgumentException siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Position(EMPTY, l(5), l("foo")).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [5]", siae.getMessage());
-        siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Position(EMPTY, l("foo bar"), l(3)).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Position(EMPTY, l("foo bar"), l(3)).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [3]", siae.getMessage());
     }
 }

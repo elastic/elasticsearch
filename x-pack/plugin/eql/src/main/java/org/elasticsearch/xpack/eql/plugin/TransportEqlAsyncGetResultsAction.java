@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.eql.plugin;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -23,15 +23,26 @@ import org.elasticsearch.xpack.ql.plugin.AbstractTransportQlAsyncGetResultsActio
 public class TransportEqlAsyncGetResultsAction extends AbstractTransportQlAsyncGetResultsAction<EqlSearchResponse, EqlSearchTask> {
 
     @Inject
-    public TransportEqlAsyncGetResultsAction(TransportService transportService,
-                                             ActionFilters actionFilters,
-                                             ClusterService clusterService,
-                                             NamedWriteableRegistry registry,
-                                             Client client,
-                                             ThreadPool threadPool,
-                                             BigArrays bigArrays) {
-        super(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME, transportService, actionFilters, clusterService, registry, client,
-            threadPool, bigArrays, EqlSearchTask.class);
+    public TransportEqlAsyncGetResultsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        NamedWriteableRegistry registry,
+        Client client,
+        ThreadPool threadPool,
+        BigArrays bigArrays
+    ) {
+        super(
+            EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME,
+            transportService,
+            actionFilters,
+            clusterService,
+            registry,
+            client,
+            threadPool,
+            bigArrays,
+            EqlSearchTask.class
+        );
     }
 
     @Override

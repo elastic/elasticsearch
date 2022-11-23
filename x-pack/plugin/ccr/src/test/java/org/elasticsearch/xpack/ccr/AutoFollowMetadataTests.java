@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
 import java.io.IOException;
@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFollowMetadata> {
+public class AutoFollowMetadataTests extends AbstractXContentSerializingTestCase<AutoFollowMetadata> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
@@ -38,9 +38,9 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
     @Override
     protected AutoFollowMetadata createTestInstance() {
         int numEntries = randomIntBetween(0, 32);
-        Map<String, AutoFollowMetadata.AutoFollowPattern> configs = new HashMap<>(numEntries);
-        Map<String, List<String>> followedLeaderIndices = new HashMap<>(numEntries);
-        Map<String, Map<String, String>> headers = new HashMap<>(numEntries);
+        Map<String, AutoFollowMetadata.AutoFollowPattern> configs = Maps.newMapWithExpectedSize(numEntries);
+        Map<String, List<String>> followedLeaderIndices = Maps.newMapWithExpectedSize(numEntries);
+        Map<String, Map<String, String>> headers = Maps.newMapWithExpectedSize(numEntries);
         for (int i = 0; i < numEntries; i++) {
             List<String> leaderPatterns = Arrays.asList(generateRandomStringArray(4, 4, false));
             List<String> leaderExclusionPatterns = Arrays.asList(generateRandomStringArray(4, 4, false));
@@ -55,12 +55,13 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
-                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
-                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
                 randomIntBetween(0, Integer.MAX_VALUE),
-                new ByteSizeValue(randomNonNegativeLong()),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(500),
-                TimeValue.timeValueMillis(500));
+                TimeValue.timeValueMillis(500)
+            );
             configs.put(Integer.toString(i), autoFollowPattern);
             followedLeaderIndices.put(Integer.toString(i), Arrays.asList(generateRandomStringArray(4, 4, false)));
             if (randomBoolean()) {

@@ -28,20 +28,14 @@ public enum HttpMethod {
 
     public static HttpMethod parse(String value) {
         value = value.toUpperCase(Locale.ROOT);
-        switch (value) {
-            case "HEAD":
-                return HEAD;
-            case "GET":
-                return GET;
-            case "POST":
-                return POST;
-            case "PUT":
-                return PUT;
-            case "DELETE":
-                return DELETE;
-            default:
-                throw new IllegalArgumentException("unsupported http method [" + value + "]");
-        }
+        return switch (value) {
+            case "HEAD" -> HEAD;
+            case "GET" -> GET;
+            case "POST" -> POST;
+            case "PUT" -> PUT;
+            case "DELETE" -> DELETE;
+            default -> throw new IllegalArgumentException("unsupported http method [" + value + "]");
+        };
     }
 
     public String value() {

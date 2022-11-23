@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

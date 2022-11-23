@@ -11,13 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
@@ -34,14 +33,12 @@ import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandle
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
@@ -57,17 +54,18 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
+    private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
 
-    private volatile boolean isStateNotRecovered = true;
-
-    public SecurityServerTransportInterceptor(Settings settings,
-                                              ThreadPool threadPool,
-                                              AuthenticationService authcService,
-                                              AuthorizationService authzService,
-                                              SSLService sslService,
-                                              SecurityContext securityContext,
-                                              DestructiveOperations destructiveOperations,
-                                              ClusterService clusterService) {
+    public SecurityServerTransportInterceptor(
+        Settings settings,
+        ThreadPool threadPool,
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        SSLService sslService,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations,
+        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
+    ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -75,15 +73,20 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
-        clusterService.addListener(e -> isStateNotRecovered = e.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
+        this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
     }
 
     @Override
     public AsyncSender interceptSender(AsyncSender sender) {
         return new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
-                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
@@ -91,30 +94,60 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // Sometimes a system action gets executed like a internal create index request or update mappings request
                 // which means that the user is copied over to system actions so we need to change the user
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-                    securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
-                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                    , handler), sender), minVersion);
+                    securityContext.executeAsSystemUser(
+                        minVersion,
+                        original -> sendWithUser(
+                            connection,
+                            action,
+                            request,
+                            options,
+                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                            sender
+                        )
+                    );
                 } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
-                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadPool.getThreadContext(), securityContext,
-                            (original) -> sendWithUser(connection, action, request, options,
-                                    new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                            , handler), sender));
-                } else if (securityContext.getAuthentication() != null &&
-                        securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
-                    // re-write the authentication since we want the authentication version to match the version of the connection
-                    securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
-                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender),
-                        minVersion);
-                } else {
-                    sendWithUser(connection, action, request, options, handler, sender);
-                }
+                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
+                        threadPool.getThreadContext(),
+                        securityContext,
+                        minVersion,
+                        (original) -> sendWithUser(
+                            connection,
+                            action,
+                            request,
+                            options,
+                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                            sender
+                        )
+                    );
+                } else if (securityContext.getAuthentication() != null
+                    && securityContext.getAuthentication().getEffectiveSubject().getVersion().equals(minVersion) == false) {
+                        // re-write the authentication since we want the authentication version to match the version of the connection
+                        securityContext.executeAfterRewritingAuthentication(
+                            original -> sendWithUser(
+                                connection,
+                                action,
+                                request,
+                                options,
+                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                                sender
+                            ),
+                            minVersion
+                        );
+                    } else {
+                        sendWithUser(connection, action, request, options, handler, sender);
+                    }
             }
         };
     }
 
-    private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,
-                                                            TransportRequestOptions options, TransportResponseHandler<T> handler,
-                                                            AsyncSender sender) {
+    private <T extends TransportResponse> void sendWithUser(
+        Transport.Connection connection,
+        String action,
+        TransportRequest request,
+        TransportRequestOptions options,
+        TransportResponseHandler<T> handler,
+        AsyncSender sender
+    ) {
         if (securityContext.getAuthentication() == null) {
             // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not catch
             // in tests and may be hit by a user
@@ -135,25 +168,36 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     }
 
     @Override
-    public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                                                                                    boolean forceExecution,
-                                                                                    TransportRequestHandler<T> actualHandler) {
-        return new ProfileSecuredRequestHandler<>(logger, action, forceExecution, executor, actualHandler, profileFilters,
-                settings, threadPool);
+    public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+        String action,
+        String executor,
+        boolean forceExecution,
+        TransportRequestHandler<T> actualHandler
+    ) {
+        return new ProfileSecuredRequestHandler<>(logger, action, forceExecution, executor, actualHandler, profileFilters, threadPool);
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
         final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl"));
         final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, sslConfiguration);
 
-        Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileConfigurations.size() + 1);
+        Map<String, ServerTransportFilter> profileFilters = Maps.newMapWithExpectedSize(profileConfigurations.size() + 1);
 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
             final SslConfiguration profileConfiguration = entry.getValue();
-            final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(profileConfiguration);
-            profileFilters.put(entry.getKey(), new ServerTransportFilter(authcService, authzService, threadPool.getThreadContext(),
-                extractClientCert, destructiveOperations, securityContext));
+            final boolean extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
+            profileFilters.put(
+                entry.getKey(),
+                new ServerTransportFilter(
+                    authcService,
+                    authzService,
+                    threadPool.getThreadContext(),
+                    extractClientCert,
+                    destructiveOperations,
+                    securityContext
+                )
+            );
         }
 
         return Collections.unmodifiableMap(profileFilters);
@@ -170,9 +214,15 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         private final boolean forceExecution;
         private final Logger logger;
 
-        ProfileSecuredRequestHandler(Logger logger, String action, boolean forceExecution, String executorName,
-                                     TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters,
-                                     Settings settings, ThreadPool threadPool) {
+        ProfileSecuredRequestHandler(
+            Logger logger,
+            String action,
+            boolean forceExecution,
+            String executorName,
+            TransportRequestHandler<T> handler,
+            Map<String, ServerTransportFilter> profileFilters,
+            ThreadPool threadPool
+        ) {
             this.logger = logger;
             this.action = action;
             this.executorName = executorName;
@@ -216,16 +266,21 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         @Override
         public String toString() {
-            return "ProfileSecuredRequestHandler{" +
-                    "action='" + action + '\'' +
-                    ", executorName='" + executorName + '\'' +
-                    ", forceExecution=" + forceExecution +
-                    '}';
+            return "ProfileSecuredRequestHandler{"
+                + "action='"
+                + action
+                + '\''
+                + ", executorName='"
+                + executorName
+                + '\''
+                + ", forceExecution="
+                + forceExecution
+                + '}';
         }
 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) {
-            try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
+            try (ThreadContext.StoredContext ctx = threadContext.newStoredContextPreservingResponseHeaders()) {
                 String profile = channel.getProfileName();
                 ServerTransportFilter filter = profileFilters.get(profile);
 

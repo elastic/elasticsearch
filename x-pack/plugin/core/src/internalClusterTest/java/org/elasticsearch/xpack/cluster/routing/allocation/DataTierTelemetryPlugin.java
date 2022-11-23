@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.cluster.routing.allocation;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -40,11 +40,17 @@ public class DataTierTelemetryPlugin extends LocalStateCompositeXPackPlugin {
 
     public static class DataTiersTransportXPackUsageAction extends TransportXPackUsageAction {
         @Inject
-        public DataTiersTransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
-                                                  ClusterService clusterService, ActionFilters actionFilters,
-                                                  IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
+        public DataTiersTransportXPackUsageAction(
+            ThreadPool threadPool,
+            TransportService transportService,
+            ClusterService clusterService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            NodeClient client
+        ) {
             super(threadPool, transportService, clusterService, actionFilters, indexNameExpressionResolver, client);
         }
+
         @Override
         protected List<XPackUsageFeatureAction> usageActions() {
             return Collections.singletonList(XPackUsageFeatureAction.DATA_TIERS);
@@ -53,8 +59,12 @@ public class DataTierTelemetryPlugin extends LocalStateCompositeXPackPlugin {
 
     public static class DataTiersTransportXPackInfoAction extends TransportXPackInfoAction {
         @Inject
-        public DataTiersTransportXPackInfoAction(TransportService transportService, ActionFilters actionFilters,
-                                                 LicenseService licenseService, NodeClient client) {
+        public DataTiersTransportXPackInfoAction(
+            TransportService transportService,
+            ActionFilters actionFilters,
+            LicenseService licenseService,
+            NodeClient client
+        ) {
             super(transportService, actionFilters, licenseService, client);
         }
 

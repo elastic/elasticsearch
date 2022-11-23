@@ -12,14 +12,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -30,6 +30,7 @@ public class CompositeValuesSourceParserHelper {
     static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser) {
         objectParser.declareField(VB::field, XContentParser::text, new ParseField("field"), ObjectParser.ValueType.STRING);
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));
+        objectParser.declareString(VB::missingOrder, new ParseField("missing_order"));
 
         objectParser.declareField(VB::userValuetypeHint, p -> {
             ValueType valueType = ValueType.lenientParse(p.text());
@@ -74,18 +75,13 @@ public class CompositeValuesSourceParserHelper {
 
     public static CompositeValuesSourceBuilder<?> readFrom(StreamInput in) throws IOException {
         int code = in.readByte();
-        switch (code) {
-            case 0:
-                return new TermsValuesSourceBuilder(in);
-            case 1:
-                return new DateHistogramValuesSourceBuilder(in);
-            case 2:
-                return new HistogramValuesSourceBuilder(in);
-            case 3:
-                return new GeoTileGridValuesSourceBuilder(in);
-            default:
-                throw new IOException("Invalid code " + code);
-        }
+        return switch (code) {
+            case 0 -> new TermsValuesSourceBuilder(in);
+            case 1 -> new DateHistogramValuesSourceBuilder(in);
+            case 2 -> new HistogramValuesSourceBuilder(in);
+            case 3 -> new GeoTileGridValuesSourceBuilder(in);
+            default -> throw new IOException("Invalid code " + code);
+        };
     }
 
     public static CompositeValuesSourceBuilder<?> fromXContent(XContentParser parser) throws IOException {
@@ -101,23 +97,13 @@ public class CompositeValuesSourceParserHelper {
         String type = parser.currentName();
         token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        final CompositeValuesSourceBuilder<?> builder;
-        switch (type) {
-            case TermsValuesSourceBuilder.TYPE:
-                builder = TermsValuesSourceBuilder.parse(name, parser);
-                break;
-            case DateHistogramValuesSourceBuilder.TYPE:
-                builder = DateHistogramValuesSourceBuilder.PARSER.parse(parser, name);
-                break;
-            case HistogramValuesSourceBuilder.TYPE:
-                builder = HistogramValuesSourceBuilder.parse(name, parser);
-                break;
-            case GeoTileGridValuesSourceBuilder.TYPE:
-                builder = GeoTileGridValuesSourceBuilder.parse(name, parser);
-                break;
-            default:
-                throw new ParsingException(parser.getTokenLocation(), "invalid source type: " + type);
-        }
+        final CompositeValuesSourceBuilder<?> builder = switch (type) {
+            case TermsValuesSourceBuilder.TYPE -> TermsValuesSourceBuilder.parse(name, parser);
+            case DateHistogramValuesSourceBuilder.TYPE -> DateHistogramValuesSourceBuilder.PARSER.parse(parser, name);
+            case HistogramValuesSourceBuilder.TYPE -> HistogramValuesSourceBuilder.parse(name, parser);
+            case GeoTileGridValuesSourceBuilder.TYPE -> GeoTileGridValuesSourceBuilder.parse(name, parser);
+            default -> throw new ParsingException(parser.getTokenLocation(), "invalid source type: " + type);
+        };
         parser.nextToken();
         parser.nextToken();
         return builder;

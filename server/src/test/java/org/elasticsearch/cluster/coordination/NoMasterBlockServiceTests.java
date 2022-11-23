@@ -49,8 +49,10 @@ public class NoMasterBlockServiceTests extends ESTestCase {
     }
 
     public void testRejectsInvalidSetting() {
-        expectThrows(IllegalArgumentException.class, () ->
-            createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "unknown").build()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "unknown").build())
+        );
     }
 
     public void testSettingCanBeUpdated() {

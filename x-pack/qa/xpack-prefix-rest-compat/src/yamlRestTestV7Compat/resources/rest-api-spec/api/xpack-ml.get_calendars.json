@@ -1,0 +1,55 @@
+{
+  "xpack-ml.get_calendars":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar.html",
+      "description":"Retrieves configuration information for calendars."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/ml/calendars",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path":"/_xpack/ml/calendars/{calendar_id}",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to fetch"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{
+      "from":{
+        "type":"int",
+        "description":"skips a number of calendars"
+      },
+      "size":{
+        "type":"int",
+        "description":"specifies a max number of calendars to get"
+      }
+    },
+    "body":{
+      "description":"The from and size parameters optionally sent in the body"
+    }
+  }
+}

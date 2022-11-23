@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Collections;
 import java.util.List;
@@ -28,8 +28,7 @@ import static org.junit.Assert.fail;
 
 public final class XPackRestTestHelper {
 
-    private XPackRestTestHelper() {
-    }
+    private XPackRestTestHelper() {}
 
     /**
      * For each template name wait for the template to be created and
@@ -60,7 +59,7 @@ public final class XPackRestTestHelper {
         });
 
         // TODO: legacy support can be removed once all X-Pack plugins use only composable
-        //       templates in the oldest version we test upgrades from
+        // templates in the oldest version we test upgrades from
         assertBusy(() -> {
             Map<String, Object> response;
             if (clusterUnderstandsComposableTemplates) {
@@ -68,8 +67,11 @@ public final class XPackRestTestHelper {
                 request.addParameter("error_trace", "true");
 
                 String string = EntityUtils.toString(client.performRequest(request).getEntity());
-                List<Map<String, Object>> templateList = (List<Map<String, Object>>) XContentHelper.convertToMap(JsonXContent.jsonXContent,
-                    string, false).get("index_templates");
+                List<Map<String, Object>> templateList = (List<Map<String, Object>>) XContentHelper.convertToMap(
+                    JsonXContent.jsonXContent,
+                    string,
+                    false
+                ).get("index_templates");
                 response = templateList.stream().collect(Collectors.toMap(m -> (String) m.get("name"), m -> m.get("index_template")));
             } else {
                 response = Collections.emptyMap();
@@ -91,9 +93,14 @@ public final class XPackRestTestHelper {
 
             // While it's possible to use a Hamcrest matcher for this, the failure is much less legible.
             if (missingTemplates.isEmpty() == false) {
-                fail("Some expected templates are missing: " + missingTemplates
-                    + ". The composable templates that exist are: " + templates
-                    + ". The legacy templates that exist are: " + legacyTemplates);
+                fail(
+                    "Some expected templates are missing: "
+                        + missingTemplates
+                        + ". The composable templates that exist are: "
+                        + templates
+                        + ". The legacy templates that exist are: "
+                        + legacyTemplates
+                );
             }
 
             expectedTemplates.forEach(template -> {
@@ -104,7 +111,8 @@ public final class XPackRestTestHelper {
                 assertThat(
                     "Template [" + template + "] has unexpected version",
                     Version.fromId((Integer) templateDefinition.get("version")),
-                    equalTo(masterNodeVersion.get()));
+                    equalTo(masterNodeVersion.get())
+                );
             });
         });
     }

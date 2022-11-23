@@ -23,17 +23,22 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -41,10 +46,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LimitedRoleTests extends ESTestCase {
+
+    private static final RestrictedIndices EMPTY_RESTRICTED_INDICES = new RestrictedIndices(Automatons.EMPTY);
+
     List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors;
 
     @Before
@@ -53,180 +62,271 @@ public class LimitedRoleTests extends ESTestCase {
     }
 
     public void testRoleConstructorWithLimitedRole() {
-        Role fromRole = Role.builder(Automatons.EMPTY, "a-role").build();
-        Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role").build();
-        Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+        Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role").build();
+        Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").build();
+        Role role = fromRole.limitedBy(limitedByRole);
         assertNotNull(role);
         assertThat(role.names(), is(limitedByRole.names()));
 
-        NullPointerException npe = expectThrows(NullPointerException.class, () -> LimitedRole.createLimitedRole(fromRole, null));
+        NullPointerException npe = expectThrows(NullPointerException.class, () -> fromRole.limitedBy(null));
         assertThat(npe.getMessage(), containsString("limited by role is required to create limited role"));
     }
 
     public void testAuthorize() {
-        IndexMetadata.Builder imbBuilder = IndexMetadata
-                .builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                .putAlias(AliasMetadata.builder("_alias"));
-        IndexMetadata.Builder imbBuilder1 = IndexMetadata
-                .builder("_index1").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                .putAlias(AliasMetadata.builder("_alias1"));
+        IndexMetadata.Builder imbBuilder = IndexMetadata.builder("_index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            )
+            .putAlias(AliasMetadata.builder("_alias"));
+        IndexMetadata.Builder imbBuilder1 = IndexMetadata.builder("_index1")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            )
+            .putAlias(AliasMetadata.builder("_alias1"));
         Metadata md = Metadata.builder().put(imbBuilder).put(imbBuilder1).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        Role fromRole = Role.builder(Automatons.EMPTY, "a-role").cluster(Collections.singleton("manage_security"), Collections.emptyList())
-                .add(IndexPrivilege.ALL, "_index").add(IndexPrivilege.CREATE_INDEX, "_index1").build();
+        Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
+            .cluster(Collections.singleton("manage_security"), Collections.emptyList())
+            .add(IndexPrivilege.ALL, "_index")
+            .add(IndexPrivilege.CREATE_INDEX, "_index1")
+            .build();
 
-        IndicesAccessControl iac = fromRole.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
-            fieldPermissionsCache);
+        IndicesAccessControl iac = fromRole.authorize(
+            SearchAction.NAME,
+            Sets.newHashSet("_index", "_alias1"),
+            md.getIndicesLookup(),
+            fieldPermissionsCache
+        );
+        assertThat(iac.isGranted(), is(false));
         assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-        assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
-        assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-        assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
-        iac = fromRole.authorize(CreateIndexAction.NAME, Sets.newHashSet("_index", "_index1"), md.getIndicesLookup(),
-            fieldPermissionsCache);
+        assertThat(iac.hasIndexPermissions("_index"), is(true));
+        assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+        assertThat(iac.hasIndexPermissions("_index1"), is(false));
+        iac = fromRole.authorize(
+            CreateIndexAction.NAME,
+            Sets.newHashSet("_index", "_index1"),
+            md.getIndicesLookup(),
+            fieldPermissionsCache
+        );
+        assertThat(iac.isGranted(), is(true));
         assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-        assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
+        assertThat(iac.hasIndexPermissions("_index"), is(true));
         assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-        assertThat(iac.getIndexPermissions("_index1").isGranted(), is(true));
+        assertThat(iac.hasIndexPermissions("_index1"), is(true));
 
         {
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role")
-                    .cluster(Collections.singleton("all"), Collections.emptyList()).add(IndexPrivilege.READ, "_index")
-                    .add(IndexPrivilege.NONE, "_index1").build();
-            iac = limitedByRole.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
-                fieldPermissionsCache);
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role")
+                .cluster(Collections.singleton("all"), Collections.emptyList())
+                .add(IndexPrivilege.READ, "_index")
+                .add(IndexPrivilege.NONE, "_index1")
+                .build();
+            iac = limitedByRole.authorize(
+                SearchAction.NAME,
+                Sets.newHashSet("_index", "_alias1"),
+                md.getIndicesLookup(),
+                fieldPermissionsCache
+            );
+            assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
-            iac = limitedByRole.authorize(DeleteIndexAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
-                fieldPermissionsCache);
-            assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
-            iac = limitedByRole.authorize(CreateIndexAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
-                fieldPermissionsCache);
-            assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
+            assertThat(iac.hasIndexPermissions("_index"), is(true));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
+            iac = limitedByRole.authorize(
+                DeleteIndexAction.NAME,
+                Sets.newHashSet("_index", "_alias1"),
+                md.getIndicesLookup(),
+                fieldPermissionsCache
+            );
+            assertThat(iac.isGranted(), is(false));
+            assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index"), is(false));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
+            iac = limitedByRole.authorize(
+                CreateIndexAction.NAME,
+                Sets.newHashSet("_index", "_alias1"),
+                md.getIndicesLookup(),
+                fieldPermissionsCache
+            );
+            assertThat(iac.isGranted(), is(false));
+            assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index"), is(false));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
 
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
-            iac = role.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
-                fieldPermissionsCache);
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
+            iac = role.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(), fieldPermissionsCache);
+            assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
-            iac = role.authorize(DeleteIndexAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
-                fieldPermissionsCache);
-            assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
-            iac = role.authorize(CreateIndexAction.NAME, Sets.newHashSet("_index", "_index1"), md.getIndicesLookup(),
-                fieldPermissionsCache);
-            assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));
-            assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
-            assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
+            assertThat(iac.hasIndexPermissions("_index"), is(true));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
+            iac = role.authorize(
+                DeleteIndexAction.NAME,
+                Sets.newHashSet("_index", "_alias1"),
+                md.getIndicesLookup(),
+                fieldPermissionsCache
+            );
+            assertThat(iac.isGranted(), is(false));
+            assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index"), is(false));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
+            iac = role.authorize(
+                CreateIndexAction.NAME,
+                Sets.newHashSet("_index", "_index1"),
+                md.getIndicesLookup(),
+                fieldPermissionsCache
+            );
+            assertThat(iac.isGranted(), is(false));
+            assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index"), is(false));
+            assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
+            assertThat(iac.hasIndexPermissions("_index1"), is(false));
         }
     }
 
     public void testCheckClusterAction() {
-        Role fromRole = Role.builder(Automatons.EMPTY, "a-role").cluster(Collections.singleton("manage_security"), Collections.emptyList())
+        Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
+            .cluster(Collections.singleton("manage_security"), Collections.emptyList())
             .build();
-        Authentication authentication = mock(Authentication.class);
+        Authentication authentication = AuthenticationTestHelper.builder().build();
         assertThat(fromRole.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class), authentication), is(true));
         {
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role")
-                .cluster(Collections.singleton("all"), Collections.emptyList()).build();
-            assertThat(limitedByRole.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class), authentication),
-                is(true));
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role")
+                .cluster(Collections.singleton("all"), Collections.emptyList())
+                .build();
+            assertThat(
+                limitedByRole.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class), authentication),
+                is(true)
+            );
             assertThat(limitedByRole.checkClusterAction("cluster:other-action", mock(TransportRequest.class), authentication), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
             assertThat(role.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class), authentication), is(true));
             assertThat(role.checkClusterAction("cluster:other-action", mock(TransportRequest.class), authentication), is(false));
         }
         {
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role")
-                .cluster(Collections.singleton("monitor"), Collections.emptyList()).build();
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role")
+                .cluster(Collections.singleton("monitor"), Collections.emptyList())
+                .build();
             assertThat(limitedByRole.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class), authentication), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
             assertThat(role.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class), authentication), is(false));
             assertThat(role.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class), authentication), is(false));
         }
     }
 
     public void testCheckIndicesAction() {
-        Role fromRole = Role.builder(Automatons.EMPTY, "a-role").add(IndexPrivilege.READ, "ind-1").build();
+        Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role").add(IndexPrivilege.READ, "ind-1").build();
         assertThat(fromRole.checkIndicesAction(SearchAction.NAME), is(true));
         assertThat(fromRole.checkIndicesAction(CreateIndexAction.NAME), is(false));
 
         {
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role").add(IndexPrivilege.ALL, "ind-1").build();
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.ALL, "ind-1").build();
             assertThat(limitedByRole.checkIndicesAction(SearchAction.NAME), is(true));
             assertThat(limitedByRole.checkIndicesAction(CreateIndexAction.NAME), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
             assertThat(role.checkIndicesAction(SearchAction.NAME), is(true));
             assertThat(role.checkIndicesAction(CreateIndexAction.NAME), is(false));
         }
         {
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role").add(IndexPrivilege.NONE, "ind-1").build();
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.NONE, "ind-1").build();
             assertThat(limitedByRole.checkIndicesAction(SearchAction.NAME), is(false));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
             assertThat(role.checkIndicesAction(SearchAction.NAME), is(false));
             assertThat(role.checkIndicesAction(CreateIndexAction.NAME), is(false));
         }
     }
 
     public void testAllowedIndicesMatcher() {
-        Role fromRole = Role.builder(Automatons.EMPTY, "a-role").add(IndexPrivilege.READ, "ind-1*").build();
+        Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role").add(IndexPrivilege.READ, "ind-1*").build();
         assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
         assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-11")), is(true));
         assertThat(fromRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(false));
 
         {
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
             assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
             assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-11")), is(false));
             assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-11")), is(false));
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(false));
         }
         {
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role").add(IndexPrivilege.READ, "ind-*").build();
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-*").build();
             assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
             assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(false));
         }
     }
 
     public void testAllowedActionsMatcher() {
-        Role fromRole = Role.builder(Automatons.EMPTY, "fromRole")
-                .add(IndexPrivilege.WRITE, "ind*")
-                .add(IndexPrivilege.READ, "ind*")
-                .add(IndexPrivilege.READ, "other*")
-                .build();
+        Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "fromRole")
+            .add(IndexPrivilege.WRITE, "ind*")
+            .add(IndexPrivilege.READ, "ind*")
+            .add(IndexPrivilege.READ, "other*")
+            .build();
         Automaton fromRoleAutomaton = fromRole.allowedActionsMatcher("index1");
         Predicate<String> fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
         assertThat(fromRolePredicate.test(SearchAction.NAME), is(true));
         assertThat(fromRolePredicate.test(BulkAction.NAME), is(true));
 
-        Role limitedByRole = Role.builder(Automatons.EMPTY, "limitedRole")
-                .add(IndexPrivilege.READ, "index1", "index2")
-                .build();
+        Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limitedRole").add(IndexPrivilege.READ, "index1", "index2").build();
         Automaton limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index1");
         Predicate<String> limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
         assertThat(limitedByRolePredicated.test(SearchAction.NAME), is(true));
         assertThat(limitedByRolePredicated.test(BulkAction.NAME), is(false));
-        Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+        Role role;
+        if (randomBoolean()) {
+            role = limitedByRole.limitedBy(fromRole);
+        } else {
+            role = fromRole.limitedBy(limitedByRole);
+        }
 
         Automaton roleAutomaton = role.allowedActionsMatcher("index1");
         Predicate<String> rolePredicate = Automatons.predicate(roleAutomaton);
@@ -245,106 +345,183 @@ public class LimitedRoleTests extends ESTestCase {
     }
 
     public void testCheckClusterPrivilege() {
-        Role fromRole = Role.builder(Automatons.EMPTY, "a-role").cluster(Collections.singleton("manage_security"), Collections.emptyList())
-                .build();
+        Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
+            .cluster(Collections.singleton("manage_security"), Collections.emptyList())
+            .build();
         assertThat(fromRole.grants(ClusterPrivilegeResolver.ALL), is(false));
         assertThat(fromRole.grants(ClusterPrivilegeResolver.MANAGE_SECURITY), is(true));
 
         {
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "scoped-role")
-                    .cluster(Collections.singleton("all"), Collections.emptyList()).build();
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "scoped-role")
+                .cluster(Collections.singleton("all"), Collections.emptyList())
+                .build();
             assertThat(limitedByRole.grants(ClusterPrivilegeResolver.ALL), is(true));
             assertThat(limitedByRole.grants(ClusterPrivilegeResolver.MANAGE_SECURITY), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
             assertThat(role.grants(ClusterPrivilegeResolver.ALL), is(false));
             assertThat(role.grants(ClusterPrivilegeResolver.MANAGE_SECURITY), is(true));
         }
         {
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "scoped-role")
-                    .cluster(Collections.singleton("monitor"), Collections.emptyList()).build();
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "scoped-role")
+                .cluster(Collections.singleton("monitor"), Collections.emptyList())
+                .build();
             assertThat(limitedByRole.grants(ClusterPrivilegeResolver.ALL), is(false));
             assertThat(limitedByRole.grants(ClusterPrivilegeResolver.MONITOR), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
             assertThat(role.grants(ClusterPrivilegeResolver.ALL), is(false));
             assertThat(role.grants(ClusterPrivilegeResolver.MANAGE_SECURITY), is(false));
             assertThat(role.grants(ClusterPrivilegeResolver.MONITOR), is(false));
         }
     }
 
-    public void testGetPrivilegesForIndexPatterns() {
-        Role fromRole = Role.builder(Automatons.EMPTY, "a-role").add(IndexPrivilege.READ, "ind-1*").build();
-        ResourcePrivilegesMap resourcePrivileges = fromRole.checkIndicesPrivileges(Collections.singleton("ind-1-1-*"), true,
-                Sets.newHashSet("read", "write"));
-        ResourcePrivilegesMap expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("ind-1-1-*",
-                ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", true).addPrivilege("write", false).build()));
-        verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+    public void testHasPrivilegesForIndexPatterns() {
+        Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role").add(IndexPrivilege.READ, "ind-1*").build();
 
-        resourcePrivileges = fromRole.checkIndicesPrivileges(Collections.singleton("ind-*"), true, Sets.newHashSet("read", "write"));
-        expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("ind-*",
-                ResourcePrivileges.builder("ind-*").addPrivilege("read", false).addPrivilege("write", false).build()));
-        verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+        verifyResourcesPrivileges(
+            fromRole,
+            Set.of("ind-1-1-*"),
+            true,
+            Set.of("read", "write"),
+            false,
+            new ResourcePrivilegesMap(
+                Map.of("ind-1-1-*", ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", true).addPrivilege("write", false).build())
+            )
+        );
+
+        verifyResourcesPrivileges(
+            fromRole,
+            Set.of("ind-*"),
+            true,
+            Set.of("read", "write"),
+            false,
+            new ResourcePrivilegesMap(
+                Map.of("ind-*", ResourcePrivileges.builder("ind-*").addPrivilege("read", false).addPrivilege("write", false).build())
+            )
+        );
 
         {
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
-            resourcePrivileges = limitedByRole.checkIndicesPrivileges(Collections.singleton("ind-1"), true, Collections.singleton("read"));
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(true,
-                    Collections.singletonMap("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build()));
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
 
-            resourcePrivileges = limitedByRole.checkIndicesPrivileges(Collections.singleton("ind-1-1-*"), true,
-                    Collections.singleton("read"));
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false,
-                    Collections.singletonMap("ind-1-1-*", ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", false).build()));
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(
+                limitedByRole,
+                Set.of("ind-1"),
+                true,
+                Set.of("read"),
+                true,
+                new ResourcePrivilegesMap(Map.of("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build()))
+            );
 
-            resourcePrivileges = limitedByRole.checkIndicesPrivileges(Collections.singleton("ind-*"), true, Collections.singleton("read"));
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false,
-                    Collections.singletonMap("ind-*", ResourcePrivileges.builder("ind-*").addPrivilege("read", false).build()));
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(
+                limitedByRole,
+                Set.of("ind-1-1-*"),
+                true,
+                Set.of("read"),
+                false,
+                new ResourcePrivilegesMap(Map.of("ind-1-1-*", ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", false).build()))
+            );
 
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
-            resourcePrivileges = role.checkIndicesPrivileges(Collections.singleton("ind-1"), true, Collections.singleton("read"));
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(true,
-                    Collections.singletonMap("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build()));
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(
+                limitedByRole,
+                Set.of("ind-*"),
+                true,
+                Set.of("read"),
+                false,
+                new ResourcePrivilegesMap(Map.of("ind-*", ResourcePrivileges.builder("ind-*").addPrivilege("read", false).build()))
+            );
 
-            resourcePrivileges = role.checkIndicesPrivileges(Sets.newHashSet("ind-1-1-*", "ind-1"), true, Collections.singleton("read"));
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false,
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
+
+            verifyResourcesPrivileges(
+                role,
+                Set.of("ind-1"),
+                true,
+                Set.of("read"),
+                true,
+                new ResourcePrivilegesMap(Map.of("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build()))
+            );
+
+            verifyResourcesPrivileges(
+                role,
+                Set.of("ind-1-1-*", "ind-1"),
+                true,
+                Set.of("read"),
+                false,
+                new ResourcePrivilegesMap(
                     mapBuilder().put("ind-1-1-*", ResourcePrivileges.builder("ind-1-1-*").addPrivilege("read", false).build())
-                            .put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build()).map());
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+                        .put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
+                        .map()
+                )
+            );
         }
         {
-            fromRole = Role.builder(Automatons.EMPTY, "a-role")
-                    .add(FieldPermissions.DEFAULT, Collections.emptySet(), IndexPrivilege.READ, true, "ind-1*", ".security").build();
-            resourcePrivileges = fromRole.checkIndicesPrivileges(Sets.newHashSet("ind-1", ".security"), true,
-                    Collections.singleton("read"));
-            // Map<String, ResourcePrivileges> expectedResourceToResourcePrivs = new HashMap<>();
-            ;
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(true,
+            fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
+                .add(FieldPermissions.DEFAULT, Collections.emptySet(), IndexPrivilege.READ, true, "ind-1*", ".security")
+                .build();
+
+            verifyResourcesPrivileges(
+                fromRole,
+                Set.of("ind-1", ".security"),
+                true,
+                Set.of("read"),
+                true,
+                new ResourcePrivilegesMap(
                     mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
-                            .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", true).build()).map());
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+                        .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", true).build())
+                        .map()
+                )
+            );
 
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
-            resourcePrivileges = limitedByRole.checkIndicesPrivileges(Sets.newHashSet("ind-1", "ind-2", ".security"), true,
-                    Collections.singleton("read"));
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
 
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false,
+            verifyResourcesPrivileges(
+                limitedByRole,
+                Set.of("ind-1", "ind-2", ".security"),
+                true,
+                Set.of("read"),
+                false,
+                new ResourcePrivilegesMap(
                     mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
-                            .put("ind-2", ResourcePrivileges.builder("ind-2").addPrivilege("read", true).build())
-                            .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build()).map());
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+                        .put("ind-2", ResourcePrivileges.builder("ind-2").addPrivilege("read", true).build())
+                        .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build())
+                        .map()
+                )
+            );
 
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
-            resourcePrivileges = role.checkIndicesPrivileges(Sets.newHashSet("ind-1", "ind-2", ".security"), true,
-                    Collections.singleton("read"));
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
 
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false,
+            verifyResourcesPrivileges(
+                role,
+                Set.of("ind-1", "ind-2", ".security"),
+                true,
+                Set.of("read"),
+                false,
+                new ResourcePrivilegesMap(
                     mapBuilder().put("ind-1", ResourcePrivileges.builder("ind-1").addPrivilege("read", true).build())
-                            .put("ind-2", ResourcePrivileges.builder("ind-2").addPrivilege("read", false).build())
-                            .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build()).map());
-            verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
+                        .put("ind-2", ResourcePrivileges.builder("ind-2").addPrivilege("read", false).build())
+                        .put(".security", ResourcePrivileges.builder(".security").addPrivilege("read", false).build())
+                        .map()
+                )
+            );
         }
     }
 
@@ -354,109 +531,350 @@ public class LimitedRoleTests extends ESTestCase {
         final ApplicationPrivilege app2Read = defineApplicationPrivilege("app2", "read", "data:read/*");
         final ApplicationPrivilege app2Write = defineApplicationPrivilege("app2", "write", "data:write/*");
 
-        Role fromRole = Role.builder(Automatons.EMPTY, "test-role").addApplicationPrivilege(app1Read, Collections.singleton("foo/*"))
-                .addApplicationPrivilege(app1All, Collections.singleton("foo/bar/baz"))
-                .addApplicationPrivilege(app2Read, Collections.singleton("foo/bar/*"))
-                .addApplicationPrivilege(app2Write, Collections.singleton("*/bar/*")).build();
+        Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "test-role")
+            .addApplicationPrivilege(app1Read, Collections.singleton("foo/*"))
+            .addApplicationPrivilege(app1All, Collections.singleton("foo/bar/baz"))
+            .addApplicationPrivilege(app2Read, Collections.singleton("foo/bar/*"))
+            .addApplicationPrivilege(app2Write, Collections.singleton("*/bar/*"))
+            .build();
 
         Set<String> forPrivilegeNames = Sets.newHashSet("read", "write", "all");
-        ResourcePrivilegesMap appPrivsByResource = fromRole.checkApplicationResourcePrivileges("app1", Collections.singleton("*"),
-                forPrivilegeNames, applicationPrivilegeDescriptors);
-        ResourcePrivilegesMap expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("*", ResourcePrivileges
-                .builder("*").addPrivilege("read", false).addPrivilege("write", false).addPrivilege("all", false).build()));
-        verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
 
-        appPrivsByResource = fromRole.checkApplicationResourcePrivileges("app1", Collections.singleton("foo/x/y"), forPrivilegeNames,
-                applicationPrivilegeDescriptors);
-        expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("foo/x/y", ResourcePrivileges
-                .builder("foo/x/y").addPrivilege("read", true).addPrivilege("write", false).addPrivilege("all", false).build()));
-        verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+        verifyResourcesPrivileges(
+            fromRole,
+            "app1",
+            Set.of("*"),
+            forPrivilegeNames,
+            applicationPrivilegeDescriptors,
+            false,
+            new ResourcePrivilegesMap(
+                Map.of(
+                    "*",
+                    ResourcePrivileges.builder("*")
+                        .addPrivilege("read", false)
+                        .addPrivilege("write", false)
+                        .addPrivilege("all", false)
+                        .build()
+                )
+            )
+        );
 
-        appPrivsByResource = fromRole.checkApplicationResourcePrivileges("app2", Collections.singleton("foo/bar/a"), forPrivilegeNames,
-                applicationPrivilegeDescriptors);
-        expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("foo/bar/a", ResourcePrivileges
-                .builder("foo/bar/a").addPrivilege("read", true).addPrivilege("write", true).addPrivilege("all", false).build()));
-        verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+        verifyResourcesPrivileges(
+            fromRole,
+            "app1",
+            Set.of("foo/x/y"),
+            forPrivilegeNames,
+            applicationPrivilegeDescriptors,
+            false,
+            new ResourcePrivilegesMap(
+                Map.of(
+                    "foo/x/y",
+                    ResourcePrivileges.builder("foo/x/y")
+                        .addPrivilege("read", true)
+                        .addPrivilege("write", false)
+                        .addPrivilege("all", false)
+                        .build()
+                )
+            )
+        );
 
-        appPrivsByResource = fromRole.checkApplicationResourcePrivileges("app2", Collections.singleton("moon/bar/a"), forPrivilegeNames,
-                applicationPrivilegeDescriptors);
-        expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("moon/bar/a", ResourcePrivileges
-                .builder("moon/bar/a").addPrivilege("read", false).addPrivilege("write", true).addPrivilege("all", false).build()));
-        verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+        verifyResourcesPrivileges(
+            fromRole,
+            "app2",
+            Set.of("foo/bar/a"),
+            forPrivilegeNames,
+            applicationPrivilegeDescriptors,
+            false,
+            new ResourcePrivilegesMap(
+                Map.of(
+                    "foo/bar/a",
+                    ResourcePrivileges.builder("foo/bar/a")
+                        .addPrivilege("read", true)
+                        .addPrivilege("write", true)
+                        .addPrivilege("all", false)
+                        .build()
+                )
+            )
+        );
+
+        verifyResourcesPrivileges(
+            fromRole,
+            "app2",
+            Set.of("moon/bar/a"),
+            forPrivilegeNames,
+            applicationPrivilegeDescriptors,
+            false,
+            new ResourcePrivilegesMap(
+                Map.of(
+                    "moon/bar/a",
+                    ResourcePrivileges.builder("moon/bar/a")
+                        .addPrivilege("read", false)
+                        .addPrivilege("write", true)
+                        .addPrivilege("all", false)
+                        .build()
+                )
+            )
+        );
 
         {
-            Role limitedByRole = Role.builder(Automatons.EMPTY, "test-role-scoped")
+            Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "test-role-scoped")
                 .addApplicationPrivilege(app1Read, Collections.singleton("foo/scoped/*"))
                 .addApplicationPrivilege(app2Read, Collections.singleton("foo/bar/*"))
-                .addApplicationPrivilege(app2Write, Collections.singleton("moo/bar/*")).build();
-            appPrivsByResource = limitedByRole.checkApplicationResourcePrivileges("app1", Collections.singleton("*"), forPrivilegeNames,
-                    applicationPrivilegeDescriptors);
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("*", ResourcePrivileges.builder("*")
-                    .addPrivilege("read", false).addPrivilege("write", false).addPrivilege("all", false).build()));
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+                .addApplicationPrivilege(app2Write, Collections.singleton("moo/bar/*"))
+                .build();
 
-            appPrivsByResource = limitedByRole.checkApplicationResourcePrivileges("app1", Collections.singleton("foo/x/y"),
-                    forPrivilegeNames, applicationPrivilegeDescriptors);
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("foo/x/y", ResourcePrivileges
-                    .builder("foo/x/y").addPrivilege("read", false).addPrivilege("write", false).addPrivilege("all", false).build()));
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(
+                limitedByRole,
+                "app1",
+                Set.of("*"),
+                forPrivilegeNames,
+                applicationPrivilegeDescriptors,
+                false,
+                new ResourcePrivilegesMap(
+                    Map.of(
+                        "*",
+                        ResourcePrivileges.builder("*")
+                            .addPrivilege("read", false)
+                            .addPrivilege("write", false)
+                            .addPrivilege("all", false)
+                            .build()
+                    )
+                )
+            );
 
-            appPrivsByResource = limitedByRole.checkApplicationResourcePrivileges("app2", Collections.singleton("foo/bar/a"),
-                    forPrivilegeNames, applicationPrivilegeDescriptors);
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("foo/bar/a", ResourcePrivileges
-                    .builder("foo/bar/a").addPrivilege("read", true).addPrivilege("write", false).addPrivilege("all", false).build()));
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(
+                limitedByRole,
+                "app1",
+                Set.of("foo/x/y"),
+                forPrivilegeNames,
+                applicationPrivilegeDescriptors,
+                false,
+                new ResourcePrivilegesMap(
+                    Map.of(
+                        "foo/x/y",
+                        ResourcePrivileges.builder("foo/x/y")
+                            .addPrivilege("read", false)
+                            .addPrivilege("write", false)
+                            .addPrivilege("all", false)
+                            .build()
+                    )
+                )
+            );
 
-            appPrivsByResource = limitedByRole.checkApplicationResourcePrivileges("app2", Collections.singleton("moon/bar/a"),
-                    forPrivilegeNames, applicationPrivilegeDescriptors);
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("moon/bar/a", ResourcePrivileges
-                    .builder("moon/bar/a").addPrivilege("read", false).addPrivilege("write", false).addPrivilege("all", false).build()));
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(
+                limitedByRole,
+                "app2",
+                Set.of("foo/bar/a"),
+                forPrivilegeNames,
+                applicationPrivilegeDescriptors,
+                false,
+                new ResourcePrivilegesMap(
+                    Map.of(
+                        "foo/bar/a",
+                        ResourcePrivileges.builder("foo/bar/a")
+                            .addPrivilege("read", true)
+                            .addPrivilege("write", false)
+                            .addPrivilege("all", false)
+                            .build()
+                    )
+                )
+            );
 
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
-            appPrivsByResource = role.checkApplicationResourcePrivileges("app2", Collections.singleton("foo/bar/a"), forPrivilegeNames,
-                    applicationPrivilegeDescriptors);
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("foo/bar/a", ResourcePrivileges
-                    .builder("foo/bar/a").addPrivilege("read", true).addPrivilege("write", false).addPrivilege("all", false).build()));
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(
+                limitedByRole,
+                "app2",
+                Set.of("moon/bar/a"),
+                forPrivilegeNames,
+                applicationPrivilegeDescriptors,
+                false,
+                new ResourcePrivilegesMap(
+                    Map.of(
+                        "moon/bar/a",
+                        ResourcePrivileges.builder("moon/bar/a")
+                            .addPrivilege("read", false)
+                            .addPrivilege("write", false)
+                            .addPrivilege("all", false)
+                            .build()
+                    )
+                )
+            );
 
-            appPrivsByResource = role.checkApplicationResourcePrivileges("app2", Collections.singleton("moon/bar/a"), forPrivilegeNames,
-                    applicationPrivilegeDescriptors);
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("moon/bar/a", ResourcePrivileges
-                    .builder("moon/bar/a").addPrivilege("read", false).addPrivilege("write", false).addPrivilege("all", false).build()));
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            Role role;
+            if (randomBoolean()) {
+                role = limitedByRole.limitedBy(fromRole);
+            } else {
+                role = fromRole.limitedBy(limitedByRole);
+            }
 
-            appPrivsByResource = role.checkApplicationResourcePrivileges("unknown", Collections.singleton("moon/bar/a"), forPrivilegeNames,
-                    applicationPrivilegeDescriptors);
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false, Collections.singletonMap("moon/bar/a", ResourcePrivileges
-                    .builder("moon/bar/a").addPrivilege("read", false).addPrivilege("write", false).addPrivilege("all", false).build()));
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(
+                role,
+                "app2",
+                Set.of("foo/bar/a"),
+                forPrivilegeNames,
+                applicationPrivilegeDescriptors,
+                false,
+                new ResourcePrivilegesMap(
+                    Map.of(
+                        "foo/bar/a",
+                        ResourcePrivileges.builder("foo/bar/a")
+                            .addPrivilege("read", true)
+                            .addPrivilege("write", false)
+                            .addPrivilege("all", false)
+                            .build()
+                    )
+                )
+            );
 
-            appPrivsByResource = role.checkApplicationResourcePrivileges("app2", Collections.singleton("moo/bar/a"),
-                    Sets.newHashSet("read", "write", "all", "unknown"), applicationPrivilegeDescriptors);
-            expectedAppPrivsByResource = new ResourcePrivilegesMap(false,
-                    Collections.singletonMap("moo/bar/a", ResourcePrivileges.builder("moo/bar/a").addPrivilege("read", false)
-                            .addPrivilege("write", true).addPrivilege("all", false).addPrivilege("unknown", false).build()));
-            verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
+            verifyResourcesPrivileges(
+                role,
+                "app2",
+                Set.of("moon/bar/a"),
+                forPrivilegeNames,
+                applicationPrivilegeDescriptors,
+                false,
+                new ResourcePrivilegesMap(
+                    Map.of(
+                        "moon/bar/a",
+                        ResourcePrivileges.builder("moon/bar/a")
+                            .addPrivilege("read", false)
+                            .addPrivilege("write", false)
+                            .addPrivilege("all", false)
+                            .build()
+                    )
+                )
+            );
+
+            verifyResourcesPrivileges(
+                role,
+                "unknown",
+                Set.of("moon/bar/a"),
+                forPrivilegeNames,
+                applicationPrivilegeDescriptors,
+                false,
+                new ResourcePrivilegesMap(
+                    Map.of(
+                        "moon/bar/a",
+                        ResourcePrivileges.builder("moon/bar/a")
+                            .addPrivilege("read", false)
+                            .addPrivilege("write", false)
+                            .addPrivilege("all", false)
+                            .build()
+                    )
+                )
+            );
+
+            verifyResourcesPrivileges(
+                role,
+                "app2",
+                Set.of("moo/bar/a"),
+                Set.of("read", "write", "all", "unknown"),
+                applicationPrivilegeDescriptors,
+                false,
+                new ResourcePrivilegesMap(
+                    Map.of(
+                        "moo/bar/a",
+                        ResourcePrivileges.builder("moo/bar/a")
+                            .addPrivilege("read", false)
+                            .addPrivilege("write", true)
+                            .addPrivilege("all", false)
+                            .addPrivilege("unknown", false)
+                            .build()
+                    )
+                )
+            );
         }
     }
 
-    private void verifyResourcesPrivileges(ResourcePrivilegesMap resourcePrivileges, ResourcePrivilegesMap expectedAppPrivsByResource) {
-        assertThat(resourcePrivileges, equalTo(expectedAppPrivsByResource));
+    private void verifyResourcesPrivileges(
+        Role role,
+        Set<String> checkForIndexPatterns,
+        boolean allowRestrictedIndices,
+        Set<String> checkForPrivileges,
+        boolean expectedCheckResult,
+        ResourcePrivilegesMap expectedAppPrivsByResource
+    ) {
+        // call "check indices privileges" twice, with and without details, in random order
+        ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = randomBoolean() ? ResourcePrivilegesMap.builder() : null;
+        boolean privilegesCheck = role.checkIndicesPrivileges(
+            checkForIndexPatterns,
+            allowRestrictedIndices,
+            checkForPrivileges,
+            resourcePrivilegesMapBuilder
+        );
+        assertThat(privilegesCheck, is(expectedCheckResult));
+
+        if (resourcePrivilegesMapBuilder == null) {
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = role.checkIndicesPrivileges(
+                checkForIndexPatterns,
+                allowRestrictedIndices,
+                checkForPrivileges,
+                resourcePrivilegesMapBuilder
+            );
+            assertThat(privilegesCheck, is(expectedCheckResult));
+        } else {
+            privilegesCheck = role.checkIndicesPrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges, null);
+            assertThat(privilegesCheck, is(expectedCheckResult));
+        }
+        assertThat(resourcePrivilegesMapBuilder.build(), equalTo(expectedAppPrivsByResource));
+    }
+
+    private void verifyResourcesPrivileges(
+        Role role,
+        String applicationName,
+        Set<String> checkForResources,
+        Set<String> checkForPrivilegeNames,
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges,
+        boolean expectedCheckResult,
+        ResourcePrivilegesMap expectedAppPrivsByResource
+    ) {
+        ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = randomBoolean() ? ResourcePrivilegesMap.builder() : null;
+        boolean privilegesCheck = role.checkApplicationResourcePrivileges(
+            applicationName,
+            checkForResources,
+            checkForPrivilegeNames,
+            storedPrivileges,
+            resourcePrivilegesMapBuilder
+        );
+        assertThat(privilegesCheck, is(expectedCheckResult));
+
+        if (resourcePrivilegesMapBuilder == null) {
+            resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+            privilegesCheck = role.checkApplicationResourcePrivileges(
+                applicationName,
+                checkForResources,
+                checkForPrivilegeNames,
+                storedPrivileges,
+                resourcePrivilegesMapBuilder
+            );
+            assertThat(privilegesCheck, is(expectedCheckResult));
+        } else {
+            privilegesCheck = role.checkApplicationResourcePrivileges(
+                applicationName,
+                checkForResources,
+                checkForPrivilegeNames,
+                storedPrivileges,
+                null
+            );
+            assertThat(privilegesCheck, is(expectedCheckResult));
+        }
+        assertThat(resourcePrivilegesMapBuilder.build(), equalTo(expectedAppPrivsByResource));
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {
         IndexAbstraction mock = mock(IndexAbstraction.class);
         when(mock.getName()).thenReturn(name);
-        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
-                IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
+        when(mock.getType()).thenReturn(
+            randomFrom(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM)
+        );
         return mock;
     }
 
     private ApplicationPrivilege defineApplicationPrivilege(String app, String name, String... actions) {
-        applicationPrivilegeDescriptors
-                .add(new ApplicationPrivilegeDescriptor(app, name, Sets.newHashSet(actions), Collections.emptyMap()));
-        return new ApplicationPrivilege(app, name, actions);
+        applicationPrivilegeDescriptors.add(
+            new ApplicationPrivilegeDescriptor(app, name, Sets.newHashSet(actions), Collections.emptyMap())
+        );
+        return ApplicationPrivilegeTests.createPrivilege(app, name, actions);
     }
 
     private static MapBuilder<String, ResourcePrivileges> mapBuilder() {

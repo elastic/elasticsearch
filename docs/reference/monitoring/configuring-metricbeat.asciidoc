@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="gold"]
 [[configuring-metricbeat]]
 == Collecting {es} monitoring data with {metricbeat}
 
@@ -13,8 +12,6 @@ and ship it to the monitoring cluster, rather than routing it through exporters
 as described in <<collecting-monitoring-data>>. 
 
 image::monitoring/images/metricbeat.png[Example monitoring architecture]
-
---
 
 . {metricbeat-ref}/metricbeat-installation-configuration.html[Install
 {metricbeat}]. Ideally install a single {metricbeat} instance configured with
@@ -157,7 +154,5 @@ For more information about these configuration options, see
 --
 
 . {metricbeat-ref}/metricbeat-starting.html[Start {metricbeat}] on each node. 
-
---
 
 . {kibana-ref}/monitoring-data.html[View the monitoring data in {kib}]. 

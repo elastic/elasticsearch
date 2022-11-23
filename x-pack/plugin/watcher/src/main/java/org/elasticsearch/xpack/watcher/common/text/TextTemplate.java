@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.watcher.common.text;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -38,8 +38,7 @@ public class TextTemplate implements ToXContent {
         this.mayRequireCompilation = template.contains("{{");
     }
 
-    public TextTemplate(String template, @Nullable XContentType contentType, ScriptType type,
-                        @Nullable Map<String, Object> params) {
+    public TextTemplate(String template, @Nullable XContentType contentType, ScriptType type, @Nullable Map<String, Object> params) {
         Map<String, String> options = null;
         if (type == ScriptType.INLINE) {
             options = new HashMap<>();
@@ -94,11 +93,11 @@ public class TextTemplate implements ToXContent {
     }
 
     public ScriptType getType() {
-        return script != null ? script.getType(): ScriptType.INLINE;
+        return script != null ? script.getType() : ScriptType.INLINE;
     }
 
     public Map<String, Object> getParams() {
-        return script != null ? script.getParams(): null;
+        return script != null ? script.getParams() : null;
     }
 
     @Override
@@ -107,8 +106,7 @@ public class TextTemplate implements ToXContent {
         if (o == null || getClass() != o.getClass()) return false;
 
         TextTemplate template1 = (TextTemplate) o;
-        return Objects.equals(script, template1.script) &&
-                Objects.equals(inlineTemplate, template1.inlineTemplate);
+        return Objects.equals(script, template1.script) && Objects.equals(inlineTemplate, template1.inlineTemplate);
     }
 
     @Override
@@ -135,4 +133,3 @@ public class TextTemplate implements ToXContent {
         }
     }
 }
-

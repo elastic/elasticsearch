@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.rest.action.service;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -46,7 +46,6 @@ public class RestGetServiceAccountAction extends SecurityBaseRestHandler {
         final String namespace = request.param("namespace");
         final String serviceName = request.param("service");
         final GetServiceAccountRequest getServiceAccountRequest = new GetServiceAccountRequest(namespace, serviceName);
-        return channel -> client.execute(GetServiceAccountAction.INSTANCE, getServiceAccountRequest,
-            new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetServiceAccountAction.INSTANCE, getServiceAccountRequest, new RestToXContentListener<>(channel));
     }
 }

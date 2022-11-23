@@ -9,24 +9,35 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class PassThroughConfigTests extends InferenceConfigItemTestCase<PassThroughConfig> {
 
-    private boolean lenient;
+    public static PassThroughConfig mutateForVersion(PassThroughConfig instance, Version version) {
+        return new PassThroughConfig(
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getResultsField()
+        );
+    }
 
-    @Before
-    public void chooseStrictOrLenient() {
-        lenient = randomBoolean();
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.isEmpty() == false;
     }
 
     @Override
     protected PassThroughConfig doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? PassThroughConfig.fromXContentLenient(parser) : PassThroughConfig.fromXContentStrict(parser);
+        return PassThroughConfig.fromXContentLenient(parser);
     }
 
     @Override
@@ -41,15 +52,20 @@ public class PassThroughConfigTests extends InferenceConfigItemTestCase<PassThro
 
     @Override
     protected PassThroughConfig mutateInstanceForVersion(PassThroughConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static PassThroughConfig createRandom() {
         return new PassThroughConfig(
-            VocabularyConfigTests.createRandom(),
-            randomBoolean() ?
-                null :
-                randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom())
-            );
+            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
+            randomBoolean()
+                ? null
+                : randomFrom(
+                    BertTokenizationTests.createRandom(),
+                    MPNetTokenizationTests.createRandom(),
+                    RobertaTokenizationTests.createRandom()
+                ),
+            randomBoolean() ? null : randomAlphaOfLength(7)
+        );
     }
 }

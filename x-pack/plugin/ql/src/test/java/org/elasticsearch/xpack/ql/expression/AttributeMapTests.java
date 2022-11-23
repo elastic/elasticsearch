@@ -77,7 +77,7 @@ public class AttributeMapTests extends ESTestCase {
         builder.put(threeAlias.toAttribute(), threeAlias.child());
         builder.put(threeAliasAlias.toAttribute(), threeAliasAlias.child());
         AttributeMap<Object> map = builder.build();
-        
+
         assertEquals(of("one"), map.resolve(one));
         assertEquals("two", map.resolve(two));
         assertEquals(of("three"), map.resolve(three));
@@ -115,11 +115,9 @@ public class AttributeMapTests extends ESTestCase {
         builder.put(d, a);
         AttributeMap<Object> map = builder.build();
 
-        // note: multi hop cycles should not happen, unless we have a 
+        // note: multi hop cycles should not happen, unless we have a
         // bug in the code that populates the AttributeMaps
-        expectThrows(QlIllegalArgumentException.class, () -> {
-            assertEquals(a, map.resolve(a, c));
-        });
+        expectThrows(QlIllegalArgumentException.class, () -> { assertEquals(a, map.resolve(a, c)); });
     }
 
     private Alias createIntParameterAlias(int index, int value) {
@@ -240,7 +238,6 @@ public class AttributeMapTests extends ESTestCase {
         List<String> values = set.stream().map(Map.Entry::getValue).collect(toList());
 
         assertThat(keys, hasSize(3));
-
 
         assertThat(values, hasSize(3));
         assertThat(values, contains("one", "two", "three"));

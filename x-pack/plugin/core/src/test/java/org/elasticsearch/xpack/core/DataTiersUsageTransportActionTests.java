@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.Index;
@@ -40,7 +40,6 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -78,21 +77,20 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     public void testTierIndices() {
-        IndexMetadata hotIndex1 =  indexMetadata("hot-1",    1, 0, DataTier.DATA_HOT);
-        IndexMetadata hotIndex2 =  indexMetadata("hot-2",    1, 0, DataTier.DATA_HOT);
-        IndexMetadata warmIndex1 = indexMetadata("warm-1",   1, 0, DataTier.DATA_WARM);
-        IndexMetadata coldIndex1 = indexMetadata("cold-1",   1, 0, DataTier.DATA_COLD);
-        IndexMetadata coldIndex2 = indexMetadata("cold-2",   1, 0, DataTier.DATA_COLD, DataTier.DATA_WARM); // Prefers cold over warm
-        IndexMetadata nonTiered =  indexMetadata("non-tier", 1, 0); // No tier
+        IndexMetadata hotIndex1 = indexMetadata("hot-1", 1, 0, DataTier.DATA_HOT);
+        IndexMetadata hotIndex2 = indexMetadata("hot-2", 1, 0, DataTier.DATA_HOT);
+        IndexMetadata warmIndex1 = indexMetadata("warm-1", 1, 0, DataTier.DATA_WARM);
+        IndexMetadata coldIndex1 = indexMetadata("cold-1", 1, 0, DataTier.DATA_COLD);
+        IndexMetadata coldIndex2 = indexMetadata("cold-2", 1, 0, DataTier.DATA_COLD, DataTier.DATA_WARM); // Prefers cold over warm
+        IndexMetadata nonTiered = indexMetadata("non-tier", 1, 0); // No tier
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> indicesBuilder = ImmutableOpenMap.builder();
-        indicesBuilder.put("hot-1", hotIndex1);
-        indicesBuilder.put("hot-2", hotIndex2);
-        indicesBuilder.put("warm-1", warmIndex1);
-        indicesBuilder.put("cold-1", coldIndex1);
-        indicesBuilder.put("cold-2", coldIndex2);
-        indicesBuilder.put("non-tier", nonTiered);
-        ImmutableOpenMap<String, IndexMetadata> indices = indicesBuilder.build();
+        Map<String, IndexMetadata> indices = new HashMap<>();
+        indices.put("hot-1", hotIndex1);
+        indices.put("hot-2", hotIndex2);
+        indices.put("warm-1", warmIndex1);
+        indices.put("cold-1", coldIndex1);
+        indices.put("cold-2", coldIndex2);
+        indices.put("non-tier", nonTiered);
 
         Map<String, String> tiers = DataTiersUsageTransportAction.tierIndices(indices);
         assertThat(tiers.size(), equalTo(5));
@@ -108,6 +106,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         // Nodes: 0 Tiered Nodes, 1 Data Node
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(0, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode dataNode1 = newNode(1, DiscoveryNodeRole.DATA_ROLE);
@@ -142,8 +141,11 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
 
         // Calculate usage
         Map<String, String> indexByTier = DataTiersUsageTransportAction.tierIndices(clusterState.metadata().indices());
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats =
-            DataTiersUsageTransportAction.calculateStats(nodeStatsList, indexByTier, clusterState.getRoutingNodes());
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+            nodeStatsList,
+            indexByTier,
+            clusterState.getRoutingNodes()
+        );
 
         // Verify - No results when no tiers present
         assertThat(tierSpecificStats.size(), is(0));
@@ -153,6 +155,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         // Nodes: 1 Data, 1 Hot, 1 Warm, 1 Cold, 1 Frozen
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(0, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode dataNode1 = newNode(1, DiscoveryNodeRole.DATA_ROLE);
@@ -195,8 +198,11 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
 
         // Calculate usage
         Map<String, String> indexByTier = DataTiersUsageTransportAction.tierIndices(clusterState.metadata().indices());
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats =
-            DataTiersUsageTransportAction.calculateStats(nodeStatsList, indexByTier, clusterState.getRoutingNodes());
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+            nodeStatsList,
+            indexByTier,
+            clusterState.getRoutingNodes()
+        );
 
         // Verify - Results are present but they lack index numbers because none are tiered
         assertThat(tierSpecificStats.size(), is(4));
@@ -255,6 +261,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         int nodeId = 0;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(nodeId++, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode dataNode1 = newNode(nodeId++, DiscoveryNodeRole.DATA_ROLE);
@@ -330,8 +337,11 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
 
         // Calculate usage
         Map<String, String> indexByTier = DataTiersUsageTransportAction.tierIndices(clusterState.metadata().indices());
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats =
-            DataTiersUsageTransportAction.calculateStats(nodeStatsList, indexByTier, clusterState.getRoutingNodes());
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+            nodeStatsList,
+            indexByTier,
+            clusterState.getRoutingNodes()
+        );
 
         // Verify - Index stats exist for the tiers, but no tiered nodes are found
         assertThat(tierSpecificStats.size(), is(3));
@@ -341,10 +351,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         assertThat(hotStats.nodeCount, is(0));
         assertThat(hotStats.indexCount, is(1));
         assertThat(hotStats.totalShardCount, is(6));
-        assertThat(hotStats.docCount, is(6*docCount));
-        assertThat(hotStats.totalByteCount, is(6*byteSize));
+        assertThat(hotStats.docCount, is(6 * docCount));
+        assertThat(hotStats.totalByteCount, is(6 * byteSize));
         assertThat(hotStats.primaryShardCount, is(3));
-        assertThat(hotStats.primaryByteCount, is(3*byteSize));
+        assertThat(hotStats.primaryByteCount, is(3 * byteSize));
         assertThat(hotStats.primaryByteCountMedian, is(byteSize)); // All same size
         assertThat(hotStats.primaryShardBytesMAD, is(0L)); // All same size
 
@@ -353,10 +363,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         assertThat(warmStats.nodeCount, is(0));
         assertThat(warmStats.indexCount, is(2));
         assertThat(warmStats.totalShardCount, is(4));
-        assertThat(warmStats.docCount, is(4*docCount));
-        assertThat(warmStats.totalByteCount, is(4*byteSize));
+        assertThat(warmStats.docCount, is(4 * docCount));
+        assertThat(warmStats.totalByteCount, is(4 * byteSize));
         assertThat(warmStats.primaryShardCount, is(2));
-        assertThat(warmStats.primaryByteCount, is(2*byteSize));
+        assertThat(warmStats.primaryByteCount, is(2 * byteSize));
         assertThat(warmStats.primaryByteCountMedian, is(byteSize)); // All same size
         assertThat(warmStats.primaryShardBytesMAD, is(0L)); // All same size
 
@@ -365,10 +375,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         assertThat(coldStats.nodeCount, is(0));
         assertThat(coldStats.indexCount, is(3));
         assertThat(coldStats.totalShardCount, is(3));
-        assertThat(coldStats.docCount, is(3*docCount));
-        assertThat(coldStats.totalByteCount, is(3*byteSize));
+        assertThat(coldStats.docCount, is(3 * docCount));
+        assertThat(coldStats.totalByteCount, is(3 * byteSize));
         assertThat(coldStats.primaryShardCount, is(3));
-        assertThat(coldStats.primaryByteCount, is(3*byteSize));
+        assertThat(coldStats.primaryByteCount, is(3 * byteSize));
         assertThat(coldStats.primaryByteCountMedian, is(byteSize)); // All same size
         assertThat(coldStats.primaryShardBytesMAD, is(0L)); // All same size
     }
@@ -378,6 +388,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         int nodeId = 0;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(nodeId++, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode hotNode1 = newNode(nodeId++, DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
@@ -465,8 +476,11 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
 
         // Calculate usage
         Map<String, String> indexByTier = DataTiersUsageTransportAction.tierIndices(clusterState.metadata().indices());
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats =
-            DataTiersUsageTransportAction.calculateStats(nodeStatsList, indexByTier, clusterState.getRoutingNodes());
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+            nodeStatsList,
+            indexByTier,
+            clusterState.getRoutingNodes()
+        );
 
         // Verify - Node and Index stats are both collected
         assertThat(tierSpecificStats.size(), is(3));
@@ -476,10 +490,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         assertThat(hotStats.nodeCount, is(3));
         assertThat(hotStats.indexCount, is(1));
         assertThat(hotStats.totalShardCount, is(6));
-        assertThat(hotStats.docCount, is(6*docCount));
-        assertThat(hotStats.totalByteCount, is(6*byteSize));
+        assertThat(hotStats.docCount, is(6 * docCount));
+        assertThat(hotStats.totalByteCount, is(6 * byteSize));
         assertThat(hotStats.primaryShardCount, is(3));
-        assertThat(hotStats.primaryByteCount, is(3*byteSize));
+        assertThat(hotStats.primaryByteCount, is(3 * byteSize));
         assertThat(hotStats.primaryByteCountMedian, is(byteSize)); // All same size
         assertThat(hotStats.primaryShardBytesMAD, is(0L)); // All same size
 
@@ -488,10 +502,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         assertThat(warmStats.nodeCount, is(5));
         assertThat(warmStats.indexCount, is(2));
         assertThat(warmStats.totalShardCount, is(4));
-        assertThat(warmStats.docCount, is(4*docCount));
-        assertThat(warmStats.totalByteCount, is(4*byteSize));
+        assertThat(warmStats.docCount, is(4 * docCount));
+        assertThat(warmStats.totalByteCount, is(4 * byteSize));
         assertThat(warmStats.primaryShardCount, is(2));
-        assertThat(warmStats.primaryByteCount, is(2*byteSize));
+        assertThat(warmStats.primaryByteCount, is(2 * byteSize));
         assertThat(warmStats.primaryByteCountMedian, is(byteSize)); // All same size
         assertThat(warmStats.primaryShardBytesMAD, is(0L)); // All same size
 
@@ -500,10 +514,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         assertThat(coldStats.nodeCount, is(1));
         assertThat(coldStats.indexCount, is(3));
         assertThat(coldStats.totalShardCount, is(3));
-        assertThat(coldStats.docCount, is(3*docCount));
-        assertThat(coldStats.totalByteCount, is(3*byteSize));
+        assertThat(coldStats.docCount, is(3 * docCount));
+        assertThat(coldStats.totalByteCount, is(3 * byteSize));
         assertThat(coldStats.primaryShardCount, is(3));
-        assertThat(coldStats.primaryByteCount, is(3*byteSize));
+        assertThat(coldStats.primaryByteCount, is(3 * byteSize));
         assertThat(coldStats.primaryByteCountMedian, is(byteSize)); // All same size
         assertThat(coldStats.primaryShardBytesMAD, is(0L)); // All same size
     }
@@ -513,6 +527,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         int nodeId = 0;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(nodeId++, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode mixedNode1 = newNode(nodeId++, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
@@ -566,8 +581,11 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
 
         // Calculate usage
         Map<String, String> indexByTier = DataTiersUsageTransportAction.tierIndices(clusterState.metadata().indices());
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats =
-            DataTiersUsageTransportAction.calculateStats(nodeStatsList, indexByTier, clusterState.getRoutingNodes());
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+            nodeStatsList,
+            indexByTier,
+            clusterState.getRoutingNodes()
+        );
 
         // Verify - Index stats are separated by their preferred tier, instead of counted
         // toward multiple tiers based on their current routing. Nodes are counted for each tier they are in.
@@ -578,10 +596,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         assertThat(hotStats.nodeCount, is(3));
         assertThat(hotStats.indexCount, is(1));
         assertThat(hotStats.totalShardCount, is(6));
-        assertThat(hotStats.docCount, is(6*docCount));
-        assertThat(hotStats.totalByteCount, is(6*byteSize));
+        assertThat(hotStats.docCount, is(6 * docCount));
+        assertThat(hotStats.totalByteCount, is(6 * byteSize));
         assertThat(hotStats.primaryShardCount, is(3));
-        assertThat(hotStats.primaryByteCount, is(3*byteSize));
+        assertThat(hotStats.primaryByteCount, is(3 * byteSize));
         assertThat(hotStats.primaryByteCountMedian, is(byteSize)); // All same size
         assertThat(hotStats.primaryShardBytesMAD, is(0L)); // All same size
 
@@ -590,10 +608,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         assertThat(warmStats.nodeCount, is(3));
         assertThat(warmStats.indexCount, is(2));
         assertThat(warmStats.totalShardCount, is(4));
-        assertThat(warmStats.docCount, is(4*docCount));
-        assertThat(warmStats.totalByteCount, is(4*byteSize));
+        assertThat(warmStats.docCount, is(4 * docCount));
+        assertThat(warmStats.totalByteCount, is(4 * byteSize));
         assertThat(warmStats.primaryShardCount, is(2));
-        assertThat(warmStats.primaryByteCount, is(2*byteSize));
+        assertThat(warmStats.primaryByteCount, is(2 * byteSize));
         assertThat(warmStats.primaryByteCountMedian, is(byteSize)); // All same size
         assertThat(warmStats.primaryShardBytesMAD, is(0L)); // All same size
     }
@@ -603,6 +621,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         int nodeId = 0;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(nodeId++, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode hotNode1 = newNode(nodeId++, DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
@@ -649,8 +668,11 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
 
         // Calculate usage
         Map<String, String> indexByTier = DataTiersUsageTransportAction.tierIndices(clusterState.metadata().indices());
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats =
-            DataTiersUsageTransportAction.calculateStats(nodeStatsList, indexByTier, clusterState.getRoutingNodes());
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+            nodeStatsList,
+            indexByTier,
+            clusterState.getRoutingNodes()
+        );
 
         // Verify - Warm indices are still calculated separately from Hot ones, despite Warm nodes missing
         assertThat(tierSpecificStats.size(), is(2));
@@ -660,10 +682,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         assertThat(hotStats.nodeCount, is(3));
         assertThat(hotStats.indexCount, is(1));
         assertThat(hotStats.totalShardCount, is(6));
-        assertThat(hotStats.docCount, is(6*docCount));
-        assertThat(hotStats.totalByteCount, is(6*byteSize));
+        assertThat(hotStats.docCount, is(6 * docCount));
+        assertThat(hotStats.totalByteCount, is(6 * byteSize));
         assertThat(hotStats.primaryShardCount, is(3));
-        assertThat(hotStats.primaryByteCount, is(3*byteSize));
+        assertThat(hotStats.primaryByteCount, is(3 * byteSize));
         assertThat(hotStats.primaryByteCountMedian, is(byteSize)); // All same size
         assertThat(hotStats.primaryShardBytesMAD, is(0L)); // All same size
 
@@ -672,8 +694,8 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         assertThat(warmStats.nodeCount, is(0));
         assertThat(warmStats.indexCount, is(1));
         assertThat(warmStats.totalShardCount, is(2));
-        assertThat(warmStats.docCount, is(2*docCount));
-        assertThat(warmStats.totalByteCount, is(2*byteSize));
+        assertThat(warmStats.docCount, is(2 * docCount));
+        assertThat(warmStats.totalByteCount, is(2 * byteSize));
         assertThat(warmStats.primaryShardCount, is(1));
         assertThat(warmStats.primaryByteCount, is(byteSize));
         assertThat(warmStats.primaryByteCountMedian, is(byteSize)); // All same size
@@ -681,8 +703,13 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, DiscoveryNodeRole... roles) {
-        return new DiscoveryNode("node_" + nodeId, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(), Set.of(roles),
-            Version.CURRENT);
+        return new DiscoveryNode(
+            "node_" + nodeId,
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(roles),
+            Version.CURRENT
+        );
     }
 
     private static IndexMetadata indexMetadata(String indexName, int numberOfShards, int numberOfReplicas, String... dataTierPrefs) {
@@ -697,19 +724,20 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             for (int idx = 1; idx < dataTierPrefs.length; idx++) {
                 tierBuilder.append(',').append(dataTierPrefs[idx]);
             }
-            settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tierBuilder.toString());
+            settingsBuilder.put(DataTier.TIER_PREFERENCE, tierBuilder.toString());
         } else if (dataTierPrefs.length == 1) {
-            settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, dataTierPrefs[0]);
+            settingsBuilder.put(DataTier.TIER_PREFERENCE, dataTierPrefs[0]);
         }
 
-        return IndexMetadata.builder(indexName)
-            .settings(settingsBuilder.build())
-            .timestampRange(IndexLongFieldRange.UNKNOWN)
-            .build();
+        return IndexMetadata.builder(indexName).settings(settingsBuilder.build()).timestampRange(IndexLongFieldRange.UNKNOWN).build();
     }
 
-    private static void routeTestShardToNodes(IndexMetadata index, int shard, IndexRoutingTable.Builder indexRoutingTableBuilder,
-                                              DiscoveryNode... nodes) {
+    private static void routeTestShardToNodes(
+        IndexMetadata index,
+        int shard,
+        IndexRoutingTable.Builder indexRoutingTableBuilder,
+        DiscoveryNode... nodes
+    ) {
         ShardId shardId = new ShardId(index.getIndex(), shard);
         IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
         boolean primary = true;
@@ -719,7 +747,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             );
             primary = false;
         }
-        indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+        indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
     }
 
     private List<NodeStats> buildNodeStats(ClusterState clusterState, long bytesPerShard, long docsPerShard) {
@@ -728,21 +756,24 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         List<NodeStats> nodeStatsList = new ArrayList<>();
         for (DiscoveryNode node : nodes) {
             RoutingNode routingNode = routingNodes.node(node.getId());
+            if (routingNode == null) {
+                continue;
+            }
             Map<Index, List<IndexShardStats>> indexStats = new HashMap<>();
             for (ShardRouting shardRouting : routingNode) {
                 ShardId shardId = shardRouting.shardId();
                 ShardStats shardStat = shardStat(bytesPerShard, docsPerShard, shardRouting);
-                IndexShardStats shardStats = new IndexShardStats(shardId, new ShardStats[]{shardStat});
+                IndexShardStats shardStats = new IndexShardStats(shardId, new ShardStats[] { shardStat });
                 indexStats.computeIfAbsent(shardId.getIndex(), k -> new ArrayList<>()).add(shardStats);
             }
-            NodeIndicesStats nodeIndexStats = new NodeIndicesStats(new CommonStats(), indexStats);
+            NodeIndicesStats nodeIndexStats = new NodeIndicesStats(new CommonStats(), Collections.emptyMap(), indexStats);
             nodeStatsList.add(mockNodeStats(node, nodeIndexStats));
         }
         return nodeStatsList;
     }
 
     private static ShardStats shardStat(long byteCount, long docCount, ShardRouting routing) {
-        StoreStats storeStats = new StoreStats(byteCount, 0L, 0L);
+        StoreStats storeStats = new StoreStats(randomNonNegativeLong(), byteCount, 0L);
         DocsStats docsStats = new DocsStats(docCount, 0L, byteCount);
 
         CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);

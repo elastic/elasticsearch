@@ -28,7 +28,7 @@ abstract class AbstractNonTextScriptFieldTypeTestCase extends AbstractScriptFiel
     public void testRegexpQueryIsError() {
         assertQueryOnlyOnTextAndKeyword(
             "regexp",
-            () -> simpleMappedFieldType().regexpQuery("cat", 0, 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
+            () -> simpleMappedFieldType().regexpQuery("cat", 0, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null, mockContext())
         );
     }
 

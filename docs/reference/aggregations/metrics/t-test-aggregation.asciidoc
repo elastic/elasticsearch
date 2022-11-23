@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[search-aggregations-metrics-ttest-aggregation]]
 === T-test aggregation
 ++++

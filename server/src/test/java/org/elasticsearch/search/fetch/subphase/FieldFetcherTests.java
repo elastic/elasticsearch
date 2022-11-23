@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -15,41 +17,56 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.LongFieldScriptTests;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.xcontent.ObjectPath.eval;
+import static org.elasticsearch.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 
 public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testLeafValues() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .array("field", "first", "second")
             .startObject("object")
-                .field("field", "third")
+            .field("field", "third")
             .endObject()
-        .endObject();
+            .endObject();
 
-        List<FieldAndFormat> fieldAndFormats = List.of(
-            new FieldAndFormat("field", null),
-            new FieldAndFormat("object.field", null));
+        List<FieldAndFormat> fieldAndFormats = List.of(new FieldAndFormat("field", null), new FieldAndFormat("object.field", null));
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormats);
         assertThat(fields.size(), equalTo(2));
 
@@ -66,12 +83,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testObjectValues() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("float_range")
-                .field("gte", 0.0f)
-                .field("lte", 2.718f)
+            .field("gte", 0.0f)
+            .field("lte", 2.718f)
             .endObject()
-        .endObject();
+            .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "float_range");
         assertThat(fields.size(), equalTo(1));
@@ -84,8 +102,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testMixedObjectValues() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .startObject("foo").field("cat", "meow").endObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("foo")
+            .field("cat", "meow")
+            .endObject()
             .field("foo.bar", "baz")
             .endObject();
 
@@ -99,8 +120,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(field.getValues().size(), equalTo(1));
         assertThat(field.getValue(), equalTo("baz"));
 
-        source = XContentFactory.jsonBuilder().startObject()
-            .startObject("foo").field("cat", "meow").endObject()
+        source = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("foo")
+            .field("cat", "meow")
+            .endObject()
             .field("foo.cat", "miau")
             .endObject();
 
@@ -113,8 +137,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(field.getValues().size(), equalTo(2));
         assertThat(field.getValues(), containsInAnyOrder("meow", "miau"));
 
-        source = XContentFactory.jsonBuilder().startObject()
-            .startObject("foo").field("cat", "meow").endObject()
+        source = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("foo")
+            .field("cat", "meow")
+            .endObject()
             .array("foo.cat", "miau", "purr")
             .endObject();
 
@@ -130,8 +157,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testMixedDottedObjectSyntax() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .startObject("object").field("field", "value").endObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("object")
+            .field("field", "value")
+            .endObject()
             .field("object.field", "value2")
             .endObject();
 
@@ -145,8 +175,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testNullValues() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .startObject("object").field("field", "value").endObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("object")
+            .field("field", "value")
+            .endObject()
             .nullField("object.field")
             .endObject();
 
@@ -157,9 +190,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(field.getValues().size(), equalTo(1));
         assertThat(field.getValues(), containsInAnyOrder("value"));
 
-        source = XContentFactory.jsonBuilder().startObject()
-            .array("nullable_long_field", 1, 2, 3, null, 5)
-            .endObject();
+        source = XContentFactory.jsonBuilder().startObject().array("nullable_long_field", 1, 2, 3, null, 5).endObject();
         fields = fetchFields(mapperService, source, "*");
         assertThat(fields.size(), equalTo(1));
 
@@ -170,9 +201,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testNonExistentField() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .field("field", "value")
-        .endObject();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "non-existent");
         assertThat(fields.size(), equalTo(0));
@@ -180,10 +209,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testMetadataFields() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .field("field", "value")
-            .field("_doc_count", 100)
-        .endObject();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").field("_doc_count", 100).endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "_doc_count");
         assertNotNull(fields.get("_doc_count"));
@@ -194,32 +220,113 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         fields = fetchFields(mapperService, source, "_type");
         assertTrue(fields.isEmpty());
 
+        String docId = randomAlphaOfLength(12);
+        String routing = randomAlphaOfLength(12);
+        long version = randomLongBetween(1, 100);
+        withLuceneIndex(mapperService, iw -> {
+            ParsedDocument parsedDocument = mapperService.documentMapper()
+                .parse(source(docId, b -> b.field("integer_field", "value"), routing));
+            parsedDocument.version().setLongValue(version);
+            iw.addDocument(parsedDocument.rootDoc());
+        }, iw -> {
+            List<FieldAndFormat> fieldList = List.of(
+                new FieldAndFormat("_id", null),
+                new FieldAndFormat("_index", null),
+                new FieldAndFormat("_version", null),
+                new FieldAndFormat("_routing", null),
+                new FieldAndFormat("_ignored", null)
+            );
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                newSearchExecutionContext(
+                    mapperService,
+                    (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+                ),
+                fieldList
+            );
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+            fieldFetcher.setNextReader(readerContext);
+
+            SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
+            sourceLookup.setSegmentAndDocument(readerContext, 0);
+
+            Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(sourceLookup, 0);
+            assertThat(fetchedFields.size(), equalTo(5));
+            assertEquals(docId, fetchedFields.get("_id").getValue());
+            assertEquals(routing, fetchedFields.get("_routing").getValue());
+            assertEquals("test", fetchedFields.get("_index").getValue());
+            assertEquals(version, ((Long) fetchedFields.get("_version").getValue()).longValue());
+            assertEquals("integer_field", fetchedFields.get("_ignored").getValue());
+        });
+
         // several other metadata fields throw exceptions via their value fetchers when trying to get them
-        for (String fieldname : List.of("_id", "_index", "_seq_no", "_routing", "_ignored")) {
+        for (String fieldname : List.of(
+            SeqNoFieldMapper.NAME,
+            SourceFieldMapper.NAME,
+            FieldNamesFieldMapper.NAME,
+            NestedPathFieldMapper.name(Version.CURRENT)
+        )) {
             expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
         }
     }
 
     public void testFetchAllFields() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .field("field", "value")
             .startObject("object")
-                .field("field", "other-value")
+            .field("field", "other-value")
             .endObject()
-        .endObject();
+            .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
         assertThat(fields.size(), equalTo(2));
     }
 
+    public void testEmptyFetch() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject();
+
+        // make sure that an empty fetch doesn't deserialize the document
+        Source s = new Source() {
+            @Override
+            public XContentType sourceContentType() {
+                return XContentType.JSON;
+            }
+
+            @Override
+            public Map<String, Object> source() {
+                throw new AssertionError("Empty fetch should not deserialize the document");
+            }
+
+            @Override
+            public BytesReference internalSourceRef() {
+                return BytesReference.bytes(source);
+            }
+
+            @Override
+            public Source filter(SourceFilter sourceFilter) {
+                return sourceFilter.filterBytes(this);
+            }
+        };
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), List.of());
+        Map<String, DocumentField> fields = fieldFetcher.fetch(s, 0);
+        assertThat(fields.size(), equalTo(0));
+
+    }
+
     public void testNestedArrays() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .startArray("field")
-                .startArray().value("first").value("second").endArray()
+            .startArray()
+            .value("first")
+            .value("second")
             .endArray()
-        .endObject();
+            .endArray()
+            .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "field");
         DocumentField field = fields.get("field");
@@ -227,11 +334,18 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(field.getValues().size(), equalTo(2));
         assertThat(field.getValues(), hasItems("first", "second"));
 
-        source = XContentFactory.jsonBuilder().startObject()
+        source = XContentFactory.jsonBuilder()
+            .startObject()
             .startArray("object")
-                .startObject().array("field", "first", "second").endObject()
-                .startObject().array("field", "third").endObject()
-                .startObject().field("field", "fourth").endObject()
+            .startObject()
+            .array("field", "first", "second")
+            .endObject()
+            .startObject()
+            .array("field", "third")
+            .endObject()
+            .startObject()
+            .field("field", "fourth")
+            .endObject()
             .endArray()
             .endObject();
 
@@ -245,9 +359,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     public void testArrayValueMappers() throws IOException {
         MapperService mapperService = createMapperService();
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .array("geo_point", 27.1, 42.0)
-        .endObject();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().array("geo_point", 27.1, 42.0).endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "geo_point");
         assertThat(fields.size(), equalTo(1));
@@ -257,12 +369,19 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(field.getValues().size(), equalTo(1));
 
         // Test a field with multiple geo-points.
-        source = XContentFactory.jsonBuilder().startObject()
+        source = XContentFactory.jsonBuilder()
+            .startObject()
             .startArray("geo_point")
-                .startArray().value(27.1).value(42.0).endArray()
-                .startArray().value(31.4).value(42.0).endArray()
+            .startArray()
+            .value(27.1)
+            .value(42.0)
             .endArray()
-        .endObject();
+            .startArray()
+            .value(31.4)
+            .value(42.0)
+            .endArray()
+            .endArray()
+            .endObject();
 
         fields = fetchFields(mapperService, source, "geo_point");
         assertThat(fields.size(), equalTo(1));
@@ -274,13 +393,14 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testFieldNamesWithWildcard() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .array("field", "first", "second")
             .field("integer_field", 333)
             .startObject("object")
-                .field("field", "fourth")
+            .field("field", "fourth")
             .endObject()
-        .endObject();
+            .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "*field");
         assertThat(fields.size(), equalTo(3));
@@ -303,14 +423,17 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testDateFormat() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .field("field", "value")
             .field("date_field", "1990-12-29T00:00:00.000Z")
-        .endObject();
+            .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(
-            new FieldAndFormat("field", null),
-            new FieldAndFormat("date_field", "yyyy/MM/dd")));
+        Map<String, DocumentField> fields = fetchFields(
+            mapperService,
+            source,
+            List.of(new FieldAndFormat("field", null), new FieldAndFormat("date_field", "yyyy/MM/dd"))
+        );
         assertThat(fields.size(), equalTo(2));
 
         DocumentField field = fields.get("field");
@@ -322,12 +445,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(dateField.getValue(), equalTo("1990/12/29"));
 
         // check that badly formed dates in source are just ignored when fetching
-        source = XContentFactory.jsonBuilder().startObject()
+        source = XContentFactory.jsonBuilder()
+            .startObject()
             .field("field", "value")
             .array("date_field", "1990-12-29T00:00:00.000Z", "baddate", "1991-12-29T00:00:00.000Z")
             .endObject();
-        DocumentField dates
-            = fetchFields(mapperService, source, List.of(new FieldAndFormat("date_field", "yyyy/MM/dd"))).get("date_field");
+        DocumentField dates = fetchFields(mapperService, source, List.of(new FieldAndFormat("date_field", "yyyy/MM/dd"))).get("date_field");
         assertThat(dates.getValues().size(), equalTo(2));
         assertThat(dates, containsInAnyOrder(equalTo("1990/12/29"), equalTo("1991/12/29")));
     }
@@ -338,18 +461,18 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             b.field("ignore_above", 20);
         }));
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .array("field", "value", "other_value", "really_really_long_value")
             .endObject();
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "field");
         DocumentField field = fields.get("field");
         assertThat(field.getValues().size(), equalTo(2));
 
-        source = XContentFactory.jsonBuilder().startObject()
-            .array("field", "really_really_long_value")
-            .endObject();
+        source = XContentFactory.jsonBuilder().startObject().array("field", "really_really_long_value").endObject();
         fields = fetchFields(mapperService, source, "field");
-        assertFalse(fields.containsKey("field"));
+        assertThat(fields.get("field").getValues().size(), equalTo(0));
+        assertThat(fields.get("field").getIgnoredValues().size(), equalTo(1));
     }
 
     public void testFieldAliases() throws IOException {
@@ -363,9 +486,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .field("field", "value")
-            .endObject();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "alias_field");
         assertThat(fields.size(), equalTo(1));
@@ -391,9 +512,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .field("field", 42)
-            .endObject();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", 42).endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "field.keyword");
         assertThat(fields.size(), equalTo(1));
@@ -427,7 +546,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .array("field", "one", "two", "three")
             .array("other_field", 1, 2, 3)
             .endObject();
@@ -443,12 +563,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testObjectFields() throws IOException {
         MapperService mapperService = createMapperService();
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .array("field", "first", "second")
             .startObject("object")
-                .field("field", "third")
+            .field("field", "third")
             .endObject()
-        .endObject();
+            .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "object");
         assertFalse(fields.containsKey("object"));
@@ -461,9 +582,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             b.field("index_phrases", true);
         }));
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .array("field", "some text")
-            .endObject();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().array("field", "some text").endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
         assertThat(fields.size(), equalTo(1));
@@ -480,15 +599,15 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         XContentBuilder source = XContentFactory.jsonBuilder()
             .startObject()
-                .field("unmapped_f1", "some text")
-                .field("unmapped_f2", "some text")
-                .field("unmapped_f3", "some text")
-                .field("something_else", "some text")
-                .nullField("null_value")
-                .startObject("object")
-                    .field("a", "foo")
-                .endObject()
-                .field("object.b", "bar")
+            .field("unmapped_f1", "some text")
+            .field("unmapped_f2", "some text")
+            .field("unmapped_f3", "some text")
+            .field("something_else", "some text")
+            .nullField("null_value")
+            .startObject("object")
+            .field("a", "foo")
+            .endObject()
+            .field("object.b", "bar")
             .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("unmapped_f*", null, true));
@@ -532,14 +651,15 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     public void testSimpleUnmappedArrayWithObjects() throws IOException {
         MapperService mapperService = createMapperService();
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .startArray("unmapped_field")
-                .startObject()
-                    .field("f1", "a")
-                .endObject()
-                .startObject()
-                    .field("f2", "b")
-                .endObject()
+            .startObject()
+            .field("f1", "a")
+            .endObject()
+            .startObject()
+            .field("f2", "b")
+            .endObject()
             .endArray()
             .endObject();
 
@@ -551,18 +671,19 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("unmapped_field.f1").getValue(), equalTo("a"));
         assertThat(fields.get("unmapped_field.f2").getValue(), equalTo("b"));
 
-        source = XContentFactory.jsonBuilder().startObject()
+        source = XContentFactory.jsonBuilder()
+            .startObject()
             .startArray("unmapped_field")
-                .startObject()
-                    .field("f1", "a")
-                    .array("f2", 1, 2)
-                    .array("f3", 1, 2)
-                .endObject()
-                .startObject()
-                    .field("f1", "b") // same field name, this should result in a list returned
-                    .array("f2", 3, 4)
-                    .array("f3", "foo")
-                .endObject()
+            .startObject()
+            .field("f1", "a")
+            .array("f2", 1, 2)
+            .array("f3", 1, 2)
+            .endObject()
+            .startObject()
+            .field("f1", "b") // same field name, this should result in a list returned
+            .array("f2", 3, 4)
+            .array("f3", "foo")
+            .endObject()
             .endArray()
             .endObject();
 
@@ -586,64 +707,72 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testNestedFields() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-        .startObject("_doc")
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
             .startObject("properties")
-              .startObject("f1")
-                .field("type", "keyword")
-              .endObject()
-              .startObject("obj")
-                .field("type", "nested")
-                .startObject("properties")
-                    .startObject("f2").field("type", "keyword").endObject()
-                    .startObject("f3").field("type", "keyword").endObject()
-                    .startObject("inner_nested")
-                        .field("type", "nested")
-                        .startObject("properties")
-                            .startObject("f4").field("type", "keyword").endObject()
-                        .endObject()
-                  .endObject()
-                .endObject()
-              .endObject()
+            .startObject("f1")
+            .field("type", "keyword")
             .endObject()
-        .endObject()
-        .endObject();
+            .startObject("obj")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("f2")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("f3")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("inner_nested")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("f4")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         MapperService mapperService = createMapperService(mapping);
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .field("f1", "value1")
             .startArray("obj")
-              .startObject()
-                .field("f2", "value2a")
-                .startObject("inner_nested")
-                    .field("f4", "value4a")
-                .endObject()
-              .endObject()
-              .startObject()
-                .field("f2", "value2b")
-                .field("f3", "value3b")
-                .startObject("inner_nested")
-                    .field("f4", "value4b")
-                .endObject()
-              .endObject()
+            .startObject()
+            .field("f2", "value2a")
+            .startObject("inner_nested")
+            .field("f4", "value4a")
+            .endObject()
+            .endObject()
+            .startObject()
+            .field("f2", "value2b")
+            .field("f3", "value3b")
+            .startObject("inner_nested")
+            .field("f4", "value4b")
+            .endObject()
+            .endObject()
             .endArray()
-          .endObject();
+            .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
-        assertEquals(2, fields.size());
+        assertThat(fields.values(), hasSize(2));
         assertThat(fields.keySet(), containsInAnyOrder("f1", "obj"));
         assertEquals("value1", fields.get("f1").getValue());
         List<Object> obj = fields.get("obj").getValues();
         assertEquals(2, obj.size());
         Object obj0 = obj.get(0);
-        assertEquals(2, ((Map<?,?>) obj0).size());
+        assertEquals(2, ((Map<?, ?>) obj0).size());
         assertEquals("value2a", eval("f2.0", obj0));
         assertNull(eval("f3", obj0));
         assertEquals("value4a", eval("inner_nested.0.f4.0", obj0));
 
         Object obj1 = obj.get(1);
-        assertEquals(3, ((Map<?,?>) obj1).size());
+        assertEquals(3, ((Map<?, ?>) obj1).size());
         assertEquals("value2b", eval("f2.0", obj1));
         assertEquals("value3b", eval("f3.0", obj1));
         assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
@@ -654,13 +783,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         obj = fields.get("obj").getValues();
         assertEquals(2, ((Map<?, ?>) obj.get(0)).size());
         obj0 = obj.get(0);
-        assertEquals(2, ((Map<?,?>) obj0).size());
+        assertEquals(2, ((Map<?, ?>) obj0).size());
         assertEquals("value2a", eval("f2.0", obj0));
         assertNull(eval("f3", obj0));
         assertEquals("value4a", eval("inner_nested.0.f4.0", obj0));
 
         obj1 = obj.get(1);
-        assertEquals(3, ((Map<?,?>) obj1).size());
+        assertEquals(3, ((Map<?, ?>) obj1).size());
         assertEquals("value2b", eval("f2.0", obj1));
         assertEquals("value3b", eval("f3.0", obj1));
         assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
@@ -681,12 +810,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         XContentBuilder mapping = mapping(b -> b.startObject("flat").field("type", "flattened").endObject());
         MapperService mapperService = createMapperService(mapping);
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("flat")
-              .field("f1", "value1")
-              .field("f2", 1)
+            .field("f1", "value1")
+            .field("f2", 1)
             .endObject()
-          .endObject();
+            .endObject();
 
         // requesting via wildcard should retrieve the root field as a structured map
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
@@ -726,23 +856,27 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testUnmappedFieldsInsideObject() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("_doc")
             .startObject("properties")
-                .startObject("obj")
-                    .field("type", "object")
-                    .field("dynamic", "false")
-                    .startObject("properties")
-                        .startObject("f1").field("type", "keyword").endObject()
-                    .endObject()
-                .endObject()
+            .startObject("obj")
+            .field("type", "object")
+            .field("dynamic", "false")
+            .startObject("properties")
+            .startObject("f1")
+            .field("type", "keyword")
             .endObject()
             .endObject()
-        .endObject();
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         MapperService mapperService = createMapperService(mapping);
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .field("obj.f1", "value1")
             .field("obj.f2", "unmapped_value_f2")
             .field("obj.innerObj.f3", "unmapped_value_f3")
@@ -761,30 +895,34 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testUnmappedFieldsInsideDisabledObject() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("_doc")
             .startObject("properties")
-                .startObject("obj")
-                    .field("type", "object")
-                    .field("enabled", "false")
-                .endObject()
+            .startObject("obj")
+            .field("type", "object")
+            .field("enabled", "false")
             .endObject()
             .endObject()
-        .endObject();
+            .endObject()
+            .endObject();
 
         MapperService mapperService = createMapperService(mapping);
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .startArray("obj")
             .value("string_value")
             .startObject()
-                .field("a", "b")
+            .field("a", "b")
             .endObject()
             .startArray()
-                .value(1).value(2).value(3)
+            .value(1)
+            .value(2)
+            .value(3)
             .endArray()
             .endArray()
-        .endObject();
+            .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
         // without unmapped fields this should return nothing
@@ -808,50 +946,52 @@ public class FieldFetcherTests extends MapperServiceTestCase {
      * mapped retrieval mechanism (e.g. because its malformed), we don't want to fetch it from _source.
      */
     public void testMappedFieldNotOverwritten() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("_doc")
             .startObject("properties")
-                .startObject("f1")
-                    .field("type", "integer")
-                    .field("ignore_malformed", "true")
-                .endObject()
+            .startObject("f1")
+            .field("type", "integer")
+            .field("ignore_malformed", "true")
             .endObject()
             .endObject()
-        .endObject();
+            .endObject()
+            .endObject();
 
         MapperService mapperService = createMapperService(mapping);
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .field("f1", "malformed")
-            .endObject();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("f1", "malformed").endObject();
 
         // this should not return a field bc. f1 is malformed
         Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
 
         // and this should neither
         fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
 
         fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
 
         // check this also does not overwrite with arrays
-        source = XContentFactory.jsonBuilder().startObject()
-            .array("f1", "malformed")
-            .endObject();
+        source = XContentFactory.jsonBuilder().startObject().array("f1", "malformed").endObject();
 
         fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
     }
 
     public void testUnmappedFieldsWildcard() throws IOException {
         MapperService mapperService = createMapperService();
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("unmapped_object")
-                .field("a", "foo")
-                .field("b", "bar")
+            .field("a", "foo")
+            .field("b", "bar")
             .endObject()
             .endObject();
 
@@ -880,10 +1020,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     public void testLastFormatWins() throws IOException {
         MapperService mapperService = createMapperService();
 
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
             .startArray("date_field")
-                .value("2011-11-11T11:11:11")
-                .value("2012-12-12T12:12:12")
+            .value("2011-11-11T11:11:11")
+            .value("2012-12-12T12:12:12")
             .endArray()
             .endObject();
 
@@ -903,6 +1044,33 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
     }
 
+    public void testNestedPrefix() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "properties" : {
+                  "foo" : {
+                    "type" : "nested",
+                    "properties" : {
+                      "nested_field" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  },
+                  "foo_bar" : {
+                    "type" : "double"
+                  }
+                }
+              }
+            }
+            """;
+        MapperService mapperService = createMapperService(mapping);
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("foo_bar", 3.1).endObject();
+        // the field should be returned
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo_bar");
+        assertThat(fields.get("foo_bar").getValues().size(), equalTo(1));
+    }
+
     /**
      * Field patterns retrieved with "include_unmapped" use an automaton with a maximal allowed size internally.
      * This test checks we have a bound in place to avoid misuse of this with exceptionally large field patterns
@@ -912,12 +1080,108 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("a", "foo").endObject();
 
-        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
-        boolean includeUnmapped = true;
-        for (int i = 0; i < 1000; i++) {
-            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, includeUnmapped));
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>(8_000);
+        for (int i = 0; i < 8000; i++) {
+            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, true));
         }
         expectThrows(TooComplexToDeterminizeException.class, () -> fetchFields(mapperService, source, fieldAndFormatList));
+    }
+
+    public void testFetchFromSourceWithSourceDisabled() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source").field("enabled", false).endObject();
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("field").field("type", "keyword").endObject();
+                    mapping.startObject("location").field("type", "geo_point").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+        {
+            Map<String, DocumentField> fields = fetchFields(mapperService, null, "field");
+            assertEquals(0, fields.size());
+        }
+        {
+            Map<String, DocumentField> fields = fetchFields(mapperService, null, "location");
+            assertEquals(0, fields.size());
+        }
+    }
+
+    public void testFetchRuntimeFieldWithSourceDisabled() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source").field("enabled", false).endObject();
+                mapping.startObject("runtime");
+                {
+                    mapping.startObject("runtime_field").field("type", "long").field("script", "emit(1);").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+        SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
+            mapperService,
+            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+        );
+        withLuceneIndex(mapperService, iw -> iw.addDocument(new LuceneDocument()), iw -> {
+            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("runtime_field", null, false));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+            fieldFetcher.setNextReader(readerContext);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(new SourceLookup(new SourceLookup.ReaderSourceProvider()), 0);
+            assertEquals(1, fields.size());
+            DocumentField field = fields.get("runtime_field");
+            assertEquals(1L, (long) field.getValue());
+        });
+    }
+
+    public void testFetchMetadataFieldWithSourceDisabled() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source").field("enabled", false).endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+        SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
+            mapperService,
+            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+        );
+        withLuceneIndex(mapperService, iw -> {
+            ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("{}"));
+            iw.addDocument(parsedDocument.rootDoc());
+        }, iw -> {
+            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("_id", null, false));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+            fieldFetcher.setNextReader(readerContext);
+            SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
+            sourceLookup.setSegmentAndDocument(readerContext, 0);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup, 0);
+            assertEquals(1, fields.size());
+            DocumentField field = fields.get("_id");
+            assertEquals("1", field.getValue());
+        });
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
@@ -929,55 +1193,79 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         return fetchFields(mapperService, source, fieldAndFormatList(fieldPattern, null, false));
     }
 
-    private static Map<String, DocumentField> fetchFields(
-        MapperService mapperService,
-        XContentBuilder source,
-        List<FieldAndFormat> fields
-    ) throws IOException {
-
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
-
+    private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
+        throws IOException {
+        Source s = source == null
+            ? Source.empty(randomFrom(XContentType.values()))
+            : Source.fromBytes(BytesReference.bytes(source), source.contentType());
         FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
-        return fieldFetcher.fetch(sourceLookup);
+        return fieldFetcher.fetch(s, -1);
     }
 
     public MapperService createMapperService() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("_doc")
             .startObject("properties")
-                .startObject("field").field("type", "keyword").endObject()
-                .startObject("integer_field").field("type", "integer").endObject()
-                .startObject("date_field").field("type", "date").endObject()
-                .startObject("geo_point").field("type", "geo_point").endObject()
-                .startObject("float_range").field("type", "float_range").endObject()
-                .startObject("nullable_long_field").field("type", "long").field("null_value", 42).endObject()
-                .startObject("object")
-                    .startObject("properties")
-                        .startObject("field").field("type", "keyword").endObject()
-                    .endObject()
-                .endObject()
-                .startObject("field_that_does_not_match").field("type", "keyword").endObject()
+            .startObject("field")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("integer_field")
+            .field("type", "integer")
+            .field("ignore_malformed", "true")
+            .endObject()
+            .startObject("date_field")
+            .field("type", "date")
+            .endObject()
+            .startObject("geo_point")
+            .field("type", "geo_point")
+            .endObject()
+            .startObject("float_range")
+            .field("type", "float_range")
+            .endObject()
+            .startObject("nullable_long_field")
+            .field("type", "long")
+            .field("null_value", 42)
+            .endObject()
+            .startObject("object")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "keyword")
             .endObject()
             .endObject()
-        .endObject();
+            .endObject()
+            .startObject("field_that_does_not_match")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
         return createMapperService(mapping);
     }
 
     private static SearchExecutionContext newSearchExecutionContext(MapperService mapperService) {
-        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT)
+        return newSearchExecutionContext(mapperService, null);
+    }
+
+    private static SearchExecutionContext newSearchExecutionContext(
+        MapperService mapperService,
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup
+    ) {
+        Settings settings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
-            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new SearchExecutionContext(
             0,
             0,
             indexSettings,
             null,
-            null,
+            indexFieldDataLookup,
             mapperService,
             mapperService.mappingLookup(),
             null,
@@ -993,5 +1281,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             emptyMap()
         );
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        return (T) LongFieldScriptTests.DUMMY;
     }
 }

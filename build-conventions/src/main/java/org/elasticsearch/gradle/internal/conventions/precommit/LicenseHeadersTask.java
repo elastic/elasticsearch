@@ -23,8 +23,11 @@ import org.apache.rat.report.xml.writer.impl.base.XmlWriter;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
@@ -36,7 +39,7 @@ import org.gradle.api.tasks.TaskAction;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
-
+import org.gradle.api.model.ObjectFactory;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.BufferedWriter;
@@ -51,13 +54,45 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
+import java.io.Serializable;
+
+import javax.inject.Inject;
 
 /**
  * Checks files for license headers..
  */
 @CacheableTask
 public abstract class LicenseHeadersTask extends DefaultTask {
-    public LicenseHeadersTask() {
+
+    private final RegularFileProperty reportFile;
+
+    private static List<License> conventionalLicenses = Arrays.asList(
+            // Dual SSPLv1 and Elastic
+            new License("DUAL", "SSPL+Elastic License", "the Elastic License 2.0 or the Server")
+    );
+
+    /**
+     * Allowed license families for this project.
+     */
+    @Input
+    private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("SSPL+Elastic License", "Generated", "Vendored", "Apache LZ4-Java"));
+    /**
+     * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
+     * source file is compatible with the codebase but we do not want to add the license to the list of approved headers (to avoid the
+     * possibility of inadvertently using the license on our own source files).
+     */
+    @Input
+    private List<String> excludes = new ArrayList<String>();
+
+    private ListProperty<License> additionalLicenses;
+
+    @Inject
+    public LicenseHeadersTask(ObjectFactory objectFactory, ProjectLayout projectLayout) {
+        additionalLicenses = objectFactory.listProperty(License.class).convention(conventionalLicenses);
+        reportFile = objectFactory.fileProperty().convention(
+            projectLayout.getBuildDirectory().file("reports/licenseHeaders/rat.xml")
+        );
         setDescription("Checks sources for missing, incorrect, or unacceptable license headers");
     }
 
@@ -66,6 +101,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
      * constructor can write to it.
      */
     @InputFiles
+    @IgnoreEmptyDirectories
     @SkipWhenEmpty
     @PathSensitive(PathSensitivity.RELATIVE)
     public List<FileCollection> getJavaFiles() {
@@ -75,12 +111,9 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     @Internal
     public abstract ListProperty<FileCollection> getSourceFolders();
 
-    public File getReportFile() {
+    @OutputFile
+    public RegularFileProperty getReportFile() {
         return reportFile;
-    }
-
-    public void setReportFile(File reportFile) {
-        this.reportFile = reportFile;
     }
 
     public List<String> getApprovedLicenses() {
@@ -95,36 +128,18 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         return excludes;
     }
 
-    public Map<String, String> getAdditionalLicenses() {
-        return additionalLicenses;
-    }
-
     public void setExcludes(List<String> excludes) {
         this.excludes = excludes;
     }
 
-    @OutputFile
-    private File reportFile = new File(getProject().getBuildDir(), "reports/licenseHeaders/rat.xml");
-
-    /**
-     * Allowed license families for this project.
-     */
-    @Input
-    private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("SSPL+Elastic License", "Generated", "Vendored"));
-    /**
-     * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
-     * source file is compatible with the codebase but we do not want to add the license to the list of approved headers (to avoid the
-     * possibility of inadvertently using the license on our own source files).
-     */
-    @Input
-    private List<String> excludes = new ArrayList<String>();
     /**
      * Additional license families that may be found. The key is the license category name (5 characters),
      * followed by the family name and the value list of patterns to search for.
      */
     @Input
-    protected Map<String, String> additionalLicenses = new HashMap<String, String>();
-
+    public ListProperty<License> getAdditionalLicenses() {
+        return additionalLicenses;
+    }
     /**
      * Add a new license type.
      * <p>
@@ -139,7 +154,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
             throw new IllegalArgumentException("License category name must be exactly 5 characters, got " + categoryName);
         }
 
-        additionalLicenses.put(categoryName + familyName, pattern);
+        additionalLicenses.add(new License(categoryName, familyName, pattern));
     }
 
     @TaskAction
@@ -154,18 +169,16 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         matchers.add(subStringMatcher("BSD4 ", "Original BSD License (with advertising clause)", "All advertising materials"));
         // Apache
         matchers.add(subStringMatcher("AL   ", "Apache", "Licensed to Elasticsearch B.V. under one or more contributor"));
+        // Apache lz4-java
+        matchers.add(subStringMatcher("ALLZ4", "Apache LZ4-Java", "Copyright 2020 Adrien Grand and the lz4-java contributors"));
         // Generated resources
         matchers.add(subStringMatcher("GEN  ", "Generated", "ANTLR GENERATED CODE"));
         // Vendored Code
         matchers.add(subStringMatcher("VEN  ", "Vendored", "@notice"));
-        // Dual SSPLv1 and Elastic
-        matchers.add(subStringMatcher("DUAL", "SSPL+Elastic License", "the Elastic License 2.0 or the Server"));
 
-        for (Map.Entry<String, String> additional : additionalLicenses.entrySet()) {
-            String category = additional.getKey().substring(0, 5);
-            String family = additional.getKey().substring(5);
-            matchers.add(subStringMatcher(category, family, additional.getValue()));
-        }
+        additionalLicenses.get().forEach(l ->
+            matchers.add(subStringMatcher(l.licenseFamilyCategory, l.licenseFamilyName, l.substringPattern))
+        );
 
         reportConfiguration.setHeaderMatcher(new HeaderMatcherMultiplexer(matchers.toArray(IHeaderMatcher[]::new)));
         reportConfiguration.setApprovedLicenseNames(approvedLicenses.stream().map(license -> {
@@ -174,13 +187,15 @@ public abstract class LicenseHeadersTask extends DefaultTask {
             return simpleLicenseFamily;
         }).toArray(SimpleLicenseFamily[]::new));
 
-        ClaimStatistic stats = generateReport(reportConfiguration, getReportFile());
+        File repFile = getReportFile().getAsFile().get();
+        ClaimStatistic stats = generateReport(reportConfiguration, repFile);
         boolean unknownLicenses = stats.getNumUnknown() > 0;
         boolean unApprovedLicenses = stats.getNumUnApproved() > 0;
         if (unknownLicenses || unApprovedLicenses) {
             getLogger().error("The following files contain unapproved license headers:");
-            unapprovedFiles(getReportFile()).stream().forEachOrdered(unapprovedFile -> getLogger().error(unapprovedFile));
-            throw new GradleException("Check failed. License header problems were found. Full details: " + reportFile.getAbsolutePath());
+            unapprovedFiles(repFile).stream().forEachOrdered(unapprovedFile -> getLogger().error(unapprovedFile));
+            throw new GradleException("Check failed. License header problems were found. Full details: " +
+                    repFile.getAbsolutePath());
         }
     }
 
@@ -188,7 +203,6 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         SubstringLicenseMatcher substringLicenseMatcher = new SubstringLicenseMatcher();
         substringLicenseMatcher.setLicenseFamilyCategory(licenseFamilyCategory);
         substringLicenseMatcher.setLicenseFamilyName(licenseFamilyName);
-
         SubstringLicenseMatcher.Pattern pattern = new SubstringLicenseMatcher.Pattern();
         pattern.setSubstring(substringPattern);
         substringLicenseMatcher.addConfiguredPattern(pattern);
@@ -197,7 +211,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
 
     private ClaimStatistic generateReport(ReportConfiguration config, File xmlReportFile) {
         try {
-            Files.deleteIfExists(reportFile.toPath());
+            Files.deleteIfExists(reportFile.get().getAsFile().toPath());
             BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(xmlReportFile));
             return toXmlReportFile(config, bufferedWriter);
         } catch (IOException | RatException exception) {
@@ -246,5 +260,17 @@ public abstract class LicenseHeadersTask extends DefaultTask {
             nodeList.add((Element) resourcesNodes.item(idx));
         }
         return nodeList;
+    }
+
+    static class License implements Serializable {
+        private String licenseFamilyCategory;
+        private String licenseFamilyName;
+        private String substringPattern;
+
+        public License(String licenseFamilyCategory, String licenseFamilyName, String substringPattern) {
+            this.licenseFamilyCategory = licenseFamilyCategory;
+            this.licenseFamilyName = licenseFamilyName;
+            this.substringPattern = substringPattern;
+        }
     }
 }

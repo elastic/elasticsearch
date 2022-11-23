@@ -10,15 +10,16 @@ package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
-public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeResponse> {
+public class ResizeResponseTests extends AbstractXContentSerializingTestCase<ResizeResponse> {
 
     public void testToXContent() {
         ResizeResponse response = new ResizeResponse(true, false, "index_name");
         String output = Strings.toString(response);
-        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":\"index_name\"}", output);
+        assertEquals("""
+            {"acknowledged":true,"shards_acknowledged":false,"index":"index_name"}""", output);
     }
 
     @Override
@@ -52,8 +53,11 @@ public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeRespo
                 return new ResizeResponse(acknowledged, shardsAcknowledged, response.index());
             }
         } else {
-            return new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
-                    response.index() + randomAlphaOfLengthBetween(2, 5));
+            return new ResizeResponse(
+                response.isAcknowledged(),
+                response.isShardsAcknowledged(),
+                response.index() + randomAlphaOfLengthBetween(2, 5)
+            );
         }
     }
 }

@@ -6,10 +6,7 @@
  */
 package org.elasticsearch.license;
 
-
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -20,6 +17,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * File based watcher for license {@link OperationMode}
@@ -38,8 +37,7 @@ public final class OperationModeFileWatcher implements FileChangesListener {
     private final Logger logger;
     private final Runnable onChange;
 
-    public OperationModeFileWatcher(ResourceWatcherService resourceWatcherService, Path licenseModePath,
-                                    Logger logger, Runnable onChange) {
+    public OperationModeFileWatcher(ResourceWatcherService resourceWatcherService, Path licenseModePath, Logger logger, Runnable onChange) {
         this.resourceWatcherService = resourceWatcherService;
         this.licenseModePath = licenseModePath;
         this.logger = logger;
@@ -94,15 +92,12 @@ public final class OperationModeFileWatcher implements FileChangesListener {
             final OperationMode savedOperationMode = this.currentOperationMode;
             OperationMode newOperationMode = defaultOperationMode;
             try {
-                if (Files.exists(licenseModePath)
-                        && Files.isReadable(licenseModePath)) {
+                if (Files.exists(licenseModePath) && Files.isReadable(licenseModePath)) {
                     final byte[] content;
                     try {
                         content = Files.readAllBytes(licenseModePath);
                     } catch (IOException e) {
-                        logger.error(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                        "couldn't read operation mode from [{}]", licenseModePath.toAbsolutePath()), e);
+                        logger.error(() -> format("couldn't read operation mode from [%s]", licenseModePath.toAbsolutePath()), e);
                         return;
                     }
                     // this UTF-8 conversion is much pickier than java String
@@ -110,9 +105,7 @@ public final class OperationModeFileWatcher implements FileChangesListener {
                     try {
                         newOperationMode = OperationMode.parse(operationMode);
                     } catch (IllegalArgumentException e) {
-                        logger.error(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                        "invalid operation mode in [{}]", licenseModePath.toAbsolutePath()), e);
+                        logger.error(() -> format("invalid operation mode in [%s]", licenseModePath.toAbsolutePath()), e);
                         return;
                     }
                 }
@@ -127,4 +120,3 @@ public final class OperationModeFileWatcher implements FileChangesListener {
         }
     }
 }
-

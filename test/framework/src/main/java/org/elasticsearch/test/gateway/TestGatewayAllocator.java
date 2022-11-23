@@ -8,9 +8,12 @@
 
 package org.elasticsearch.test.gateway;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.gateway.AsyncShardFetch;
@@ -45,6 +48,8 @@ import java.util.stream.Collectors;
  */
 public class TestGatewayAllocator extends GatewayAllocator {
 
+    private static final Logger LOGGER = LogManager.getLogger(TestGatewayAllocator.class);
+
     Map<String /* node id */, Map<ShardId, ShardRouting>> knownAllocations = new HashMap<>();
     DiscoveryNodes currentNodes = DiscoveryNodes.EMPTY_NODES;
 
@@ -54,16 +59,22 @@ public class TestGatewayAllocator extends GatewayAllocator {
             // for now always return immediately what we know
             final ShardId shardId = shard.shardId();
             final Set<String> ignoreNodes = allocation.getIgnoreNodes(shardId);
-            Map<DiscoveryNode, NodeGatewayStartedShards> foundShards = knownAllocations.values().stream()
+            Map<DiscoveryNode, NodeGatewayStartedShards> foundShards = knownAllocations.values()
+                .stream()
                 .flatMap(shardMap -> shardMap.values().stream())
                 .filter(ks -> ks.shardId().equals(shardId))
                 .filter(ks -> ignoreNodes.contains(ks.currentNodeId()) == false)
                 .filter(ks -> currentNodes.nodeExists(ks.currentNodeId()))
-                .collect(Collectors.toMap(
-                    routing -> currentNodes.get(routing.currentNodeId()),
-                    routing ->
-                        new NodeGatewayStartedShards(
-                            currentNodes.get(routing.currentNodeId()), routing.allocationId().getId(), routing.primary())));
+                .collect(
+                    Collectors.toMap(
+                        routing -> currentNodes.get(routing.currentNodeId()),
+                        routing -> new NodeGatewayStartedShards(
+                            currentNodes.get(routing.currentNodeId()),
+                            routing.allocationId().getId(),
+                            routing.primary()
+                        )
+                    )
+                );
 
             return new AsyncShardFetch.FetchResult<>(shardId, foundShards, ignoreNodes);
         }
@@ -93,7 +104,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
     public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
         currentNodes = allocation.nodes();
         for (FailedShard failedShard : failedShards) {
-            final ShardRouting failedRouting = failedShard.getRoutingEntry();
+            final ShardRouting failedRouting = failedShard.routingEntry();
             Map<ShardId, ShardRouting> nodeAllocations = knownAllocations.get(failedRouting.currentNodeId());
             if (nodeAllocations != null) {
                 nodeAllocations.remove(failedRouting.shardId());
@@ -105,25 +116,38 @@ public class TestGatewayAllocator extends GatewayAllocator {
     }
 
     @Override
-    public void beforeAllocation(RoutingAllocation allocation) {
-    }
+    public void beforeAllocation(RoutingAllocation allocation) {}
 
     @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
-    }
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
 
     @Override
-    public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
-                                   UnassignedAllocationHandler unassignedAllocationHandler) {
+    public void allocateUnassigned(
+        ShardRouting shardRouting,
+        RoutingAllocation allocation,
+        UnassignedAllocationHandler unassignedAllocationHandler
+    ) {
         currentNodes = allocation.nodes();
         innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
+    }
+
+    @Override
+    public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
+        assert unassignedShard.unassigned();
+        assert routingAllocation.debugDecision();
+        if (unassignedShard.primary()) {
+            assert primaryShardAllocator != null;
+            return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, LOGGER);
+        } else {
+            assert replicaShardAllocator != null;
+            return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, LOGGER);
+        }
     }
 
     /**
      * manually add a specific shard to the allocations the gateway keeps track of
      */
     public void addKnownAllocation(ShardRouting shard) {
-            knownAllocations.computeIfAbsent(shard.currentNodeId(), id -> new HashMap<>())
-                .put(shard.shardId(), shard);
+        knownAllocations.computeIfAbsent(shard.currentNodeId(), id -> new HashMap<>()).put(shard.shardId(), shard);
     }
 }

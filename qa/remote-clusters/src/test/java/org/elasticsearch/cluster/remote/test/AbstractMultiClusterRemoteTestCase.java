@@ -9,15 +9,14 @@ package org.elasticsearch.cluster.remote.test;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -28,7 +27,9 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.function.Consumer;
 
+@SuppressWarnings("removal")
 public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase {
 
     private static final String USER = "x_pack_rest_user";
@@ -42,7 +43,6 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
     private static RestHighLevelClient cluster1Client;
     private static RestHighLevelClient cluster2Client;
     private static boolean initialized = false;
-
 
     @Override
     protected String getTestRestCluster() {
@@ -58,8 +58,12 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
         cluster1Client = buildClient("localhost:" + getProperty("test.fixtures.elasticsearch-" + getDistribution() + "-1.tcp.9200"));
         cluster2Client = buildClient("localhost:" + getProperty("test.fixtures.elasticsearch-" + getDistribution() + "-2.tcp.9200"));
 
-        cluster1Client().cluster().health(new ClusterHealthRequest().waitForNodes("1").waitForYellowStatus(), RequestOptions.DEFAULT);
-        cluster2Client().cluster().health(new ClusterHealthRequest().waitForNodes("1").waitForYellowStatus(), RequestOptions.DEFAULT);
+        Consumer<Request> waitForYellowRequest = request -> {
+            request.addParameter("wait_for_status", "yellow");
+            request.addParameter("wait_for_nodes", "1");
+        };
+        ensureHealth(cluster1Client().getLowLevelClient(), waitForYellowRequest);
+        ensureHealth(cluster2Client().getLowLevelClient(), waitForYellowRequest);
 
         initialized = true;
     }
@@ -98,9 +102,12 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
 
     private RestHighLevelClient buildClient(final String url) throws IOException {
         int portSeparator = url.lastIndexOf(':');
-        HttpHost httpHost = new HttpHost(url.substring(0, portSeparator),
-            Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
-        return new HighLevelClient(buildClient(restAdminSettings(), new HttpHost[]{httpHost}));
+        HttpHost httpHost = new HttpHost(
+            url.substring(0, portSeparator),
+            Integer.parseInt(url.substring(portSeparator + 1)),
+            getProtocol()
+        );
+        return new HighLevelClient(buildClient(restAdminSettings(), new HttpHost[] { httpHost }));
     }
 
     protected boolean isOss() {
@@ -149,8 +156,10 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
     private String getProperty(String key) {
         String value = System.getProperty(key);
         if (value == null) {
-            throw new IllegalStateException("Could not find system properties from test.fixtures. " +
-                "This test expects to run with the elasticsearch.test.fixtures Gradle plugin");
+            throw new IllegalStateException(
+                "Could not find system properties from test.fixtures. "
+                    + "This test expects to run with the elasticsearch.test.fixtures Gradle plugin"
+            );
         }
         return value;
     }

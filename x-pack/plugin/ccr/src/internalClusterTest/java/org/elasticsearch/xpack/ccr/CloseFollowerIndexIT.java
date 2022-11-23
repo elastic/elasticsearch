@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.junit.After;
@@ -76,7 +76,7 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         followRequest.setFollowerIndex("index2");
         followRequest.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
         followRequest.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
-        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(1));
+        followRequest.getParameters().setMaxReadRequestSize(ByteSizeValue.ofBytes(1));
         followRequest.getParameters().setMaxOutstandingReadRequests(128);
         followRequest.waitForActiveShards(ActiveShardCount.DEFAULT);
 

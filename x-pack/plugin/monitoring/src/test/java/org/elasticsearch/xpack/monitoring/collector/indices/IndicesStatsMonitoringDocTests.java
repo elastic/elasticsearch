@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
@@ -22,6 +21,7 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.BaseFilteredMonitoringDocTestCase;
@@ -47,18 +47,32 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        indicesStats = Collections.singletonList(new IndexStats("index-0", "dcvO5uZATE-EhIKc3tk9Bg", new ShardStats[] {
-                // Primaries
-                new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null),
-                new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null),
-                // Replica
-                new ShardStats(mockShardRouting(false), mockShardPath(), mockCommonStats(), null, null, null)
-        }));
+        indicesStats = Collections.singletonList(
+            new IndexStats(
+                "index-0",
+                "dcvO5uZATE-EhIKc3tk9Bg",
+                null,
+                null,
+                new ShardStats[] {
+                    // Primaries
+                    new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null),
+                    new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null),
+                    // Replica
+                    new ShardStats(mockShardRouting(false), mockShardPath(), mockCommonStats(), null, null, null) }
+            )
+        );
     }
 
     @Override
-    protected IndicesStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
-                                                            MonitoredSystem system, String type, String id) {
+    protected IndicesStatsMonitoringDoc createMonitoringDoc(
+        String cluster,
+        long timestamp,
+        long interval,
+        MonitoringDoc.Node node,
+        MonitoredSystem system,
+        String type,
+        String id
+    ) {
         return new IndicesStatsMonitoringDoc(cluster, timestamp, interval, node, indicesStats);
     }
 
@@ -83,80 +97,84 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
     @Override
     public void testToXContent() throws IOException {
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-        final IndicesStatsMonitoringDoc document =
-                new IndicesStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indicesStats);
+        final IndicesStatsMonitoringDoc document = new IndicesStatsMonitoringDoc(
+            "_cluster",
+            1502266739402L,
+            1506593717631L,
+            node,
+            indicesStats
+        );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = XContentHelper.stripWhitespace(
-            "{"
-                + "  \"cluster_uuid\": \"_cluster\","
-                + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
-                + "  \"interval_ms\": 1506593717631,"
-                + "  \"type\": \"indices_stats\","
-                + "  \"source_node\": {"
-                + "    \"uuid\": \"_uuid\","
-                + "    \"host\": \"_host\","
-                + "    \"transport_address\": \"_addr\","
-                + "    \"ip\": \"_ip\","
-                + "    \"name\": \"_name\","
-                + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
-                + "  },"
-                + "  \"indices_stats\": {"
-                + "    \"_all\": {"
-                + "      \"primaries\": {"
-                + "        \"docs\": {"
-                + "          \"count\": 2"
-                + "        },"
-                + "        \"store\": {"
-                + "          \"size_in_bytes\": 4"
-                + "        },"
-                + "        \"indexing\": {"
-                + "          \"index_total\": 6,"
-                + "          \"index_time_in_millis\": 8,"
-                + "          \"is_throttled\": true,"
-                + "          \"throttle_time_in_millis\": 10"
-                + "        },"
-                + "        \"search\": {"
-                + "          \"query_total\": 12,"
-                + "          \"query_time_in_millis\": 14"
-                + "        },"
-                + "        \"bulk\": {"
-                + "          \"total_operations\": 0,"
-                + "          \"total_time_in_millis\": 0,"
-                + "          \"total_size_in_bytes\": 0,"
-                + "          \"avg_time_in_millis\": 0,"
-                + "          \"avg_size_in_bytes\": 0"
-                + "        }"
-                + "      },"
-                + "      \"total\": {"
-                + "        \"docs\": {"
-                + "          \"count\": 3"
-                + "        },"
-                + "        \"store\": {"
-                + "          \"size_in_bytes\": 6"
-                + "        },"
-                + "        \"indexing\": {"
-                + "          \"index_total\": 9,"
-                + "          \"index_time_in_millis\": 12,"
-                + "          \"is_throttled\": true,"
-                + "          \"throttle_time_in_millis\": 15"
-                + "        },"
-                + "        \"search\": {"
-                + "          \"query_total\": 18,"
-                + "          \"query_time_in_millis\": 21"
-                + "        },"
-                + "        \"bulk\": {"
-                + "          \"total_operations\": 0,"
-                + "          \"total_time_in_millis\": 0,"
-                + "          \"total_size_in_bytes\": 0,"
-                + "          \"avg_time_in_millis\": 0,"
-                + "          \"avg_size_in_bytes\": 0"
-                + "        }"
-                + "      }"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        final String expected = XContentHelper.stripWhitespace("""
+            {
+              "cluster_uuid": "_cluster",
+              "timestamp": "2017-08-09T08:18:59.402Z",
+              "interval_ms": 1506593717631,
+              "type": "indices_stats",
+              "source_node": {
+                "uuid": "_uuid",
+                "host": "_host",
+                "transport_address": "_addr",
+                "ip": "_ip",
+                "name": "_name",
+                "timestamp": "2017-08-31T08:46:30.855Z"
+              },
+              "indices_stats": {
+                "_all": {
+                  "primaries": {
+                    "docs": {
+                      "count": 2
+                    },
+                    "store": {
+                      "size_in_bytes": 4
+                    },
+                    "indexing": {
+                      "index_total": 6,
+                      "index_time_in_millis": 8,
+                      "is_throttled": true,
+                      "throttle_time_in_millis": 10
+                    },
+                    "search": {
+                      "query_total": 12,
+                      "query_time_in_millis": 14
+                    },
+                    "bulk": {
+                      "total_operations": 0,
+                      "total_time_in_millis": 0,
+                      "total_size_in_bytes": 0,
+                      "avg_time_in_millis": 0,
+                      "avg_size_in_bytes": 0
+                    }
+                  },
+                  "total": {
+                    "docs": {
+                      "count": 3
+                    },
+                    "store": {
+                      "size_in_bytes": 6
+                    },
+                    "indexing": {
+                      "index_total": 9,
+                      "index_time_in_millis": 12,
+                      "is_throttled": true,
+                      "throttle_time_in_millis": 15
+                    },
+                    "search": {
+                      "query_total": 18,
+                      "query_time_in_millis": 21
+                    },
+                    "bulk": {
+                      "total_operations": 0,
+                      "total_time_in_millis": 0,
+                      "total_size_in_bytes": 0,
+                      "avg_time_in_millis": 0,
+                      "avg_size_in_bytes": 0
+                    }
+                  }
+                }
+              }
+            }""");
         assertEquals(expected, xContent.utf8ToString());
     }
 
@@ -165,7 +183,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
         commonStats.getDocs().add(new DocsStats(1L, 0L, randomNonNegativeLong()));
         commonStats.getStore().add(new StoreStats(2L, 0L, 0L));
 
-        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, 0L, 0L, 0L, 0L, 0L, 0L, true, 5L);
+        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, 0L, 0L, 0L, 0L, 0L, 0L, true, 5L, 0, 0);
         commonStats.getIndexing().add(new IndexingStats(indexingStats));
 
         final SearchStats.Stats searchStats = new SearchStats.Stats(6L, 7L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
@@ -183,7 +201,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
         final Path getFileNameShardId = mock(Path.class);
         when(getFileNameShardId.toString()).thenReturn(Integer.toString(shardId));
 
-        final String shardUuid =  randomAlphaOfLength(5);
+        final String shardUuid = randomAlphaOfLength(5);
         final Path getFileNameShardUuid = mock(Path.class);
         when(getFileNameShardUuid.toString()).thenReturn(shardUuid);
 

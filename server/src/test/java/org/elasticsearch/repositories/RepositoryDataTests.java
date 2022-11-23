@@ -12,14 +12,15 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -111,7 +112,8 @@ public class RepositoryDataTests extends ESTestCase {
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
                 randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                 randomNonNegativeLong(),
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                randomAlphaOfLength(10)
             ),
             shardGenerations,
             indexLookup,
@@ -131,8 +133,8 @@ public class RepositoryDataTests extends ESTestCase {
 
     public void testInitIndices() {
         final int numSnapshots = randomIntBetween(1, 30);
-        final Map<String, SnapshotId> snapshotIds = new HashMap<>(numSnapshots);
-        final Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = new HashMap<>(numSnapshots);
+        final Map<String, SnapshotId> snapshotIds = Maps.newMapWithExpectedSize(numSnapshots);
+        final Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(numSnapshots);
         for (int i = 0; i < numSnapshots; i++) {
             final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             snapshotIds.put(snapshotId.getUUID(), snapshotId);
@@ -142,7 +144,8 @@ public class RepositoryDataTests extends ESTestCase {
                     randomFrom(SnapshotState.values()),
                     randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                     randomNonNegativeLong(),
-                    randomNonNegativeLong()
+                    randomNonNegativeLong(),
+                    randomAlphaOfLength(10)
                 )
             );
         }
@@ -209,7 +212,8 @@ public class RepositoryDataTests extends ESTestCase {
                 state,
                 randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                 randomNonNegativeLong(),
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                randomAlphaOfLength(10)
             ),
             ShardGenerations.EMPTY,
             Collections.emptyMap(),
@@ -241,7 +245,8 @@ public class RepositoryDataTests extends ESTestCase {
                     parsedRepositoryData.getSnapshotState(snapshotId),
                     parsedRepositoryData.getVersion(snapshotId),
                     parsedRepositoryData.getSnapshotDetails(snapshotId).getStartTimeMillis(),
-                    parsedRepositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis()
+                    parsedRepositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis(),
+                    randomAlphaOfLength(10)
                 )
             );
         }
@@ -389,7 +394,8 @@ public class RepositoryDataTests extends ESTestCase {
             SnapshotState.SUCCESS,
             Version.CURRENT,
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomAlphaOfLength(10)
         );
         final RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot, details, shardGenerations, indexLookup, newIdentifiers);
         assertEquals(
@@ -451,7 +457,8 @@ public class RepositoryDataTests extends ESTestCase {
                     randomFrom(SnapshotState.values()),
                     randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                     randomNonNegativeLong(),
-                    randomNonNegativeLong()
+                    randomNonNegativeLong(),
+                    randomAlphaOfLength(10)
                 ),
                 builder.build(),
                 indexLookup,
@@ -465,7 +472,7 @@ public class RepositoryDataTests extends ESTestCase {
         final List<SnapshotId> snapshotIds = new ArrayList<>(snapshotIdsMap.values());
         final int totalSnapshots = snapshotIds.size();
         final int numIndices = randomIntBetween(1, 30);
-        final Map<IndexId, List<SnapshotId>> indices = new HashMap<>(numIndices);
+        final Map<IndexId, List<SnapshotId>> indices = Maps.newMapWithExpectedSize(numIndices);
         for (int i = 0; i < numIndices; i++) {
             final IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             final Set<SnapshotId> indexSnapshots = new LinkedHashSet<>();

@@ -20,8 +20,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -44,9 +44,11 @@ public class ValueSourceTests extends ESTestCase {
         Map<String, Object> myPreciousMap = new HashMap<>();
         myPreciousMap.put("field2", "value2");
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
-        ingestDocument.setFieldValue(new TestTemplateService.MockTemplateScript.Factory("field1"),
-                ValueSource.wrap(myPreciousMap, TestTemplateService.instance()));
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue(
+            new TestTemplateService.MockTemplateScript.Factory("field1"),
+            ValueSource.wrap(myPreciousMap, TestTemplateService.instance())
+        );
         ingestDocument.removeField("field1.field2");
 
         assertThat(myPreciousMap.size(), equalTo(1));
@@ -57,9 +59,11 @@ public class ValueSourceTests extends ESTestCase {
         List<String> myPreciousList = new ArrayList<>();
         myPreciousList.add("value");
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
-        ingestDocument.setFieldValue(new TestTemplateService.MockTemplateScript.Factory("field1"),
-                ValueSource.wrap(myPreciousList, TestTemplateService.instance()));
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue(
+            new TestTemplateService.MockTemplateScript.Factory("field1"),
+            ValueSource.wrap(myPreciousList, TestTemplateService.instance())
+        );
         ingestDocument.removeField("field1.0");
 
         assertThat(myPreciousList.size(), equalTo(1));

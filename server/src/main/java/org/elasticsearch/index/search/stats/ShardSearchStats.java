@@ -17,7 +17,6 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -39,7 +38,7 @@ public final class ShardSearchStats implements SearchOperationListener {
         SearchStats.Stats total = totalStats.stats();
         Map<String, SearchStats.Stats> groupsSt = null;
         if (CollectionUtils.isEmpty(groups) == false) {
-            groupsSt = new HashMap<>(groupsStats.size());
+            groupsSt = Maps.newMapWithExpectedSize(groupsStats.size());
             if (groups.length == 1 && groups[0].equals("_all")) {
                 for (Map.Entry<String, StatsHolder> entry : groupsStats.entrySet()) {
                     groupsSt.put(entry.getKey(), entry.getValue().stats());
@@ -172,10 +171,18 @@ public final class ShardSearchStats implements SearchOperationListener {
 
         SearchStats.Stats stats() {
             return new SearchStats.Stats(
-                    queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()), queryCurrent.count(),
-                    fetchMetric.count(), TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()), fetchCurrent.count(),
-                    scrollMetric.count(), TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()), scrollCurrent.count(),
-                    suggestMetric.count(), TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()), suggestCurrent.count()
+                queryMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
+                queryCurrent.count(),
+                fetchMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()),
+                fetchCurrent.count(),
+                scrollMetric.count(),
+                TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()),
+                scrollCurrent.count(),
+                suggestMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
+                suggestCurrent.count()
             );
         }
     }

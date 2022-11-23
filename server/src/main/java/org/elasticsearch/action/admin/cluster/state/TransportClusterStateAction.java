@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -36,18 +35,33 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(TransportClusterStateAction.class);
 
     @Inject
-    public TransportClusterStateAction(TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-              ClusterStateRequest::new, indexNameExpressionResolver, ClusterStateResponse::new, ThreadPool.Names.SAME);
+    public TransportClusterStateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            ClusterStateAction.NAME,
+            false,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            ClusterStateRequest::new,
+            indexNameExpressionResolver,
+            ClusterStateResponse::new,
+            ThreadPool.Names.MANAGEMENT
+        );
     }
 
     @Override
@@ -60,14 +74,18 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     }
 
     @Override
-    protected void masterOperation(Task task, final ClusterStateRequest request, final ClusterState state,
-                                   final ActionListener<ClusterStateResponse> listener) throws IOException {
+    protected void masterOperation(
+        Task task,
+        final ClusterStateRequest request,
+        final ClusterState state,
+        final ActionListener<ClusterStateResponse> listener
+    ) throws IOException {
 
         assert task instanceof CancellableTask : task + " not cancellable";
         final CancellableTask cancellableTask = (CancellableTask) task;
 
-        final Predicate<ClusterState> acceptableClusterStatePredicate
-            = request.waitForMetadataVersion() == null ? clusterState -> true
+        final Predicate<ClusterState> acceptableClusterStatePredicate = request.waitForMetadataVersion() == null
+            ? clusterState -> true
             : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();
 
         final Predicate<ClusterState> acceptableClusterStateOrFailedPredicate = request.local()
@@ -81,41 +99,43 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
                 .waitForNextChange(new ClusterStateObserver.Listener() {
 
-                @Override
-                public void onNewClusterState(ClusterState newState) {
-                    if (cancellableTask.notifyIfCancelled(listener)) {
-                        return;
-                    }
-
-                    if (acceptableClusterStatePredicate.test(newState)) {
-                        ActionListener.completeWith(listener, () -> buildResponse(request, newState));
-                    } else {
-                        listener.onFailure(new NotMasterException(
-                            "master stepped down waiting for metadata version " + request.waitForMetadataVersion()));
-                    }
-                }
-
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    try {
-                        if (cancellableTask.notifyIfCancelled(listener) == false) {
-                            listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
+                    @Override
+                    public void onNewClusterState(ClusterState newState) {
+                        if (cancellableTask.notifyIfCancelled(listener)) {
+                            return;
                         }
-                    } catch (Exception e) {
-                        listener.onFailure(e);
+
+                        if (acceptableClusterStatePredicate.test(newState)) {
+                            ActionListener.completeWith(listener, () -> buildResponse(request, newState));
+                        } else {
+                            listener.onFailure(
+                                new NotMasterException(
+                                    "master stepped down waiting for metadata version " + request.waitForMetadataVersion()
+                                )
+                            );
+                        }
                     }
-                }
-            }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStateOrFailedPredicate.test(clusterState));
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        try {
+                            if (cancellableTask.notifyIfCancelled(listener) == false) {
+                                listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
+                            }
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }
+                }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStateOrFailedPredicate.test(clusterState));
         }
     }
 
-    private ClusterStateResponse buildResponse(final ClusterStateRequest request,
-                                               final ClusterState currentState) {
+    private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
@@ -155,12 +175,12 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                     IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(filteredIndex);
                     if (indexAbstraction.getParentDataStream() != null) {
                         DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
-                        mdBuilder.put(dataStream);
                         // Also the IMD of other backing indices need to be included, otherwise the cluster state api
                         // can't create a valid cluster state instance:
                         for (Index backingIndex : dataStream.getIndices()) {
                             mdBuilder.put(currentState.metadata().index(backingIndex), false);
                         }
+                        mdBuilder.put(dataStream);
                     } else {
                         IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
                         if (indexMetadata != null) {
@@ -173,18 +193,18 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
 
             // filter out metadata that shouldn't be returned by the API
-            for (ObjectObjectCursor<String, Custom> custom : currentState.metadata().customs()) {
-                if (custom.value.context().contains(Metadata.XContentContext.API) == false) {
-                    mdBuilder.removeCustom(custom.key);
+            for (Map.Entry<String, Custom> custom : currentState.metadata().customs().entrySet()) {
+                if (custom.getValue().context().contains(Metadata.XContentContext.API) == false) {
+                    mdBuilder.removeCustom(custom.getKey());
                 }
             }
         }
         builder.metadata(mdBuilder);
 
         if (request.customs()) {
-            for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
-                if (custom.value.isPrivate() == false) {
-                    builder.putCustom(custom.key, custom.value);
+            for (Map.Entry<String, ClusterState.Custom> custom : currentState.customs().entrySet()) {
+                if (custom.getValue().isPrivate() == false) {
+                    builder.putCustom(custom.getKey(), custom.getValue());
                 }
             }
         }

@@ -2,8 +2,9 @@
 
 [[example-using-index-lifecycle-policy]]
 === Tutorial: Customize built-in {ilm-init} policies
+
 ++++
-<titleabbrev>Customize built-in {ilm-init} policies</titleabbrev>
+<titleabbrev>Tutorial: Customize built-in policies</titleabbrev>
 ++++
 
 {es} includes the following built-in {ilm-init} policies:

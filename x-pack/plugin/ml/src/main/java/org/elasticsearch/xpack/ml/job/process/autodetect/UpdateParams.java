@@ -26,10 +26,14 @@ public final class UpdateParams {
     private final MlFilter filter;
     private final boolean updateScheduledEvents;
 
-    private UpdateParams(String jobId, @Nullable ModelPlotConfig modelPlotConfig,
-                         @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
-                         @Nullable List<JobUpdate.DetectorUpdate> detectorUpdates,
-                         @Nullable MlFilter filter, boolean updateScheduledEvents) {
+    private UpdateParams(
+        String jobId,
+        @Nullable ModelPlotConfig modelPlotConfig,
+        @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
+        @Nullable List<JobUpdate.DetectorUpdate> detectorUpdates,
+        @Nullable MlFilter filter,
+        boolean updateScheduledEvents
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.modelPlotConfig = modelPlotConfig;
         this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
@@ -86,19 +90,18 @@ public final class UpdateParams {
         }
         if (detectorUpdates != null) {
             detectorUpdates.forEach(
-                detectorUpdate -> detectorUpdate.getRules().forEach(
-                    rule -> filterIds.addAll(rule.extractReferencedFilters())));
+                detectorUpdate -> detectorUpdate.getRules().forEach(rule -> filterIds.addAll(rule.extractReferencedFilters()))
+            );
         }
         return filterIds;
     }
 
     public static UpdateParams fromJobUpdate(JobUpdate jobUpdate) {
-        return new Builder(jobUpdate.getJobId())
-                .modelPlotConfig(jobUpdate.getModelPlotConfig())
-                .perPartitionCategorizationConfig(jobUpdate.getPerPartitionCategorizationConfig())
-                .detectorUpdates(jobUpdate.getDetectorUpdates())
-                .updateScheduledEvents(jobUpdate.getGroups() != null)
-                .build();
+        return new Builder(jobUpdate.getJobId()).modelPlotConfig(jobUpdate.getModelPlotConfig())
+            .perPartitionCategorizationConfig(jobUpdate.getPerPartitionCategorizationConfig())
+            .detectorUpdates(jobUpdate.getDetectorUpdates())
+            .updateScheduledEvents(jobUpdate.getGroups() != null)
+            .build();
     }
 
     public static UpdateParams filterUpdate(String jobId, MlFilter filter) {
@@ -152,8 +155,14 @@ public final class UpdateParams {
         }
 
         public UpdateParams build() {
-            return new UpdateParams(jobId, modelPlotConfig, perPartitionCategorizationConfig, detectorUpdates, filter,
-                updateScheduledEvents);
+            return new UpdateParams(
+                jobId,
+                modelPlotConfig,
+                perPartitionCategorizationConfig,
+                detectorUpdates,
+                filter,
+                updateScheduledEvents
+            );
         }
     }
 }

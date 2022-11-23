@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -318,10 +319,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
         var source = (Map<String, Object>) event.get("source");
         source.remove("ip");
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> testCommunityIdProcessor(event, 0, null, false)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, 0, null, false));
 
         assertThat(e.getMessage(), containsString("field [ip] not present as part of path [source.ip]"));
     }
@@ -353,7 +351,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
             ignoreMissing
         );
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class, ignoreMissing);

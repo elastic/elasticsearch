@@ -8,83 +8,91 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
  */
 public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
-    private final ThreadContext contextHolder;
-    private volatile ShutdownListener listener;
+    private static final Logger logger = LogManager.getLogger(EsThreadPoolExecutor.class);
 
-    private final Object monitor = new Object();
+    private final ThreadContext contextHolder;
+
     /**
      * Name used in error reporting.
      */
     private final String name;
 
-    final String getName() {
-        return name;
-    }
-
-    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-            BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, ThreadContext contextHolder) {
+    EsThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        BlockingQueue<Runnable> workQueue,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
         this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new EsAbortPolicy(), contextHolder);
     }
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-            BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
-            ThreadContext contextHolder) {
+    EsThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        BlockingQueue<Runnable> workQueue,
+        ThreadFactory threadFactory,
+        RejectedExecutionHandler handler,
+        ThreadContext contextHolder
+    ) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;
     }
 
     @Override
-    protected synchronized void terminated() {
-        super.terminated();
-        synchronized (monitor) {
-            if (listener != null) {
-                try {
-                    listener.onTerminated();
-                } finally {
-                    listener = null;
-                }
-            }
-        }
-    }
-
-    public interface ShutdownListener {
-        void onTerminated();
-    }
-
-    @Override
     public void execute(Runnable command) {
-        command = wrapRunnable(command);
+        final Runnable wrappedRunnable = wrapRunnable(command);
         try {
-            super.execute(command);
-        } catch (EsRejectedExecutionException ex) {
-            if (command instanceof AbstractRunnable) {
-                // If we are an abstract runnable we can handle the rejection
-                // directly and don't need to rethrow it.
+            super.execute(wrappedRunnable);
+        } catch (Exception e) {
+            if (wrappedRunnable instanceof AbstractRunnable abstractRunnable) {
                 try {
-                    ((AbstractRunnable) command).onRejection(ex);
+                    // If we are an abstract runnable we can handle the exception
+                    // directly and don't need to rethrow it, but we log and assert
+                    // any unexpected exception first.
+                    if (e instanceof EsRejectedExecutionException == false) {
+                        logException(abstractRunnable, e);
+                    }
+                    abstractRunnable.onRejection(e);
                 } finally {
-                    ((AbstractRunnable) command).onAfter();
-
+                    abstractRunnable.onAfter();
                 }
             } else {
-                throw ex;
+                throw e;
             }
         }
+    }
+
+    // package-visible for testing
+    void logException(AbstractRunnable r, Exception e) {
+        logger.error(() -> format("[%s] unexpected exception when submitting task [%s] for execution", name, r), e);
+        assert false : "executor throws an exception (not a rejected execution exception) before the task has been submitted " + e;
     }
 
     @Override
@@ -95,8 +103,12 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     private boolean assertDefaultContext(Runnable r) {
-        assert contextHolder.isDefaultContext() : "the thread context is not the default context and the thread [" +
-            Thread.currentThread().getName() + "] is being returned to the pool after executing [" + r + "]";
+        assert contextHolder.isDefaultContext()
+            : "the thread context is not the default context and the thread ["
+                + Thread.currentThread().getName()
+                + "] is being returned to the pool after executing ["
+                + r
+                + "]";
         return true;
     }
 
@@ -113,9 +125,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName()).append('[');
         b.append("name = ").append(name).append(", ");
-        if (getQueue() instanceof SizeBlockingQueue) {
-            @SuppressWarnings("rawtypes")
-            SizeBlockingQueue queue = (SizeBlockingQueue) getQueue();
+        if (getQueue()instanceof SizeBlockingQueue<?> queue) {
             b.append("queue capacity = ").append(queue.capacity()).append(", ");
         }
         appendThreadPoolExecutorDetails(b);
@@ -133,15 +143,13 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
      *
      * @param sb the {@link StringBuilder} to append to
      */
-    protected void appendThreadPoolExecutorDetails(final StringBuilder sb) {
-
-    }
+    protected void appendThreadPoolExecutorDetails(final StringBuilder sb) {}
 
     protected Runnable wrapRunnable(Runnable command) {
         return contextHolder.preserveContext(command);
     }
 
     protected Runnable unwrap(Runnable runnable) {
-        return contextHolder.unwrap(runnable);
+        return ThreadContext.unwrap(runnable);
     }
 }

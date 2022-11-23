@@ -51,9 +51,12 @@ public class EvilInternalEngineTests extends EngineTestCase {
 
             final FilterMergePolicy mergePolicy = new FilterMergePolicy(newMergePolicy()) {
                 @Override
-                public MergeSpecification findForcedMerges(SegmentInfos segmentInfos, int maxSegmentCount,
-                                                           Map<SegmentCommitInfo, Boolean> segmentsToMerge,
-                                                           MergeContext mergeContext) throws IOException {
+                public MergeSpecification findForcedMerges(
+                    SegmentInfos segmentInfos,
+                    int maxSegmentCount,
+                    Map<SegmentCommitInfo, Boolean> segmentsToMerge,
+                    MergeContext mergeContext
+                ) throws IOException {
                     final List<SegmentCommitInfo> segments = segmentsReference.get();
                     if (segments != null) {
                         final MergeSpecification spec = new MergeSpecification();
@@ -64,8 +67,8 @@ public class EvilInternalEngineTests extends EngineTestCase {
                 }
 
                 @Override
-                public MergeSpecification findMerges(MergeTrigger mergeTrigger, SegmentInfos segmentInfos,
-                                                     MergeContext mergeContext) throws IOException {
+                public MergeSpecification findMerges(MergeTrigger mergeTrigger, SegmentInfos segmentInfos, MergeContext mergeContext)
+                    throws IOException {
                     final List<SegmentCommitInfo> segments = segmentsReference.get();
                     if (segments != null) {
                         final MergeSpecification spec = new MergeSpecification();
@@ -76,54 +79,47 @@ public class EvilInternalEngineTests extends EngineTestCase {
                 }
             };
 
-            try (Engine e = createEngine(
-                    defaultSettings,
-                    store,
-                    primaryTranslogDir,
-                    mergePolicy,
-                    (directory, iwc) -> {
-                        final MergeScheduler mergeScheduler = iwc.getMergeScheduler();
-                        assertNotNull(mergeScheduler);
-                        iwc.setMergeScheduler(new FilterMergeScheduler(mergeScheduler) {
+            try (Engine e = createEngine(defaultSettings, store, primaryTranslogDir, mergePolicy, (directory, iwc) -> {
+                final MergeScheduler mergeScheduler = iwc.getMergeScheduler();
+                assertNotNull(mergeScheduler);
+                iwc.setMergeScheduler(new FilterMergeScheduler(mergeScheduler) {
+                    @Override
+                    public void merge(MergeSource mergeSource, MergeTrigger trigger) throws IOException {
+                        final FilterMergeSource wrappedMergeSource = new FilterMergeSource(mergeSource) {
                             @Override
-                            public void merge(MergeSource mergeSource, MergeTrigger trigger) throws IOException {
-                                final FilterMergeSource wrappedMergeSource = new FilterMergeSource(mergeSource) {
-                                    @Override
-                                    public MergePolicy.OneMerge getNextMerge() {
-                                        synchronized (mergeSource) {
-                                            /*
-                                             * This will be called when we flush when we will not be ready to return the segments.
-                                             * After the segments are on disk, we can only return them from here once or the merge
-                                             * scheduler will be stuck in a loop repeatedly peeling off the same segments to schedule
-                                             * for merging.
-                                             */
-                                            if (segmentsReference.get() == null) {
-                                                return super.getNextMerge();
-                                            } else {
-                                                final List<SegmentCommitInfo> segments = segmentsReference.getAndSet(null);
-                                                return new MergePolicy.OneMerge(segments);
-                                            }
-                                        }
+                            public MergePolicy.OneMerge getNextMerge() {
+                                synchronized (mergeSource) {
+                                    /*
+                                     * This will be called when we flush when we will not be ready to return the segments.
+                                     * After the segments are on disk, we can only return them from here once or the merge
+                                     * scheduler will be stuck in a loop repeatedly peeling off the same segments to schedule
+                                     * for merging.
+                                     */
+                                    if (segmentsReference.get() == null) {
+                                        return super.getNextMerge();
+                                    } else {
+                                        final List<SegmentCommitInfo> segments = segmentsReference.getAndSet(null);
+                                        return new MergePolicy.OneMerge(segments);
                                     }
-
-                                    @Override
-                                    public void merge(MergePolicy.OneMerge merge) {
-                                        throw new OutOfMemoryError("640K ought to be enough for anybody");
-                                    }
-                                };
-                                super.merge(wrappedMergeSource, trigger);
+                                }
                             }
-                        });
-                        return new IndexWriter(directory, iwc);
-                    },
-                    null,
-                    null)) {
+
+                            @Override
+                            public void merge(MergePolicy.OneMerge merge) {
+                                throw new OutOfMemoryError("640K ought to be enough for anybody");
+                            }
+                        };
+                        super.merge(wrappedMergeSource, trigger);
+                    }
+                });
+                return new IndexWriter(directory, iwc);
+            }, null, null)) {
                 // force segments to exist on disk
                 final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
                 e.index(indexForDoc(doc1));
                 e.flush();
-                final List<SegmentCommitInfo> segments =
-                        StreamSupport.stream(e.getLastCommittedSegmentInfos().spliterator(), false).collect(Collectors.toList());
+                final List<SegmentCommitInfo> segments = StreamSupport.stream(e.getLastCommittedSegmentInfos().spliterator(), false)
+                    .collect(Collectors.toList());
                 segmentsReference.set(segments);
                 // trigger a background merge that will be managed by the concurrent merge scheduler
                 e.forceMerge(randomBoolean(), 0, false, UUIDs.randomBase64UUID());

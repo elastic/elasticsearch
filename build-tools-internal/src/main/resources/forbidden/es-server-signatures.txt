@@ -57,21 +57,15 @@ org.apache.lucene.index.NoMergePolicy#INSTANCE @ explicit use of NoMergePolicy r
 org.apache.lucene.search.TimeLimitingCollector#getGlobalTimerThread()
 org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
 
+@defaultMessage use @org.elasticsearch.common.lucene.RegExp instead to avoid StackOverflowError
+org.apache.lucene.util.automaton.RegExp
+
 @defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
 java.util.concurrent.Future#cancel(boolean)
 
 @defaultMessage Don't try reading from paths that are not configured in Environment, resolve from Environment instead
 org.elasticsearch.core.PathUtils#get(java.lang.String, java.lang.String[])
 org.elasticsearch.core.PathUtils#get(java.net.URI)
-
-@defaultMessage Constructing a DateTime without a time zone is dangerous
-org.joda.time.DateTime#<init>()
-org.joda.time.DateTime#<init>(long)
-org.joda.time.DateTime#<init>(int, int, int, int, int)
-org.joda.time.DateTime#<init>(int, int, int, int, int, int)
-org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
-org.joda.time.DateTime#now()
-org.joda.time.DateTimeZone#getDefault()
 
 @defaultMessage Local times may be ambiguous or nonexistent in a specific time zones. Use ZoneRules#getValidOffsets() instead.
 java.time.LocalDateTime#atZone(java.time.ZoneId)
@@ -139,3 +133,18 @@ org.apache.logging.log4j.Logger#error(java.lang.Object)
 org.apache.logging.log4j.Logger#error(java.lang.Object, java.lang.Throwable)
 org.apache.logging.log4j.Logger#fatal(java.lang.Object)
 org.apache.logging.log4j.Logger#fatal(java.lang.Object, java.lang.Throwable)
+
+@defaultMessage Use getLogger(Class)
+org.apache.logging.log4j.LogManager#getLogger()
+
+# This is permitted in test code, where we have a Checkstyle rule to guard
+# against unsafe uses. This leniency does not extend to server code.
+java.lang.String#formatted(java.lang.Object[]) @ Uses default locale - use String#format(Locale, String, Object...) instead
+
+@defaultMessage Unbatched cluster state tasks are a source of performance and stability bugs. Implement the update logic in a executor which is reused across tasks instead.
+org.elasticsearch.cluster.service.MasterService#submitUnbatchedStateUpdateTask(java.lang.String, org.elasticsearch.cluster.ClusterStateUpdateTask)
+org.elasticsearch.cluster.service.ClusterService#submitUnbatchedStateUpdateTask(java.lang.String, org.elasticsearch.cluster.ClusterStateUpdateTask)
+
+@defaultMessage Reacting to the published cluster state is an obstruction to batching cluster state tasks which leads to performance and stability bugs. Use the variants that accept a Runnable instead.
+org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util.function.Consumer)
+org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util.function.Consumer, org.elasticsearch.cluster.ClusterStateAckListener)

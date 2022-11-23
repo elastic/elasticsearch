@@ -8,18 +8,17 @@ package org.elasticsearch.xpack.security.rest.action.oidc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
@@ -33,10 +32,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Generates an oAuth 2.0 authentication request as a URL string and returns it to the REST client.
  */
 public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectBaseRestHandler {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(RestOpenIdConnectPrepareAuthenticationAction.class);
 
-    static final ObjectParser<OpenIdConnectPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>("oidc_prepare_authentication",
-        OpenIdConnectPrepareAuthenticationRequest::new);
+    static final ObjectParser<OpenIdConnectPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>(
+        "oidc_prepare_authentication",
+        OpenIdConnectPrepareAuthenticationRequest::new
+    );
 
     static {
         PARSER.declareString(OpenIdConnectPrepareAuthenticationRequest::setRealmName, new ParseField("realm"));
@@ -60,15 +61,18 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
         try (XContentParser parser = request.contentParser()) {
             final OpenIdConnectPrepareAuthenticationRequest prepareAuthenticationRequest = PARSER.parse(parser, null);
             logger.trace("OIDC Prepare Authentication: " + prepareAuthenticationRequest);
-            return channel -> client.execute(OpenIdConnectPrepareAuthenticationAction.INSTANCE, prepareAuthenticationRequest,
+            return channel -> client.execute(
+                OpenIdConnectPrepareAuthenticationAction.INSTANCE,
+                prepareAuthenticationRequest,
                 new RestBuilderListener<OpenIdConnectPrepareAuthenticationResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(OpenIdConnectPrepareAuthenticationResponse response, XContentBuilder builder)
                         throws Exception {
                         logger.trace("OIDC Prepare Authentication Response: " + response);
-                        return new BytesRestResponse(RestStatus.OK, response.toXContent(builder, request));
+                        return new RestResponse(RestStatus.OK, response.toXContent(builder, request));
                     }
-                });
+                }
+            );
         }
     }
 

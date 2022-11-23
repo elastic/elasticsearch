@@ -1,5 +1,6 @@
 [[search-aggregations-metrics-geocentroid-aggregation]]
 === Geo-centroid aggregation
+
 ++++
 <titleabbrev>Geo-centroid</titleabbrev>
 ++++
@@ -23,17 +24,17 @@ PUT /museums
 
 POST /museums/_bulk?refresh
 {"index":{"_id":1}}
-{"location": "52.374081,4.912350", "city": "Amsterdam", "name": "NEMO Science Museum"}
+{"location": "POINT (4.912350 52.374081)", "city": "Amsterdam", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
-{"location": "52.369219,4.901618", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
+{"location": "POINT (4.901618 52.369219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
 {"index":{"_id":3}}
-{"location": "52.371667,4.914722", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
+{"location": "POINT (4.914722 52.371667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
 {"index":{"_id":4}}
-{"location": "51.222900,4.405200", "city": "Antwerp", "name": "Letterenhuis"}
+{"location": "POINT (4.405200 51.222900)", "city": "Antwerp", "name": "Letterenhuis"}
 {"index":{"_id":5}}
-{"location": "48.861111,2.336389", "city": "Paris", "name": "Musée du Louvre"}
+{"location": "POINT (2.336389 48.861111)", "city": "Paris", "name": "Musée du Louvre"}
 {"index":{"_id":6}}
-{"location": "48.860000,2.327000", "city": "Paris", "name": "Musée d'Orsay"}
+{"location": "POINT (2.327000 48.860000)", "city": "Paris", "name": "Musée d'Orsay"}
 
 POST /museums/_search?size=0
 {
@@ -49,7 +50,7 @@ POST /museums/_search?size=0
 
 <1> The `geo_centroid` aggregation specifies the field to use for computing the centroid. (NOTE: field must be a <<geo-point>> type)
 
-The above aggregation demonstrates how one would compute the centroid of the location field for all documents with a crime type of burglary.
+The above aggregation demonstrates how one would compute the centroid of the location field for all museums' documents.
 
 The response for the above aggregation:
 

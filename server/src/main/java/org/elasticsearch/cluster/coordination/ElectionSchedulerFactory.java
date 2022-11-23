@@ -10,20 +10,21 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * It's provably impossible to guarantee that any leader election algorithm ever elects a leader, but they generally work (with probability
@@ -56,17 +57,37 @@ public class ElectionSchedulerFactory {
      * Each election lasts up to ELECTION_DURATION_SETTING.
      */
 
-    public static final Setting<TimeValue> ELECTION_INITIAL_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_INITIAL_TIMEOUT_SETTING_KEY,
-        TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(10), Property.NodeScope);
+    public static final Setting<TimeValue> ELECTION_INITIAL_TIMEOUT_SETTING = Setting.timeSetting(
+        ELECTION_INITIAL_TIMEOUT_SETTING_KEY,
+        TimeValue.timeValueMillis(100),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueSeconds(10),
+        Property.NodeScope
+    );
 
-    public static final Setting<TimeValue> ELECTION_BACK_OFF_TIME_SETTING = Setting.timeSetting(ELECTION_BACK_OFF_TIME_SETTING_KEY,
-        TimeValue.timeValueMillis(100), TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(60), Property.NodeScope);
+    public static final Setting<TimeValue> ELECTION_BACK_OFF_TIME_SETTING = Setting.timeSetting(
+        ELECTION_BACK_OFF_TIME_SETTING_KEY,
+        TimeValue.timeValueMillis(100),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueSeconds(60),
+        Property.NodeScope
+    );
 
-    public static final Setting<TimeValue> ELECTION_MAX_TIMEOUT_SETTING = Setting.timeSetting(ELECTION_MAX_TIMEOUT_SETTING_KEY,
-        TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(200), TimeValue.timeValueSeconds(300), Property.NodeScope);
+    public static final Setting<TimeValue> ELECTION_MAX_TIMEOUT_SETTING = Setting.timeSetting(
+        ELECTION_MAX_TIMEOUT_SETTING_KEY,
+        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueMillis(200),
+        TimeValue.timeValueSeconds(600),
+        Property.NodeScope
+    );
 
-    public static final Setting<TimeValue> ELECTION_DURATION_SETTING = Setting.timeSetting(ELECTION_DURATION_SETTING_KEY,
-        TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(300), Property.NodeScope);
+    public static final Setting<TimeValue> ELECTION_DURATION_SETTING = Setting.timeSetting(
+        ELECTION_DURATION_SETTING_KEY,
+        TimeValue.timeValueMillis(500),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueSeconds(600),
+        Property.NodeScope
+    );
 
     private final TimeValue initialTimeout;
     private final TimeValue backoffTime;
@@ -85,8 +106,15 @@ public class ElectionSchedulerFactory {
         duration = ELECTION_DURATION_SETTING.get(settings);
 
         if (maxTimeout.millis() < initialTimeout.millis()) {
-            throw new IllegalArgumentException(new ParameterizedMessage("[{}] is [{}], but must be at least [{}] which is [{}]",
-                ELECTION_MAX_TIMEOUT_SETTING_KEY, maxTimeout, ELECTION_INITIAL_TIMEOUT_SETTING_KEY, initialTimeout).getFormattedMessage());
+            throw new IllegalArgumentException(
+                format(
+                    "[%s] is [%s], but must be at least [%s] which is [%s]",
+                    ELECTION_MAX_TIMEOUT_SETTING_KEY,
+                    maxTimeout,
+                    ELECTION_INITIAL_TIMEOUT_SETTING_KEY,
+                    initialTimeout
+                )
+            );
         }
     }
 
@@ -120,11 +148,14 @@ public class ElectionSchedulerFactory {
 
     @Override
     public String toString() {
-        return "ElectionSchedulerFactory{" +
-            "initialTimeout=" + initialTimeout +
-            ", backoffTime=" + backoffTime +
-            ", maxTimeout=" + maxTimeout +
-            '}';
+        return "ElectionSchedulerFactory{"
+            + "initialTimeout="
+            + initialTimeout
+            + ", backoffTime="
+            + backoffTime
+            + ", maxTimeout="
+            + maxTimeout
+            + '}';
     }
 
     private class ElectionScheduler implements Releasable {
@@ -142,9 +173,15 @@ public class ElectionSchedulerFactory {
             final long maxDelayMillis = Math.min(maxTimeout.millis(), initialTimeout.millis() + thisAttempt * backoffTime.millis());
             final long delayMillis = toPositiveLongAtMost(random.nextLong(), maxDelayMillis) + gracePeriod.millis();
             final Runnable runnable = new AbstractRunnable() {
+
+                @Override
+                public void onRejection(Exception e) {
+                    logger.debug("threadpool was shut down", e);
+                }
+
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(new ParameterizedMessage("unexpected exception in wakeup of {}", this), e);
+                    logger.debug(() -> format("unexpected exception in wakeup of %s", this), e);
                     assert false : e;
                 }
 
@@ -161,22 +198,27 @@ public class ElectionSchedulerFactory {
 
                 @Override
                 public String toString() {
-                    return "scheduleNextElection{gracePeriod=" + gracePeriod
-                        + ", thisAttempt=" + thisAttempt
-                        + ", maxDelayMillis=" + maxDelayMillis
-                        + ", delayMillis=" + delayMillis
-                        + ", " + ElectionScheduler.this + "}";
+                    return "scheduleNextElection{gracePeriod="
+                        + gracePeriod
+                        + ", thisAttempt="
+                        + thisAttempt
+                        + ", maxDelayMillis="
+                        + maxDelayMillis
+                        + ", delayMillis="
+                        + delayMillis
+                        + ", "
+                        + ElectionScheduler.this
+                        + "}";
                 }
             };
 
             logger.debug("scheduling {}", runnable);
-            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), Names.GENERIC, runnable);
+            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), Names.CLUSTER_COORDINATION, runnable);
         }
 
         @Override
         public String toString() {
-            return "ElectionScheduler{attempt=" + attempt
-                + ", " + ElectionSchedulerFactory.this + "}";
+            return "ElectionScheduler{attempt=" + attempt + ", " + ElectionSchedulerFactory.this + "}";
         }
 
         @Override

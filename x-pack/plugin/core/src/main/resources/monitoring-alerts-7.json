@@ -1,6 +1,6 @@
 {
-  "index_patterns": [ ".monitoring-alerts-${monitoring.template.version}" ],
-  "version": 7140099,
+  "index_patterns": [ ".monitoring-alerts-${xpack.monitoring.template.version}" ],
+  "version": ${xpack.monitoring.template.release.version},
   "settings": {
     "index": {
       "number_of_shards": 1,

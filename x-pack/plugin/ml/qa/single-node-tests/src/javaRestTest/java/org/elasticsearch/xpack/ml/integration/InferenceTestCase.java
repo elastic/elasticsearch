@@ -22,7 +22,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class InferenceTestCase extends ESRestTestCase {
+public abstract class InferenceTestCase extends ESRestTestCase {
 
     protected final Set<String> createdPipelines = new HashSet<>();
 
@@ -63,8 +63,10 @@ public class InferenceTestCase extends ESRestTestCase {
                 }
             }
 
-            List<Map<String, Object>> inferenceStats =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("trained_model_stats.inference_stats", updatedStatsMap);
+            List<Map<String, Object>> inferenceStats = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "trained_model_stats.inference_stats",
+                updatedStatsMap
+            );
             assertNotNull(inferenceStats);
         });
     }
@@ -76,26 +78,26 @@ public class InferenceTestCase extends ESRestTestCase {
     }
 
     void putRegressionModel(String modelId) throws IOException {
-        putRegressionModel(modelId,
-            "  {\n" +
-                "    \"description\": \"empty model for tests\",\n" +
-                "    \"tags\": [\"regression\", \"tag1\"],\n" +
-                "    \"input\": {\"field_names\": [\"field1\", \"field2\"]},\n" +
-                "    \"inference_config\": { \"regression\": {\"results_field\": \"my_regression\"}},\n" +
-                "    \"definition\": {\n" +
-                "       \"preprocessors\": [],\n" +
-                "       \"trained_model\": {\n" +
-                "          \"tree\": {\n" +
-                "             \"feature_names\": [\"field1\", \"field2\"],\n" +
-                "             \"tree_structure\": [\n" +
-                "                {\"node_index\": 0, \"leaf_value\": 42}\n" +
-                "             ],\n" +
-                "             \"target_type\": \"regression\"\n" +
-                "          }\n" +
-                "       }\n" +
-                "    }\n" +
-                "  }"
-            );
+        putRegressionModel(modelId, """
+            {
+              "description": "empty model for tests",
+              "tags": ["regression", "tag1"],
+              "input": {"field_names": ["field1", "field2"]},
+              "inference_config": { "regression": {"results_field": "my_regression"}},
+              "definition": {
+                 "preprocessors": [],
+                 "trained_model": {
+                    "tree": {
+                       "feature_names": ["field1", "field2"],
+                       "tree_structure": [
+                          {"node_index": 0, "leaf_value": 42}
+                       ],
+                       "target_type": "regression"
+                    }
+                 }
+              }
+            }
+            """);
     }
 
     void putRegressionModel(String modelId, String body) throws IOException {

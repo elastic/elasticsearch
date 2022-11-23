@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.client.ml.job.config.DetectorFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.job.config.DetectorFunction;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecord> {
+public class AnomalyRecordTests extends AbstractXContentSerializingTestCase<AnomalyRecord> {
 
     @Override
     protected AnomalyRecord createTestInstance() {
@@ -75,19 +75,31 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         }
         if (randomBoolean()) {
             int count = randomIntBetween(0, 9);
-            List<Influence>  influences = new ArrayList<>();
-            for (int i=0; i<count; i++) {
+            List<Influence> influences = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
                 influences.add(new Influence(randomAlphaOfLength(8), Collections.singletonList(randomAlphaOfLengthBetween(1, 28))));
             }
             anomalyRecord.setInfluencers(influences);
         }
         if (randomBoolean()) {
             int count = randomIntBetween(0, 9);
-            List<AnomalyCause>  causes = new ArrayList<>();
-            for (int i=0; i<count; i++) {
+            List<AnomalyCause> causes = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
                 causes.add(new AnomalyCauseTests().createTestInstance());
             }
             anomalyRecord.setCauses(causes);
+        }
+        if (randomBoolean()) {
+            AnomalyScoreExplanation anomalyScoreExplanation = new AnomalyScoreExplanation();
+            anomalyScoreExplanation.setAnomalyType(randomAlphaOfLength(12));
+            anomalyScoreExplanation.setAnomalyLength(randomInt());
+            anomalyScoreExplanation.setSingleBucketImpact(randomInt());
+            anomalyScoreExplanation.setMultiBucketImpact(randomInt());
+            anomalyScoreExplanation.setLowerConfidenceBound(randomDouble());
+            anomalyScoreExplanation.setTypicalValue(randomDouble());
+            anomalyScoreExplanation.setUpperConfidenceBound(randomDouble());
+            anomalyScoreExplanation.setHighVariancePenalty(randomBoolean());
+            anomalyScoreExplanation.setIncompleteBucketPenalty(randomBoolean());
         }
 
         return anomalyRecord;
@@ -133,7 +145,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         assertEquals(influence2.getInfluencerFieldValues(), serialisedInfFieldValues2);
     }
 
-    @SuppressWarnings({"unchecked"})
+    @SuppressWarnings({ "unchecked" })
     public void testToXContentOrdersDuplicateInputFields() throws IOException {
         AnomalyRecord record = createTestInstance();
         record.setByFieldName("car-make");
@@ -199,25 +211,37 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
     }
 
     public void testStrictParser_IsLenientOnTopLevelFields() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123544456, "bucket_span": 3600, "foo":"bar"}""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             AnomalyRecord.STRICT_PARSER.apply(parser, null);
         }
     }
 
     public void testStrictParser_IsStrictOnNestedFields() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"," +
-                " \"causes\":[{\"cause_foo\":\"bar\"}]}";
+        String json = """
+            {
+              "job_id": "job_1",
+              "timestamp": 123544456,
+              "bucket_span": 3600,
+              "foo": "bar",
+              "causes": [ { "cause_foo": "bar" } ]
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            XContentParseException e = expectThrows(XContentParseException.class,
-                    () -> AnomalyRecord.STRICT_PARSER.apply(parser, null));
+            XContentParseException e = expectThrows(XContentParseException.class, () -> AnomalyRecord.STRICT_PARSER.apply(parser, null));
             assertThat(e.getCause().getMessage(), containsString("[anomaly_cause] unknown field [cause_foo]"));
         }
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"," +
-                " \"causes\":[{\"cause_foo\":\"bar\"}]}";
+        String json = """
+            {
+              "job_id": "job_1",
+              "timestamp": 123544456,
+              "bucket_span": 3600,
+              "foo": "bar",
+              "causes": [ { "cause_foo": "bar" } ]
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             AnomalyRecord.LENIENT_PARSER.apply(parser, null);
         }

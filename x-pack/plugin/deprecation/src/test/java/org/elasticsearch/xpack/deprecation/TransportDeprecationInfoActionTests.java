@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
 import java.util.Map;
@@ -24,14 +25,18 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
     public void testPluginSettingIssues() {
         DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
-        TransportDeprecationInfoAction.pluginSettingIssues(List.of(
-            new NamedChecker("foo", List.of(), false),
-            new NamedChecker("bar",
-                List.of(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", "details", false, Map.of("key", "value"))),
-                false)),
+        TransportDeprecationInfoAction.pluginSettingIssues(
+            List.of(
+                new NamedChecker("foo", List.of(), false),
+                new NamedChecker(
+                    "bar",
+                    List.of(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", "details", false, Map.of("key", "value"))),
+                    false
+                )
+            ),
             components,
             future
-            );
+        );
         Map<String, List<DeprecationIssue>> issueMap = future.actionGet();
         assertThat(issueMap.size(), equalTo(2));
         assertThat(issueMap.get("foo"), is(empty()));
@@ -44,11 +49,15 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
     public void testPluginSettingIssuesWithFailures() {
         DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
-        TransportDeprecationInfoAction.pluginSettingIssues(List.of(
-            new NamedChecker("foo", List.of(), false),
-            new NamedChecker("bar",
-                List.of(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, false, null)),
-                true)),
+        TransportDeprecationInfoAction.pluginSettingIssues(
+            List.of(
+                new NamedChecker("foo", List.of(), false),
+                new NamedChecker(
+                    "bar",
+                    List.of(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, false, null)),
+                    true
+                )
+            ),
             components,
             future
         );

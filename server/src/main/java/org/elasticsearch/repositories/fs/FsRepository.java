@@ -19,11 +19,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.nio.file.Path;
 import java.util.function.Function;
@@ -54,16 +54,16 @@ public class FsRepository extends BlobStoreRepository {
     );
     public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "chunk_size",
-        new ByteSizeValue(Long.MAX_VALUE),
-        new ByteSizeValue(5),
-        new ByteSizeValue(Long.MAX_VALUE),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        ByteSizeValue.ofBytes(5),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "repositories.fs.chunk_size",
-        new ByteSizeValue(Long.MAX_VALUE),
-        new ByteSizeValue(5),
-        new ByteSizeValue(Long.MAX_VALUE),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        ByteSizeValue.ofBytes(5),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.NodeScope
     );
     private final Environment environment;

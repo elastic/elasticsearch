@@ -34,7 +34,7 @@ public class BlackHoleAutodetectProcessTests extends ESTestCase {
         AtomicReference<String> failureReason = new AtomicReference<>();
         try (BlackHoleAutodetectProcess process = new BlackHoleAutodetectProcess("foo", failureReason::set)) {
             Iterator<AutodetectResult> iterator = process.readAutodetectResults();
-            process.writeRecord(new String[] { BlackHoleAutodetectProcess.MAGIC_FAILURE_VALUE});
+            process.writeRecord(new String[] { BlackHoleAutodetectProcess.MAGIC_FAILURE_VALUE });
             assertFalse(process.isProcessAlive());
             assertTrue(iterator.hasNext());
             AutodetectResult result = iterator.next();

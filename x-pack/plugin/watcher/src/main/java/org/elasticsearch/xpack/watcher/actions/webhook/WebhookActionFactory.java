@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -27,8 +27,7 @@ public class WebhookActionFactory extends ActionFactory {
 
     @Override
     public ExecutableWebhookAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
-        return new ExecutableWebhookAction(WebhookAction.parse(watchId, actionId, parser),
-                actionLogger, httpClient, templateEngine);
+        return new ExecutableWebhookAction(WebhookAction.parse(watchId, actionId, parser), actionLogger, httpClient, templateEngine);
 
     }
 }

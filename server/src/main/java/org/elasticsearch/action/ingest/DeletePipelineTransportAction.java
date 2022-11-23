@@ -22,21 +22,41 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Optional;
+import java.util.Set;
+
 public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNodeAction<DeletePipelineRequest> {
 
     private final IngestService ingestService;
 
     @Inject
-    public DeletePipelineTransportAction(ThreadPool threadPool, IngestService ingestService, TransportService transportService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeletePipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, DeletePipelineRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public DeletePipelineTransportAction(
+        ThreadPool threadPool,
+        IngestService ingestService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeletePipelineAction.NAME,
+            transportService,
+            ingestService.getClusterService(),
+            threadPool,
+            actionFilters,
+            DeletePipelineRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.ingestService = ingestService;
     }
 
     @Override
-    protected void masterOperation(Task task, DeletePipelineRequest request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        DeletePipelineRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
         ingestService.delete(request, listener);
     }
 
@@ -45,4 +65,13 @@ public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNo
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedPipelineAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(DeletePipelineRequest request) {
+        return Set.of(request.getId());
+    }
 }

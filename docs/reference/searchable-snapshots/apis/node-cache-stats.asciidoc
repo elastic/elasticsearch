@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[searchable-snapshots-api-cache-stats]]
 === Cache stats API
 ++++

@@ -12,7 +12,7 @@ package org.elasticsearch.system.indices;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -31,6 +30,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,12 +38,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, ActionPlugin {
+
+    private static final String INTERNAL_UNMANAGED_INDEX_NAME = ".internal-unmanaged-index*";
+    private static final String INTERNAL_MANAGED_INDEX_NAME = ".internal-managed-index*";
 
     @Override
     public String getFeatureName() {
@@ -70,9 +74,33 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                         .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .build()
                 )
-                .setOrigin("net-new")
+                .setOrigin(TASKS_ORIGIN)
                 .setVersionMetaKey("version")
                 .setPrimaryIndex(".net-new-system-index-" + Version.CURRENT.major)
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(INTERNAL_UNMANAGED_INDEX_NAME)
+                .setDescription("internal unmanaged system index")
+                .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
+                .setOrigin(TASKS_ORIGIN)
+                .setAliasName(".internal-unmanaged-alias")
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(INTERNAL_MANAGED_INDEX_NAME)
+                .setDescription("internal managed system index")
+                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                .setMappings(mappings())
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                        .build()
+                )
+                .setOrigin(TASKS_ORIGIN)
+                .setVersionMetaKey("version")
+                .setPrimaryIndex(".internal-managed-index-" + Version.CURRENT.major)
+                .setAliasName(".internal-managed-alias")
                 .build()
         );
     }

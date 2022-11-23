@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.analytics.boxplot;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.io.IOException;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasSize;
 
-public class BoxplotAggregationBuilderTests extends AbstractSerializingTestCase<BoxplotAggregationBuilder> {
+public class BoxplotAggregationBuilderTests extends AbstractXContentSerializingTestCase<BoxplotAggregationBuilder> {
     String aggregationName;
 
     @Before

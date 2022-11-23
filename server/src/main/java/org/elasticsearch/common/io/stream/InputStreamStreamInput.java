@@ -44,15 +44,13 @@ public class InputStreamStreamInput extends StreamInput {
     @Override
     public byte readByte() throws IOException {
         int ch = is.read();
-        if (ch < 0)
-            throw new EOFException();
+        if (ch < 0) throw new EOFException();
         return (byte) (ch);
     }
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
-        if (len < 0)
-            throw new IndexOutOfBoundsException();
+        if (len < 0) throw new IndexOutOfBoundsException();
         final int read = Streams.readFully(is, b, offset, len);
         if (read != len) {
             throw new EOFException();

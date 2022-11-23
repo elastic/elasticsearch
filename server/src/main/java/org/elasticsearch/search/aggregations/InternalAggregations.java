@@ -10,10 +10,11 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -33,9 +35,9 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     public static final InternalAggregations EMPTY = new InternalAggregations(Collections.emptyList());
 
     private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
-        if (agg1.isMapped() == agg2.isMapped()) {
+        if (agg1.canLeadReduction() == agg2.canLeadReduction()) {
             return 0;
-        } else if (agg1.isMapped() && agg2.isMapped() == false) {
+        } else if (agg1.canLeadReduction() && agg2.canLeadReduction() == false) {
             return -1;
         } else {
             return 1;
@@ -57,7 +59,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     }
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
-        return from(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
+        return from(in.readList(stream -> stream.readNamedWriteable(InternalAggregation.class)));
     }
 
     @Override
@@ -80,15 +82,16 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     /**
      * Get value to use when sorting by a descendant of the aggregation containing this.
      */
-    public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
-        InternalAggregation aggregation = get(head.name);
+    public SortValue sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+        InternalAggregation aggregation = get(head.name());
         if (aggregation == null) {
-            throw new IllegalArgumentException("Cannot find aggregation named [" + head.name + "]");
+            throw new IllegalArgumentException("Cannot find aggregation named [" + head.name() + "]");
         }
         if (tail.hasNext()) {
             return aggregation.sortValue(tail.next(), tail);
         }
-        return aggregation.sortValue(head.key);
+        // We can sort by either the `[value]` or `.value`
+        return aggregation.sortValue(Optional.ofNullable(head.key()).orElse(head.metric()));
     }
 
     /**
@@ -99,7 +102,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * This method first reduces the aggregations, and if it is the final reduce, then reduce the pipeline
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */
-    public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
+    public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
         InternalAggregations reduced = reduce(aggregationsList, context);
         if (reduced == null) {
             return null;
@@ -109,7 +112,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
             reducedInternalAggs = reducedInternalAggs.stream()
                 .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(ArrayList::new));
 
             for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
                 SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
@@ -125,9 +128,9 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * Reduces the given list of aggregations as well as the top-level pipeline aggregators extracted from the first
      * {@link InternalAggregations} object found in the list.
      * Note that pipeline aggregations _are not_ reduced by this method.  Pipelines are handled
-     * separately by {@link InternalAggregations#topLevelReduce(List, ReduceContext)}
+     * separately by {@link InternalAggregations#topLevelReduce(List, AggregationReduceContext)}
      */
-    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
+    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
         if (aggregationsList.isEmpty()) {
             return null;
         }
@@ -153,7 +156,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             aggregations.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
             if (first.mustReduceOnSingleInternalAgg() || aggregations.size() > 1) {
-                reducedAggregations.add(first.reduce(aggregations, context));
+                reducedAggregations.add(first.reduce(aggregations, context.forAgg(entry.getKey())));
             } else {
                 // no need for reduce phase
                 reducedAggregations.add(first);
@@ -161,5 +164,18 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         }
 
         return from(reducedAggregations);
+    }
+
+    /**
+     * Finalizes the sampling for all the internal aggregations
+     * @param samplingContext the sampling context
+     * @return the finalized aggregations
+     */
+    public static InternalAggregations finalizeSampling(InternalAggregations internalAggregations, SamplingContext samplingContext) {
+        return from(
+            internalAggregations.aggregations.stream()
+                .map(agg -> ((InternalAggregation) agg).finalizeSampling(samplingContext))
+                .collect(Collectors.toList())
+        );
     }
 }

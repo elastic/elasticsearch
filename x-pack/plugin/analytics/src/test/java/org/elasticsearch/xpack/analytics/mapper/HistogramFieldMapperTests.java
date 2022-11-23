@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -14,14 +13,19 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -77,7 +81,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             e.getCause().getMessage(),
-            containsString("doesn't not support indexing multiple values " + "for the same field in the same document")
+            containsString("doesn't not support indexing multiple values for the same field in the same document")
         );
     }
 
@@ -104,10 +108,18 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("expected field called [counts]"));
     }
 
-    public void testIgnoreMalformed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", true)));
-        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("values", new double[] { 2, 2 }).endObject()));
-        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
+
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue(b -> b.startObject().startArray("values").value(2).value(2).endArray().endObject()).errorMatches(
+                "expected field called [counts]"
+            )
+        );
     }
 
     public void testIgnoreMalformedSkipsKeyword() throws Exception {
@@ -311,5 +323,63 @@ public class HistogramFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("Field [hist] of type [histogram] can't be used in multifields"));
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeFalse("synthetic _source support for histogram doesn't support ignore_malformed", ignoreMalformed);
+        return new HistogramFieldSyntheticSourceSupport();
+    }
+
+    private static class HistogramFieldSyntheticSourceSupport implements SyntheticSourceSupport {
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            if (randomBoolean()) {
+                Map<String, Object> value = new LinkedHashMap<>();
+                value.put("values", List.of(randomDouble()));
+                value.put("counts", List.of(randomCount()));
+                return new SyntheticSourceExample(value, value, this::mapping);
+            }
+            int size = between(1, maxVals);
+            List<Double> values = new ArrayList<>(size);
+            double prev = randomDouble();
+            values.add(prev);
+            while (values.size() < size && prev != Double.MAX_VALUE) {
+                prev = randomDoubleBetween(prev, Double.MAX_VALUE, false);
+                values.add(prev);
+            }
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("values", values);
+            value.put("counts", randomList(values.size(), values.size(), this::randomCount));
+            return new SyntheticSourceExample(value, value, this::mapping);
+        }
+
+        private int randomCount() {
+            return between(1, Integer.MAX_VALUE);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "histogram");
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    matchesPattern(
+                        "field \\[field] of type \\[histogram] doesn't support synthetic source because it ignores malformed histograms"
+                    ),
+                    b -> {
+                        b.field("type", "histogram");
+                        b.field("ignore_malformed", true);
+                    }
+                )
+            );
+        }
     }
 }

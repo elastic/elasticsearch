@@ -121,18 +121,6 @@
         "type":"list",
         "description":"A comma-separated list of <field>:<direction> pairs"
       },
-      "_source":{
-        "type":"list",
-        "description":"True or false to return the _source field or not, or a list of fields to return"
-      },
-      "_source_excludes":{
-        "type":"list",
-        "description":"A list of fields to exclude from the returned _source field"
-      },
-      "_source_includes":{
-        "type":"list",
-        "description":"A list of fields to extract and return from the _source field"
-      },
       "terminate_after":{
         "type":"number",
         "description":"The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early."

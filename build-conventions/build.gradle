@@ -16,9 +16,9 @@ plugins {
 
 group = "org.elasticsearch"
 
-def minRuntimeJava = JavaVersion.toVersion(file('../build-tools-internal/src/main/resources/minimumRuntimeVersion').text)
-targetCompatibility = minRuntimeJava
-sourceCompatibility = minRuntimeJava
+// This project contains Checkstyle rule implementations used by IDEs which use a Java 11 runtime
+targetCompatibility = 11
+sourceCompatibility = 11
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes
@@ -45,6 +45,14 @@ gradlePlugin {
             id = 'elasticsearch.build-tools'
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.BuildToolsConventionsPlugin'
         }
+        versions {
+            id = 'elasticsearch.versions'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin'
+        }
+        formatting {
+            id = 'elasticsearch.formatting'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.precommit.FormattingPrecommitPlugin'
+        }
     }
 }
 
@@ -54,10 +62,13 @@ repositories {
 }
 
 dependencies {
-    api 'org.apache.maven:maven-model:3.6.2'
-    api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
-    api 'org.apache.rat:apache-rat:0.11'
-    compileOnly "com.puppycrawl.tools:checkstyle:8.42"
+    api buildLibs.maven.model
+    api buildLibs.shadow.plugin
+    api buildLibs.apache.rat
+    compileOnly buildLibs.checkstyle
+    api(buildLibs.spotless.plugin) {
+      exclude module: "groovy-xml"
+    }
 }
 
 project.getPlugins().withType(JavaBasePlugin.class) {

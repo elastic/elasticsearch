@@ -60,7 +60,7 @@ public class FutureUtils {
      * @param <T> the type returned
      * @return the value of the future
      */
-    public static  <T> T get(Future<T> future, long timeout, TimeUnit unit) {
+    public static <T> T get(Future<T> future, long timeout, TimeUnit unit) {
         try {
             return future.get(timeout, unit);
         } catch (TimeoutException e) {

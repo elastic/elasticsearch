@@ -20,10 +20,13 @@ public class SMBStorePlugin extends Plugin implements IndexStorePlugin {
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of(
-                "smb_mmap_fs", new SmbMmapFsDirectoryFactory(),
-                "smb_simple_fs", new SmbNIOFSDirectoryFactory(),
-                "smb_nio_fs", new SmbNIOFSDirectoryFactory()
-            );
+            "smb_mmap_fs",
+            new SmbMmapFsDirectoryFactory(),
+            "smb_simple_fs",
+            new SmbNIOFSDirectoryFactory(),
+            "smb_nio_fs",
+            new SmbNIOFSDirectoryFactory()
+        );
     }
 
 }

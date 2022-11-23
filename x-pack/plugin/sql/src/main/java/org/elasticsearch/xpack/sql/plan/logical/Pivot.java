@@ -45,8 +45,14 @@ public class Pivot extends UnaryPlan {
         this(source, child, column, values, aggregates, null);
     }
 
-    public Pivot(Source source, LogicalPlan child, Expression column, List<NamedExpression> values, List<NamedExpression> aggregates,
-            List<Attribute> grouping) {
+    public Pivot(
+        Source source,
+        LogicalPlan child,
+        Expression column,
+        List<NamedExpression> values,
+        List<NamedExpression> aggregates,
+        List<Attribute> grouping
+    ) {
         super(source, child);
         this.column = column;
         this.values = values;
@@ -57,11 +63,13 @@ public class Pivot extends UnaryPlan {
             AttributeSet columnSet = Expressions.references(singletonList(column));
             // grouping can happen only on "primitive" fields, thus exclude multi-fields or nested docs
             // the verifier enforces this rule so it does not catch folks by surprise
-            grouping = new ArrayList<>(new AttributeSet(Expressions.onlyPrimitiveFieldAttributes(child().output()))
+            grouping = new ArrayList<>(
+                new AttributeSet(Expressions.onlyPrimitiveFieldAttributes(child().output()))
                     // make sure to have the column as the last entry (helps with translation) so substract it
                     .subtract(columnSet)
                     .subtract(Expressions.references(aggregates))
-                    .combine(columnSet));
+                    .combine(columnSet)
+            );
         }
 
         this.grouping = grouping;
@@ -114,13 +122,12 @@ public class Pivot extends UnaryPlan {
             else {
                 for (NamedExpression agg : aggregates) {
                     String name = agg.name();
-                    if (agg instanceof Alias) {
-                        Alias a = (Alias) agg;
+                    if (agg instanceof Alias a) {
                         if (a.child() instanceof Function) {
                             name = ((Function) a.child()).functionName();
                         }
                     }
-                    //FIXME: the value attributes are reused and thus will clash - new ids need to be created
+                    // FIXME: the value attributes are reused and thus will clash - new ids need to be created
                     for (NamedExpression value : values) {
                         out.add(value.toAttribute().withName(value.name() + "_" + name).withDataType(agg.dataType()));
                     }
@@ -157,9 +164,7 @@ public class Pivot extends UnaryPlan {
     @Override
     public List<Attribute> output() {
         if (output == null) {
-            output = new ArrayList<>(groupingSet()
-                    .subtract(Expressions.references(singletonList(column)))
-                    .combine(valuesOutput()));
+            output = new ArrayList<>(groupingSet().subtract(Expressions.references(singletonList(column))).combine(valuesOutput()));
         }
 
         return output;
@@ -195,8 +200,8 @@ public class Pivot extends UnaryPlan {
 
         Pivot other = (Pivot) obj;
         return Objects.equals(column, other.column)
-                && Objects.equals(values, other.values)
-                && Objects.equals(aggregates, other.aggregates)
-                && Objects.equals(child(), other.child());
+            && Objects.equals(values, other.values)
+            && Objects.equals(aggregates, other.aggregates)
+            && Objects.equals(child(), other.child());
     }
 }

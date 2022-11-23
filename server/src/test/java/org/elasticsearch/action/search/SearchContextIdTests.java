@@ -41,20 +41,22 @@ public class SearchContextIdTests extends ESTestCase {
     }
 
     public void testEncode() {
-        final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(List.of(
-            new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
-            new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new),
-            new NamedWriteableRegistry.Entry(QueryBuilder.class, IdsQueryBuilder.NAME, IdsQueryBuilder::new)
-        ));
+        final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, IdsQueryBuilder.NAME, IdsQueryBuilder::new)
+            )
+        );
         final AtomicArray<SearchPhaseResult> queryResults = TransportSearchHelperTests.generateQueryResults();
         final Version version = Version.CURRENT;
         final Map<String, AliasFilter> aliasFilters = new HashMap<>();
         for (SearchPhaseResult result : queryResults.asList()) {
             final AliasFilter aliasFilter;
             if (randomBoolean()) {
-                aliasFilter = new AliasFilter(randomQueryBuilder());
+                aliasFilter = AliasFilter.of(randomQueryBuilder());
             } else if (randomBoolean()) {
-                aliasFilter = new AliasFilter(randomQueryBuilder(), "alias-" + between(1, 10));
+                aliasFilter = AliasFilter.of(randomQueryBuilder(), "alias-" + between(1, 10));
             } else {
                 aliasFilter = AliasFilter.EMPTY;
             }

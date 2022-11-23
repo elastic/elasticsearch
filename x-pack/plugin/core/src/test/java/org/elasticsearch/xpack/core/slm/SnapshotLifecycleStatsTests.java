@@ -8,30 +8,32 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
-public class SnapshotLifecycleStatsTests extends AbstractSerializingTestCase<SnapshotLifecycleStats> {
+public class SnapshotLifecycleStatsTests extends AbstractXContentSerializingTestCase<SnapshotLifecycleStats> {
     @Override
     protected SnapshotLifecycleStats doParseInstance(XContentParser parser) throws IOException {
         return SnapshotLifecycleStats.parse(parser);
     }
 
     public static SnapshotLifecycleStats.SnapshotPolicyStats randomPolicyStats(String policyId) {
-        return new SnapshotLifecycleStats.SnapshotPolicyStats(policyId,
+        return new SnapshotLifecycleStats.SnapshotPolicyStats(
+            policyId,
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
-            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE));
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE)
+        );
     }
 
     public static SnapshotLifecycleStats randomLifecycleStats() {
         int policies = randomIntBetween(0, 5);
-        Map<String, SnapshotLifecycleStats.SnapshotPolicyStats> policyStats = new HashMap<>(policies);
+        Map<String, SnapshotLifecycleStats.SnapshotPolicyStats> policyStats = Maps.newMapWithExpectedSize(policies);
         for (int i = 0; i < policies; i++) {
             String policy = "policy-" + randomAlphaOfLength(4);
             policyStats.put(policy, randomPolicyStats(policy));
@@ -41,7 +43,8 @@ public class SnapshotLifecycleStatsTests extends AbstractSerializingTestCase<Sna
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
-            policyStats);
+            policyStats
+        );
     }
 
     @Override

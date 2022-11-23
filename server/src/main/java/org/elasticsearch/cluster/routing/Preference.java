@@ -7,11 +7,10 @@
  */
 package org.elasticsearch.cluster.routing;
 
-
 /**
  * Routing Preference Type
  */
-public enum  Preference {
+public enum Preference {
 
     /**
      * Route to specific shards
@@ -47,6 +46,7 @@ public enum  Preference {
     public String type() {
         return type;
     }
+
     /**
      * Parses the Preference Type given a string
      */
@@ -59,24 +59,14 @@ public enum  Preference {
             preferenceType = preference.substring(0, colonIndex);
         }
 
-        switch (preferenceType) {
-            case "_shards":
-                return SHARDS;
-            case "_prefer_nodes":
-                return PREFER_NODES;
-            case "_local":
-                return LOCAL;
-            case "_only_local":
-            case "_onlyLocal":
-                return ONLY_LOCAL;
-            case "_only_nodes":
-                return ONLY_NODES;
-            default:
-                throw new IllegalArgumentException("no Preference for [" + preferenceType + "]");
-        }
+        return switch (preferenceType) {
+            case "_shards" -> SHARDS;
+            case "_prefer_nodes" -> PREFER_NODES;
+            case "_local" -> LOCAL;
+            case "_only_local", "_onlyLocal" -> ONLY_LOCAL;
+            case "_only_nodes" -> ONLY_NODES;
+            default -> throw new IllegalArgumentException("no Preference for [" + preferenceType + "]");
+        };
     }
 
 }
-
-
-

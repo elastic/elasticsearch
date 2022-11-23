@@ -8,6 +8,9 @@
 
 package org.elasticsearch.gradle.internal.docker;
 
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 /**
  * The methods in this class take a shell command and wrap it in retry logic, so that our
  * Docker builds can be more robust in the face of transient errors e.g. network issues.
@@ -20,7 +23,11 @@ public class ShellRetry {
     static String loop(String name, String command, int indentSize, String exitKeyword) {
         String indent = " ".repeat(indentSize);
 
-        StringBuilder commandWithRetry = new StringBuilder("for iter in {1..10}; do \n");
+        // bash understands the `{1..10}` syntax, but other shells don't e.g. the default in Alpine Linux.
+        // We therefore use an explicit sequence.
+        String retrySequence = IntStream.rangeClosed(1, 10).mapToObj(String::valueOf).collect(Collectors.joining(" "));
+
+        StringBuilder commandWithRetry = new StringBuilder("for iter in " + retrySequence + "; do \n");
         commandWithRetry.append(indent).append("  ").append(command).append(" && \n");
         commandWithRetry.append(indent).append("  exit_code=0 && break || \n");
         commandWithRetry.append(indent);

@@ -28,11 +28,18 @@ public class ClusterStateRequestTests extends ESTestCase {
         for (int i = 0; i < iterations; i++) {
 
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(randomBoolean()).metadata(randomBoolean())
-                    .nodes(randomBoolean()).blocks(randomBoolean()).indices("testindex", "testindex2").indicesOptions(indicesOptions);
+            ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(randomBoolean())
+                .metadata(randomBoolean())
+                .nodes(randomBoolean())
+                .blocks(randomBoolean())
+                .indices("testindex", "testindex2")
+                .indicesOptions(indicesOptions);
 
-            Version testVersion = VersionUtils.randomVersionBetween(random(),
-                Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+            Version testVersion = VersionUtils.randomVersionBetween(
+                random(),
+                Version.CURRENT.minimumCompatibilityVersion(),
+                Version.CURRENT
+            );
             // TODO: change version to V_6_6_0 after backporting:
             if (testVersion.onOrAfter(Version.V_7_0_0)) {
                 if (randomBoolean()) {
@@ -64,8 +71,10 @@ public class ClusterStateRequestTests extends ESTestCase {
 
     public void testWaitForMetadataVersion() {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        expectThrows(IllegalArgumentException.class,
-            () -> clusterStateRequest.waitForMetadataVersion(randomLongBetween(Long.MIN_VALUE, 0)));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterStateRequest.waitForMetadataVersion(randomLongBetween(Long.MIN_VALUE, 0))
+        );
         clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
     }
 
@@ -78,16 +87,20 @@ public class ClusterStateRequestTests extends ESTestCase {
 
     public void testDescription() {
         assertThat(new ClusterStateRequest().clear().getDescription(), equalTo("cluster state [master timeout [30s]]"));
-        assertThat(new ClusterStateRequest().masterNodeTimeout("5m").getDescription(),
-                equalTo("cluster state [routing table, nodes, metadata, blocks, customs, master timeout [5m]]"));
+        assertThat(
+            new ClusterStateRequest().masterNodeTimeout("5m").getDescription(),
+            equalTo("cluster state [routing table, nodes, metadata, blocks, customs, master timeout [5m]]")
+        );
         assertThat(new ClusterStateRequest().clear().routingTable(true).getDescription(), containsString("routing table"));
         assertThat(new ClusterStateRequest().clear().nodes(true).getDescription(), containsString("nodes"));
         assertThat(new ClusterStateRequest().clear().metadata(true).getDescription(), containsString("metadata"));
         assertThat(new ClusterStateRequest().clear().blocks(true).getDescription(), containsString("blocks"));
         assertThat(new ClusterStateRequest().clear().customs(true).getDescription(), containsString("customs"));
         assertThat(new ClusterStateRequest().local(true).getDescription(), containsString("local"));
-        assertThat(new ClusterStateRequest().waitForMetadataVersion(23L).getDescription(),
-                containsString("wait for metadata version [23] with timeout [1m]"));
+        assertThat(
+            new ClusterStateRequest().waitForMetadataVersion(23L).getDescription(),
+            containsString("wait for metadata version [23] with timeout [1m]")
+        );
         assertThat(new ClusterStateRequest().indices("foo", "bar").getDescription(), containsString("indices [foo, bar]"));
     }
 }

@@ -8,21 +8,20 @@
 
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -30,14 +29,17 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.ParsedComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -50,10 +52,8 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoTileGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.ParsedGlobal;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.ParsedAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.ParsedVariableWidthHistogram;
@@ -124,20 +124,26 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedBucketMetricValue;
-import org.elasticsearch.search.aggregations.pipeline.ParsedDerivative;
 import org.elasticsearch.search.aggregations.pipeline.ParsedExtendedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.ParsedPercentilesBucket;
 import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -146,6 +152,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -168,26 +175,51 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  */
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractNamedWriteableTestCase<T> {
     /**
-     * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid but empty.
+     * Builds an {@link AggregationReduceContext} that is valid but empty.
      */
-    public static InternalAggregation.ReduceContextBuilder emptyReduceContextBuilder() {
-        return emptyReduceContextBuilder(PipelineTree.EMPTY);
+    public static AggregationReduceContext.Builder emptyReduceContextBuilder() {
+        return emptyReduceContextBuilder(AggregatorFactories.builder());
     }
 
     /**
-     * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid and nearly
-     * empty <strong>except</strong> that it contain {@link PipelineAggregator}s.
+     * Builds an {@link AggregationReduceContext} that is valid and nearly
+     * empty <strong>except</strong> that it contains the provided builders.
      */
-    public static InternalAggregation.ReduceContextBuilder emptyReduceContextBuilder(PipelineTree pipelineTree) {
-        return new InternalAggregation.ReduceContextBuilder() {
+    public static AggregationReduceContext.Builder emptyReduceContextBuilder(AggregatorFactories.Builder aggs) {
+        return new AggregationReduceContext.Builder() {
             @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null, () -> pipelineTree);
+            public AggregationReduceContext forPartialReduction() {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, aggs);
             }
 
             @Override
-            public ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, pipelineTree);
+            public AggregationReduceContext forFinalReduction() {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, aggs, b -> {});
+            }
+        };
+    }
+
+    /**
+     * Builds an {@link AggregationReduceContext} to reduce the provided
+     * aggregation.
+     */
+    public static AggregationReduceContext.Builder mockReduceContext(AggregationBuilder agg) {
+        return new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction() {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, agg);
+            }
+
+            @Override
+            public AggregationReduceContext forFinalReduction() {
+                return new AggregationReduceContext.ForFinal(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    null,
+                    () -> false,
+                    agg,
+                    b -> {},
+                    PipelineTree.EMPTY
+                );
             }
         };
     }
@@ -196,9 +228,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     protected static final double TOLERANCE = 1e-10;
 
     private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
-        if (agg1.isMapped() == agg2.isMapped()) {
+        if (agg1.canLeadReduction() == agg2.canLeadReduction()) {
             return 0;
-        } else if (agg1.isMapped() && agg2.isMapped() == false) {
+        } else if (agg1.canLeadReduction() && agg2.canLeadReduction() == false) {
             return -1;
         } else {
             return 1;
@@ -226,7 +258,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(WeightedAvgAggregationBuilder.NAME, (p, c) -> ParsedWeightedAvg.fromXContent(p, (String) c));
         map.put(ValueCountAggregationBuilder.NAME, (p, c) -> ParsedValueCount.fromXContent(p, (String) c));
         map.put(InternalSimpleValue.NAME, (p, c) -> ParsedSimpleValue.fromXContent(p, (String) c));
-        map.put(DerivativePipelineAggregationBuilder.NAME, (p, c) -> ParsedDerivative.fromXContent(p, (String) c));
         map.put(InternalBucketMetricValue.NAME, (p, c) -> ParsedBucketMetricValue.fromXContent(p, (String) c));
         map.put(StatsAggregationBuilder.NAME, (p, c) -> ParsedStats.fromXContent(p, (String) c));
         map.put(StatsBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedStatsBucket.fromXContent(p, (String) c));
@@ -236,7 +267,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(GeoCentroidAggregationBuilder.NAME, (p, c) -> ParsedGeoCentroid.fromXContent(p, (String) c));
         map.put(HistogramAggregationBuilder.NAME, (p, c) -> ParsedHistogram.fromXContent(p, (String) c));
         map.put(DateHistogramAggregationBuilder.NAME, (p, c) -> ParsedDateHistogram.fromXContent(p, (String) c));
-        map.put(AutoDateHistogramAggregationBuilder.NAME, (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c));
         map.put(VariableWidthHistogramAggregationBuilder.NAME, (p, c) -> ParsedVariableWidthHistogram.fromXContent(p, (String) c));
         map.put(StringTerms.NAME, (p, c) -> ParsedStringTerms.fromXContent(p, (String) c));
         map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
@@ -255,7 +285,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(DateRangeAggregationBuilder.NAME, (p, c) -> ParsedDateRange.fromXContent(p, (String) c));
         map.put(GeoDistanceAggregationBuilder.NAME, (p, c) -> ParsedGeoDistance.fromXContent(p, (String) c));
         map.put(FiltersAggregationBuilder.NAME, (p, c) -> ParsedFilters.fromXContent(p, (String) c));
-        map.put(AdjacencyMatrixAggregationBuilder.NAME, (p, c) -> ParsedAdjacencyMatrix.fromXContent(p, (String) c));
         map.put(SignificantLongTerms.NAME, (p, c) -> ParsedSignificantLongTerms.fromXContent(p, (String) c));
         map.put(SignificantStringTerms.NAME, (p, c) -> ParsedSignificantStringTerms.fromXContent(p, (String) c));
         map.put(ScriptedMetricAggregationBuilder.NAME, (p, c) -> ParsedScriptedMetric.fromXContent(p, (String) c));
@@ -263,9 +292,10 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
 
-        namedXContents = map.entrySet().stream()
-                .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
-                .collect(Collectors.toList());
+        namedXContents = map.entrySet()
+            .stream()
+            .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
+            .collect(Collectors.toList());
     }
 
     public static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
@@ -330,38 +360,69 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     /**
      * Generate a list of inputs to reduce. Defaults to calling
      * {@link #createTestInstance(String)} and
-     * {@link #createUnmappedInstance(String)} but should be overridden
-     * if it isn't realistic to reduce test instances.
+     * {@link #createUnmappedInstance(String)} and {@link #mockBuilder(List)}
+     * but should be overridden if it isn't realistic to reduce test
+     * instances against mocked builders.
      */
-    protected List<T> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<T> randomResultsToReduce(String name, int size) {
         List<T> inputs = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             T t = randomBoolean() ? createUnmappedInstance(name) : createTestInstance(name);
             inputs.add(t);
         }
-        return inputs;
+        return new BuilderAndToReduce<>(mockBuilder(inputs), inputs);
     }
+
+    protected final AggregationBuilder mockBuilder(List<? extends InternalAggregation> results) {
+        Map<String, Object> subNames = new HashMap<>();
+        results.forEach(a -> collectSubBuilderNames(subNames, a));
+        return mockBuilder(results.get(0).getName(), subNames);
+    }
+
+    private AggregationBuilder mockBuilder(String name, Map<String, Object> subNames) {
+        AggregationBuilder b = new MockAggregationBuilder(name);
+        for (Map.Entry<String, Object> s : subNames.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> subSubNames = (Map<String, Object>) s.getValue();
+            b.subAggregation(mockBuilder(s.getKey(), subSubNames));
+        }
+        return b;
+    }
+
+    private void collectSubBuilderNames(Map<String, Object> names, InternalAggregation result) {
+        result.forEachBucket(ia -> {
+            for (InternalAggregation a : ia.copyResults()) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> sub = (Map<String, Object>) names.computeIfAbsent(a.getName(), k -> new HashMap<String, Object>());
+                collectSubBuilderNames(sub, a);
+            }
+        });
+    }
+
+    public record BuilderAndToReduce<T> (AggregationBuilder builder, List<T> toReduce) {}
 
     public void testReduceRandom() throws IOException {
         String name = randomAlphaOfLength(5);
         int size = between(1, 200);
-        List<T> inputs = randomResultsToReduce(name, size);
-        assertThat(inputs, hasSize(size));
+        BuilderAndToReduce<T> inputs = randomResultsToReduce(name, size);
+        assertThat(inputs.toReduce(), hasSize(size));
         List<InternalAggregation> toReduce = new ArrayList<>();
-        toReduce.addAll(inputs);
-        // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
-        inputs.sort(INTERNAL_AGG_COMPARATOR);
+        toReduce.addAll(inputs.toReduce());
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
             // sometimes do a partial reduce
             Collections.shuffle(toReduce, random());
-            int r = randomIntBetween(1, inputs.size());
+            int r = randomIntBetween(1, toReduce.size());
             List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
-            // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
+            // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
             toPartialReduce.sort(INTERNAL_AGG_COMPARATOR);
-            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
-                    bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
+            AggregationReduceContext context = new AggregationReduceContext.ForPartial(
+                bigArrays,
+                mockScriptService,
+                () -> false,
+                inputs.builder()
+            );
             @SuppressWarnings("unchecked")
             T reduced = (T) toPartialReduce.get(0).reduce(toPartialReduce, context);
             int initialBucketCount = 0;
@@ -369,7 +430,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 initialBucketCount += countInnerBucket(internalAggregation);
             }
             int reducedBucketCount = countInnerBucket(reduced);
-            //check that non final reduction never adds buckets
+            // check that non final reduction never adds buckets
             assertThat(reducedBucketCount, lessThanOrEqualTo(initialBucketCount));
             /*
              * Sometimes serializing and deserializing the partially reduced
@@ -379,23 +440,38 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             if (randomBoolean()) {
                 reduced = copyNamedWriteable(reduced, getNamedWriteableRegistry(), categoryClass());
             }
-            toReduce = new ArrayList<>(toReduce.subList(r, inputs.size()));
+            toReduce = new ArrayList<>(toReduce.subList(r, toReduce.size()));
             toReduce.add(reduced);
         }
-        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-                bigArrays, mockScriptService, bucketConsumer, PipelineTree.EMPTY);
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
+            DEFAULT_MAX_BUCKETS,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
+            bigArrays,
+            mockScriptService,
+            () -> false,
+            inputs.builder(),
+            bucketConsumer,
+            PipelineTree.EMPTY
+        );
+        // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
+        inputs.toReduce().sort(INTERNAL_AGG_COMPARATOR);
         @SuppressWarnings("unchecked")
-        T reduced = (T) inputs.get(0).reduce(toReduce, context);
+        T reduced = (T) inputs.toReduce().get(0).reduce(toReduce, context);
         doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
-        assertReduced(reduced, inputs);
+        assertReduced(reduced, inputs.toReduce());
+        if (supportsSampling()) {
+            SamplingContext randomContext = new SamplingContext(randomDoubleBetween(1e-8, 0.1, false), randomInt());
+            @SuppressWarnings("unchecked")
+            T sampled = (T) reduced.finalizeSampling(randomContext);
+            assertSampled(sampled, reduced, randomContext);
+        }
     }
 
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
-
 
     /**
      * overwrite in tests that need it
@@ -406,9 +482,17 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     protected abstract void assertReduced(T reduced, List<T> inputs);
 
+    protected void assertSampled(T sampled, T reduced, SamplingContext samplingContext) {
+        throw new UnsupportedOperationException("aggregation supports sampling but does not implement assertSampled");
+    }
+
     @Override
     public final T createTestInstance() {
         return createTestInstance(randomAlphaOfLength(5));
+    }
+
+    protected boolean supportsSampling() {
+        return false;
     }
 
     public final Map<String, Object> createTestMetadata() {
@@ -455,19 +539,57 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     protected abstract void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException;
 
+    /**
+     * Calls {@link ToXContent#toXContent} on many threads and verifies that
+     * they produce the same result. Async search sometimes does this to
+     * aggregation responses and, in general, we think it's reasonable for
+     * everything that can convert itself to json to be able to do so
+     * concurrently.
+     */
+    public final void testConcurrentToXContent() throws IOException, InterruptedException, ExecutionException {
+        T testInstance = createTestInstanceForXContent();
+        ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+        XContentType xContentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
+        BytesRef firstTimeBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
+        concurrentTest(() -> {
+            try {
+                for (int r = 0; r < rounds; r++) {
+                    assertEquals(firstTimeBytes, toXContent(testInstance, xContentType, params, humanReadable).toBytesRef());
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+    }
+
     @SuppressWarnings("unchecked")
-    protected <P extends ParsedAggregation> P parseAndAssert(final InternalAggregation aggregation,
-                                                             final boolean shuffled, final boolean addRandomFields) throws IOException {
+    protected <P extends ParsedAggregation> P parseAndAssert(
+        final InternalAggregation aggregation,
+        final boolean shuffled,
+        final boolean addRandomFields
+    ) throws IOException {
 
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         final XContentType xContentType = randomFrom(XContentType.values());
         final boolean humanReadable = randomBoolean();
 
         final BytesReference originalBytes;
-        if (shuffled) {
-            originalBytes = toShuffledXContent(aggregation, xContentType, params, humanReadable);
-        } else {
-            originalBytes = toXContent(aggregation, xContentType, params, humanReadable);
+        try {
+            if (shuffled) {
+                originalBytes = toShuffledXContent(aggregation, xContentType, params, humanReadable);
+            } else {
+                originalBytes = toXContent(aggregation, xContentType, params, humanReadable);
+            }
+        } catch (IOException e) {
+            throw new IOException("error converting " + aggregation, e);
         }
         BytesReference mutated;
         if (addRandomFields) {
@@ -484,8 +606,10 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
              * we also exclude top_hits that contain SearchHits, as all unknown fields
              * on a root level of SearchHit are interpreted as meta-fields and will be kept.
              */
-            Predicate<String> basicExcludes = path -> path.isEmpty() || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
-                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName()) || path.contains("top_hits");
+            Predicate<String> basicExcludes = path -> path.isEmpty()
+                || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
+                || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
+                || path.contains("top_hits");
             Predicate<String> excludes = basicExcludes.or(excludePathsFromXContentInsertion());
             mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
         } else {
@@ -526,7 +650,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     /**
-     * @return a random {@link DocValueFormat} that can be used in aggregations which
+     * A random {@link DocValueFormat} that can be used in aggregations which
      * compute numbers.
      */
     public static DocValueFormat randomNumericDocValueFormat() {
@@ -536,11 +660,69 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return randomFrom(formats).get();
     }
 
+    /**
+     * A random {@link DocValueFormat} that can be used in aggregations which
+     * compute dates.
+     */
+    public static DocValueFormat randomDateDocValueFormat() {
+        DocValueFormat.DateTime format = new DocValueFormat.DateTime(
+            DateFormatter.forPattern(randomDateFormatterPattern()),
+            randomZone(),
+            randomFrom(Resolution.values())
+        );
+        if (randomBoolean()) {
+            return DocValueFormat.enableFormatSortValues(format);
+        }
+        return format;
+    }
+
     public static void assertMultiBucketConsumer(Aggregation agg, MultiBucketConsumer bucketConsumer) {
         assertMultiBucketConsumer(countInnerBucket(agg), bucketConsumer);
     }
 
     private static void assertMultiBucketConsumer(int innerBucketCount, MultiBucketConsumer bucketConsumer) {
         assertThat(bucketConsumer.getCount(), equalTo(innerBucketCount));
+    }
+
+    private class MockAggregationBuilder extends AbstractAggregationBuilder<MockAggregationBuilder> {
+        MockAggregationBuilder(String name) {
+            super(name);
+        }
+
+        @Override
+        public String getType() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
+            throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BucketCardinality bucketCardinality() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
+        }
     }
 }

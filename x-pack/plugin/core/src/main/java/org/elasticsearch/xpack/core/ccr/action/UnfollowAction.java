@@ -48,7 +48,7 @@ public class UnfollowAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public String[] indices() {
-            return new String[] {followerIndex};
+            return new String[] { followerIndex };
         }
 
         @Override

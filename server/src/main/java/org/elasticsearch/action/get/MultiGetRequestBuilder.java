@@ -9,7 +9,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * A multi get document action request builder.

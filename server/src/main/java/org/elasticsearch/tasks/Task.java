@@ -6,17 +6,17 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Current task information
@@ -26,20 +26,42 @@ public class Task {
     /**
      * The request header to mark tasks with specific ids
      */
-    public static final String X_OPAQUE_ID = "X-Opaque-Id";
+    public static final String X_OPAQUE_ID_HTTP_HEADER = "X-Opaque-Id";
 
     /**
      * The request header which is contained in HTTP request. We parse trace.id from it and store it in thread context.
      * TRACE_PARENT once parsed in RestController.tryAllHandler is not preserved
      * has to be declared as a header copied over from http request.
+     * May also be used internally when APM is enabled.
      */
-    public static final String TRACE_PARENT = "traceparent";
+    public static final String TRACE_PARENT_HTTP_HEADER = "traceparent";
+
+    /**
+     * A request header that indicates the origin of the request from Elastic stack. The value will stored in ThreadContext
+     * and emitted to ES logs
+     */
+    public static final String X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
+
+    public static final String TRACE_STATE = "tracestate";
+
+    /**
+     * Used internally to pass the apm trace context between the nodes
+     */
+    public static final String APM_TRACE_CONTEXT = "apm.local.context";
 
     /**
      * Parsed part of traceparent. It is stored in thread context and emitted in logs.
      * Has to be declared as a header copied over for tasks.
      */
     public static final String TRACE_ID = "trace.id";
+    public static final String TRACE_PARENT = "traceparent";
+
+    public static final Set<String> HEADERS_TO_COPY = Set.of(
+        X_OPAQUE_ID_HTTP_HEADER,
+        TRACE_PARENT_HTTP_HEADER,
+        TRACE_ID,
+        X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER
+    );
 
     private final long id;
 
@@ -67,8 +89,16 @@ public class Task {
         this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime(), headers);
     }
 
-    public Task(long id, String type, String action, String description, TaskId parentTask, long startTime, long startTimeNanos,
-                Map<String, String> headers) {
+    public Task(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTask,
+        long startTime,
+        long startTimeNanos,
+        Map<String, String> headers
+    ) {
         this.id = id;
         this.type = type;
         this.action = action;
@@ -104,17 +134,18 @@ public class Task {
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
         return new TaskInfo(
-                new TaskId(localNodeId, getId()),
-                getType(),
-                getAction(),
-                description,
-                status,
-                startTime,
-                System.nanoTime() - startTimeNanos,
-                this instanceof CancellableTask,
-                this instanceof CancellableTask && ((CancellableTask)this).isCancelled(),
-                parentTask,
-                headers);
+            new TaskId(localNodeId, getId()),
+            getType(),
+            getAction(),
+            description,
+            status,
+            startTime,
+            System.nanoTime() - startTimeNanos,
+            this instanceof CancellableTask,
+            this instanceof CancellableTask && ((CancellableTask) this).isCancelled(),
+            parentTask,
+            headers
+        );
     }
 
     /**
@@ -174,6 +205,25 @@ public class Task {
      */
     public Status getStatus() {
         return null;
+    }
+
+    @Override
+    public String toString() {
+        return "Task{id="
+            + id
+            + ", type='"
+            + type
+            + "', action='"
+            + action
+            + "', description='"
+            + description
+            + "', parentTask="
+            + parentTask
+            + ", startTime="
+            + startTime
+            + ", startTimeNanos="
+            + startTimeNanos
+            + '}';
     }
 
     /**

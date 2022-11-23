@@ -19,11 +19,13 @@ public abstract class AbstractNodeTestCase<T extends B, B extends Node<B>> exten
      * Make a new random instance.
      */
     protected abstract T randomInstance();
+
     /**
      * Mutate an instance into some other similar instance that
      * shouldn't be {@link #equals} to the original.
      */
     protected abstract T mutate(T instance);
+
     /**
      * Copy and instance so it isn't {@code ==} but should still
      * be {@link #equals}.
@@ -34,6 +36,7 @@ public abstract class AbstractNodeTestCase<T extends B, B extends Node<B>> exten
      * Test this subclass's implementation of {@link Node#transformNodeProps}.
      */
     public abstract void testTransform();
+
     /**
      * Test this subclass's implementation of {@link Node#replaceChildren(List)}.
      */

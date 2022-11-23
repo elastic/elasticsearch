@@ -90,7 +90,8 @@
 "Test cat shards output":
 
   - do:
-      cat.shards: {}
+      cat.shards:
+        index: i*
 
   - match:
       $body: |
@@ -103,7 +104,8 @@
             number_of_shards: "5"
             number_of_replicas: "1"
   - do:
-      cat.shards: {}
+      cat.shards:
+        index: i*
 
   - match:
       $body: |
@@ -118,7 +120,8 @@
             number_of_replicas: "0"
 
   - do:
-      cat.shards: {}
+      cat.shards:
+        index: i*
   - match:
       $body: |
                /^(index(1|2) \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){15}$/
@@ -205,6 +208,7 @@
       cat.shards:
         h: [index, docs]
         s: [docs]
+        index: "foo,bar"
 
 # don't use the store here it's cached and might be stale
   - match:
@@ -212,3 +216,32 @@
             /^ foo \s+ 0\n
                bar \s+ 1\n
             $/
+
+
+---
+"Test cat shards with hidden indices":
+  - skip:
+      version: " - 8.2.99"
+      reason:  hidden indices were misreported in versions before 8.3.0
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+            hidden: "true"
+
+  - do:
+      index:
+        index: foo
+        body: { test: foo }
+        refresh: true
+
+  - do:
+      cat.shards:
+        h: [index, docs]
+
+  - match:
+      $body: /foo \s+ 1\n/

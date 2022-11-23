@@ -6,11 +6,13 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.util.GradleUtils
+
 import java.nio.file.Files
 
 String buildNumber = System.getenv('BUILD_NUMBER')
-
-if (buildNumber) {
+String performanceTest = System.getenv('BUILD_PERFORMANCE_TEST')
+if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(project) == false) {
   File uploadFile = file("build/${buildNumber}.tar.bz2")
   project.gradle.buildFinished { result ->
     println "build complete, generating: $uploadFile"
@@ -23,7 +25,6 @@ if (buildNumber) {
         fileset(dir: projectDir) {
           Set<File> fileSet = fileTree(projectDir) {
             include("**/*.hprof")
-            include("**/reaper.log")
             include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")
             exclude("**/build/testclusters/**/data/**")
@@ -49,6 +50,8 @@ if (buildNumber) {
         }
 
         fileset(dir: "${gradle.gradleUserHomeDir}/workers", followsymlinks: false)
+
+        fileset(dir: "${project.projectDir}/.gradle/reaper", followsymlinks: false, erroronmissingdir: false)
       }
     } catch (Exception e) {
       logger.lifecycle("Failed to archive additional logs", e)

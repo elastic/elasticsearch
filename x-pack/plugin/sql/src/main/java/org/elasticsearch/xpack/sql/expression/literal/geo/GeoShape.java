@@ -12,11 +12,6 @@ import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -30,6 +25,11 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantNamedWriteable;
 
@@ -110,7 +110,7 @@ public class GeoShape implements ToXContentFragment, ConstantNamedWriteable {
             @Override
             public Point visit(Line line) {
                 if (line.length() > 0) {
-                    return new Point(line.getX(0), line.getY(0), line.hasZ() ? line.getZ(0) :  Double.NaN);
+                    return new Point(line.getX(0), line.getY(0), line.hasZ() ? line.getZ(0) : Double.NaN);
                 }
                 return null;
             }
@@ -213,9 +213,14 @@ public class GeoShape implements ToXContentFragment, ConstantNamedWriteable {
         content.field("value", value);
         content.endObject();
 
-        try (InputStream stream = BytesReference.bytes(content).streamInput();
-             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                 NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = BytesReference.bytes(content).streamInput();
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                stream
+            )
+        ) {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value

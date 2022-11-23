@@ -13,8 +13,18 @@ import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * A request to retrieve information about an index.
@@ -50,9 +60,33 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
             }
             return FEATURES[id];
         }
+
+        public static Feature[] fromRequest(RestRequest request) {
+            if (request.hasParam("features")) {
+                String[] featureNames = request.param("features").split(",");
+                Set<Feature> features = new HashSet<>();
+                List<String> invalidFeatures = new ArrayList<>();
+                for (int k = 0; k < featureNames.length; k++) {
+                    try {
+                        features.add(Feature.valueOf(featureNames[k].toUpperCase(Locale.ROOT)));
+                    } catch (IllegalArgumentException e) {
+                        invalidFeatures.add(featureNames[k]);
+                    }
+                }
+                if (invalidFeatures.size() > 0) {
+                    throw new IllegalArgumentException(
+                        String.format(Locale.ROOT, "Invalid features specified [%s]", String.join(",", invalidFeatures))
+                    );
+                } else {
+                    return features.toArray(Feature[]::new);
+                }
+            } else {
+                return DEFAULT_FEATURES;
+            }
+        }
     }
 
-    private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
+    static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
     private Feature[] features = DEFAULT_FEATURES;
     private boolean humanReadable = false;
     private transient boolean includeDefaults = false;
@@ -130,5 +164,10 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         out.writeArray((o, f) -> o.writeByte(f.id), features);
         out.writeBoolean(humanReadable);
         out.writeBoolean(includeDefaults);
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 }

@@ -74,7 +74,7 @@ TIP: A shard can return fewer than `shard_size` buckets, but it cannot return mo
 
 ==== Shard size
 The `shard_size` parameter specifies the number of buckets that the coordinating node will request from each shard.
-A higher `shard_size` leads each shard to produce smaller buckets. This reduce the likelihood of buckets overlapping
+A higher `shard_size` leads each shard to produce smaller buckets. This reduces the likelihood of buckets overlapping
 after the reduction step. Increasing the `shard_size` will improve the accuracy of the histogram, but it will
 also make it more expensive to compute the final result because bigger priority queues will have to be managed on a
 shard level, and the data transfers between the nodes and the client will be larger.

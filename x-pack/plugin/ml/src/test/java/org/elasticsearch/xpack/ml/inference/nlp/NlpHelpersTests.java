@@ -23,10 +23,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class NlpHelpersTests extends ESTestCase {
 
     public void testConvertToProbabilitiesBySoftMax_GivenConcreteExample() {
-        double[][] scores = {
-            { 0.1, 0.2, 3},
-            { 6, 0.2, 0.1}
-        };
+        double[][] scores = { { 0.1, 0.2, 3 }, { 6, 0.2, 0.1 } };
 
         double[][] probabilities = NlpHelpers.convertToProbabilitiesBySoftMax(scores);
 
@@ -39,7 +36,7 @@ public class NlpHelpersTests extends ESTestCase {
     }
 
     public void testConvertToProbabilitiesBySoftMax_OneDimension() {
-        double[] scores = { 0.1, 0.2, 3};
+        double[] scores = { 0.1, 0.2, 3 };
         double[] probabilities = NlpHelpers.convertToProbabilitiesBySoftMax(scores);
 
         assertThat(probabilities[0], closeTo(0.04931133, 0.00000001));
@@ -58,8 +55,8 @@ public class NlpHelpersTests extends ESTestCase {
         double[][] probabilities = NlpHelpers.convertToProbabilitiesBySoftMax(scores);
 
         // Assert invariants that
-        //   1. each row sums to 1
-        //   2. all values are in [0-1]
+        // 1. each row sums to 1
+        // 2. all values are in [0-1]
         assertThat(probabilities.length, equalTo(scores.length));
         for (int i = 0; i < probabilities.length; i++) {
             assertThat(probabilities[i].length, equalTo(scores[i].length));
@@ -74,7 +71,7 @@ public class NlpHelpersTests extends ESTestCase {
 
     public void testTopK_SimpleCase() {
         int k = 3;
-        double[] data = new double[]{1.0, 0.0, 2.0, 8.0, 9.0, 4.2, 4.2, 3.0};
+        double[] data = new double[] { 1.0, 0.0, 2.0, 8.0, 9.0, 4.2, 4.2, 3.0 };
 
         NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(k, data);
         assertEquals(4, scoreAndIndices[0].index);
@@ -96,11 +93,9 @@ public class NlpHelpersTests extends ESTestCase {
         }
 
         AtomicInteger index = new AtomicInteger(0);
-        List<NlpHelpers.ScoreAndIndex> sortedByValue =
-            Stream.generate(() -> new NlpHelpers.ScoreAndIndex(data[index.get()], index.getAndIncrement()))
-                .limit(size)
-                .sorted((o1, o2) -> Double.compare(o2.score, o1.score))
-                .collect(Collectors.toList());
+        List<NlpHelpers.ScoreAndIndex> sortedByValue = Stream.generate(
+            () -> new NlpHelpers.ScoreAndIndex(data[index.get()], index.getAndIncrement())
+        ).limit(size).sorted((o1, o2) -> Double.compare(o2.score, o1.score)).collect(Collectors.toList());
 
         NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(k, data);
         assertEquals(k, scoreAndIndices.length);
@@ -114,7 +109,7 @@ public class NlpHelpersTests extends ESTestCase {
 
     public void testTopK_KGreaterThanArrayLength() {
         int k = 6;
-        double[] data = new double[]{1.0, 0.0, 2.0, 8.0};
+        double[] data = new double[] { 1.0, 0.0, 2.0, 8.0 };
 
         NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(k, data);
         assertEquals(4, scoreAndIndices.length);

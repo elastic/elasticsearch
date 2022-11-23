@@ -19,14 +19,28 @@ public class ReferenceAttribute extends TypedAttribute {
         this(source, name, dataType, null, Nullability.FALSE, null, false);
     }
 
-    public ReferenceAttribute(Source source, String name, DataType dataType, String qualifier, Nullability nullability,
-            NameId id, boolean synthetic) {
+    public ReferenceAttribute(
+        Source source,
+        String name,
+        DataType dataType,
+        String qualifier,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         super(source, name, dataType, qualifier, nullability, id, synthetic);
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType dataType, String qualifier, Nullability nullability, NameId id,
-            boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String name,
+        DataType dataType,
+        String qualifier,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         return new ReferenceAttribute(source, name, dataType, qualifier, nullability, id, synthetic);
     }
 

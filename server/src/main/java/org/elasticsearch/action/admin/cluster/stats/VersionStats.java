@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -18,9 +17,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,8 +66,8 @@ public final class VersionStats implements ToXContentFragment, Writeable {
         }
 
         // Loop through all indices in the metadata, building the counts as needed
-        for (ObjectObjectCursor<String, IndexMetadata> cursor : metadata.indices()) {
-            IndexMetadata indexMetadata = cursor.value;
+        for (Map.Entry<String, IndexMetadata> cursor : metadata.indices().entrySet()) {
+            IndexMetadata indexMetadata = cursor.getValue();
             // Increment version-specific index counts
             indexCounts.compute(indexMetadata.getCreationVersion(), (v, i) -> {
                 if (i == null) {
@@ -88,7 +87,8 @@ public final class VersionStats implements ToXContentFragment, Writeable {
             // Increment version-specific primary shard sizes
             primaryByteCounts.compute(indexMetadata.getCreationVersion(), (v, i) -> {
                 String indexName = indexMetadata.getIndex().getName();
-                long indexPrimarySize = indexPrimaryShardStats.getOrDefault(indexName, Collections.emptyList()).stream()
+                long indexPrimarySize = indexPrimaryShardStats.getOrDefault(indexName, Collections.emptyList())
+                    .stream()
                     .mapToLong(stats -> stats.getStats().getStore().sizeInBytes())
                     .sum();
                 if (i == null) {
@@ -101,8 +101,12 @@ public final class VersionStats implements ToXContentFragment, Writeable {
         List<SingleVersionStats> calculatedStats = new ArrayList<>(indexCounts.size());
         for (Map.Entry<Version, Integer> indexVersionCount : indexCounts.entrySet()) {
             Version v = indexVersionCount.getKey();
-            SingleVersionStats singleStats = new SingleVersionStats(v, indexVersionCount.getValue(),
-                primaryShardCounts.getOrDefault(v, 0), primaryByteCounts.getOrDefault(v, 0L));
+            SingleVersionStats singleStats = new SingleVersionStats(
+                v,
+                indexVersionCount.getValue(),
+                primaryShardCounts.getOrDefault(v, 0),
+                primaryByteCounts.getOrDefault(v, 0L)
+            );
             calculatedStats.add(singleStats);
         }
         return new VersionStats(calculatedStats);
@@ -185,7 +189,7 @@ public final class VersionStats implements ToXContentFragment, Writeable {
             builder.field("version", version.toString());
             builder.field("index_count", indexCount);
             builder.field("primary_shard_count", primaryShardCount);
-            builder.humanReadableField("total_primary_bytes", "total_primary_size", new ByteSizeValue(totalPrimaryByteCount));
+            builder.humanReadableField("total_primary_bytes", "total_primary_size", ByteSizeValue.ofBytes(totalPrimaryByteCount));
             builder.endObject();
             return builder;
         }
@@ -225,10 +229,10 @@ public final class VersionStats implements ToXContentFragment, Writeable {
             }
 
             SingleVersionStats other = (SingleVersionStats) obj;
-            return version.equals(other.version) &&
-                indexCount == other.indexCount &&
-                primaryShardCount == other.primaryShardCount &&
-                totalPrimaryByteCount == other.totalPrimaryByteCount;
+            return version.equals(other.version)
+                && indexCount == other.indexCount
+                && primaryShardCount == other.primaryShardCount
+                && totalPrimaryByteCount == other.totalPrimaryByteCount;
         }
 
         @Override

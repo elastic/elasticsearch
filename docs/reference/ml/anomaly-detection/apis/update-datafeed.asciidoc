@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-update-datafeed]]
 = Update {dfeeds} API
 
@@ -41,6 +40,26 @@ credentials are used instead.
 `<feed_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+
+[[ml-update-datafeed-query-params]]
+== {api-query-parms-title}
+
+`allow_no_indices`::
+(Optional, Boolean) If `true`, wildcard indices expressions that resolve into no
+concrete indices are ignored. This includes the `_all` string or when no indices
+are specified. Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
++
+deprecated:[7.16.0]
+
+`ignore_unavailable`::
+(Optional, Boolean) If `true`, unavailable indices (missing or closed) are
+ignored. Defaults to `false`.
 
 [role="child_attributes"]
 [[ml-update-datafeed-request-body]]
@@ -140,16 +159,16 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
 [source,console]
 --------------------------------------------------
-POST _ml/datafeeds/datafeed-total-requests/_update
+POST _ml/datafeeds/datafeed-test-job/_update
 {
   "query": {
     "term": {
-      "level": "error"
+      "geo.src": "US"
     }
   }
 }
 --------------------------------------------------
-// TEST[skip:setup:server_metrics_datafeed]
+// TEST[skip:setup sample web logs]
 
 When the {dfeed} is updated, you receive the full {dfeed} configuration with
 the updated values:
@@ -157,22 +176,36 @@ the updated values:
 [source,console-result]
 ----
 {
-  "datafeed_id": "datafeed-total-requests",
-  "job_id": "total-requests",
-  "query_delay": "83474ms",
-  "indices": ["server-metrics"],
-  "query": {
-    "term": {
-      "level": {
-        "value": "error",
-        "boost": 1.0
-      }
+  "datafeed_id" : "datafeed-test-job",
+  "job_id" : "test-job",
+  "authorization" : {
+    "roles" : [
+      "superuser"
+    ]
+  },
+  "query_delay" : "64489ms",
+  "chunking_config" : {
+    "mode" : "auto"
+  },
+  "indices_options" : {
+    "expand_wildcards" : [
+      "open"
+    ],
+    "ignore_unavailable" : false,
+    "allow_no_indices" : true,
+    "ignore_throttled" : true
+  },
+  "query" : {
+    "term" : {
+      "geo.src" : "US"
     }
   },
-  "scroll_size": 1000,
-  "chunking_config": {
-    "mode": "auto"
+  "indices" : [
+    "kibana_sample_data_logs"
+  ],
+  "scroll_size" : 1000,
+  "delayed_data_check_config" : {
+    "enabled" : true
   }
 }
 ----
-// TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]

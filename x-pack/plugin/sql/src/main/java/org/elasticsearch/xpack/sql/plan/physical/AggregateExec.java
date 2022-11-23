@@ -21,8 +21,12 @@ public class AggregateExec extends UnaryExec implements Unexecutable {
     private final List<? extends Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
 
-    public AggregateExec(Source source, PhysicalPlan child,
-            List<? extends Expression> groupings, List<? extends NamedExpression> aggregates) {
+    public AggregateExec(
+        Source source,
+        PhysicalPlan child,
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates
+    ) {
         super(source, child);
         this.groupings = groupings;
         this.aggregates = aggregates;
@@ -68,7 +72,7 @@ public class AggregateExec extends UnaryExec implements Unexecutable {
         AggregateExec other = (AggregateExec) obj;
 
         return Objects.equals(groupings, other.groupings)
-                && Objects.equals(aggregates, other.aggregates)
-                && Objects.equals(child(), other.child());
+            && Objects.equals(aggregates, other.aggregates)
+            && Objects.equals(child(), other.child());
     }
 }

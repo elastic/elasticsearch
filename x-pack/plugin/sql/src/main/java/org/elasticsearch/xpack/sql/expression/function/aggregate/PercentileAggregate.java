@@ -43,16 +43,13 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
     // contains all the possible PercentilesMethods that we know of and are capable of parameterizing at the moment
     private static final Map<String, MethodConfigurator> METHOD_CONFIGURATORS = new LinkedHashMap<>();
     static {
-        Arrays.asList(
-            new MethodConfigurator(PercentilesMethod.TDIGEST, TypeResolutions::isNumeric, methodParameter -> {
-                Double compression = foldNullSafe(methodParameter, DataTypes.DOUBLE);
-                return compression == null ? new PercentilesConfig.TDigest() : new PercentilesConfig.TDigest(compression);
-            }),
-            new MethodConfigurator(PercentilesMethod.HDR, TypeResolutions::isInteger, methodParameter -> {
-                Integer numOfDigits = foldNullSafe(methodParameter, DataTypes.INTEGER);
-                return numOfDigits == null ? new PercentilesConfig.Hdr() : new PercentilesConfig.Hdr(numOfDigits);
-            }))
-            .forEach(c -> METHOD_CONFIGURATORS.put(c.method.getParseField().getPreferredName(), c));
+        Arrays.asList(new MethodConfigurator(PercentilesMethod.TDIGEST, TypeResolutions::isNumeric, methodParameter -> {
+            Double compression = foldNullSafe(methodParameter, DataTypes.DOUBLE);
+            return compression == null ? new PercentilesConfig.TDigest() : new PercentilesConfig.TDigest(compression);
+        }), new MethodConfigurator(PercentilesMethod.HDR, TypeResolutions::isInteger, methodParameter -> {
+            Integer numOfDigits = foldNullSafe(methodParameter, DataTypes.INTEGER);
+            return numOfDigits == null ? new PercentilesConfig.Hdr() : new PercentilesConfig.Hdr(numOfDigits);
+        })).forEach(c -> METHOD_CONFIGURATORS.put(c.method.getParseField().getPreferredName(), c));
     }
 
     private static class MethodConfigurator {
@@ -67,7 +64,10 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
         private final Function<Expression, PercentilesConfig> parameterToConfig;
 
         MethodConfigurator(
-            PercentilesMethod method, MethodParameterResolver resolver, Function<Expression, PercentilesConfig> parameterToConfig) {
+            PercentilesMethod method,
+            MethodParameterResolver resolver,
+            Function<Expression, PercentilesConfig> parameterToConfig
+        ) {
             this.method = method;
             this.resolver = resolver;
             this.parameterToConfig = parameterToConfig;
@@ -79,8 +79,7 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
     private final Expression method;
     private final Expression methodParameter;
 
-    PercentileAggregate(Source source, Expression field, Expression parameter, Expression method, Expression methodParameter)
-    {
+    PercentileAggregate(Source source, Expression field, Expression parameter, Expression method, Expression methodParameter) {
         super(source, field, singletonList(parameter));
         this.parameter = parameter;
         this.method = method;
@@ -121,9 +120,16 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
 
             MethodConfigurator methodConfigurator = METHOD_CONFIGURATORS.get(methodName);
             if (methodConfigurator == null) {
-                return new TypeResolution(format(null, "{}argument of [{}] must be one of {}, received [{}]",
-                    methodOrdinal.name().toLowerCase(Locale.ROOT) + " ", sourceText(),
-                    METHOD_CONFIGURATORS.keySet(), methodName));
+                return new TypeResolution(
+                    format(
+                        null,
+                        "{}argument of [{}] must be one of {}, received [{}]",
+                        methodOrdinal.name().toLowerCase(Locale.ROOT) + " ",
+                        sourceText(),
+                        METHOD_CONFIGURATORS.keySet(),
+                        methodName
+                    )
+                );
             }
 
             // if method is null, the method parameter is not checked
@@ -199,7 +205,6 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
 
         PercentileAggregate that = (PercentileAggregate) o;
 
-        return Objects.equals(method, that.method)
-            && Objects.equals(methodParameter, that.methodParameter);
+        return Objects.equals(method, that.method) && Objects.equals(methodParameter, that.methodParameter);
     }
 }

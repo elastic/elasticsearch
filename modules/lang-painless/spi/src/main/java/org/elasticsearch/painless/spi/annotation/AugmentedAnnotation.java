@@ -37,17 +37,6 @@ package org.elasticsearch.painless.spi.annotation;
  * ...
  * }
  */
-public class AugmentedAnnotation {
-
+public record AugmentedAnnotation(String augmentedCanonicalClassName) {
     public static final String NAME = "augmented";
-
-    private final String augmentedCanonicalClassName;
-
-    public AugmentedAnnotation(String augmentedCanonicalClassName) {
-        this.augmentedCanonicalClassName = augmentedCanonicalClassName;
-    }
-
-    public String getAugmentedCanonicalClassName() {
-        return augmentedCanonicalClassName;
-    }
 }

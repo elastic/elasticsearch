@@ -9,18 +9,32 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 public class GeoBoundingBoxQueryGeoPointIT extends GeoBoundingBoxQueryIntegTestCase {
 
+    @SuppressWarnings("deprecation")
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
+    }
+
     @Override
     public XContentBuilder getMapping() throws IOException {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("location").field("type", "geo_point");
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject();
         return xContentBuilder;
     }
@@ -30,4 +44,3 @@ public class GeoBoundingBoxQueryGeoPointIT extends GeoBoundingBoxQueryIntegTestC
         return VersionUtils.randomIndexCompatibleVersion(random());
     }
 }
-

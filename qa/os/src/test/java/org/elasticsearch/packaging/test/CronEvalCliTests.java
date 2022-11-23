@@ -27,11 +27,11 @@ public class CronEvalCliTests extends PackagingTestCase {
 
     public void test20Help() throws Exception {
         Shell.Result result = installation.executables().cronevalTool.run("--help");
-        assertThat(result.stdout, containsString("Validates and evaluates a cron expression"));
+        assertThat(result.stdout(), containsString("Validates and evaluates a cron expression"));
     }
 
     public void test30Run() throws Exception {
         Shell.Result result = installation.executables().cronevalTool.run("'0 0 20 ? * MON-THU' -c 2");
-        assertThat(result.stdout, containsString("Valid!"));
+        assertThat(result.stdout(), containsString("Valid!"));
     }
 }

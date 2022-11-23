@@ -71,6 +71,8 @@ public final class XPackField {
     public static final String AGGREGATE_METRIC = "aggregate_metric";
     /** Name constant for the operator privileges feature. */
     public static final String OPERATOR_PRIVILEGES = "operator_privileges";
+    /** Name constant for the archive feature. */
+    public static final String ARCHIVE = "archive";
 
     private XPackField() {}
 

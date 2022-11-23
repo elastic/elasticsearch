@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanWithinQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanWithinQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -26,6 +26,14 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
     }
 
     @Override
+    protected SpanWithinQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof SpanWithinQueryBuilder) {
+            return new SpanWithinQueryBuilder((SpanWithinQueryBuilder) queryBuilder, (SpanWithinQueryBuilder) queryBuilder);
+        }
+        return new SpanWithinQueryBuilder(new SpanTermQueryBuilder("field", "value"), new SpanTermQueryBuilder("field", "value"));
+    }
+
+    @Override
     protected void doAssertLuceneQuery(SpanWithinQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, instanceOf(SpanWithinQuery.class));
     }
@@ -37,42 +45,38 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"span_within\" : {\n" +
-                "    \"big\" : {\n" +
-                "      \"span_near\" : {\n" +
-                "        \"clauses\" : [ {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"bar\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        }, {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"baz\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        } ],\n" +
-                "        \"slop\" : 5,\n" +
-                "        \"in_order\" : true,\n" +
-                "        \"boost\" : 1.0\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"little\" : {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field1\" : {\n" +
-                "          \"value\" : \"foo\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"boost\" : 2.0\n" +
-                "  }\n" +
-                "}";
+        String json = """
+            {
+              "span_within" : {
+                "big" : {
+                  "span_near" : {
+                    "clauses" : [ {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "bar"
+                        }
+                      }
+                    }, {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "baz"
+                        }
+                      }
+                    } ],
+                    "slop" : 5,
+                    "in_order" : true
+                  }
+                },
+                "little" : {
+                  "span_term" : {
+                    "field1" : {
+                      "value" : "foo"
+                    }
+                  }
+                },
+                "boost" : 2.0
+              }
+            }""";
 
         SpanWithinQueryBuilder parsed = (SpanWithinQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -83,88 +87,89 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
     }
 
     public void testFromJsonWithNonDefaultBoostInBigQuery() {
-        String json =
-                "{\n" +
-                "  \"span_within\" : {\n" +
-                "    \"big\" : {\n" +
-                "      \"span_near\" : {\n" +
-                "        \"clauses\" : [ {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"bar\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        }, {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"baz\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        } ],\n" +
-                "        \"slop\" : 5,\n" +
-                "        \"in_order\" : true,\n" +
-                "        \"boost\" : 2.0\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"little\" : {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field1\" : {\n" +
-                "          \"value\" : \"foo\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String json = """
+            {
+              "span_within" : {
+                "big" : {
+                  "span_near" : {
+                    "clauses" : [ {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "bar",
+                          "boost" : 1.0
+                        }
+                      }
+                    }, {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "baz",
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "slop" : 5,
+                    "in_order" : true,
+                    "boost" : 2.0
+                  }
+                },
+                "little" : {
+                  "span_term" : {
+                    "field1" : {
+                      "value" : "foo",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "boost" : 1.0
+              }
+            }""";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(),
-            equalTo("span_within [big] as a nested span clause can't have non-default boost value [2.0]"));
+        assertThat(exception.getMessage(), equalTo("span_within [big] as a nested span clause can't have non-default boost value [2.0]"));
     }
 
     public void testFromJsonWithNonDefaultBoostInLittleQuery() {
-        String json =
-                "{\n" +
-                "  \"span_within\" : {\n" +
-                "    \"little\" : {\n" +
-                "      \"span_near\" : {\n" +
-                "        \"clauses\" : [ {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"bar\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        }, {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"baz\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        } ],\n" +
-                "        \"slop\" : 5,\n" +
-                "        \"in_order\" : true,\n" +
-                "        \"boost\" : 2.0\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"big\" : {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field1\" : {\n" +
-                "          \"value\" : \"foo\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String json = """
+            {
+              "span_within" : {
+                "little" : {
+                  "span_near" : {
+                    "clauses" : [ {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "bar",
+                          "boost" : 1.0
+                        }
+                      }
+                    }, {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "baz",
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "slop" : 5,
+                    "in_order" : true,
+                    "boost" : 2.0
+                  }
+                },
+                "big" : {
+                  "span_term" : {
+                    "field1" : {
+                      "value" : "foo",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "boost" : 1.0
+              }
+            }""";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(),
-            equalTo("span_within [little] as a nested span clause can't have non-default boost value [2.0]"));
+        assertThat(
+            exception.getMessage(),
+            equalTo("span_within [little] as a nested span clause can't have non-default boost value [2.0]")
+        );
     }
 }

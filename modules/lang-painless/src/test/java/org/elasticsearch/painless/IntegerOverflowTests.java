@@ -13,16 +13,16 @@ public class IntegerOverflowTests extends ScriptTestCase {
 
     public void testAssignmentAdditionOverflow() {
         // byte
-        assertEquals((byte)(0 + 128), exec("byte x = 0; x += 128; return x;"));
-        assertEquals((byte)(0 + -129), exec("byte x = 0; x += -129; return x;"));
+        assertEquals((byte) (0 + 128), exec("byte x = 0; x += 128; return x;"));
+        assertEquals((byte) (0 + -129), exec("byte x = 0; x += -129; return x;"));
 
         // short
-        assertEquals((short)(0 + 32768), exec("short x = 0; x += 32768; return x;"));
-        assertEquals((short)(0 + -32769), exec("short x = 0; x += -32769; return x;"));
+        assertEquals((short) (0 + 32768), exec("short x = 0; x += 32768; return x;"));
+        assertEquals((short) (0 + -32769), exec("short x = 0; x += -32769; return x;"));
 
         // char
-        assertEquals((char)(0 + 65536), exec("char x = 0; x += 65536; return x;"));
-        assertEquals((char)(0 + -65536), exec("char x = 0; x += -65536; return x;"));
+        assertEquals((char) (0 + 65536), exec("char x = 0; x += 65536; return x;"));
+        assertEquals((char) (0 + -65536), exec("char x = 0; x += -65536; return x;"));
 
         // int
         assertEquals(1 + 2147483647, exec("int x = 1; x += 2147483647; return x;"));
@@ -35,16 +35,16 @@ public class IntegerOverflowTests extends ScriptTestCase {
 
     public void testAssignmentSubtractionOverflow() {
         // byte
-        assertEquals((byte)(0 - -128), exec("byte x = 0; x -= -128; return x;"));
-        assertEquals((byte)(0 - 129), exec("byte x = 0; x -= 129; return x;"));
+        assertEquals((byte) (0 - -128), exec("byte x = 0; x -= -128; return x;"));
+        assertEquals((byte) (0 - 129), exec("byte x = 0; x -= 129; return x;"));
 
         // short
-        assertEquals((short)(0 - -32768), exec("short x = 0; x -= -32768; return x;"));
-        assertEquals((short)(0 - 32769), exec("short x = 0; x -= 32769; return x;"));
+        assertEquals((short) (0 - -32768), exec("short x = 0; x -= -32768; return x;"));
+        assertEquals((short) (0 - 32769), exec("short x = 0; x -= 32769; return x;"));
 
         // char
-        assertEquals((char)(0 - -65536), exec("char x = 0; x -= -65536; return x;"));
-        assertEquals((char)(0 - 65536), exec("char x = 0; x -= 65536; return x;"));
+        assertEquals((char) (0 - -65536), exec("char x = 0; x -= -65536; return x;"));
+        assertEquals((char) (0 - 65536), exec("char x = 0; x -= 65536; return x;"));
 
         // int
         assertEquals(1 - -2147483647, exec("int x = 1; x -= -2147483647; return x;"));
@@ -123,8 +123,10 @@ public class IntegerOverflowTests extends ScriptTestCase {
 
     public void testAddition() throws Exception {
         assertEquals(2147483647 + 2147483647, exec("int x = 2147483647; int y = 2147483647; return x + y;"));
-        assertEquals(9223372036854775807L + 9223372036854775807L,
-                exec("long x = 9223372036854775807L; long y = 9223372036854775807L; return x + y;"));
+        assertEquals(
+            9223372036854775807L + 9223372036854775807L,
+            exec("long x = 9223372036854775807L; long y = 9223372036854775807L; return x + y;")
+        );
     }
 
     public void testAdditionConst() throws Exception {
@@ -144,8 +146,10 @@ public class IntegerOverflowTests extends ScriptTestCase {
 
     public void testMultiplication() throws Exception {
         assertEquals(2147483647 * 2147483647, exec("int x = 2147483647; int y = 2147483647; return x * y;"));
-        assertEquals(9223372036854775807L * 9223372036854775807L,
-                exec("long x = 9223372036854775807L; long y = 9223372036854775807L; return x * y;"));
+        assertEquals(
+            9223372036854775807L * 9223372036854775807L,
+            exec("long x = 9223372036854775807L; long y = 9223372036854775807L; return x * y;")
+        );
     }
 
     public void testMultiplicationConst() throws Exception {

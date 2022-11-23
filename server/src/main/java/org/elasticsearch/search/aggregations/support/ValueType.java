@@ -11,9 +11,9 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -106,29 +106,17 @@ public enum ValueType implements Writeable {
     }
 
     public static ValueType lenientParse(String type) {
-        switch (type) {
-            case "string":
-                return STRING;
-            case "double":
-            case "float":
-                return DOUBLE;
-            case "number":
-            case "numeric":
-            case "long":
-            case "integer":
-            case "short":
-            case "byte":
-                return LONG;
-            case "date":
-                return DATE;
-            case "ip":
-                return IP;
-            case "boolean":
-                return BOOLEAN;
-            default:
+        return switch (type) {
+            case "string" -> STRING;
+            case "double", "float" -> DOUBLE;
+            case "number", "numeric", "long", "integer", "short", "byte" -> LONG;
+            case "date" -> DATE;
+            case "ip" -> IP;
+            case "boolean" -> BOOLEAN;
+            default ->
                 // TODO: do not be lenient here
-                return null;
-        }
+                null;
+        };
     }
 
     @Override

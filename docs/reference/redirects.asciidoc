@@ -3,6 +3,175 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="modules-discovery-hosts-providers"]
+=== Node discovery
+
+Refer to <<discovery-hosts-providers,Discovery>>.
+
+[role="exclude",id="modules-discovery-troubleshooting"]
+==== Troubleshooting node discovery
+
+Refer to <<discovery-troubleshooting,Troubleshooting discovery>>.
+
+[role="exclude",id="jwt-realm"]
+=== JWT realm
+
+Refer to <<jwt-auth-realm,JWT authentication>>.
+
+[role="exclude",id="_authorizing_with_the_role_mapping_api"]
+==== Role mapping with JWT
+
+Refer to <<jwt-authorization-role-mapping,Authorizing with the role mapping API>>.
+
+[role="exclude",id="migration-api-feature-upgrade"]
+=== Feature upgrade APIs
+
+Refer to <<feature-migration-api,Feature migration APIs>>.
+
+[role="exclude",id="java-clients"]
+=== Java transport client and security
+
+The Java transport client has been removed. Use the
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high.html[Java
+high-level REST client] instead. For migration steps, refer to the
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high-level-migration.html[migration
+guide].
+
+// [START] Snapshot and restore
+
+[role="exclude",id="snapshot-lifecycle-management"]
+=== {slm-cap} ({slm-init})
+
+See <<automate-snapshots-slm>>.
+
+[role="exclude",id="getting-started-snapshot-lifecycle-management"]
+=== Tutorial: Automate backups with {slm-init}
+
+See <<automate-snapshots-slm>>.
+
+[role="exclude",id="slm-and-security"]
+=== Security and {slm-init}
+
+See <<slm-security>>.
+
+[role="exclude",id="slm-retention"]
+=== Snapshot retention
+
+See <<slm-retention-task>>.
+
+[role="exclude",id="delete-snapshots"]
+=== Delete a snapshot
+
+See <<delete-snapshot>>.
+
+[role="exclude",id="snapshots-monitor-snapshot-restore"]
+=== Monitor snapshot progress
+
+See <<monitor-snapshot>>.
+
+[role="exclude",id="backup-cluster"]
+=== Back up a cluster
+
+See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="backup-cluster-data"]
+=== Back up a cluster's data
+
+See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="backup-cluster-configuration"]
+=== Back up a cluster's configuration
+
+See <<back-up-config-files>>.
+
+[role="exclude",id="security-backup"]
+=== Back up a cluster's security configuration
+
+See <<back-up-config-files>> and <<cluster-state-snapshots>>.
+
+// [END] Snapshot and restore
+
+[role="exclude",id="configuring-tls-docker"]
+=== Encrypting communications in an {es} Docker Container
+
+Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose>>.
+
+[role="exclude",id="next-getting-started-tls-docker"]
+=== Start a multi-node cluster with TLS enabled
+
+Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose>>.
+
+// [START] Remote clusters
+
+[role="exclude",id="ccs-clients-integrations"]
+=== {ccs-cap}, clients, and integrations
+
+Refer to <<security-clients-integrations,Securing clients and integrations>>.
+
+[role="exclude",id="cross-cluster-configuring"]
+=== {ccs-cap} and security
+
+Refer to <<remote-clusters-security,configure remote clusters with security>>.
+
+[role="exclude",id="cross-cluster-kibana"]
+==== {ccs-cap} and {kib}
+
+Refer to <<clusters-privileges-ccs-kibana,Configure privileges for {ccs} and {kib}>>.
+
+[role="exclude",id="ccr-getting-started"]
+=== Configure {ccr}
+
+Refer to <<ccr-getting-started-tutorial,Set up {ccr}>>.
+
+[role="exclude",id="ccr-getting-started-remote-cluster"]
+==== Connect a remote cluster
+
+Refer to <<remote-clusters-connect,Connecting remote clusters>>.
+
+[role="exclude",id="modules-remote-clusters"]
+=== Remote clusters
+
+Refer to <<remote-clusters,Remote clusters>>.
+
+[role="exclude",id="configuring-remote-clusters"]
+==== Configuring remote clusters
+
+Refer to <<remote-clusters-connect,Connect remote clusters>>.
+
+[role="exclude",id="remote-cluster-settings"]
+==== Remote cluster settings
+
+Refer to <<remote-clusters-settings,Remote clusters settings>>.
+
+// [END] Remote clusters
+
+[role="exclude",id="restore-cluster-data"]
+=== Restore a cluster's data
+
+See <<restore-entire-cluster>>.
+
+[role="exclude",id="freeze-index-api"]
+=== Freeze index API
+
+The freeze index API was removed in 8.0.
+// tag::frozen-removal-explanation[]
+Frozen indices are no longer useful due to
+https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[recent
+improvements in heap memory usage].
+// end::frozen-removal-explanation[]
+
+[role="exclude",id="ilm-freeze"]
+=== Freeze {ilm-init} action
+
+The freeze {ilm-init} action was removed in 8.0.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
+
+[role="exclude",id="ilm-freeze-action"]
+=== Freeze {ilm-init} action
+
+The freeze {ilm-init} action was removed in 8.0.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
+
 [role="exclude",id="alias"]
 === Aliases
 
@@ -11,6 +180,7 @@ For field aliases, refer to the <<field-alias,alias field type>>.
 For index and data stream aliases, refer to <<aliases>>.
 
 [role="exclude",id="modules-scripting-other-layers"]
+
 === Other security layers
 
 Refer to <<modules-scripting-security>>.
@@ -23,9 +193,10 @@ See <<grok,Grokking grok>>.
 // [START] Security redirects
 
 [role="exclude",id="get-started-users"]
-=== Create users
+==== Create users
 
-See <<security-create-builtin-users,Create passwords for built-in users>>.
+Refer to the <<reset-password,`elasticsearch-reset-password`>> tool for resetting
+passwords of built-in users.
 
 [role="exclude",id="encrypting-communications-certificates"]
 === Generate certificates
@@ -148,6 +319,11 @@ See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
 === Encrypting communications
 
 See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+
+[role="exclude",id="security-api-search-user-profile"]
+=== Search user profile API
+
+See <<security-api-suggest-user-profile,Suggest user profile API>>.
 // [END] Security redirects
 
 [roles="exclude",id="modules-scripting-stored-scripts"]
@@ -198,8 +374,9 @@ See <<xpack-ccr,Cross-cluster replication>>.
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
-The `_upgrade` API is no longer useful and will be removed. Instead, see
-<<reindex-upgrade>>.
+The `_upgrade` API is no longer useful and will be removed.
+For information about upgrading, see
+{stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].
 
 [role="exclude",id="mapping-parent-field"]
 === `_parent` field
@@ -232,19 +409,19 @@ See <<commands>>.
 === Calendar resources
 
 See <<ml-get-calendar>> and
-{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
+{ml-docs}/ml-ad-run-jobs.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="ml-filter-resource"]
 === Filter resources
 
 See <<ml-get-filter>> and
-{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-rules[Machine learning custom rules].
+{ml-docs}/ml-ad-run-jobs.html#ml-ad-rules[Machine learning custom rules].
 
 [role="exclude",id="ml-event-resource"]
 === Scheduled event resources
 
 See <<ml-get-calendar-event>> and
-{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
+{ml-docs}/ml-ad-run-jobs.html#ml-ad-calendars[Calendars and scheduled events].
 
 [role="exclude",id="index-apis"]
 === Index APIs
@@ -437,10 +614,6 @@ See <<getting-started-search>>.
 [role="exclude", id="getting-started-search-API"]
 === Search API
 See <<getting-started-search>>.
-
-[role="exclude", id="getting-started-conclusion"]
-=== Conclusion
-See <<getting-started-next-steps>>.
 
 [role="exclude",id="ccs-reduction"]
 === {ccs-cap} reduction
@@ -762,12 +935,12 @@ See <<snapshot-restore>>.
 [role="exclude",id="_repository_plugins"]
 ==== Repository plugins
 
-See <<snapshots-repository-plugins>>.
+See <<self-managed-repo-types>>.
 
 [role="exclude",id="_changing_index_settings_during_restore"]
 ==== Change index settings during restore
 
-See <<change-index-settings-during-restore>>.
+See <<restore-snapshot-api-index-settings>>.
 
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot
@@ -989,11 +1162,6 @@ See <<ilm-delete>>.
 
 See <<ilm-forcemerge>>.
 
-[role="exclude",id="ilm-freeze-action"]
-==== Freeze action
-
-See <<ilm-freeze>>.
-
 [role="exclude",id="ilm-migrate-action"]
 ==== Migrate action
 
@@ -1098,7 +1266,7 @@ For other information, see:
 * <<modules-threadpool>>
 * <<modules-node>>
 * <<modules-plugins>>
-* <<modules-remote-clusters>>
+* <<remote-clusters>>
 
 [role="exclude",id="modules-http"]
 === HTTP
@@ -1550,30 +1718,30 @@ See <<rollup-apis>>.
 [role="exclude",id="getting-started-install"]
 === Get {es} up and running
 
-See <<run-elasticsearch>>.
+See <<configuring-stack-security>>.
+
+[role="exclude",id="getting-started"]
+=== Quick start
+
+See {estc-welcome}/getting-started-general-purpose.html[Set up a general purpose Elastic deployment].
 
 [role="exclude",id="getting-started-index"]
 === Index some documents
 
-See <<add-data>>.
+See {estc-welcome}/getting-started-general-purpose.html#gp-gs-add-data[Add data].
 
 [role="exclude",id="getting-started-search"]
 === Start searching
 
-See <<qs-search-data>>.
+See {estc-welcome}/getting-started-general-purpose.html#gp-gs-search-data[Search and sort data].
 
 [role="exclude",id="getting-started-aggregations"]
 === Analyze results with aggregations
 
-See <<getting-started>>.
-
-[role="exclude",id="getting-started-next-steps"]
-=== Where to go from here
-
-See <<getting-started>>.
+See <<search-aggregations>>.
 
 [role="exclude",id="jvm-options"]
-=== Settng JVM options
+=== Setting JVM options
 
 See <<set-jvm-options>>.
 
@@ -1586,9 +1754,8 @@ See <<search-terms-enum>>.
 === Frozen indices
 
 // tag::frozen-index-redirect[]
-include::{es-repo-dir}/indices/apis/freeze.asciidoc[tag=freeze-api-dep]
 
-For API documentation, see <<freeze-index-api>> and <<unfreeze-index-api>>.
+For API documentation, see <<unfreeze-index-api>>.
 // end::frozen-index-redirect[]
 
 [role="exclude",id="best_practices"]
@@ -1613,16 +1780,16 @@ See the {glossary}/terms.html[Elastic glossary].
 [role="exclude",id="multi-index"]
 === Multi-target syntax
 
-See <<api-multi-index>>. 
+See <<api-multi-index>>.
 
 [float]
 [[hidden]]
 ==== Hidden data streams and indices
 
-See <<multi-hidden>>. 
+See <<multi-hidden>>.
 
 [role="exclude",id="date-math-index-names"]
-=== Date math support in system and index alias names 
+=== Date math support in system and index alias names
 
 See <<api-date-math-index-names>>.
 
@@ -1651,3 +1818,53 @@ See <<security-api-kibana-enrollment>>.
 
 See the <<sql-search-api-request-body,request body parameters>> for the
 <<sql-search-api,SQL search API>>.
+
+[role="exclude",id="restart-upgrade"]
+=== Full cluster restart upgrade
+
+When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
+even if you opt to perform a full-cluster restart instead of a rolling upgrade.
+For more information about upgrading, refer to
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
+
+[role="exclude",id="rolling-upgrades"]
+=== Rolling upgrade
+
+When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
+whether you opt to perform a rolling upgrade (upgrade one node at a time) or a full-cluster restart upgrade.
+For more information about upgrading, refer to
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
+
+[role="exclude",id="reindex-upgrade"]
+=== Reindex before upgrading
+
+//tag::upgrade-reindex[]
+Before upgrading to {es} 8.0 and later, you must reindex any indices created in
+a 6.x version. We recommend using the **Upgrade Assistant** to guide you
+through this process.
+
+For more information about upgrading, refer to
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
+//end::upgrade-reindex[]
+
+For more information about reindexing, refer to <<docs-reindex>>.
+
+[role="exclude",id="reindex-upgrade-inplace"]
+=== Reindex in place
+
+include::redirects.asciidoc[tag=upgrade-reindex]
+
+For more information about reindexing, refer to <<docs-reindex>>.
+
+[role="exclude",id="reindex-upgrade-remote"]
+=== Reindex from a remote cluster
+
+include::redirects.asciidoc[tag=upgrade-reindex]
+
+For more information about reindexing from a remote cluster, refer to
+<<reindex-from-remote>>.
+
+[role="exclude",id="infer-trained-model-deployment"]
+=== Infer trained model deployment API
+
+See <<infer-trained-model>>.

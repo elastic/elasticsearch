@@ -5,6 +5,10 @@ import static org.elasticsearch.gradle.internal.distribution.InternalElasticsear
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 
+dockerCompose {
+  composeAdditionalArgs = ['--compatibility']
+}
+
 tasks.register("copyKeystore", Sync) {
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
@@ -27,7 +31,7 @@ elasticsearch_distributions {
 tasks.named("preProcessFixture").configure {
   dependsOn "copyKeystore", elasticsearch_distributions.docker
   doLast {
-    File file = file("${buildDir}/logs/node1")
+    File file = file("${testFixturesDir}/logs/node1")
     file.mkdirs()
     file.setWritable(true, false)
   }

@@ -30,7 +30,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
@@ -44,9 +43,11 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             final int numInnerHits = randomIntBetween(1, 5);
             List<SearchHits> collapsedHits = new ArrayList<>(numInnerHits);
             for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {
-                SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(innerHitNum, "ID",
-                    Collections.emptyMap(), Collections.emptyMap()), new SearchHit(innerHitNum + 1, "ID",
-                    Collections.emptyMap(), Collections.emptyMap())}, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1.0F);
+                SearchHits hits = new SearchHits(
+                    new SearchHit[] { new SearchHit(innerHitNum, "ID"), new SearchHit(innerHitNum + 1, "ID") },
+                    new TotalHits(2, TotalHits.Relation.EQUAL_TO),
+                    1.0F
+                );
                 collapsedHits.add(hits);
             }
 
@@ -57,10 +58,14 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             final MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
             String collapseValue = randomBoolean() ? null : "boom";
 
-            mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
-                .collapse(new CollapseBuilder("someField")
-                    .setInnerHits(IntStream.range(0, numInnerHits).mapToObj(hitNum -> new InnerHitBuilder().setName("innerHit" + hitNum))
-                        .collect(Collectors.toList()))));
+            mockSearchPhaseContext.getRequest()
+                .source(
+                    new SearchSourceBuilder().collapse(
+                        new CollapseBuilder("someField").setInnerHits(
+                            IntStream.range(0, numInnerHits).mapToObj(hitNum -> new InnerHitBuilder().setName("innerHit" + hitNum)).toList()
+                        )
+                    )
+                );
             mockSearchPhaseContext.getRequest().source().query(originalQuery).runtimeMappings(runtimeMappings);
             mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
                 @Override
@@ -84,22 +89,35 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
                     List<MultiSearchResponse.Item> mSearchResponses = new ArrayList<>(numInnerHits);
                     for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {
-                        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(collapsedHits.get(innerHitNum),
-                            null, null, null, false, null, 1);
+                        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
+                            collapsedHits.get(innerHitNum),
+                            null,
+                            null,
+                            null,
+                            false,
+                            null,
+                            1
+                        );
                         mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
                         mSearchResponses.add(new MultiSearchResponse.Item(mockSearchPhaseContext.searchResponse.get(), null));
                     }
 
                     listener.onResponse(
-                            new MultiSearchResponse(mSearchResponses.toArray(new MultiSearchResponse.Item[0]), randomIntBetween(1, 10000)));
+                        new MultiSearchResponse(mSearchResponses.toArray(new MultiSearchResponse.Item[0]), randomIntBetween(1, 10000))
+                    );
                 }
             };
 
-            SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(1, "ID",
-                Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))),
-                Collections.emptyMap())}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
+            SearchHit hit = new SearchHit(1, "ID");
+            hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
+            SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+                @Override
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+                }
+            });
 
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
@@ -118,38 +136,57 @@ public class ExpandSearchPhaseTests extends ESTestCase {
     public void testFailOneItemFailsEntirePhase() throws IOException {
         AtomicBoolean executedMultiSearch = new AtomicBoolean(false);
 
-        SearchHits collapsedHits = new SearchHits(new SearchHit[]{new SearchHit(2, "ID",
-            Collections.emptyMap(), Collections.emptyMap()), new SearchHit(3, "ID",
-            Collections.emptyMap(), Collections.emptyMap())}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
+        SearchHits collapsedHits = new SearchHits(
+            new SearchHit[] { new SearchHit(2, "ID"), new SearchHit(3, "ID") },
+            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+            1.0F
+        );
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         String collapseValue = randomBoolean() ? null : "boom";
-        mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
-            .collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
+        mockSearchPhaseContext.getRequest()
+            .source(
+                new SearchSourceBuilder().collapse(
+                    new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))
+                )
+            );
         mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                 assertTrue(executedMultiSearch.compareAndSet(false, true));
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(collapsedHits,
-                    null, null, null, false, null, 1);
-                SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, 0,
-                    ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
-                listener.onResponse(new MultiSearchResponse(
-                    new MultiSearchResponse.Item[]{
+                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(collapsedHits, null, null, null, false, null, 1);
+                SearchResponse searchResponse = new SearchResponse(
+                    internalSearchResponse,
+                    null,
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
+                );
+                listener.onResponse(
+                    new MultiSearchResponse(
+                        new MultiSearchResponse.Item[] {
                             new MultiSearchResponse.Item(null, new RuntimeException("boom")),
-                            new MultiSearchResponse.Item(searchResponse, null)
-                    }, randomIntBetween(1, 10000)));
+                            new MultiSearchResponse.Item(searchResponse, null) },
+                        randomIntBetween(1, 10000)
+                    )
+                );
             }
         };
 
-        SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(1, "ID",
-            Collections.singletonMap("someField", new DocumentField("someField",
-                Collections.singletonList(collapseValue))), Collections.emptyMap()),
-            new SearchHit(2, "ID2",
-                Collections.singletonMap("someField", new DocumentField("someField",
-                    Collections.singletonList(collapseValue))), Collections.emptyMap())},
-            new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
+        SearchHit hit1 = new SearchHit(1, "ID");
+        hit1.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
+        SearchHit hit2 = new SearchHit(2, "ID2");
+        hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
+        SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+            @Override
+            public void run() {
+                mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+            }
+        });
         phase.run();
         assertThat(mockSearchPhaseContext.phaseFailure.get(), Matchers.instanceOf(RuntimeException.class));
         assertEquals("boom", mockSearchPhaseContext.phaseFailure.get().getMessage());
@@ -162,19 +199,22 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
-              fail("no collapsing here");
+                fail("no collapsing here");
             }
         };
 
-        SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(1, "ID",
-            Collections.singletonMap("someField", new DocumentField("someField",
-                Collections.singletonList(null))), Collections.emptyMap()),
-            new SearchHit(2, "ID2",
-                Collections.singletonMap("someField", new DocumentField("someField",
-                    Collections.singletonList(null))), Collections.emptyMap())},
-            new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
+        SearchHit hit1 = new SearchHit(1, "ID");
+        hit1.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
+        SearchHit hit2 = new SearchHit(2, "ID2");
+        hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
+        SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+            @Override
+            public void run() {
+                mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+            }
+        });
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());
@@ -188,12 +228,21 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 fail("expand should not try to send empty multi search request");
             }
         };
-        mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
-            .collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
+        mockSearchPhaseContext.getRequest()
+            .source(
+                new SearchSourceBuilder().collapse(
+                    new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))
+                )
+            );
 
         SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+            @Override
+            public void run() {
+                mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+            }
+        });
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());
@@ -218,19 +267,25 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().excludes().length == 0));
             }
         };
-        mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
-            .collapse(
-                new CollapseBuilder("someField")
-                    .setInnerHits(new InnerHitBuilder().setName("foobarbaz").setVersion(version).setSeqNoAndPrimaryTerm(seqNoAndTerm))
+        mockSearchPhaseContext.getRequest()
+            .source(
+                new SearchSourceBuilder().collapse(
+                    new CollapseBuilder("someField").setInnerHits(
+                        new InnerHitBuilder().setName("foobarbaz").setVersion(version).setSeqNoAndPrimaryTerm(seqNoAndTerm)
+                    )
+                ).fetchSource(false).postFilter(QueryBuilders.existsQuery("foo"))
             )
-            .fetchSource(false)
-            .postFilter(QueryBuilders.existsQuery("foo")))
             .preference("foobar")
             .routing("baz");
 
         SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+            @Override
+            public void run() throws IOException {
+                mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+            }
+        });
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());

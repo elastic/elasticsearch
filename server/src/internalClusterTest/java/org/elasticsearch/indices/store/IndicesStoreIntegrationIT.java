@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,7 +24,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +38,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -90,10 +89,13 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         final String node_1 = internalCluster().startNode(nonMasterNode());
         final String node_2 = internalCluster().startNode(nonMasterNode());
         logger.info("--> creating index [test] with one shard and on replica");
-        assertAcked(prepareCreate("test").setSettings(
-                        Settings.builder().put(indexSettings())
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
         );
         ensureGreen("test");
         ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -108,10 +110,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> starting node server3");
         final String node_3 = internalCluster().startNode(nonMasterNode());
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
-                .setWaitForNodes("4")
-                .setWaitForNoRelocatingShards(true)
-                .get();
+        ClusterHealthResponse clusterHealth = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForNodes("4")
+            .setWaitForNoRelocatingShards(true)
+            .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
@@ -132,9 +136,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         } else {
             internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
         }
-        clusterHealth = client().admin().cluster().prepareHealth()
-                .setWaitForNoRelocatingShards(true)
-                .get();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         assertShardDeleted(node_1, index, 0);
@@ -149,8 +151,13 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     /**
      * relocate a shard and block cluster state processing on the relocation target node to activate the shard
      */
-    public static BlockClusterStateProcessing relocateAndBlockCompletion(Logger logger, String index, int shard, String nodeFrom,
-                                                                         String nodeTo) throws InterruptedException {
+    public static BlockClusterStateProcessing relocateAndBlockCompletion(
+        Logger logger,
+        String index,
+        int shard,
+        String nodeFrom,
+        String nodeTo
+    ) throws InterruptedException {
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodeTo, random());
         internalCluster().setDisruptionScheme(disruption);
         MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeTo);
@@ -187,10 +194,13 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     public void testShardCleanupIfShardDeletionAfterRelocationFailedAndIndexDeleted() throws Exception {
         final String node_1 = internalCluster().startNode();
         logger.info("--> creating index [test] with one shard and on replica");
-        assertAcked(prepareCreate("test").setSettings(
-                        Settings.builder().put(indexSettings())
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
         );
         ensureGreen("test");
         ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -223,9 +233,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> move shard from {} to {}, and wait for relocation to finish", node_1, node_2);
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
         shardActiveRequestSent.await();
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
-                .setWaitForNoRelocatingShards(true)
-                .get();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logClusterState();
         // delete the index. node_1 that still waits for the next cluster state update will then get the delete index next.
@@ -247,10 +255,13 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         final String node_1 = internalCluster().startNode();
         final String node_2 = internalCluster().startNode();
         logger.info("--> creating index [test] with one shard and on replica");
-        assertAcked(prepareCreate("test").setSettings(
-                        Settings.builder().put(indexSettings())
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
         );
         ensureGreen("test");
 
@@ -263,10 +274,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> starting node server3");
         String node_3 = internalCluster().startNode();
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
-                .setWaitForNodes("3")
-                .setWaitForNoRelocatingShards(true)
-                .get();
+        ClusterHealthResponse clusterHealth = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForNodes("3")
+            .setWaitForNoRelocatingShards(true)
+            .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         logger.info("--> making sure that shard is not allocated on server3");
@@ -274,14 +287,16 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         Path server2Shard = shardDirectory(node_2, index, 0);
         logger.info("--> stopping node {}", node_2);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
+        internalCluster().stopNode(node_2);
 
         logger.info("--> running cluster_health");
-        clusterHealth = client().admin().cluster().prepareHealth()
-                .setWaitForGreenStatus()
-                .setWaitForNodes("2")
-                .setWaitForNoRelocatingShards(true)
-                .get();
+        clusterHealth = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .setWaitForNoRelocatingShards(true)
+            .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
@@ -314,25 +329,42 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // we will use this later on, handy to start now to make sure it has a different data folder that node 1,2 &3
         final String node4 = nodes.get(3);
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-                        .put(indexSettings())
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node4)
-        ));
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).setWaitForGreenStatus()
-            .setWaitForNodes("5").get().isTimedOut());
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node4)
+            )
+        );
+        assertFalse(
+            client().admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForGreenStatus()
+                .setWaitForNodes("5")
+                .get()
+                .isTimedOut()
+        );
 
         // disable allocation to control the situation more easily
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                )
+        );
 
         logger.debug("--> shutting down two random nodes");
         List<String> nodesToShutDown = randomSubsetOf(2, node1, node2, node3);
         Settings node1DataPathSettings = internalCluster().dataPathSettings(nodesToShutDown.get(0));
         Settings node2DataPathSettings = internalCluster().dataPathSettings(nodesToShutDown.get(1));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodesToShutDown.get(0)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodesToShutDown.get(1)));
+        internalCluster().stopNode(nodesToShutDown.get(0));
+        internalCluster().stopNode(nodesToShutDown.get(1));
 
         logger.debug("--> verifying index is red");
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
@@ -342,12 +374,21 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         }
 
         logger.debug("--> allowing index to be assigned to node [{}]", node4);
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(
-                Settings.builder()
-                        .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", "NONE")));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", "NONE"))
+        );
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")
+                )
+        );
 
         logger.debug("--> waiting for shards to recover on [{}]", node4);
         // we have to do this in two steps as we now do async shard fetching before assigning, so the change to the
@@ -360,8 +401,14 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertFalse(client().admin().cluster().prepareHealth().setWaitForActiveShards(4).get().isTimedOut());
 
         // disable allocation again to control concurrency a bit and allow shard active to kick in before allocation
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                )
+        );
 
         logger.debug("--> starting the two old nodes back");
 
@@ -369,9 +416,14 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("5").get().isTimedOut());
 
-
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")
+                )
+        );
 
         logger.debug("--> waiting for the lost shard to be recovered");
 
@@ -389,10 +441,10 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         final String nonMasterId = internalCluster().clusterService(nonMasterNode).localNode().getId();
 
         final int numShards = scaledRandomIntBetween(2, 10);
-        assertAcked(prepareCreate("test")
-                        .setSettings(Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            )
         );
         ensureGreen("test");
 
@@ -410,8 +462,13 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         // disable relocations when we do this, to make sure the shards are not relocated from node2
         // due to rebalancing, and delete its content
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE))
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder()
+                    .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            )
             .get();
 
         ClusterApplierService clusterApplierService = internalCluster().getInstance(ClusterService.class, nonMasterNode)
@@ -419,10 +476,11 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         ClusterState currentState = clusterApplierService.state();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         for (int j = 0; j < numShards; j++) {
+            final var shardId = new ShardId(index, j);
             indexRoutingTableBuilder.addIndexShard(
-                new IndexShardRoutingTable.Builder(new ShardId(index, j))
-                    .addShard(TestShardRouting.newShardRouting("test", j, masterId, true, ShardRoutingState.STARTED))
-                    .build()
+                new IndexShardRoutingTable.Builder(shardId).addShard(
+                    TestShardRouting.newShardRouting(shardId, masterId, true, ShardRoutingState.STARTED)
+                )
             );
         }
         ClusterState newState = ClusterState.builder(currentState)
@@ -430,9 +488,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
             .build();
         CountDownLatch latch = new CountDownLatch(1);
-        clusterApplierService.onNewClusterState("test", () -> newState, new ClusterApplyListener() {
+        clusterApplierService.onNewClusterState("test", () -> newState, new ActionListener<>() {
             @Override
-            public void onSuccess() {
+            public void onResponse(Void ignored) {
                 latch.countDown();
             }
 
@@ -452,12 +510,16 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
     private Path indexDirectory(String server, Index index) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        return env.indexPath(index);
+        final Path[] paths = env.indexPaths(index);
+        assert paths.length == 1;
+        return paths[0];
     }
 
     private Path shardDirectory(String server, Index index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        return env.availableShardPath(new ShardId(index, shard));
+        final Path[] paths = env.availableShardPaths(new ShardId(index, shard));
+        assert paths.length == 1;
+        return paths[0];
     }
 
     private void assertShardDeleted(final String server, final Index index, final int shard) throws Exception {

@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -19,10 +18,13 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
@@ -45,6 +47,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+
 class DefaultCheckpointProvider implements CheckpointProvider {
 
     // threshold when to audit concrete index names, above this threshold we only report the number of changes
@@ -58,6 +62,9 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     protected final TransformConfigManager transformConfigManager;
     protected final TransformAuditor transformAuditor;
     protected final TransformConfig transformConfig;
+
+    // set of clusters that do not support 8.2+ checkpoint actions
+    private final Set<String> fallbackToBWC = new HashSet<>();
 
     DefaultCheckpointProvider(
         final Clock clock,
@@ -85,20 +92,16 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        getIndexCheckpoints(
-            ActionListener.wrap(
-                checkpointsByIndex -> {
-                    reportSourceIndexChanges(
-                        TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
-                            ? Collections.emptySet()
-                            : lastCheckpoint.getIndicesCheckpoints().keySet(),
-                        checkpointsByIndex.keySet()
-                    );
+        getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
+            reportSourceIndexChanges(
+                TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
+                    ? Collections.emptySet()
+                    : lastCheckpoint.getIndicesCheckpoints().keySet(),
+                checkpointsByIndex.keySet()
+            );
 
-                    listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
-                },
-                listener::onFailure)
-        );
+            listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
+        }, listener::onFailure));
     }
 
     protected void getIndexCheckpoints(ActionListener<Map<String, long[]>> listener) {
@@ -134,7 +137,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     remoteClient,
                     transformConfig.getHeaders(),
                     remoteIndex.getValue().toArray(new String[0]),
-                    remoteIndex.getKey() + RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR,
+                    remoteIndex.getKey(),
                     groupedListener
                 );
             }
@@ -143,11 +146,93 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         }
     }
 
-    private static void getCheckpointsFromOneCluster(
+    private void getCheckpointsFromOneCluster(
         Client client,
         Map<String, String> headers,
         String[] indices,
-        String prefix,
+        String cluster,
+        ActionListener<Map<String, long[]>> listener
+    ) {
+        if (fallbackToBWC.contains(cluster)) {
+            getCheckpointsFromOneClusterBWC(client, headers, indices, cluster, listener);
+        } else {
+            getCheckpointsFromOneClusterV2(client, headers, indices, cluster, ActionListener.wrap(response -> {
+                logger.debug(
+                    "[{}] Successfully retrieved checkpoints from cluster [{}] using transform checkpoint API",
+                    transformConfig.getId(),
+                    cluster
+                );
+                listener.onResponse(response);
+            }, e -> {
+                Throwable unwrappedException = ExceptionsHelper.unwrapCause(e);
+                if (unwrappedException instanceof ActionNotFoundTransportException) {
+                    // this is an implementation detail, so not necessary to audit or warn, but only report as debug
+                    logger.debug(
+                        "[{}] Cluster [{}] does not support transform checkpoint API, falling back to legacy checkpointing",
+                        transformConfig.getId(),
+                        cluster
+                    );
+
+                    fallbackToBWC.add(cluster);
+                    getCheckpointsFromOneClusterBWC(client, headers, indices, cluster, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
+        }
+    }
+
+    private static void getCheckpointsFromOneClusterV2(
+        Client client,
+        Map<String, String> headers,
+        String[] indices,
+        String cluster,
+        ActionListener<Map<String, long[]>> listener
+    ) {
+        GetCheckpointAction.Request getCheckpointRequest = new GetCheckpointAction.Request(indices, IndicesOptions.LENIENT_EXPAND_OPEN);
+
+        ActionListener<GetCheckpointAction.Response> checkpointListener;
+        if (RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY.equals(cluster)) {
+            checkpointListener = ActionListener.wrap(
+                checkpointResponse -> listener.onResponse(checkpointResponse.getCheckpoints()),
+                listener::onFailure
+            );
+        } else {
+            checkpointListener = ActionListener.wrap(
+                checkpointResponse -> listener.onResponse(
+                    checkpointResponse.getCheckpoints()
+                        .entrySet()
+                        .stream()
+                        .collect(
+                            Collectors.toMap(
+                                entry -> cluster + RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR + entry.getKey(),
+                                entry -> entry.getValue()
+                            )
+                        )
+                ),
+                listener::onFailure
+            );
+        }
+
+        ClientHelper.executeWithHeadersAsync(
+            headers,
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            GetCheckpointAction.INSTANCE,
+            getCheckpointRequest,
+            checkpointListener
+        );
+
+    }
+
+    /**
+     * BWC fallback for nodes/cluster older than 8.2
+     */
+    private static void getCheckpointsFromOneClusterBWC(
+        Client client,
+        Map<String, String> headers,
+        String[] indices,
+        String cluster,
         ActionListener<Map<String, long[]>> listener
     ) {
         // 1st get index to see the indexes the user has access to
@@ -174,28 +259,34 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     ActionListener.wrap(response -> {
                         if (response.getFailedShards() != 0) {
                             for (int i = 0; i < response.getShardFailures().length; ++i) {
+                                int shardNo = i;
                                 logger.warn(
-                                    new ParameterizedMessage(
-                                        "Source has [{}] failed shards, shard failure [{}]",
-                                        response.getFailedShards(), i).getFormattedMessage(),
-                                    response.getShardFailures()[i]);
+                                    () -> Strings.format(
+                                        "Source has [%s] failed shards, shard failure [%s]",
+                                        response.getFailedShards(),
+                                        shardNo
+                                    ),
+                                    response.getShardFailures()[i]
+                                );
                             }
                             listener.onFailure(
                                 new CheckpointException(
                                     "Source has [{}] failed shards, first shard failure: {}",
                                     response.getShardFailures()[0],
                                     response.getFailedShards(),
-                                    response.getShardFailures()[0].toString()));
+                                    response.getShardFailures()[0].toString()
+                                )
+                            );
                             return;
                         }
-                        listener.onResponse(extractIndexCheckPoints(response.getShards(), userIndices, prefix));
+                        listener.onResponse(extractIndexCheckPoints(response.getShards(), userIndices, cluster));
                     }, e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e)))
                 );
             }, e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e)))
         );
     }
 
-    static Map<String, long[]> extractIndexCheckPoints(ShardStats[] shards, Set<String> userIndices, String prefix) {
+    static Map<String, long[]> extractIndexCheckPoints(ShardStats[] shards, Set<String> userIndices, String cluster) {
         Map<String, TreeMap<Integer, Long>> checkpointsByIndex = new TreeMap<>();
 
         for (ShardStats shard : shards) {
@@ -204,7 +295,9 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             if (userIndices.contains(indexName)) {
                 // SeqNoStats could be `null`, assume the global checkpoint to be -1 in this case
                 long globalCheckpoint = shard.getSeqNoStats() == null ? -1L : shard.getSeqNoStats().getGlobalCheckpoint();
-                String fullIndexName = prefix + indexName;
+                String fullIndexName = cluster.isEmpty()
+                    ? indexName
+                    : cluster + RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR + indexName;
                 if (checkpointsByIndex.containsKey(fullIndexName)) {
                     // we have already seen this index, just check/add shards
                     TreeMap<Integer, Long> checkpoints = checkpointsByIndex.get(fullIndexName);
@@ -299,13 +392,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             );
             listener.onResponse(checkpointingInfoBuilder);
         }, e -> {
-            logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "[{}] failed to retrieve source checkpoint for transform",
-                    transformConfig.getId()
-                ),
-                e
-            );
+            logger.debug(() -> format("[%s] failed to retrieve source checkpoint for transform", transformConfig.getId()), e);
             listener.onFailure(new CheckpointException("Failure during source checkpoint info retrieval", e));
         });
 
@@ -315,12 +402,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             getIndexCheckpoints(checkpointsByIndexListener);
         }, e -> {
             logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "[{}] failed to retrieve next checkpoint [{}]",
-                    transformConfig.getId(),
-                    lastCheckpointNumber + 1
-
-                ),
+                () -> format("[%s] failed to retrieve next checkpoint [%s]", transformConfig.getId(), lastCheckpointNumber + 1),
                 e
             );
             listener.onFailure(new CheckpointException("Failure during next checkpoint info retrieval", e));
@@ -332,14 +414,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             checkpointingInfoBuilder.setLastCheckpoint(lastCheckpointObj);
             transformConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber + 1, nextCheckpointListener);
         }, e -> {
-            logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "[{}] failed to retrieve last checkpoint [{}]",
-                    transformConfig.getId(),
-                    lastCheckpointNumber
-                ),
-                e
-            );
+            logger.debug(() -> format("[%s] failed to retrieve last checkpoint [%s]", transformConfig.getId(), lastCheckpointNumber), e);
             listener.onFailure(new CheckpointException("Failure during last checkpoint info retrieval", e));
         });
 

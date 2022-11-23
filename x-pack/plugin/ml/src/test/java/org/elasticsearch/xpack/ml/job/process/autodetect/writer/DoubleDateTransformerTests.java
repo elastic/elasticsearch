@@ -25,8 +25,10 @@ public class DoubleDateTransformerTests extends ESTestCase {
     public void testTransform_GivenTimestampIsNotValidDouble() throws CannotParseTimestampException {
         DoubleDateTransformer transformer = new DoubleDateTransformer(false);
 
-        CannotParseTimestampException e = ESTestCase.expectThrows(CannotParseTimestampException.class,
-                () -> transformer.transform("invalid"));
+        CannotParseTimestampException e = ESTestCase.expectThrows(
+            CannotParseTimestampException.class,
+            () -> transformer.transform("invalid")
+        );
         assertEquals("Cannot parse timestamp 'invalid' as epoch value", e.getMessage());
     }
 }

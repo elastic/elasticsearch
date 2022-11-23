@@ -8,17 +8,15 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -31,11 +29,10 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-@Ignore("https://github.com/elastic/elasticsearch/issues/77190")
-public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
+public class GenerateReleaseNotesTaskTest {
     private GitWrapper gitWrapper;
 
     @Before
@@ -109,7 +106,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
             partitionedFiles,
             hasEntry(equalTo(QualifiedVersion.of("8.0.0-SNAPSHOT")), hasItem(new File("docs/changelog/1234.yaml")))
         );
-        verifyZeroInteractions(gitWrapper);
+        verifyNoMoreInteractions(gitWrapper);
     }
 
     /**
@@ -128,7 +125,7 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
         // then:
         assertThat(partitionedFiles, aMapWithSize(1));
         assertThat(partitionedFiles, hasEntry(equalTo(QualifiedVersion.of("8.5.0")), hasItem(new File("docs/changelog/1234.yaml"))));
-        verifyZeroInteractions(gitWrapper);
+        verifyNoMoreInteractions(gitWrapper);
     }
 
     /**
@@ -146,22 +143,22 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
         // then:
         assertThat(partitionedFiles, aMapWithSize(1));
         assertThat(partitionedFiles, hasEntry(equalTo(QualifiedVersion.of("8.0.0-alpha1")), hasItem(new File("docs/changelog/1234.yaml"))));
-        verifyZeroInteractions(gitWrapper);
+        verifyNoMoreInteractions(gitWrapper);
     }
 
     /**
      * Check that when deriving a lit of versions from git tags, the current unreleased version is included.
      */
     @Test
-    public void getVersions_includesCurrentVersion() {
+    public void getVersions_includesCurrentAndPreviousVersion() {
         // given:
         when(gitWrapper.listVersions(anyString())).thenReturn(
-            Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0-beta1", "8.0.0-beta2", "8.0.0-beta3", "8.0.0-rc1", "8.0.0")
+            Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0-beta1", "8.0.0-beta2", "8.0.0-beta3", "8.0.0-rc1", "8.0.0", "8.0.1", "8.1.0")
                 .map(QualifiedVersion::of)
         );
 
         // when:
-        Set<QualifiedVersion> versions = GenerateReleaseNotesTask.getVersions(gitWrapper, "8.0.0-SNAPSHOT");
+        Set<QualifiedVersion> versions = GenerateReleaseNotesTask.getVersions(gitWrapper, "8.3.0-SNAPSHOT");
 
         // then:
         assertThat(
@@ -175,9 +172,35 @@ public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
                     "8.0.0-beta3",
                     "8.0.0-rc1",
                     "8.0.0",
-                    "8.0.0-SNAPSHOT"
-                ).map(QualifiedVersion::of).collect(Collectors.toList()).toArray(new QualifiedVersion[] {})
+                    "8.0.1",
+                    "8.1.0",
+                    "8.2.0",
+                    "8.3.0-SNAPSHOT"
+                ).map(QualifiedVersion::of).toArray(QualifiedVersion[]::new)
             )
+        );
+    }
+
+    /**
+     * Check that when deriving a list of major.minor versions from git tags, the current unreleased version is included,
+     * but any higher version numbers are not.
+     */
+    @Test
+    public void getMinorVersions_includesCurrentButNotFutureVersions() {
+        // given:
+        when(gitWrapper.listVersions(anyString())).thenReturn(
+            Stream.of("8.0.0-alpha1", "8.0.0-alpha2", "8.0.0", "8.0.1", "8.1.0", "8.2.0", "8.2.1", "8.3.0", "8.3.1", "8.4.0")
+                .map(QualifiedVersion::of)
+        );
+
+        // when:
+        Set<QualifiedVersion> versions = GenerateReleaseNotesTask.getVersions(gitWrapper, "8.3.0-SNAPSHOT");
+        Set<MinorVersion> minorVersions = GenerateReleaseNotesTask.getMinorVersions(versions);
+
+        // then:
+        assertThat(
+            minorVersions,
+            containsInAnyOrder(new MinorVersion(8, 0), new MinorVersion(8, 1), new MinorVersion(8, 2), new MinorVersion(8, 3))
         );
     }
 

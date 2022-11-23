@@ -18,6 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -103,6 +104,19 @@ public class MergedPointRangeQuery extends Query {
             }
 
             @Override
+            public int count(LeafReaderContext context) throws IOException {
+                PointValues points = context.reader().getPointValues(field);
+                if (points == null) {
+                    return 0;
+                }
+                if (points.size() == points.getDocCount()) {
+                    // Each doc that has points has exactly one point.
+                    return singleValuedSegmentWeight().count(context);
+                }
+                return multiValuedSegmentWeight().count(context);
+            }
+
+            @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 ScorerSupplier scorerSupplier = scorerSupplier(context);
                 if (scorerSupplier == null) {
@@ -178,6 +192,13 @@ public class MergedPointRangeQuery extends Query {
         MergedPointRangeQuery other = (MergedPointRangeQuery) obj;
         return delegateForMultiValuedSegments.equals(other.delegateForMultiValuedSegments)
             && delegateForSingleValuedSegments.equals(other.delegateForSingleValuedSegments);
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(field)) {
+            this.delegateForMultiValuedSegments.visit(visitor);
+        }
     }
 
     @Override

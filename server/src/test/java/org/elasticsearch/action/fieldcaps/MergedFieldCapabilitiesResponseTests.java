@@ -8,14 +8,11 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -24,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTestCase<FieldCapabilitiesResponse> {
+public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSerializingTestCase<FieldCapabilitiesResponse> {
 
     @Override
     protected FieldCapabilitiesResponse doParseInstance(XContentParser parser) throws IOException {
@@ -69,22 +66,24 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         int mutation = response.get().isEmpty() ? 0 : randomIntBetween(0, 2);
 
         switch (mutation) {
-            case 0:
+            case 0 -> {
                 String toAdd = randomAlphaOfLength(10);
-                mutatedResponses.put(toAdd, Collections.singletonMap(
-                    randomAlphaOfLength(10),
-                    FieldCapabilitiesTests.randomFieldCaps(toAdd)));
-                break;
-            case 1:
+                mutatedResponses.put(
+                    toAdd,
+                    Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toAdd))
+                );
+            }
+            case 1 -> {
                 String toRemove = randomFrom(mutatedResponses.keySet());
                 mutatedResponses.remove(toRemove);
-                break;
-            case 2:
+            }
+            case 2 -> {
                 String toReplace = randomFrom(mutatedResponses.keySet());
-                mutatedResponses.put(toReplace, Collections.singletonMap(
-                    randomAlphaOfLength(10),
-                    FieldCapabilitiesTests.randomFieldCaps(toReplace)));
-                break;
+                mutatedResponses.put(
+                    toReplace,
+                    Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toReplace))
+                );
+            }
         }
         // TODO pass real list
         return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
@@ -100,67 +99,100 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
 
     public void testToXContent() throws IOException {
         FieldCapabilitiesResponse response = createSimpleResponse();
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-        String generatedResponse = BytesReference.bytes(builder).utf8ToString();
-        assertEquals((
-            "{" +
-            "    \"indices\": [\"index1\",\"index2\",\"index3\",\"index4\"]," +
-            "    \"fields\": {" +
-            "        \"rating\": { " +
-            "            \"keyword\": {" +
-            "                \"type\": \"keyword\"," +
-            "                \"metadata_field\": false," +
-            "                \"searchable\": false," +
-            "                \"aggregatable\": true," +
-            "                \"indices\": [\"index3\", \"index4\"]," +
-            "                \"non_searchable_indices\": [\"index4\"] " +
-            "            }," +
-            "            \"long\": {" +
-            "                \"type\": \"long\"," +
-            "                \"metadata_field\": false," +
-            "                \"searchable\": true," +
-            "                \"aggregatable\": false," +
-            "                \"indices\": [\"index1\", \"index2\"]," +
-            "                \"non_aggregatable_indices\": [\"index1\"] " +
-            "            }" +
-            "        }," +
-            "        \"title\": { " +
-            "            \"text\": {" +
-            "                \"type\": \"text\"," +
-            "                \"metadata_field\": false," +
-            "                \"searchable\": true," +
-            "                \"aggregatable\": false" +
-            "            }" +
-            "        }" +
-            "    }," +
-            "    \"failed_indices\":2," +
-            "    \"failures\":[" +
-            "        { \"indices\": [\"errorindex\", \"errorindex2\"]," +
-            "          \"failure\" : {\"error\":{\"root_cause\":[{\"type\":\"illegal_argument_exception\"," +
-            "          \"reason\":\"test\"}],\"type\":\"illegal_argument_exception\",\"reason\":\"test\"}}}" +
-            "    ]" +
-            "}").replaceAll("\\s+", ""), generatedResponse);
+        assertEquals("""
+            {
+              "indices": [ "index1", "index2", "index3", "index4" ],
+              "fields": {
+                "rating": {
+                  "keyword": {
+                    "type": "keyword",
+                    "metadata_field": false,
+                    "searchable": false,
+                    "aggregatable": true,
+                    "time_series_dimension": true,
+                    "indices": [ "index3", "index4" ],
+                    "non_searchable_indices": [ "index4" ]
+                  },
+                  "long": {
+                    "type": "long",
+                    "metadata_field": false,
+                    "searchable": true,
+                    "aggregatable": false,
+                    "time_series_metric": "counter",
+                    "indices": [ "index1", "index2" ],
+                    "non_aggregatable_indices": [ "index1" ],
+                    "non_dimension_indices": [ "index4" ]
+                  }
+                },
+                "title": {
+                  "text": {
+                    "type": "text",
+                    "metadata_field": false,
+                    "searchable": true,
+                    "aggregatable": false
+                  }
+                }
+              },
+              "failed_indices": 2,
+              "failures": [
+                {
+                  "indices": [ "errorindex", "errorindex2" ],
+                  "failure": {
+                    "error": {
+                      "root_cause": [ { "type": "illegal_argument_exception", "reason": "test" } ],
+                      "type": "illegal_argument_exception",
+                      "reason": "test"
+                    }
+                  }
+                }
+              ]
+            }""".replaceAll("\\s+", ""), Strings.toString(response));
     }
 
     private static FieldCapabilitiesResponse createSimpleResponse() {
         Map<String, FieldCapabilities> titleCapabilities = new HashMap<>();
-        titleCapabilities.put("text", new FieldCapabilities("title", "text", false, true, false,
-            null, null, null, Collections.emptyMap()));
+        titleCapabilities.put(
+            "text",
+            new FieldCapabilities("title", "text", false, true, false, false, null, null, null, null, null, null, Collections.emptyMap())
+        );
 
         Map<String, FieldCapabilities> ratingCapabilities = new HashMap<>();
-        ratingCapabilities.put("long", new FieldCapabilities("rating", "long",
-            false, true, false,
-            new String[]{"index1", "index2"},
-            null,
-            new String[]{"index1"}, Collections.emptyMap()));
-        ratingCapabilities.put("keyword", new FieldCapabilities("rating", "keyword",
-            false, false, true,
-            new String[]{"index3", "index4"},
-            new String[]{"index4"},
-            null, Collections.emptyMap()));
+        ratingCapabilities.put(
+            "long",
+            new FieldCapabilities(
+                "rating",
+                "long",
+                false,
+                true,
+                false,
+                false,
+                TimeSeriesParams.MetricType.counter,
+                new String[] { "index1", "index2" },
+                null,
+                new String[] { "index1" },
+                new String[] { "index4" },
+                null,
+                Collections.emptyMap()
+            )
+        );
+        ratingCapabilities.put(
+            "keyword",
+            new FieldCapabilities(
+                "rating",
+                "keyword",
+                false,
+                false,
+                true,
+                true,
+                null,
+                new String[] { "index3", "index4" },
+                new String[] { "index4" },
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            )
+        );
 
         Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
         responses.put("title", titleCapabilities);
@@ -169,6 +201,33 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         List<FieldCapabilitiesFailure> failureMap = List.of(
             new FieldCapabilitiesFailure(new String[] { "errorindex", "errorindex2" }, new IllegalArgumentException("test"))
         );
-        return new FieldCapabilitiesResponse(new String[] {"index1", "index2", "index3", "index4"}, responses, failureMap);
+        return new FieldCapabilitiesResponse(new String[] { "index1", "index2", "index3", "index4" }, responses, failureMap);
+    }
+
+    public void testExpectedChunkSizes() {
+        {
+            final FieldCapabilitiesResponse instance = FieldCapabilitiesResponseTests.createResponseWithFailures();
+            final var iterator = instance.toXContentChunked();
+            int chunks = 0;
+            while (iterator.hasNext()) {
+                iterator.next();
+                chunks++;
+            }
+            if (instance.getFailures().isEmpty()) {
+                assertEquals(2, chunks);
+            } else {
+                assertEquals(3 + instance.get().size() + instance.getFailures().size(), chunks);
+            }
+        }
+        {
+            final FieldCapabilitiesResponse instance = createTestInstance();
+            final var iterator = instance.toXContentChunked();
+            int chunks = 0;
+            while (iterator.hasNext()) {
+                iterator.next();
+                chunks++;
+            }
+            assertEquals(2 + instance.get().size(), chunks);
+        }
     }
 }

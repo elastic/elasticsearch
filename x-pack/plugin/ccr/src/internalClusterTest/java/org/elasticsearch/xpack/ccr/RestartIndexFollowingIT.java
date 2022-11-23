@@ -15,17 +15,16 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -68,13 +67,13 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         final long firstBatchNumDocs = randomIntBetween(10, 200);
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = formatted("{\"f\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
-        assertBusy(() -> {
-            assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs));
-        });
+        assertBusy(
+            () -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs))
+        );
 
         getFollowerCluster().fullRestart();
         ensureFollowerGreen("index2");
@@ -84,41 +83,60 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
-        cleanRemoteCluster();
         getLeaderCluster().fullRestart();
         ensureLeaderGreen("index1");
-        // Remote connection needs to be re-configured, because all the nodes in leader cluster have been restarted:
-        setupRemoteCluster();
 
         final long thirdBatchNumDocs = randomIntBetween(10, 200);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
-        assertBusy(() -> assertThat(
+        assertBusy(
+            () -> assertThat(
                 followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
-                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs)));
+                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs)
+            )
+        );
 
         cleanRemoteCluster();
         assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("index2")).actionGet());
         assertAcked(followerClient().admin().indices().prepareClose("index2"));
 
-        final ActionFuture<AcknowledgedResponse> unfollowFuture
-                = followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index2"));
+        final ActionFuture<AcknowledgedResponse> unfollowFuture = followerClient().execute(
+            UnfollowAction.INSTANCE,
+            new UnfollowAction.Request("index2")
+        );
         final ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class, unfollowFuture::actionGet);
         assertThat(elasticsearchException.getMessage(), containsString("no such remote cluster"));
         assertThat(elasticsearchException.getMetadataKeys(), hasItem("es.failed_to_remove_retention_leases"));
     }
 
     private void setupRemoteCluster() throws Exception {
+        var remoteMaxPendingConnectionListeners = getRemoteMaxPendingConnectionListeners();
+
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
-        String address = getLeaderCluster().getMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
+        String address = getLeaderCluster().getAnyMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", address));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-        List<RemoteConnectionInfo> infos =
-            followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
-        assertThat(infos.size(), equalTo(1));
-        assertTrue(infos.get(0).isConnected());
+
+        if (remoteMaxPendingConnectionListeners == 1) {
+            // if queue is limited then update settings might fail to add a listener to wait for a connection
+            // however remote should be connected eventually by a concurrent task
+            assertBusy(this::isRemoteConnected);
+        } else {
+            assertTrue(isRemoteConnected());
+        }
+    }
+
+    private boolean isRemoteConnected() throws Exception {
+        var infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+        return infos.size() == 1 && infos.get(0).isConnected();
+    }
+
+    private Integer getRemoteMaxPendingConnectionListeners() {
+        var response = followerClient().admin().cluster().prepareNodesInfo("_local").clear().setSettings(true).get();
+        var settings = response.getNodes().get(0).getSettings();
+        return RemoteConnectionStrategy.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
     }
 
     private void cleanRemoteCluster() throws Exception {
@@ -127,10 +145,10 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         assertBusy(() -> {
-            List<RemoteConnectionInfo> infos =
-                followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+            List<RemoteConnectionInfo> infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())
+                .get()
+                .getInfos();
             assertThat(infos.size(), equalTo(0));
         });
     }
-
 }

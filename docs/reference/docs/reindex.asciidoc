@@ -509,15 +509,15 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=max_docs]
 (Optional, enum) Set to `proceed` to continue reindexing even if there are conflicts.
 Defaults to `abort`.
 
+`max_docs`::
+(Optional, integer) The maximum number of documents to reindex. If <<conflicts, conflicts>> is equal to
+`proceed`, reindex could attempt to reindex more documents from the source than `max_docs` until it has successfully
+indexed `max_docs` documents into the target, or it has gone through every document in the source query.
+
 `source`::
 `index`:::
 (Required, string) The name of the data stream, index, or alias you are copying
 _from_. Also accepts a comma-separated list to reindex from multiple sources.
-
-`max_docs`:::
-(Optional, integer) The maximum number of documents to reindex. If <<conflicts, conflicts>> is equal to
-`proceed`, reindex could attempt to reindex more documents from the source than `max_docs` until it has successfully
-indexed `max_docs` documents into the target, or it has gone through every document in the source query.
 
 `query`:::
 (Optional, <<query-dsl, query object>>) Specifies the documents to reindex using the Query DSL.
@@ -534,7 +534,8 @@ Required when indexing from remote.
 (Optional, <<time-units, time units>>) The remote socket read timeout. Defaults to 30 seconds.
 `connect_timeout`::::
 (Optional, <<time-units, time units>>) The remote connection timeout. Defaults to 30 seconds.
-
+`headers`::::
+(Optional, object) An object containing the headers of ther request.
 `size`:::
 {Optional, integer) The number of documents to index per batch.
 Use when indexing from remote to ensure that the batches fit within the on-heap buffer,
@@ -994,7 +995,38 @@ using basic auth or the password will be sent in plain text.
 There are a range of <<reindex-ssl,settings>> available to configure the behaviour of the
  `https` connection.
 
-Remote hosts have to be explicitly allowed in elasticsearch.yml using the
+When using {ecloud}, it is also possible to authenticate against the remote cluster
+through the use of a valid API key:
+
+[source,console]
+----
+POST _reindex
+{
+  "source": {
+    "remote": {
+      "host": "http://otherhost:9200",
+      "headers": {
+        "Authorization": "ApiKey API_KEY_VALUE"
+      }
+    },
+    "index": "my-index-000001",
+    "query": {
+      "match": {
+        "test": "data"
+      }
+    }
+  },
+  "dest": {
+    "index": "my-new-index-000001"
+  }
+}
+----
+// TEST[setup:host]
+// TEST[s/^/PUT my-index-000001\n/]
+// TEST[s/otherhost:9200",/\${host}",/]
+// TEST[s/API_KEY_VALUE" /\93116930-2ecb-4161-aa5e-4f3586c87ac6"/]
+
+Remote hosts have to be explicitly allowed in `elasticsearch.yml` using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
 of allowed remote `host` and `port` combinations. Scheme is
 ignored, only the host and port are used. For example:

@@ -90,6 +90,12 @@ The following parameters are accepted by `object` fields:
     Whether the JSON value given for the object field should be
     parsed and indexed (`true`, default) or completely ignored (`false`).
 
+<<subobjects,`subobjects`>>::
+
+    Whether the object can hold subobjects (`true`, default) or not (`false`). If not, sub-fields
+    with dots in their names will be treated as leaves instead, otherwise their field names
+    would be expanded to their corresponding object structure.
+
 <<properties,`properties`>>::
 
     The fields within the object, which can be of any

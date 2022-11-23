@@ -12,10 +12,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class WarmerStats implements Writeable, ToXContentFragment {
 
@@ -104,5 +105,18 @@ public class WarmerStats implements Writeable, ToXContentFragment {
         out.writeVLong(current);
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        WarmerStats that = (WarmerStats) o;
+        return current == that.current && total == that.total && totalTimeInMillis == that.totalTimeInMillis;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(current, total, totalTimeInMillis);
     }
 }

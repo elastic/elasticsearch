@@ -11,16 +11,17 @@ package org.elasticsearch.search.runtime;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -52,20 +53,11 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
         long origin = orig.origin();
         long pivot = orig.pivot();
         switch (randomInt(3)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                origin = randomValueOtherThan(origin, () -> randomValueOtherThan(orig.pivot(), ESTestCase::randomLong));
-                break;
-            case 3:
-                pivot = randomValueOtherThan(origin, () -> randomValueOtherThan(orig.pivot(), ESTestCase::randomLong));
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> origin = randomValueOtherThan(origin, () -> randomValueOtherThan(orig.pivot(), ESTestCase::randomLong));
+            case 3 -> pivot = randomValueOtherThan(origin, () -> randomValueOtherThan(orig.pivot(), ESTestCase::randomLong));
+            default -> fail();
         }
         return new LongScriptFieldDistanceFeatureQuery(script, leafFactory, fieldName, origin, pivot);
     }
@@ -77,7 +69,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchLookup searchLookup = new SearchLookup(null, null);
+                SearchLookup searchLookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider());
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
                     "test",
                     Map.of(),
@@ -87,7 +79,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
                 ) {
                     @Override
                     public void execute() {
-                        for (Object timestamp : (List<?>) searchLookup.source().get("timestamp")) {
+                        for (Object timestamp : (List<?>) searchLookup.source().source().get("timestamp")) {
                             emit(((Number) timestamp).longValue());
                         }
                     }

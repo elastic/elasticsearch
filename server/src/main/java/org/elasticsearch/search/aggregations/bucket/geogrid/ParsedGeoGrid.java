@@ -8,10 +8,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +34,7 @@ public abstract class ParsedGeoGrid extends ParsedMultiBucketAggregation<ParsedG
         return parser;
     }
 
-    protected void setName(String name) {
+    public void setName(String name) {
         super.setName(name);
     }
 }

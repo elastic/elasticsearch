@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeAction<PauseFollowAction.Request> {
 
@@ -37,20 +36,33 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
 
     @Inject
     public TransportPauseFollowAction(
-            final TransportService transportService,
-            final ActionFilters actionFilters,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final IndexNameExpressionResolver indexNameExpressionResolver,
-            final PersistentTasksService persistentTasksService) {
-        super(PauseFollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PauseFollowAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+        final TransportService transportService,
+        final ActionFilters actionFilters,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final PersistentTasksService persistentTasksService
+    ) {
+        super(
+            PauseFollowAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PauseFollowAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.persistentTasksService = persistentTasksService;
     }
 
     @Override
-    protected void masterOperation(Task task, PauseFollowAction.Request request,
-                                   ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        PauseFollowAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         final IndexMetadata followerIMD = state.metadata().index(request.getFollowIndex());
         if (followerIMD == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowIndex()));
@@ -66,14 +78,15 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             return;
         }
 
-        List<String> shardFollowTaskIds = persistentTasksMetadata.tasks().stream()
+        List<String> shardFollowTaskIds = persistentTasksMetadata.tasks()
+            .stream()
             .filter(persistentTask -> ShardFollowTask.NAME.equals(persistentTask.getTaskName()))
             .filter(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
                 return shardFollowTask.getFollowShardId().getIndexName().equals(request.getFollowIndex());
             })
             .map(PersistentTasksCustomMetadata.PersistentTask::getId)
-            .collect(Collectors.toList());
+            .toList();
 
         if (shardFollowTaskIds.isEmpty()) {
             listener.onFailure(new IllegalArgumentException("no shard follow tasks for [" + request.getFollowIndex() + "]"));

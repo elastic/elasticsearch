@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import javax.net.ssl.TrustManagerFactory;
 
 /**
@@ -103,7 +104,7 @@ public class SSLConfigurationSettings {
 
     public static final SslSetting<SecureString> LEGACY_TRUSTSTORE_PASSWORD = SslSetting.setting(
         SslConfigurationKeys.TRUSTSTORE_LEGACY_PASSWORD,
-        key -> new Setting<>(key, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope)
+        key -> new Setting<>(key, "", SecureString::new, Property.DeprecatedWarning, Property.Filtered, Property.NodeScope)
     );
 
     public static final SslSetting<SecureString> TRUSTSTORE_PASSWORD = SslSetting.secureSetting(
@@ -386,8 +387,8 @@ public class SSLConfigurationSettings {
             return Setting.affixKeySetting(groupPrefix, keyPrefix + name, template);
         }
 
-        public Setting<T> transportProfile(String name) {
-            return transportProfile().getConcreteSetting(name);
+        public Setting<T> transportProfile(String settingName) {
+            return transportProfile().getConcreteSetting(settingName);
         }
     }
 

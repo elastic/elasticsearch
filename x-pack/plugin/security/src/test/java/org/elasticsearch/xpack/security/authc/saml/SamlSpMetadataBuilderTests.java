@@ -49,41 +49,44 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
 
     public void testBuildMinimalistMetadata() throws Exception {
         final EntityDescriptor descriptor = new SamlSpMetadataBuilder(Locale.getDefault(), "https://my.sp.example.net/")
-                .assertionConsumerServiceUrl("https://my.sp.example.net/saml/acs/post")
-                .build();
+            .assertionConsumerServiceUrl("https://my.sp.example.net/saml/acs/post")
+            .build();
 
         final Element element = new EntityDescriptorMarshaller().marshall(descriptor);
         final String xml = SamlUtils.toString(element);
-        assertThat(xml, equalTo("<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
-                "<md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://my.sp.example.net/\">" +
-                "<md:SPSSODescriptor AuthnRequestsSigned=\"false\" WantAssertionsSigned=\"true\"" +
-                " protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">" +
-                "<md:AssertionConsumerService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\"" +
-                " Location=\"https://my.sp.example.net/saml/acs/post\" index=\"1\" isDefault=\"true\"/>" +
-                "</md:SPSSODescriptor>" +
-                "</md:EntityDescriptor>"
-        ));
+        assertThat(
+            xml,
+            equalTo(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                    + "<md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://my.sp.example.net/\">"
+                    + "<md:SPSSODescriptor AuthnRequestsSigned=\"false\" WantAssertionsSigned=\"true\""
+                    + " protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">"
+                    + "<md:AssertionConsumerService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\""
+                    + " Location=\"https://my.sp.example.net/saml/acs/post\" index=\"1\" isDefault=\"true\"/>"
+                    + "</md:SPSSODescriptor>"
+                    + "</md:EntityDescriptor>"
+            )
+        );
         assertValidXml(xml);
     }
 
     public void testBuildFullMetadata() throws Exception {
-        final EntityDescriptor descriptor = new SamlSpMetadataBuilder(Locale.US, "https://kibana.apps.hydra/")
-                .serviceName("Hydra Kibana")
-                .nameIdFormat(NameID.PERSISTENT)
-                .withAttribute("uid", "urn:oid:0.9.2342.19200300.100.1.1")
-                .withAttribute("mail", "urn:oid:0.9.2342.19200300.100.1.3")
-                .withAttribute("groups", "urn:oid:1.3.6.1.4.1.5923.1.5.1.1")
-                .withAttribute(null, "urn:oid:2.16.840.1.113730.3.1.241")
-                .withAttribute(null, "urn:oid:1.3.6.1.4.1.5923.1.1.1.6")
-                .assertionConsumerServiceUrl("https://kibana.apps.hydra/saml/acs")
-                .singleLogoutServiceUrl("https://kibana.apps.hydra/saml/logout")
-                .authnRequestsSigned(true)
-                .signingCertificate(certificate)
-                .encryptionCertificates(Arrays.asList(certificate))
-                .organization("Hydra", "Hydra", "https://hail.hydra/")
-                .withContact("administrative", "Wolfgang", "von Strucker", "baron.strucker@supreme.hydra")
-                .withContact("technical", "Paul", "Ebersol", "pne@tech.hydra")
-                .build();
+        final EntityDescriptor descriptor = new SamlSpMetadataBuilder(Locale.US, "https://kibana.apps.hydra/").serviceName("Hydra Kibana")
+            .nameIdFormat(NameID.PERSISTENT)
+            .withAttribute("uid", "urn:oid:0.9.2342.19200300.100.1.1")
+            .withAttribute("mail", "urn:oid:0.9.2342.19200300.100.1.3")
+            .withAttribute("groups", "urn:oid:1.3.6.1.4.1.5923.1.5.1.1")
+            .withAttribute(null, "urn:oid:2.16.840.1.113730.3.1.241")
+            .withAttribute(null, "urn:oid:1.3.6.1.4.1.5923.1.1.1.6")
+            .assertionConsumerServiceUrl("https://kibana.apps.hydra/saml/acs")
+            .singleLogoutServiceUrl("https://kibana.apps.hydra/saml/logout")
+            .authnRequestsSigned(true)
+            .signingCertificate(certificate)
+            .encryptionCertificates(Arrays.asList(certificate))
+            .organization("Hydra", "Hydra", "https://hail.hydra/")
+            .withContact("administrative", "Wolfgang", "von Strucker", "baron.strucker@supreme.hydra")
+            .withContact("technical", "Paul", "Ebersol", "pne@tech.hydra")
+            .build();
 
         final Element element = new EntityDescriptorMarshaller().marshall(descriptor);
         final String xml = SamlUtils.toString(element);
@@ -172,23 +175,22 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
     }
 
     public void testBuildFullMetadataWithSigningAndTwoEncryptionCerts() throws Exception {
-        final EntityDescriptor descriptor = new SamlSpMetadataBuilder(Locale.US, "https://kibana.apps.hydra/")
-                .serviceName("Hydra Kibana")
-                .nameIdFormat(NameID.PERSISTENT)
-                .withAttribute("uid", "urn:oid:0.9.2342.19200300.100.1.1")
-                .withAttribute("mail", "urn:oid:0.9.2342.19200300.100.1.3")
-                .withAttribute("groups", "urn:oid:1.3.6.1.4.1.5923.1.5.1.1")
-                .withAttribute(null, "urn:oid:2.16.840.1.113730.3.1.241")
-                .withAttribute(null, "urn:oid:1.3.6.1.4.1.5923.1.1.1.6")
-                .assertionConsumerServiceUrl("https://kibana.apps.hydra/saml/acs")
-                .singleLogoutServiceUrl("https://kibana.apps.hydra/saml/logout")
-                .authnRequestsSigned(true)
-                .signingCertificate(threeCertificates[0])
-                .encryptionCertificates(Arrays.asList(threeCertificates[1], threeCertificates[2]))
-                .organization("Hydra", "Hydra", "https://hail.hydra/")
-                .withContact("administrative", "Wolfgang", "von Strucker", "baron.strucker@supreme.hydra")
-                .withContact("technical", "Paul", "Ebersol", "pne@tech.hydra")
-                .build();
+        final EntityDescriptor descriptor = new SamlSpMetadataBuilder(Locale.US, "https://kibana.apps.hydra/").serviceName("Hydra Kibana")
+            .nameIdFormat(NameID.PERSISTENT)
+            .withAttribute("uid", "urn:oid:0.9.2342.19200300.100.1.1")
+            .withAttribute("mail", "urn:oid:0.9.2342.19200300.100.1.3")
+            .withAttribute("groups", "urn:oid:1.3.6.1.4.1.5923.1.5.1.1")
+            .withAttribute(null, "urn:oid:2.16.840.1.113730.3.1.241")
+            .withAttribute(null, "urn:oid:1.3.6.1.4.1.5923.1.1.1.6")
+            .assertionConsumerServiceUrl("https://kibana.apps.hydra/saml/acs")
+            .singleLogoutServiceUrl("https://kibana.apps.hydra/saml/logout")
+            .authnRequestsSigned(true)
+            .signingCertificate(threeCertificates[0])
+            .encryptionCertificates(Arrays.asList(threeCertificates[1], threeCertificates[2]))
+            .organization("Hydra", "Hydra", "https://hail.hydra/")
+            .withContact("administrative", "Wolfgang", "von Strucker", "baron.strucker@supreme.hydra")
+            .withContact("technical", "Paul", "Ebersol", "pne@tech.hydra")
+            .build();
 
         final Element element = new EntityDescriptorMarshaller().marshall(descriptor);
         final String xml = SamlUtils.toString(element);

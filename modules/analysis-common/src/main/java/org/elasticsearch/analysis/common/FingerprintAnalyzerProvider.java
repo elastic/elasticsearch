@@ -10,13 +10,12 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.Analysis;
-
+import org.elasticsearch.xcontent.ParseField;
 
 /**
  * Builds an OpenRefine Fingerprint analyzer.  Uses the default settings from the various components
@@ -29,15 +28,15 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
 
     public static int DEFAULT_MAX_OUTPUT_SIZE = 255;
     public static CharArraySet DEFAULT_STOP_WORDS = CharArraySet.EMPTY_SET;
-    public static final char DEFAULT_SEPARATOR  = ' ';
+    public static final char DEFAULT_SEPARATOR = ' ';
 
     private final FingerprintAnalyzer analyzer;
 
     FingerprintAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         char separator = parseSeparator(settings);
-        int maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(),DEFAULT_MAX_OUTPUT_SIZE);
+        int maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(), DEFAULT_MAX_OUTPUT_SIZE);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, DEFAULT_STOP_WORDS);
 
         this.analyzer = new FingerprintAnalyzer(stopWords, separator, maxOutputSize);
@@ -56,7 +55,8 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
             return customSeparator.charAt(0);
         }
 
-        throw new IllegalArgumentException("Setting [separator] must be a single, non-null character. ["
-                + customSeparator + "] was provided.");
+        throw new IllegalArgumentException(
+            "Setting [separator] must be a single, non-null character. [" + customSeparator + "] was provided."
+        );
     }
 }

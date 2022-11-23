@@ -13,9 +13,10 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.core.Nullable;
 
+import java.util.Objects;
+
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
-import java.util.Objects;
 
 /**
  * {@code SecurityHttpClientConfigCallback} configures a {@link RestClient} for user authentication and SSL / TLS.
@@ -39,8 +40,7 @@ class SecurityHttpClientConfigCallback implements RestClientBuilder.HttpClientCo
      * @param sslStrategy The SSL strategy, if SSL / TLS have been supplied
      * @throws NullPointerException if {@code sslStrategy} is {@code null}
      */
-    SecurityHttpClientConfigCallback(final SSLIOSessionStrategy sslStrategy,
-                                     @Nullable final CredentialsProvider credentialsProvider) {
+    SecurityHttpClientConfigCallback(final SSLIOSessionStrategy sslStrategy, @Nullable final CredentialsProvider credentialsProvider) {
         this.sslStrategy = Objects.requireNonNull(sslStrategy);
         this.credentialsProvider = credentialsProvider;
     }

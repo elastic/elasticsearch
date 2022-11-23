@@ -185,13 +185,13 @@ public class StoreKeyConfigTests extends ESTestCase {
             assertThat(chain, notNullValue());
             assertThat(chain, arrayWithSize(1));
             final X509Certificate certificate = chain[0];
-            assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
-            assertThat(certificate.getSubjectDN().getName(), is("CN=" + name));
+            assertThat(certificate.getIssuerX500Principal().getName(), is("CN=Test CA 1"));
+            assertThat(certificate.getSubjectX500Principal().getName(), is("CN=" + name));
             assertThat(certificate.getSubjectAlternativeNames(), iterableWithSize(2));
-            assertThat(certificate.getSubjectAlternativeNames(), containsInAnyOrder(
-                Arrays.asList(DNS_NAME, "localhost"),
-                Arrays.asList(IP_NAME, "127.0.0.1")
-            ));
+            assertThat(
+                certificate.getSubjectAlternativeNames(),
+                containsInAnyOrder(Arrays.asList(DNS_NAME, "localhost"), Arrays.asList(IP_NAME, "127.0.0.1"))
+            );
         }
 
         final List<Tuple<PrivateKey, X509Certificate>> keys = keyConfig.getKeys(true);
@@ -202,7 +202,7 @@ public class StoreKeyConfigTests extends ESTestCase {
             assertThat(privateKey.getAlgorithm(), is("RSA"));
 
             final X509Certificate certificate = tup.v2();
-            assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
+            assertThat(certificate.getIssuerX500Principal().getName(), is("CN=Test CA 1"));
         }
     }
 

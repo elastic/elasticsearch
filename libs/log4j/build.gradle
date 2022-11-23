@@ -1,0 +1,28 @@
+plugins {
+  id 'base'
+  id 'elasticsearch.repositories'
+}
+
+configurations {
+  log4j {
+    transitive = false
+  }
+}
+
+dependencies {
+  log4j "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+}
+
+// Strip out JndiLookup class to avoid any possibility of exploitation of CVE-2021-44228
+// See: https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-44228
+// See: https://issues.apache.org/jira/browse/LOG4J2-3201
+def patchLog4j = tasks.register('patchLog4j', Zip) {
+  archiveExtension = 'jar'
+  from({ zipTree(configurations.log4j.singleFile) }) {
+    exclude '**/JndiLookup.class'
+  }
+}
+
+artifacts {
+  'default'(patchLog4j)
+}

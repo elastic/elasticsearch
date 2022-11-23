@@ -1,0 +1,40 @@
+---
+setup:
+  - skip:
+      version: "9.0.0 - "
+      reason: "compatible from 8.x to 7.x"
+      features:
+        - "headers"
+        - "warnings_regex"
+  - do:
+      index:
+        index: some-test-index-1
+        id: "1"
+        body: { foo: bar }
+
+---
+"Freezing a non-existent index throws 404":
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      indices.freeze:
+        index: some-test-index-404
+      catch: missing
+
+---
+"Freezing an index throws 410":
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      indices.freeze:
+        index: some-test-index-1
+      catch: /It is no longer possible to freeze indices, but existing frozen indices can still be unfrozen/
+
+---
+"Without compat headers throws 400":
+  - do:
+      indices.freeze:
+        index: some-test-index-1
+      catch: /no handler found for uri/

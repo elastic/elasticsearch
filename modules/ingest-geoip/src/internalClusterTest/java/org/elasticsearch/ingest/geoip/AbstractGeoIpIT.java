@@ -37,13 +37,16 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
             Files.createDirectories(databasePath);
             Files.copy(
                 new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
-                databasePath.resolve("GeoLite2-City.mmdb"));
+                databasePath.resolve("GeoLite2-City.mmdb")
+            );
             Files.copy(
                 new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")),
-                databasePath.resolve("GeoLite2-Country.mmdb"));
+                databasePath.resolve("GeoLite2-Country.mmdb")
+            );
             Files.copy(
                 new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb")),
-                databasePath.resolve("GeoLite2-ASN.mmdb"));
+                databasePath.resolve("GeoLite2-ASN.mmdb")
+            );
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -58,9 +61,15 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(Setting.simpleString("ingest.geoip.database_path", Setting.Property.NodeScope),
-                Setting.timeSetting("ingest.geoip.database_validity", TimeValue.timeValueDays(3), Setting.Property.NodeScope,
-                    Setting.Property.Dynamic));
+            return List.of(
+                Setting.simpleString("ingest.geoip.database_path", Setting.Property.NodeScope),
+                Setting.timeSetting(
+                    "ingest.geoip.database_validity",
+                    TimeValue.timeValueDays(3),
+                    Setting.Property.NodeScope,
+                    Setting.Property.Dynamic
+                )
+            );
         }
     }
 }

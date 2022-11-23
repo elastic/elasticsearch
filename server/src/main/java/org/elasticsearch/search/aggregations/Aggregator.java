@@ -12,13 +12,13 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -77,7 +77,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * aggregation.
      */
     public final Aggregator resolveSortPathOnValidAgg(AggregationPath.PathElement next, Iterator<AggregationPath.PathElement> path) {
-        Aggregator n = subAggregator(next.name);
+        Aggregator n = subAggregator(next.name());
         if (n == null) {
             throw new IllegalArgumentException(
                 "The provided aggregation ["
@@ -89,7 +89,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         if (false == path.hasNext()) {
             return n;
         }
-        if (next.key != null) {
+        if (next.key() != null) {
             throw new IllegalArgumentException("Key only allowed on last aggregation path element but got [" + next + "]");
         }
         return n.resolveSortPath(path.next(), path);

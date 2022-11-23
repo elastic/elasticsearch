@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.util.Collections;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.hamcrest.Matchers.equalTo;
 
-public class HuberTests extends AbstractSerializingTestCase<Huber> {
+public class HuberTests extends AbstractXContentSerializingTestCase<Huber> {
 
     @Override
     protected Huber doParseInstance(XContentParser parser) throws IOException {
@@ -42,10 +42,9 @@ public class HuberTests extends AbstractSerializingTestCase<Huber> {
     }
 
     public void testEvaluate() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockSingleValue("regression_huber", 0.8123),
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(
+            Arrays.asList(mockSingleValue("regression_huber", 0.8123), mockSingleValue("some_other_single_metric_agg", 0.2377))
+        );
 
         Huber huber = new Huber((Double) null);
         huber.process(aggs);
@@ -56,9 +55,7 @@ public class HuberTests extends AbstractSerializingTestCase<Huber> {
     }
 
     public void testEvaluate_GivenMissingAggs() {
-        Aggregations aggs = new Aggregations(Collections.singletonList(
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(Collections.singletonList(mockSingleValue("some_other_single_metric_agg", 0.2377)));
 
         Huber huber = new Huber((Double) null);
         huber.process(aggs);

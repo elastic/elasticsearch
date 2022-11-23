@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-
 public class DeleteTrainedModelAliasAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteTrainedModelAliasAction INSTANCE = new DeleteTrainedModelAliasAction();
@@ -56,7 +55,7 @@ public class DeleteTrainedModelAliasAction extends ActionType<AcknowledgedRespon
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws  IOException {
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelAlias);
             out.writeString(modelId);
@@ -72,8 +71,7 @@ public class DeleteTrainedModelAliasAction extends ActionType<AcknowledgedRespon
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(modelAlias, request.modelAlias)
-                && Objects.equals(modelId, request.modelId);
+            return Objects.equals(modelAlias, request.modelAlias) && Objects.equals(modelId, request.modelId);
         }
 
         @Override

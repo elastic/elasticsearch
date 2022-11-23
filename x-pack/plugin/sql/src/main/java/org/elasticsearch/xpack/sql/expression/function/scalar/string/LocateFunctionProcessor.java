@@ -43,7 +43,7 @@ public class LocateFunctionProcessor implements Processor {
     public Object process(Object input) {
         return doProcess(pattern().process(input), input().process(input), start() == null ? null : start().process(input));
     }
-    
+
     public static Integer doProcess(Object pattern, Object input, Object start) {
         if (pattern == null || input == null) {
             return null;
@@ -63,7 +63,6 @@ public class LocateFunctionProcessor implements Processor {
         String stringInput = input instanceof Character ? input.toString() : (String) input;
         String stringPattern = pattern instanceof Character ? pattern.toString() : (String) pattern;
 
-        
         int startIndex = start == null ? 0 : ((Number) start).intValue() - 1;
         return 1 + stringInput.indexOf(stringPattern, startIndex);
     }
@@ -80,8 +79,8 @@ public class LocateFunctionProcessor implements Processor {
 
         LocateFunctionProcessor other = (LocateFunctionProcessor) obj;
         return Objects.equals(pattern(), other.pattern())
-                && Objects.equals(input(), other.input())
-                && Objects.equals(start(), other.start());
+            && Objects.equals(input(), other.input())
+            && Objects.equals(start(), other.start());
     }
 
     @Override

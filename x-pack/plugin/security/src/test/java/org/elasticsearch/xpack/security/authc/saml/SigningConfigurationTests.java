@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.util.Arrays;
-
 import org.elasticsearch.common.util.set.Sets;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -15,6 +13,8 @@ import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.security.x509.X509Credential;
+
+import java.util.Arrays;
 
 public class SigningConfigurationTests extends SamlTestCase {
 

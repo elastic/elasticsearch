@@ -62,12 +62,17 @@ public abstract class ConditionalFunction extends ScalarFunction {
                 }
             } else {
                 if (SqlDataTypes.areCompatible(dt, child.dataType()) == false) {
-                    return new TypeResolution(format(null, "{} argument of [{}] must be [{}], found value [{}] type [{}]",
-                        ordinal(i + 1),
-                        sourceText(),
-                        dt.typeName(),
-                        Expressions.name(child),
-                        child.dataType().typeName()));
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "{} argument of [{}] must be [{}], found value [{}] type [{}]",
+                            ordinal(i + 1),
+                            sourceText(),
+                            dt.typeName(),
+                            Expressions.name(child),
+                            child.dataType().typeName()
+                        )
+                    );
                 }
             }
         }

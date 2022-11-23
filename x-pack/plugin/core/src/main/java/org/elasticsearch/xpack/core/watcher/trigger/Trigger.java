@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.watcher.trigger;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

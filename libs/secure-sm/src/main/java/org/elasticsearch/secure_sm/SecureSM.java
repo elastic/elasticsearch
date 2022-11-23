@@ -153,6 +153,12 @@ public class SecureSM extends SecurityManager {
     private static final Permission MODIFY_THREAD_PERMISSION = new RuntimePermission("modifyThread");
     private static final Permission MODIFY_ARBITRARY_THREAD_PERMISSION = new ThreadPermission("modifyArbitraryThread");
 
+    // Returns true if the given thread is an instance of the JDK's InnocuousThread.
+    private static boolean isInnocuousThread(Thread t) {
+        final Class<?> c = t.getClass();
+        return c.getClassLoader() == null && c.getName().equals("jdk.internal.misc.InnocuousThread");
+    }
+
     protected void checkThreadAccess(Thread t) {
         Objects.requireNonNull(t);
 

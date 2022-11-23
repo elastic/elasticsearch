@@ -438,7 +438,9 @@ To run a {ccs}, the local and remote clusters must be compatible as outlined
 in the following matrix.
 
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
-clusters must use the same {es} version if they have versions prior to 7.17.7 (included).
+clusters must use the same {es} version.
+Local clusters v 7.17.7 or later also support cross-cluster search to
+<<remote-clusters,remote clusters>> v 7.15 or later.
 
 [%collapsible%open]
 .Version compatibility matrix

@@ -229,7 +229,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         fail.set(true);
         // must change the script source or the cached version will be used
         storedScripts.put("foo", new StoredScriptSource("lang", "changed", Map.of()));
-        IngestDocument ingestDoc = new IngestDocument(Map.of(), Map.of());
+        IngestDocument ingestDoc = TestIngestDocument.emptyIngestDocument();
         execProcessor(processor, ingestDoc, (doc, e) -> { assertThat(e.getMessage(), equalTo("bad script")); });
     }
 
@@ -246,7 +246,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         );
         Script script = new Script(ScriptType.INLINE, "lang", "foo", Map.of());
         var processor = new ConditionalProcessor(null, null, script, scriptService, new FakeProcessor(null, null, null, null));
-        IngestDocument ingestDoc = new IngestDocument(Map.of(), Map.of());
+        IngestDocument ingestDoc = TestIngestDocument.emptyIngestDocument();
         execProcessor(processor, ingestDoc, (doc, e) -> { assertThat(e.getMessage(), equalTo("runtime problem")); });
     }
 

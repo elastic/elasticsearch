@@ -14,7 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
-public class BaseFrozenSearchableSnapshotsIntegTestCase extends BaseSearchableSnapshotsIntegTestCase {
+public abstract class BaseFrozenSearchableSnapshotsIntegTestCase extends BaseSearchableSnapshotsIntegTestCase {
     @Override
     protected boolean forceSingleDataPath() {
         return true;

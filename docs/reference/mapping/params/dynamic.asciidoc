@@ -42,7 +42,7 @@ GET my-index-000001/_mapping
 [[dynamic-inner-objects]]
 ==== Setting `dynamic` on inner objects
 <<object,Inner objects>> inherit the `dynamic` setting from their parent
-object or from the mapping type. In the following example, dynamic mapping is
+object. In the following example, dynamic mapping is
 disabled at the type level, so no new top-level fields will be added
 dynamically.
 

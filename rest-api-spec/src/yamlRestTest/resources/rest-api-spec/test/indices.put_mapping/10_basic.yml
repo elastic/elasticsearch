@@ -144,3 +144,91 @@
   - is_false: test_index.mappings.properties.foo.meta.bar
   - match: { test_index.mappings.properties.foo.meta.baz: "quux" }
 
+---
+"disabling synthetic source fails":
+  - skip:
+      version:     " - 8.3.99"
+      reason:      "Added in 8.4.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+
+  - do:
+      catch: /Cannot update parameter \[mode\] from \[synthetic\] to \[stored\]/
+      indices.put_mapping:
+        index: test_index
+        body:
+          _source:
+            mode: stored
+
+---
+"enabling synthetic source from explicit succeeds":
+  - skip:
+      version:     " - 8.3.99"
+      reason:      "Added in 8.4.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            _source:
+              mode: stored
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          _source:
+            mode: synthetic
+
+---
+"enabling synthetic source succeeds":
+  - skip:
+      version:     " - 8.3.99"
+      reason:      "Added in 8.4.0"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  # Index a document to cause the default mapping to be created
+  - do:
+      index:
+        index:   test_index
+        id:      1
+        refresh: true
+        body:
+          value: 4
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          _source:
+            mode: synthetic
+
+---
+"enabling synthetic source when no mapping succeeds":
+  - skip:
+      version:     " - 8.3.99"
+      reason:      "Added in 8.4.0"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  # At this point there isn't a mapping in the index at all. So we can
+  # put the synthetic source mapping and it won't conflict. It's also safe
+  # because the mapping is entirely empty.
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          _source:
+            mode: synthetic

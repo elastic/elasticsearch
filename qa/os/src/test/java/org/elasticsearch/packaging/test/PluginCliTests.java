@@ -10,6 +10,7 @@ package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
@@ -150,12 +151,16 @@ public class PluginCliTests extends PackagingTestCase {
      */
     public void test32FailsToStartWhenPluginsConfigExists() throws Exception {
         try {
+            Packages.JournaldWrapper journaldWrapper = null;
+            if (distribution().isPackage()) {
+                journaldWrapper = new Packages.JournaldWrapper(sh);
+            }
             Files.writeString(installation.config("elasticsearch-plugins.yml"), "content doesn't matter for this test");
             Shell.Result result = runElasticsearchStartCommand(null, false, false);
             assertElasticsearchFailure(
                 result,
                 "Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]",
-                null
+                journaldWrapper
             );
         } finally {
             FileUtils.rm(installation.config("elasticsearch-plugins.yml"));

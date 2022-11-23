@@ -77,6 +77,25 @@ public class PipelineProcessorTests extends ESTestCase {
         assertEquals("Pipeline processor configured for non-existent pipeline [missingPipelineId]", e[0].getMessage());
     }
 
+    public void testIgnoreMissingPipeline() throws Exception {
+        var ingestService = createIngestService();
+        var testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        var factory = new PipelineProcessor.Factory(ingestService);
+        var config = new HashMap<String, Object>();
+        config.put("name", "missingPipelineId");
+        config.put("ignore_missing_pipeline", true);
+
+        var r = new IngestDocument[1];
+        var e = new Exception[1];
+        var processor = factory.create(Collections.emptyMap(), null, null, config);
+        processor.execute(testIngestDocument, (result, e1) -> {
+            r[0] = result;
+            e[0] = e1;
+        });
+        assertNull(e[0]);
+        assertSame(testIngestDocument, r[0]);
+    }
+
     public void testThrowsOnRecursivePipelineInvocations() throws Exception {
         String innerPipelineId = "inner";
         String outerPipelineId = "outer";
@@ -229,7 +248,7 @@ public class PipelineProcessorTests extends ESTestCase {
             });
             if (i < (numPipelines - 1)) {
                 TemplateScript.Factory pipelineName = new TestTemplateService.MockTemplateScript.Factory(Integer.toString(i + 1));
-                processors.add(new PipelineProcessor(null, null, pipelineName, ingestService));
+                processors.add(new PipelineProcessor(null, null, pipelineName, false, ingestService));
             }
 
             Pipeline pipeline = new Pipeline(pipelineId, null, null, null, new CompoundProcessor(false, processors, List.of()));

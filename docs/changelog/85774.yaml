@@ -1,5 +1,0 @@
-pr: 85774
-summary: "Fix: ordering terms aggregation on top metrics null values"
-area: Aggregations
-type: bug
-issues: []

@@ -22,6 +22,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -38,7 +40,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -56,11 +57,13 @@ import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.time.Clock;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -68,7 +71,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -83,12 +85,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
+/**
+ * Tests various indexer failure cases.
+ * <p>
+ * Legacy Warning: These tests have been written before {@link TransformFailureHandler} has been created,
+ * potentially a lot of these tests can be rewritten. For new test cases use {@link TransformFailureHandlerTests}
+ * if possible.
+ */
 public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
     private Client client;
@@ -99,8 +105,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         private final Function<SearchRequest, SearchResponse> searchFunction;
         private final Function<BulkRequest, BulkResponse> bulkFunction;
         private final Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction;
-
-        private final Consumer<String> failureConsumer;
 
         // used for synchronizing with the test
         private CountDownLatch latch;
@@ -118,8 +122,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             TransformContext context,
             Function<SearchRequest, SearchResponse> searchFunction,
             Function<BulkRequest, BulkResponse> bulkFunction,
-            Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
-            Consumer<String> failureConsumer
+            Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction
         ) {
             super(
                 threadPool,
@@ -127,7 +130,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     transformsConfigManager,
                     mock(TransformCheckpointService.class),
                     auditor,
-                    mock(SchedulerEngine.class)
+                    new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
                 ),
                 checkpointProvider,
                 initialState,
@@ -145,7 +148,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.deleteByQueryFunction = deleteByQueryFunction;
-            this.failureConsumer = failureConsumer;
         }
 
         public void initialize() {
@@ -225,16 +227,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }
 
         @Override
-        protected void failIndexer(String message) {
-            if (failureConsumer != null) {
-                failureConsumer.accept(message);
-                super.failIndexer(message);
-            } else {
-                fail("failIndexer should not be called, received error: " + message);
-            }
-        }
-
-        @Override
         void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
             responseListener.onResponse(
                 new SearchResponse(
@@ -309,7 +301,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null, null, null, null),
+            new SettingsConfig.Builder().setMaxPageSearchSize(pageSize).build(),
             null,
             null,
             null,
@@ -337,7 +329,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             searchFunction,
             bulkFunction,
             null,
-            null,
             threadPool,
             ThreadPool.Names.GENERIC,
             auditor,
@@ -351,13 +342,13 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         latch.countDown();
         assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.MINUTES);
-        long pageSizeAfterFirstReduction = indexer.getPageSize();
+        long pageSizeAfterFirstReduction = context.getPageSize();
         assertThat(initialPageSize, greaterThan(pageSizeAfterFirstReduction));
         assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
 
         // run indexer a 2nd time
         final CountDownLatch secondRunLatch = indexer.newLatch(1);
-        assertEquals(pageSizeAfterFirstReduction, indexer.getPageSize());
+        assertEquals(pageSizeAfterFirstReduction, context.getPageSize());
         assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
 
         // when the indexer thread shuts down, it ignores the trigger, we might have to call it again
@@ -368,7 +359,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
 
         // assert that page size has been reduced again
-        assertThat(pageSizeAfterFirstReduction, greaterThan((long) indexer.getPageSize()));
+        assertThat(pageSizeAfterFirstReduction, greaterThan((long) context.getPageSize()));
         assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
     }
 
@@ -384,7 +375,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null, null, null, null),
+            new SettingsConfig.Builder().setMaxPageSearchSize(pageSize).build(),
             null,
             null,
             null,
@@ -422,7 +413,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             searchFunction,
             bulkFunction,
             null,
-            null,
             threadPool,
             ThreadPool.Names.GENERIC,
             auditor,
@@ -448,7 +438,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null, (Boolean) null, null, null, null),
+            new SettingsConfig.Builder().setMaxPageSearchSize(pageSize).build(),
             null,
             null,
             null,
@@ -477,13 +467,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
         final AtomicReference<String> failureMessage = new AtomicReference<>();
-        Consumer<String> failureConsumer = message -> {
-            failIndexerCalled.compareAndSet(false, true);
-            failureMessage.compareAndSet(null, message);
-        };
 
         MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
-        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext.Listener contextListener = createContextListener(failIndexerCalled, failureMessage);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
 
         MockedTransformIndexer indexer = createMockIndexer(
@@ -492,7 +478,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             searchFunction,
             bulkFunction,
             null,
-            failureConsumer,
             threadPool,
             ThreadPool.Names.GENERIC,
             auditor,
@@ -509,11 +494,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         latch.countDown();
         assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
         assertTrue(failIndexerCalled.get());
-        verify(contextListener, times(1)).fail(
-            matches("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]"),
-            any()
-        );
-
         assertThat(
             failureMessage.get(),
             matchesRegex("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]")
@@ -577,13 +557,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
         final AtomicReference<String> failureMessage = new AtomicReference<>();
-        Consumer<String> failureConsumer = message -> {
-            failIndexerCalled.compareAndSet(false, true);
-            failureMessage.compareAndSet(null, message);
-        };
 
         MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
-        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext.Listener contextListener = createContextListener(failIndexerCalled, failureMessage);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
 
         MockedTransformIndexer indexer = createMockIndexer(
@@ -592,7 +568,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             searchFunction,
             bulkFunction,
             deleteByQueryFunction,
-            failureConsumer,
             threadPool,
             ThreadPool.Names.GENERIC,
             auditor,
@@ -609,11 +584,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         latch.countDown();
         assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
         assertTrue(failIndexerCalled.get());
-        verify(contextListener, times(1)).fail(
-            matches("task encountered irrecoverable failure: org.elasticsearch.ElasticsearchParseException: failed to parse date field;.*"),
-            any()
-        );
-
         assertThat(
             failureMessage.get(),
             matchesRegex(
@@ -676,10 +646,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
         final AtomicReference<String> failureMessage = new AtomicReference<>();
-        Consumer<String> failureConsumer = message -> {
-            failIndexerCalled.compareAndSet(false, true);
-            failureMessage.compareAndSet(null, message);
-        };
 
         MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         auditor.addExpectation(
@@ -687,11 +653,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 "timed out during dbq",
                 Level.WARNING,
                 transformId,
-                "Transform encountered an exception: org.elasticsearch.ElasticsearchTimeoutException: timed out during dbq;"
-                    + " Will attempt again at next scheduled trigger."
+                "Transform encountered an exception: [org.elasticsearch.ElasticsearchTimeoutException: timed out during dbq];"
+                    + " Will automatically retry [1/10]"
             )
         );
-        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext.Listener contextListener = createContextListener(failIndexerCalled, failureMessage);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
 
         MockedTransformIndexer indexer = createMockIndexer(
@@ -700,7 +666,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             searchFunction,
             bulkFunction,
             deleteByQueryFunction,
-            failureConsumer,
             threadPool,
             ThreadPool.Names.GENERIC,
             auditor,
@@ -783,13 +748,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
         final AtomicReference<String> failureMessage = new AtomicReference<>();
-        Consumer<String> failureConsumer = message -> {
-            failIndexerCalled.compareAndSet(false, true);
-            failureMessage.compareAndSet(null, message);
-        };
 
         MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
-        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext.Listener contextListener = createContextListener(failIndexerCalled, failureMessage);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
 
         MockedTransformIndexer indexer = createMockIndexer(
@@ -798,7 +759,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             searchFunction,
             bulkFunction,
             null,
-            failureConsumer,
             threadPool,
             ThreadPool.Names.GENERIC,
             auditor,
@@ -833,13 +793,244 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         assertEquals(0, context.getFailureCount());
     }
 
+    // tests throttling of audits on logs based on repeated exception types
+    public void testHandleFailureAuditing() {
+        String transformId = randomAlphaOfLength(10);
+        TransformConfig config = new TransformConfig.Builder().setId(transformId)
+            .setSource(randomSourceConfig())
+            .setDest(randomDestConfig())
+            .setSyncConfig(new TimeSyncConfig("time", TimeSyncConfig.DEFAULT_DELAY))
+            .setPivotConfig(randomPivotConfig())
+            .build();
+
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = request -> mock(SearchResponse.class);
+        Function<BulkRequest, BulkResponse> bulkFunction = request -> mock(BulkResponse.class);
+
+        final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
+        final AtomicReference<String> failureMessage = new AtomicReference<>();
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        TransformContext.Listener contextListener = createContextListener(failIndexerCalled, failureMessage);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "timeout_exception_1",
+                Level.WARNING,
+                transformId,
+                "Transform encountered an exception: [*ElasticsearchTimeoutException: timeout_1]; Will automatically retry [1/"
+                    + Transform.DEFAULT_FAILURE_RETRIES
+                    + "]"
+            )
+        );
+
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "bulk_exception_1",
+                Level.WARNING,
+                transformId,
+                "Transform encountered an exception: [*BulkIndexingException: bulk_exception_1*]; Will automatically retry [2/"
+                    + Transform.DEFAULT_FAILURE_RETRIES
+                    + "]"
+            )
+        );
+
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "timeout_exception_2",
+                Level.WARNING,
+                transformId,
+                "Transform encountered an exception: [*ElasticsearchTimeoutException: timeout_2]; Will automatically retry [3/"
+                    + Transform.DEFAULT_FAILURE_RETRIES
+                    + "]"
+            )
+        );
+
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "bulk_exception_2",
+                Level.WARNING,
+                transformId,
+                "Transform encountered an exception: [*BulkIndexingException: bulk_exception_2*]; Will automatically retry [6/"
+                    + Transform.DEFAULT_FAILURE_RETRIES
+                    + "]"
+            )
+        );
+
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            null,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
+
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_1")) }
+            )
+        );
+
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] {
+                    new ShardSearchFailure(
+                        new BulkIndexingException("bulk_exception_1", new EsRejectedExecutionException("full queue"), false)
+                    ) }
+            )
+        );
+
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
+            )
+        );
+
+        // not logged
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
+            )
+        );
+
+        // not logged
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
+            )
+        );
+
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                new ShardSearchFailure[] {
+                    new ShardSearchFailure(
+                        new BulkIndexingException("bulk_exception_2", new EsRejectedExecutionException("full queue"), false)
+                    ) }
+            )
+        );
+
+        auditor.assertAllExpectationsMatched();
+    }
+
+    public void testHandleFailure() {
+        testHandleFailure(0, 5, 0, 0);
+        testHandleFailure(5, 0, 5, 2);
+        testHandleFailure(3, 5, 3, 2);
+        testHandleFailure(5, 3, 5, 2);
+        testHandleFailure(0, null, 0, 0);
+        testHandleFailure(3, null, 3, 2);
+        testHandleFailure(5, null, 5, 2);
+        testHandleFailure(7, null, 7, 2);
+        testHandleFailure(Transform.DEFAULT_FAILURE_RETRIES, null, Transform.DEFAULT_FAILURE_RETRIES, 2);
+        testHandleFailure(null, 0, 0, 0);
+        testHandleFailure(null, 3, 3, 2);
+        testHandleFailure(null, 5, 5, 2);
+        testHandleFailure(null, 7, 7, 2);
+        testHandleFailure(null, Transform.DEFAULT_FAILURE_RETRIES, Transform.DEFAULT_FAILURE_RETRIES, 2);
+        testHandleFailure(null, null, Transform.DEFAULT_FAILURE_RETRIES, 2);
+    }
+
+    private void testHandleFailure(
+        Integer configNumFailureRetries,
+        Integer contextNumFailureRetries,
+        int expectedEffectiveNumFailureRetries,
+        int expecedNumberOfRetryAudits
+    ) {
+        String transformId = randomAlphaOfLength(10);
+        TransformConfig config = new TransformConfig.Builder().setId(transformId)
+            .setSource(randomSourceConfig())
+            .setDest(randomDestConfig())
+            .setSyncConfig(new TimeSyncConfig("time", TimeSyncConfig.DEFAULT_DELAY))
+            .setPivotConfig(randomPivotConfig())
+            .setSettings(new SettingsConfig.Builder().setNumFailureRetries(configNumFailureRetries).build())
+            .build();
+
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = request -> mock(SearchResponse.class);
+        Function<BulkRequest, BulkResponse> bulkFunction = request -> mock(BulkResponse.class);
+
+        final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
+        final AtomicReference<String> failureMessage = new AtomicReference<>();
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        TransformContext.Listener contextListener = createContextListener(failIndexerCalled, failureMessage);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+        if (contextNumFailureRetries != null) {
+            context.setNumFailureRetries(contextNumFailureRetries);
+        }
+
+        int indexerRetries = configNumFailureRetries != null ? configNumFailureRetries
+            : contextNumFailureRetries != null ? contextNumFailureRetries
+            : Transform.DEFAULT_FAILURE_RETRIES;
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                getTestName(),
+                Level.WARNING,
+                transformId,
+                "Transform encountered an exception: [*]; Will automatically retry [*/" + indexerRetries + "]",
+                expecedNumberOfRetryAudits
+            )
+        );
+
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            null,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
+
+        for (int i = 0; i < expectedEffectiveNumFailureRetries; ++i) {
+            indexer.handleFailure(new Exception("exception no. " + (i + 1)));
+            assertFalse(failIndexerCalled.get());
+            assertThat(failureMessage.get(), is(nullValue()));
+            assertThat(context.getFailureCount(), is(equalTo(i + 1)));
+        }
+        indexer.handleFailure(new Exception("exception no. " + (expectedEffectiveNumFailureRetries + 1)));
+        assertTrue(failIndexerCalled.get());
+        assertThat(
+            failureMessage.get(),
+            is(
+                equalTo(
+                    "task encountered more than "
+                        + expectedEffectiveNumFailureRetries
+                        + " failures; latest failure: exception no. "
+                        + (expectedEffectiveNumFailureRetries + 1)
+                )
+            )
+        );
+        assertThat(context.getFailureCount(), is(equalTo(expectedEffectiveNumFailureRetries + 1)));
+
+        auditor.assertAllExpectationsMatched();
+    }
+
     private MockedTransformIndexer createMockIndexer(
         TransformConfig config,
         AtomicReference<IndexerState> state,
         Function<SearchRequest, SearchResponse> searchFunction,
         Function<BulkRequest, BulkResponse> bulkFunction,
         Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
-        Consumer<String> failureConsumer,
         ThreadPool threadPool,
         String executorName,
         TransformAuditor auditor,
@@ -865,12 +1056,29 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             context,
             searchFunction,
             bulkFunction,
-            deleteByQueryFunction,
-            failureConsumer
+            deleteByQueryFunction
         );
 
         indexer.initialize();
         return indexer;
     }
 
+    private TransformContext.Listener createContextListener(
+        final AtomicBoolean failIndexerCalled,
+        final AtomicReference<String> failureMessage
+    ) {
+        return new TransformContext.Listener() {
+            @Override
+            public void shutdown() {}
+
+            @Override
+            public void failureCountChanged() {}
+
+            @Override
+            public void fail(String message, ActionListener<Void> listener) {
+                assertTrue(failIndexerCalled.compareAndSet(false, true));
+                assertTrue(failureMessage.compareAndSet(null, message));
+            }
+        };
+    }
 }

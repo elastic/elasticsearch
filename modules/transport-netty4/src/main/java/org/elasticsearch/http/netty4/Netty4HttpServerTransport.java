@@ -51,6 +51,7 @@ import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.NetUtils;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -63,7 +64,6 @@ import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.net.InetSocketAddress;
-import java.net.SocketOption;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 
@@ -92,7 +92,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
      *
      * By default we assume the Ethernet MTU (1500 bytes) but users can override it with a system property.
      */
-    private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("es.net.mtu", "1500")));
+    private static final ByteSizeValue MTU = ByteSizeValue.ofBytes(Long.parseLong(System.getProperty("es.net.mtu", "1500")));
 
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
 
@@ -155,7 +155,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        SharedGroupFactory sharedGroupFactory
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer
     ) {
         this(
             settings,
@@ -165,6 +166,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             dispatcher,
             clusterSettings,
             sharedGroupFactory,
+            tracer,
             TLSConfig.noTLS(),
             null
         );
@@ -178,12 +180,22 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         SharedGroupFactory sharedGroupFactory,
+        Tracer tracer,
         TLSConfig tlsConfig,
         AcceptChannelHandler.AcceptPredicate acceptChannelPredicate
 
     ) {
-        super(settings, networkService, Netty4Utils.createRecycler(settings), threadPool, xContentRegistry, dispatcher, clusterSettings);
-        Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
+        super(
+            settings,
+            networkService,
+            Netty4Utils.createRecycler(settings),
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            tracer
+        );
+        Netty4Utils.setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
         this.tlsConfig = tlsConfig;
@@ -241,25 +253,22 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 // Netty logs a warning if it can't set the option, so try this only on supported platforms
                 if (IOUtils.LINUX || IOUtils.MAC_OS_X) {
                     if (SETTING_HTTP_TCP_KEEP_IDLE.get(settings) >= 0) {
-                        final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
-                        if (keepIdleOption != null) {
-                            serverBootstrap.childOption(NioChannelOption.of(keepIdleOption), SETTING_HTTP_TCP_KEEP_IDLE.get(settings));
-                        }
+                        serverBootstrap.childOption(
+                            NioChannelOption.of(NetUtils.getTcpKeepIdleSocketOption()),
+                            SETTING_HTTP_TCP_KEEP_IDLE.get(settings)
+                        );
                     }
                     if (SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings) >= 0) {
-                        final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
-                        if (keepIntervalOption != null) {
-                            serverBootstrap.childOption(
-                                NioChannelOption.of(keepIntervalOption),
-                                SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings)
-                            );
-                        }
+                        serverBootstrap.childOption(
+                            NioChannelOption.of(NetUtils.getTcpKeepIntervalSocketOption()),
+                            SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings)
+                        );
                     }
                     if (SETTING_HTTP_TCP_KEEP_COUNT.get(settings) >= 0) {
-                        final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
-                        if (keepCountOption != null) {
-                            serverBootstrap.childOption(NioChannelOption.of(keepCountOption), SETTING_HTTP_TCP_KEEP_COUNT.get(settings));
-                        }
+                        serverBootstrap.childOption(
+                            NioChannelOption.of(NetUtils.getTcpKeepCountSocketOption()),
+                            SETTING_HTTP_TCP_KEEP_COUNT.get(settings)
+                        );
                     }
                 }
             }
@@ -373,24 +382,27 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (tlsConfig.isTLSEnabled()) {
                 ch.pipeline().addFirst("ssl", new SslHandler(tlsConfig.createServerSSLEngine()));
             }
-            // ch.pipeline().addFirst("ip_filter", new IpFilterRemoteAddressFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME));
-            ch.pipeline().addLast("chunked_writer", new Netty4WriteThrottlingHandler(transport.getThreadPool().getThreadContext()));
-            ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
-            ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
+            ch.pipeline()
+                .addLast("chunked_writer", new Netty4WriteThrottlingHandler(transport.getThreadPool().getThreadContext()))
+                .addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
+            if (transport.readTimeoutMillis > 0) {
+                ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
+            }
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
-                handlingSettings.getMaxInitialLineLength(),
-                handlingSettings.getMaxHeaderSize(),
-                handlingSettings.getMaxChunkSize()
+                handlingSettings.maxInitialLineLength(),
+                handlingSettings.maxHeaderSize(),
+                handlingSettings.maxChunkSize()
             );
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
-            ch.pipeline().addLast("decoder", decoder);
-            ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
-            ch.pipeline().addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
+            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.maxContentLength());
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
-            ch.pipeline().addLast("aggregator", aggregator);
-            if (handlingSettings.isCompression()) {
-                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+            ch.pipeline()
+                .addLast("decoder", decoder)
+                .addLast("decoder_compress", new HttpContentDecompressor())
+                .addLast("encoder", new HttpResponseEncoder())
+                .addLast("aggregator", aggregator);
+            if (handlingSettings.compression()) {
+                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
             }
             ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents, transport));
             transport.serverAcceptedChannel(nettyHttpChannel);

@@ -9,8 +9,8 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -22,14 +22,11 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
-import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
-
 /**
  * Script producing geo points. Similarly to what {@link LatLonDocValuesField} does,
  * it encodes the points as a long value.
  */
-public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
+public abstract class GeoPointFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("geo_point_field", Factory.class);
 
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
@@ -80,22 +77,60 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         GeoPointFieldScript newInstance(LeafReaderContext ctx);
     }
 
+    private double[] lats = new double[1];
+    private double[] lons = new double[1];
+    private int count;
+
     public GeoPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
 
     /**
-     * Consumers must copy the emitted GeoPoint(s) if stored.
+     * Execute the script for the provided {@code docId}.
      */
-    public void runGeoPointForDoc(int doc, Consumer<GeoPoint> consumer) {
-        runForDoc(doc);
+    public final void runForDoc(int docId) {
+        count = 0;
+        setDocument(docId);
+        execute();
+    }
+
+    /**
+     * Execute the script for the provided {@code docId}, passing results to the {@code consumer}
+     */
+    public final void runForDoc(int docId, Consumer<GeoPoint> consumer) {
+        runForDoc(docId);
         GeoPoint point = new GeoPoint();
-        for (int i = 0; i < count(); i++) {
-            final int lat = (int) (values()[i] >>> 32);
-            final int lon = (int) (values()[i] & 0xFFFFFFFF);
-            point.reset(GeoEncodingUtils.decodeLatitude(lat), GeoEncodingUtils.decodeLongitude(lon));
+        for (int i = 0; i < count; i++) {
+            point.reset(lats[i], lons[i]);
             consumer.accept(point);
         }
+    }
+
+    /**
+     * Latitude values from the last time {@link #runForDoc(int)} was called. This
+     * array is mutable and will change with the next call of {@link #runForDoc(int)}.
+     * It is also oversized and will contain garbage at all indices at and
+     * above {@link #count()}.
+     */
+    public final double[] lats() {
+        return lats;
+    }
+
+    /**
+     * Longitude values from the last time {@link #runForDoc(int)} was called. This
+     * array is mutable and will change with the next call of {@link #runForDoc(int)}.
+     * It is also oversized and will contain garbage at all indices at and
+     * above {@link #count()}.
+     */
+    public final double[] lons() {
+        return lons;
+    }
+
+    /**
+     * The number of results produced the last time {@link #runForDoc(int)} was called.
+     */
+    public final int count() {
+        return count;
     }
 
     @Override
@@ -142,9 +177,13 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
     }
 
     protected final void emit(double lat, double lon) {
-        int latitudeEncoded = encodeLatitude(lat);
-        int longitudeEncoded = encodeLongitude(lon);
-        emit((((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL));
+        checkMaxSize(count);
+        if (lats.length < count + 1) {
+            lats = ArrayUtil.grow(lats, count + 1);
+            lons = ArrayUtil.growExact(lons, lats.length);
+        }
+        lats[count] = lat;
+        lons[count++] = lon;
     }
 
     public static class Emit {
@@ -155,6 +194,7 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         }
 
         public void emit(double lat, double lon) {
+            script.checkMaxSize(script.count());
             script.emit(lat, lon);
         }
     }

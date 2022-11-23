@@ -15,12 +15,14 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.initialization.layout.BuildLayout;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
@@ -39,57 +41,60 @@ import static java.util.Arrays.asList;
 
 public class InternalBwcGitPlugin implements Plugin<Project> {
 
-    private final ProviderFactory providerFactory;
+    private final BuildLayout buildLayout;
     private final ExecOperations execOperations;
+    private final ProjectLayout projectLayout;
+    private final ProviderFactory providerFactory;
 
     private BwcGitExtension gitExtension;
-    private Project project;
 
     @Inject
-    public InternalBwcGitPlugin(ProviderFactory providerFactory, ExecOperations execOperations) {
-        this.providerFactory = providerFactory;
+    public InternalBwcGitPlugin(
+        BuildLayout buildLayout,
+        ExecOperations execOperations,
+        ProjectLayout projectLayout,
+        ProviderFactory providerFactory
+    ) {
+        this.buildLayout = buildLayout;
         this.execOperations = execOperations;
+        this.projectLayout = projectLayout;
+        this.providerFactory = providerFactory;
     }
 
     @Override
     public void apply(Project project) {
-        this.project = project;
         this.gitExtension = project.getExtensions().create("bwcGitConfig", BwcGitExtension.class);
-        Provider<String> remote = providerFactory.systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("elastic");
+        Provider<String> remote = providerFactory.systemProperty("bwc.remote").orElse("elastic");
 
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
             createClone.onlyIf(task -> this.gitExtension.getCheckoutDir().get().exists() == false);
-            createClone.setCommandLine(asList("git", "clone", project.getRootDir(), gitExtension.getCheckoutDir().get()));
+            createClone.commandLine("git", "clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get());
         });
 
+        ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
         TaskProvider<LoggedExec> findRemoteTaskProvider = tasks.register("findRemote", LoggedExec.class, findRemote -> {
             findRemote.dependsOn(createCloneTaskProvider);
-            // TODO Gradle should provide property based configuration here
-            findRemote.setWorkingDir(gitExtension.getCheckoutDir().get());
-
-            findRemote.setCommandLine(asList("git", "remote", "-v"));
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            findRemote.setStandardOutput(output);
-            findRemote.doLast(t -> {
-                ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
-                extraProperties.set("remoteExists", isRemoteAvailable(remote, output));
-            });
+            findRemote.getWorkingDir().set(gitExtension.getCheckoutDir());
+            findRemote.commandLine("git", "remote", "-v");
+            findRemote.getCaptureOutput().set(true);
+            findRemote.doLast(t -> { extraProperties.set("remoteExists", isRemoteAvailable(remote, findRemote.getOutput())); });
         });
 
         TaskProvider<LoggedExec> addRemoteTaskProvider = tasks.register("addRemote", LoggedExec.class, addRemote -> {
             addRemote.dependsOn(findRemoteTaskProvider);
-            addRemote.onlyIf(task -> ((boolean) project.getExtensions().getExtraProperties().get("remoteExists")) == false);
-            addRemote.setWorkingDir(gitExtension.getCheckoutDir().get());
+            addRemote.onlyIf(task -> ((boolean) extraProperties.get("remoteExists")) == false);
+            addRemote.getWorkingDir().set(gitExtension.getCheckoutDir().get());
             String remoteRepo = remote.get();
             // for testing only we can override the base remote url
             String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
                 .getOrElse("https://github.com/" + remoteRepo + "/elasticsearch.git");
-            addRemote.setCommandLine(asList("git", "remote", "add", remoteRepo, remoteRepoUrl));
+            addRemote.commandLine("git", "remote", "add", remoteRepo, remoteRepoUrl);
         });
 
+        boolean isOffline = project.getGradle().getStartParameter().isOffline();
         TaskProvider<LoggedExec> fetchLatestTaskProvider = tasks.register("fetchLatest", LoggedExec.class, fetchLatest -> {
-            var gitFetchLatest = project.getProviders().systemProperty("tests.bwc.git_fetch_latest").orElse("true").map(fetchProp -> {
+            var gitFetchLatest = providerFactory.systemProperty("tests.bwc.git_fetch_latest").orElse("true").map(fetchProp -> {
                 if ("true".equals(fetchProp)) {
                     return true;
                 }
@@ -98,33 +103,35 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                 }
                 throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + fetchProp + "]");
             });
-            fetchLatest.onlyIf(t -> project.getGradle().getStartParameter().isOffline() == false && gitFetchLatest.get());
+            fetchLatest.onlyIf(t -> isOffline == false && gitFetchLatest.get());
             fetchLatest.dependsOn(addRemoteTaskProvider);
-            fetchLatest.setWorkingDir(gitExtension.getCheckoutDir().get());
-            fetchLatest.setCommandLine(asList("git", "fetch", "--all"));
+            fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir().get());
+            fetchLatest.commandLine("git", "fetch", "--all");
         });
 
+        String projectPath = project.getPath();
         TaskProvider<Task> checkoutBwcBranchTaskProvider = tasks.register("checkoutBwcBranch", checkoutBwcBranch -> {
             checkoutBwcBranch.dependsOn(fetchLatestTaskProvider);
-            checkoutBwcBranch.doLast(t -> {
-                File checkoutDir = gitExtension.getCheckoutDir().get();
-                Logger logger = project.getLogger();
-                String bwcBranch = this.gitExtension.getBwcBranch().get();
-                final String refspec = providerFactory.systemProperty("bwc.refspec." + bwcBranch)
-                    .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
-                    .getOrElse(remote.get() + "/" + bwcBranch);
+            checkoutBwcBranch.doLast(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    File checkoutDir = gitExtension.getCheckoutDir().get();
+                    String bwcBranch = gitExtension.getBwcBranch().get();
+                    final String refspec = providerFactory.systemProperty("bwc.refspec." + bwcBranch)
+                        .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
+                        .getOrElse(remote.get() + "/" + bwcBranch);
 
-                String effectiveRefSpec = maybeAlignedRefSpec(logger, refspec);
+                    String effectiveRefSpec = maybeAlignedRefSpec(task.getLogger(), refspec);
+                    task.getLogger().lifecycle("Performing checkout of {}...", refspec);
+                    LoggedExec.exec(execOperations, spec -> {
+                        spec.workingDir(checkoutDir);
+                        spec.commandLine("git", "checkout", effectiveRefSpec);
+                    });
 
-                logger.lifecycle("Performing checkout of {}...", refspec);
-                LoggedExec.exec(execOperations, spec -> {
-                    spec.workingDir(checkoutDir);
-                    spec.commandLine("git", "checkout", effectiveRefSpec);
-                });
-
-                String checkoutHash = GitInfo.gitInfo(checkoutDir).getRevision();
-                logger.lifecycle("Checkout hash for {} is {}", project.getPath(), checkoutHash);
-                writeFile(new File(project.getBuildDir(), "refspec"), checkoutHash);
+                    String checkoutHash = GitInfo.gitInfo(checkoutDir).getRevision();
+                    task.getLogger().lifecycle("Checkout hash for {} is {}", projectPath, checkoutHash);
+                    writeFile(projectLayout.getBuildDirectory().file("refspec").get().getAsFile(), checkoutHash);
+                }
             });
         });
 
@@ -166,7 +173,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
 
         String timeOfCurrent = execInCheckoutDir(execSpec -> {
             execSpec.commandLine(asList("git", "show", "--no-patch", "--no-notes", "--pretty='%cD'"));
-            execSpec.workingDir(project.getRootDir());
+            execSpec.workingDir(buildLayout.getRootDirectory());
         });
 
         logger.lifecycle("Commit date of current: {}", timeOfCurrent);
@@ -201,7 +208,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         return os.toString().trim();
     }
 
-    private static boolean isRemoteAvailable(Provider<String> remote, ByteArrayOutputStream output) {
-        return new String(output.toByteArray()).lines().anyMatch(l -> l.contains(remote.get() + "\t"));
+    private static boolean isRemoteAvailable(Provider<String> remote, String output) {
+        return output.lines().anyMatch(l -> l.contains(remote.get() + "\t"));
     }
 }

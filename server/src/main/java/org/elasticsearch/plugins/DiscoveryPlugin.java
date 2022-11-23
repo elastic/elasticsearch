@@ -76,6 +76,7 @@ public interface DiscoveryPlugin {
      * join attempt but might be called multiple times during the lifetime of a node. Validators are expected to throw a
      * {@link IllegalStateException} if the node and the cluster-state are incompatible.
      */
+    @Deprecated
     default BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         return null;
     }
@@ -83,6 +84,7 @@ public interface DiscoveryPlugin {
     /**
      * Allows plugging in election strategies (see {@link ElectionStrategy}) that define a customized notion of an election quorum.
      */
+    @Deprecated
     default Map<String, ElectionStrategy> getElectionStrategies() {
         return Collections.emptyMap();
     }

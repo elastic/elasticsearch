@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.hamcrest.Matchers;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -435,7 +436,6 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         // Don't use the indexer's latch because we completely change doNextSearch()
         final CountDownLatch doNextSearchLatch = new CountDownLatch(1);
-
         try {
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
                 @Override
@@ -622,7 +622,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             final CountDownLatch latch = indexer.newLatch();
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.stop(), equalTo(IndexerState.STOPPING));
-            assertThat(indexer.getState(), equalTo(IndexerState.STOPPING));
+            assertThat(indexer.getState(), Matchers.either(Matchers.is(IndexerState.STOPPING)).or(Matchers.is(IndexerState.STOPPED)));
             latch.countDown();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
             assertTrue(indexer.abort());
@@ -840,7 +840,6 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
                 threadPool,
                 job,
@@ -897,7 +896,6 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
                 threadPool,
                 job,

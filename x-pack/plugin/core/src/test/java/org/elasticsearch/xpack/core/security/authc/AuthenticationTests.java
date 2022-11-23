@@ -224,7 +224,7 @@ public class AuthenticationTests extends ESTestCase {
             authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         } else {
             authentication = randomValueOtherThanMany(
-                authc -> "_service_account".equals(authc.getAuthenticatedBy().getName()),
+                authc -> "_service_account".equals(authc.getAuthenticatingSubject().getRealm().getName()),
                 () -> AuthenticationTestHelper.builder().build()
             );
         }
@@ -459,7 +459,9 @@ public class AuthenticationTests extends ESTestCase {
     public void testToXContentWithApiKey() throws IOException {
         final String apiKeyId = randomAlphaOfLength(20);
         final Authentication authentication1 = randomApiKeyAuthentication(randomUser(), apiKeyId);
-        final String apiKeyName = (String) authentication1.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+        final String apiKeyName = (String) authentication1.getAuthenticatingSubject()
+            .getMetadata()
+            .get(AuthenticationField.API_KEY_NAME_KEY);
         runWithAuthenticationToXContent(
             authentication1,
             m -> assertThat(
@@ -474,10 +476,12 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testToXContentWithServiceAccount() throws IOException {
         final Authentication authentication1 = randomServiceAccountAuthentication();
-        final String tokenName = (String) authentication1.getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
+        final String tokenName = (String) authentication1.getAuthenticatingSubject()
+            .getMetadata()
+            .get(ServiceAccountSettings.TOKEN_NAME_FIELD);
         final String tokenType = ServiceAccountSettings.REALM_TYPE
             + "_"
-            + authentication1.getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
+            + authentication1.getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
         runWithAuthenticationToXContent(
             authentication1,
             m -> assertThat(m, hasEntry("token", Map.of("name", tokenName, "type", tokenType)))

@@ -15,7 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -26,7 +26,7 @@ import java.util.Collections;
 import static org.elasticsearch.test.InternalAggregationTestCase.randomNumericDocValueFormat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCase<MultiValuesSourceFieldConfig> {
+public class MultiValuesSourceFieldConfigTests extends AbstractXContentSerializingTestCase<MultiValuesSourceFieldConfig> {
 
     @Override
     protected MultiValuesSourceFieldConfig doParseInstance(XContentParser parser) throws IOException {

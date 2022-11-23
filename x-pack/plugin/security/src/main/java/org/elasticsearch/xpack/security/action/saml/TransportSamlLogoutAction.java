@@ -58,13 +58,14 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
                 final String token = request.getToken();
                 tokenService.getAuthenticationAndMetadata(token, ActionListener.wrap(tuple -> {
                     Authentication authentication = tuple.v1();
+                    assert false == authentication.isRunAs() : "saml realm authentication cannot have run-as";
                     final Map<String, Object> tokenMetadata = tuple.v2();
                     SamlLogoutResponse response = buildResponse(authentication, tokenMetadata);
                     tokenService.invalidateAccessToken(token, ActionListener.wrap(created -> {
                         if (logger.isTraceEnabled()) {
                             logger.trace(
                                 "SAML Logout User [{}], Token [{}...{}]",
-                                authentication.getUser().principal(),
+                                authentication.getEffectiveSubject().getUser().principal(),
                                 token.substring(0, 8),
                                 token.substring(token.length() - 8)
                             );
@@ -91,7 +92,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         if (authentication == null) {
             throw SamlUtils.samlException("No active authentication");
         }
-        final User user = authentication.getUser();
+        final User user = authentication.getEffectiveSubject().getUser();
         if (user == null) {
             throw SamlUtils.samlException("No active user");
         }
@@ -134,9 +135,9 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
     }
 
     private SamlRealm findRealm(Authentication authentication) {
-        final Authentication.RealmRef ref = authentication.getAuthenticatedBy();
+        final Authentication.RealmRef ref = authentication.getEffectiveSubject().getRealm();
         if (ref == null || Strings.isNullOrEmpty(ref.getName())) {
-            throw SamlUtils.samlException("Authentication {} has no authenticating realm", authentication);
+            throw SamlUtils.samlException("Authentication {} has no effective realm", authentication);
         }
         final Realm realm = realms.realm(ref.getName());
         if (realm == null) {

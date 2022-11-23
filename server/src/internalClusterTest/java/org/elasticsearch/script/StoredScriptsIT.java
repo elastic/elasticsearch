@@ -40,9 +40,9 @@ public class StoredScriptsIT extends ESIntegTestCase {
     }
 
     public void testBasics() {
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray("""
+        assertAcked(client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(formatted("""
             {"script": {"lang": "%s", "source": "1"} }
-            """.formatted(LANG)), XContentType.JSON));
+            """, LANG)), XContentType.JSON));
         String script = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource().getSource();
         assertNotNull(script);
         assertEquals("1", script);
@@ -53,9 +53,9 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().cluster().preparePutStoredScript().setId("id#").setContent(new BytesArray("""
+            () -> client().admin().cluster().preparePutStoredScript().setId("id#").setContent(new BytesArray(formatted("""
                 {"script": {"lang": "%s", "source": "1"} }
-                """.formatted(LANG)), XContentType.JSON).get()
+                """, LANG)), XContentType.JSON).get()
         );
         assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;", e.getMessage());
     }
@@ -63,9 +63,9 @@ public class StoredScriptsIT extends ESIntegTestCase {
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray("""
+            () -> client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(formatted("""
                 {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
-                """.formatted(LANG)), XContentType.JSON).get()
+                """, LANG)), XContentType.JSON).get()
         );
         assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());
     }

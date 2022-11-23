@@ -118,7 +118,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), null, listener),
             getConfigHolder,
             exceptionHolder
         );
@@ -132,7 +132,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         getConfigHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.all(), listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.all(), null, listener),
             getConfigHolder,
             exceptionHolder
         );
@@ -204,7 +204,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), null, listener),
             getConfigHolder,
             exceptionHolder
         );
@@ -248,7 +248,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), null, listener),
             getConfigHolder,
             exceptionHolder
         );
@@ -263,7 +263,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), null, listener),
             getConfigHolder,
             exceptionHolder
         );
@@ -288,7 +288,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), null, listener),
             getConfigHolder,
             exceptionHolder
         );
@@ -335,7 +335,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), null, listener),
             getConfigHolder,
             exceptionHolder
         );
@@ -388,7 +388,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), null, listener),
             getConfigHolder,
             exceptionHolder
         );

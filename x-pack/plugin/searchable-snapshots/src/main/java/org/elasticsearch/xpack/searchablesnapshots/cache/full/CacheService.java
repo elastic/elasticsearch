@@ -70,7 +70,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.cache.";
 
     public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
-    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = ByteSizeValue.ofBytes(Integer.MAX_VALUE);
 
     /**
      * If a search needs data from the repository then we expand it to a larger contiguous range whose size is determined by this setting,
@@ -370,7 +370,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param shardId           the {@link ShardId}
      */
     public void waitForCacheFilesEvictionIfNeeded(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
-        assert assertGenericThreadPool();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final Future<?> future;
         synchronized (shardsEvictionsMutex) {
             if (allowShardsEvictions == false) {
@@ -391,7 +391,7 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     private void processShardEviction(ShardEviction shardEviction) {
         assert isPendingShardEviction(shardEviction) : "shard is not marked as evicted: " + shardEviction;
-        assert assertGenericThreadPool();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         shardsEvictionsLock.readLock().lock();
         try {
@@ -733,13 +733,6 @@ public class CacheService extends AbstractLifecycleComponent {
                 && Objects.equals(snapshotIndexName, cacheKey.getSnapshotIndexName())
                 && Objects.equals(shardId, cacheKey.getShardId());
         }
-    }
-
-    private static boolean assertGenericThreadPool() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.GENERIC + ']') || threadName.startsWith("TEST-")
-            : "expected generic thread pool but got " + threadName;
-        return true;
     }
 
     private enum CacheFileEventType {

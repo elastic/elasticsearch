@@ -72,6 +72,7 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -1313,10 +1314,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        Aggregator aggregator = createAggregator(aggBuilder, indexSearcher, fieldType);
-        try {
+        try (AggregationContext context = createAggregationContext(indexSearcher, query, fieldType)) {
+            Aggregator aggregator = createAggregator(aggBuilder, context);
             aggregator.preCollection();
-            indexSearcher.search(query, aggregator);
+            indexSearcher.search(query, aggregator.asCollector());
             aggregator.postCollection();
             return aggregator.buildTopLevel();
         } finally {

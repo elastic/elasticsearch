@@ -197,7 +197,7 @@ public class GeometryTestUtils {
             case CIRCLE -> randomCircle(hasAlt);
             case MULTIPOINT -> randomMultiPoint(hasAlt);
             case POINT -> randomPoint(hasAlt);
-            default -> throw new IllegalArgumentException("Ussuported shape type [" + type + "]");
+            default -> throw new IllegalArgumentException("Unsupported shape type [" + type + "]");
         };
     }
 

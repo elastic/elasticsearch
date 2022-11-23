@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -318,7 +317,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> indexTemplates = ImmutableOpenMap.builder();
+        Map<String, IndexTemplateMetadata> indexTemplates = new HashMap<>();
         for (Map.Entry<String, Integer> template : existingTemplates.entrySet()) {
             final IndexTemplateMetadata mockTemplate = mock(IndexTemplateMetadata.class);
             when(mockTemplate.version()).thenReturn(template.getValue());
@@ -334,7 +333,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
-                    .templates(indexTemplates.build())
+                    .templates(indexTemplates)
                     .transientSettings(nodeSettings)
                     .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
                     .build()

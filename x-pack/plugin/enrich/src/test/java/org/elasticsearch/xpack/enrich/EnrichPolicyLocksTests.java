@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.enrich.EnrichPolicyLocks.EnrichPolicyLock;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -38,66 +39,42 @@ public class EnrichPolicyLocksTests extends ESTestCase {
         );
     }
 
-    public void testSafePoint() {
-        EnrichPolicyLocks policyLocks = new EnrichPolicyLocks();
-        String policy = "policy";
-        EnrichPolicyLocks.EnrichPolicyExecutionState executionState;
-
-        // Get exec state - should note as safe and revision 1 since nothing has happened yet
-        executionState = policyLocks.captureExecutionState();
-        assertThat(executionState.anyPolicyInFlight, is(false));
-        assertThat(executionState.executions, is(0L));
-        assertThat(policyLocks.isSameState(executionState), is(true));
-
-        // Get another exec state - should still note as safe and revision 1 since nothing has happened yet
-        executionState = policyLocks.captureExecutionState();
-        assertThat(executionState.anyPolicyInFlight, is(false));
-        assertThat(executionState.executions, is(0L));
-        assertThat(policyLocks.isSameState(executionState), is(true));
-
-        // Lock a policy and leave it open (a
-        policyLocks.lockPolicy(policy);
-
-        // Get a third exec state - should have a new revision and report unsafe since execution is in progress
-        executionState = policyLocks.captureExecutionState();
-        assertThat(executionState.anyPolicyInFlight, is(true));
-        assertThat(executionState.executions, is(1L));
-
-        // Unlock the policy
-        policyLocks.releasePolicy(policy);
-
-        // Get a fourth exec state - should have the same revision as third, and report no policies in flight since the previous execution
-        // is complete
-        executionState = policyLocks.captureExecutionState();
-        assertThat(executionState.anyPolicyInFlight, is(false));
-        assertThat(executionState.executions, is(1L));
-
-        // Create a fifth exec state, lock and release a policy, and check if the captured exec state is the same as the current state in
-        // the lock object
-        executionState = policyLocks.captureExecutionState();
-        assertThat(executionState.anyPolicyInFlight, is(false));
-        assertThat(executionState.executions, is(1L));
-        policyLocks.lockPolicy(policy);
-        policyLocks.releasePolicy(policy);
-        // Should report as not the same as there was a transient "policy execution" between getting the exec state and checking it.
-        assertThat(policyLocks.isSameState(executionState), is(false));
-    }
-
     public void testReleasePolicy() {
         EnrichPolicyLocks policyLocks = new EnrichPolicyLocks();
         String policy1 = "policy1";
         String policy2 = "policy2";
 
         // Lock
-        policyLocks.lockPolicy(policy1);
-        policyLocks.lockPolicy(policy2);
+        EnrichPolicyLock lock1 = policyLocks.lockPolicy(policy1);
+        EnrichPolicyLock lock2 = policyLocks.lockPolicy(policy2);
 
         // Unlock
-        policyLocks.releasePolicy(policy1);
-        policyLocks.releasePolicy(policy2);
+        lock1.close();
+        lock2.close();
 
         // Ensure locking again after release works
         policyLocks.lockPolicy(policy1);
         policyLocks.lockPolicy(policy2);
+    }
+
+    public void testNonRepeatableRelease() {
+        EnrichPolicyLocks policyLocks = new EnrichPolicyLocks();
+        String policy1 = "policy1";
+
+        // Lock and unlock
+        EnrichPolicyLock lock1 = policyLocks.lockPolicy(policy1);
+        assertThat(policyLocks.lockedPolices().size(), equalTo(1));
+        lock1.close();
+        assertThat(policyLocks.lockedPolices().size(), equalTo(0));
+
+        // Lock again, but try unlocking with the first lock which no longer actively holds the lock
+        EnrichPolicyLock lock2 = policyLocks.lockPolicy(policy1);
+        assertThat(policyLocks.lockedPolices().size(), equalTo(1));
+        expectThrows(AssertionError.class, lock1::close);
+        assertThat(policyLocks.lockedPolices().size(), equalTo(1));
+
+        // Ensure that the second lock correctly unlocks
+        lock2.close();
+        assertThat(policyLocks.lockedPolices().size(), equalTo(0));
     }
 }

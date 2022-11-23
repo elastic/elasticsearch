@@ -23,13 +23,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -51,6 +49,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -152,7 +151,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String path, String prefix) throws IOException {
         final String pathPrefix = buildKey(path, prefix);
-        final MapBuilder<String, BlobMetadata> mapBuilder = MapBuilder.newMapBuilder();
+        final Map<String, BlobMetadata> mapBuilder = new HashMap<>();
         SocketAccess.doPrivilegedVoidIOException(
             () -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix))
                 .iterateAll()
@@ -160,16 +159,16 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     assert blob.getName().startsWith(path);
                     if (blob.isDirectory() == false) {
                         final String suffixName = blob.getName().substring(path.length());
-                        mapBuilder.put(suffixName, new PlainBlobMetadata(suffixName, blob.getSize()));
+                        mapBuilder.put(suffixName, new BlobMetadata(suffixName, blob.getSize()));
                     }
                 })
         );
-        return mapBuilder.immutableMap();
+        return Map.copyOf(mapBuilder);
     }
 
     Map<String, BlobContainer> listChildren(BlobPath path) throws IOException {
         final String pathStr = path.buildAsString();
-        final MapBuilder<String, BlobContainer> mapBuilder = MapBuilder.newMapBuilder();
+        final Map<String, BlobContainer> mapBuilder = new HashMap<>();
         SocketAccess.doPrivilegedVoidIOException(
             () -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr))
                 .iterateAll()
@@ -185,7 +184,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     }
                 })
         );
-        return mapBuilder.immutableMap();
+        return Map.copyOf(mapBuilder);
     }
 
     /**

@@ -67,7 +67,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);
         public static final Setting<LocationMode> LOCATION_MODE_SETTING = new Setting<>(
             "location_mode",
-            s -> LocationMode.PRIMARY_ONLY.toString(),
+            LocationMode.PRIMARY_ONLY.toString(),
             s -> LocationMode.valueOf(s.toUpperCase(Locale.ROOT)),
             Property.NodeScope
         );

@@ -52,7 +52,7 @@ import static org.junit.Assert.assertTrue;
 @ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
 @ThreadLeakZombies(ThreadLeakZombies.Consequence.IGNORE_REMAINING_TESTS)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
-@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@ThreadLeakFilters(filters = { ClientsGraalVMThreadsFilter.class })
 @TimeoutSuite(millis = 2 * 60 * 60 * 1000)
 public abstract class RestClientTestCase extends RandomizedTest {
 

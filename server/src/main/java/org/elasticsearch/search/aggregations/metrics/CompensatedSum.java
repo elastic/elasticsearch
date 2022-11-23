@@ -35,6 +35,10 @@ public class CompensatedSum {
         this.delta = delta;
     }
 
+    public CompensatedSum() {
+        this(0, 0);
+    }
+
     /**
      * The value of the sum.
      */

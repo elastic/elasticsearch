@@ -89,13 +89,21 @@ public class RestResourcesPlugin implements Plugin<Project> {
         Configuration testConfig = project.getConfigurations().create("restTestConfig");
         Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig");
         // core
-        Dependency restTestdependency = project.getDependencies().project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
-        project.getDependencies().add(testConfig.getName(), restTestdependency);
-        // x-pack
-        Dependency restXPackTestdependency = project.getDependencies()
-            .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
-        project.getDependencies().add(xpackTestConfig.getName(), restXPackTestdependency);
+        // we guard this reference to :rest-api-spec with a find to make testing easier
+        var restApiSpecProjectAvailable = project.findProject(":rest-api-spec") != null;
+        if (restApiSpecProjectAvailable) {
+            Dependency restTestdependency = project.getDependencies()
+                .project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
+            project.getDependencies().add(testConfig.getName(), restTestdependency);
+        }
 
+        // x-pack
+        var restXpackTests = project.findProject(":x-pack:plugin") != null;
+        if (restXpackTests) {
+            Dependency restXPackTestdependency = project.getDependencies()
+                .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
+            project.getDependencies().add(xpackTestConfig.getName(), restXPackTestdependency);
+        }
         project.getConfigurations().create("restTests");
         project.getConfigurations().create("restXpackTests");
 
@@ -114,8 +122,11 @@ public class RestResourcesPlugin implements Plugin<Project> {
 
         // api
         Configuration specConfig = project.getConfigurations().create("restSpec"); // name chosen for passivity
-        Dependency restSpecDependency = project.getDependencies().project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
-        project.getDependencies().add(specConfig.getName(), restSpecDependency);
+        if (restApiSpecProjectAvailable) {
+            Dependency restSpecDependency = project.getDependencies()
+                .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
+            project.getDependencies().add(specConfig.getName(), restSpecDependency);
+        }
         project.getConfigurations().create("restSpecs");
 
         Provider<CopyRestApiTask> copyRestYamlApiTask = project.getTasks()

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
@@ -20,7 +19,7 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-public class FilePermissionsPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class FilePermissionsPrecommitPlugin extends PrecommitPlugin {
 
     public static final String FILEPERMISSIONS_TASK_NAME = "filepermissions";
     private ProviderFactory providerFactory;

@@ -7,8 +7,8 @@
 
 [IMPORTANT]
 ====
-cat APIs are only intended for human consumption using the command line or {kib} 
-console. They are _not_ intended for use by applications. For application 
+cat APIs are only intended for human consumption using the command line or {kib}
+console. They are _not_ intended for use by applications. For application
 consumption, use the <<cluster-nodes-info,nodes info API>>.
 ====
 
@@ -67,7 +67,6 @@ U7321H6 analysis-ukrainian      {version_qualified} The Ukrainian Analysis plugi
 U7321H6 discovery-azure-classic {version_qualified} The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism
 U7321H6 discovery-ec2           {version_qualified} The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.
 U7321H6 discovery-gce           {version_qualified} The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.
-U7321H6 ingest-attachment       {version_qualified} Ingest processor that uses Apache Tika to extract contents
 U7321H6 mapper-annotated-text   {version_qualified} The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.
 U7321H6 mapper-murmur3          {version_qualified} The Mapper Murmur3 plugin allows to compute hashes of a field's values at index-time and to store them in the index.
 U7321H6 mapper-size             {version_qualified} The Mapper Size plugin allows document to record their uncompressed size at index time.

@@ -115,12 +115,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
             this.ccsMinimizeRoundtrips = in.readBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
-            this.waitForCompletionTimeout = in.readOptionalTimeValue();
-            this.keepAlive = in.readOptionalTimeValue();
-            this.keepOnCompletion = in.readBoolean();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        this.waitForCompletionTimeout = in.readOptionalTimeValue();
+        this.keepAlive = in.readOptionalTimeValue();
+        this.keepOnCompletion = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_17_8)) {
             resultPosition = in.readString();
         }
         if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
@@ -223,10 +221,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         builder.field(KEY_FETCH_SIZE, fetchSize());
         builder.field(KEY_QUERY, query);
         if (waitForCompletionTimeout != null) {
-            builder.field(KEY_WAIT_FOR_COMPLETION_TIMEOUT, waitForCompletionTimeout);
+            builder.field(KEY_WAIT_FOR_COMPLETION_TIMEOUT, waitForCompletionTimeout.getStringRep());
         }
         if (keepAlive != null) {
-            builder.field(KEY_KEEP_ALIVE, keepAlive);
+            builder.field(KEY_KEEP_ALIVE, keepAlive.getStringRep());
         }
         builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
         builder.field(KEY_RESULT_POSITION, resultPosition);
@@ -246,7 +244,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     protected static <R extends EqlSearchRequest> ObjectParser<R, Void> objectParser(Supplier<R> supplier) {
         ObjectParser<R, Void> parser = new ObjectParser<>("eql/search", false, supplier);
-        parser.declareObject(EqlSearchRequest::filter, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
+        parser.declareObject(EqlSearchRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER);
         parser.declareString(EqlSearchRequest::timestampField, TIMESTAMP_FIELD);
         parser.declareString(EqlSearchRequest::tiebreakerField, TIEBREAKER_FIELD);
         parser.declareString(EqlSearchRequest::eventCategoryField, EVENT_CATEGORY_FIELD);
@@ -435,13 +433,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             out.writeBoolean(ccsMinimizeRoundtrips);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
-            out.writeOptionalTimeValue(waitForCompletionTimeout);
-            out.writeOptionalTimeValue(keepAlive);
-            out.writeBoolean(keepOnCompletion);
-        }
-
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        out.writeOptionalTimeValue(waitForCompletionTimeout);
+        out.writeOptionalTimeValue(keepAlive);
+        out.writeBoolean(keepOnCompletion);
+        if (out.getVersion().onOrAfter(Version.V_7_17_8)) {
             out.writeString(resultPosition);
         }
         if (out.getVersion().onOrAfter(Version.V_7_13_0)) {

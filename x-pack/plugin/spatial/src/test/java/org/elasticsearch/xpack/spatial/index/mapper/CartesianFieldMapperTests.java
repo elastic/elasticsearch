@@ -21,10 +21,8 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 /** Base class for testing cartesian field mappers */
 public abstract class CartesianFieldMapperTests extends MapperTestCase {
@@ -90,92 +88,9 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
         assertXYPointField(doc.rootDoc().getField(FIELD_NAME), 2000.1f, 305.6f);
     }
 
-    public void testInvalidPointValuesIgnored() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", getFieldName());
-            b.field("ignore_malformed", true);
-        }));
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "1234.333"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "-").endObject())).rootDoc().getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("geohash", stringEncode(0, 0)).endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", "-").field("y", 1.3).endObject())).rootDoc().getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "-,1.3"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "1.3,-"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("lon", 1.3).field("y", 1.3).endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("lat", 1.3).endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", "NaN").field("y", "NaN").endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", "NaN").field("y", 1.3).endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "NaN").endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "NaN").endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "NaN,NaN"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "10,NaN"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "NaN,12"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).nullField("y").endObject())).rootDoc().getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).nullField("x").field("y", 1.3).endObject())).rootDoc().getField(FIELD_NAME),
-            nullValue()
-        );
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
     }
 
     public void testZValueWKT() throws IOException {

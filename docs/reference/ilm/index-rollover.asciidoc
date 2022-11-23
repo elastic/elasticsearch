@@ -43,7 +43,7 @@ On each rollover, the new index becomes the write index.
 === Automatic rollover
 
 {ilm-init} enables you to automatically roll over to a new index based
-on the index size, document count, or age. When a rollover is triggered, a new
+on conditions like the index size, document count, or age. When a rollover is triggered, a new
 index is created, the write alias is updated to point to the new index, and all
 subsequent updates are written to the new index.
 

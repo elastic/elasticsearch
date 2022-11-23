@@ -37,7 +37,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument(
             "_index",
             "_id",
-            null,
+            1,
             null,
             null,
             Collections.singletonMap("_field", "2016-04-25T12:24:20.101Z")
@@ -59,7 +59,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument(
             "_index",
             "_id",
-            null,
+            1,
             null,
             null,
             Collections.singletonMap("_field", (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024")
@@ -78,11 +78,11 @@ public class DateIndexNameProcessorTests extends ESTestCase {
             "m",
             "yyyyMMdd"
         );
-        IngestDocument document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", "1000500"));
+        IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Collections.singletonMap("_field", "1000500"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
 
-        document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", 1000500L));
+        document = new IngestDocument("_index", "_id", 1, null, null, Collections.singletonMap("_field", 1000500L));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
@@ -97,7 +97,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
             "m",
             "yyyyMMdd"
         );
-        IngestDocument document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", "1000.5"));
+        IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Collections.singletonMap("_field", "1000.5"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
@@ -118,7 +118,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
             indexNameFormat
         );
 
-        IngestDocument document = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("_field", date));
+        IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Collections.singletonMap("_field", date));
         dateProcessor.execute(document);
 
         assertThat(

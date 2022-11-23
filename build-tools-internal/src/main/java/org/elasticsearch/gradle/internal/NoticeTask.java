@@ -18,10 +18,13 @@ import org.gradle.api.file.SourceDirectorySet;
 import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.initialization.layout.BuildLayout;
 
@@ -39,9 +42,11 @@ import static org.apache.commons.io.FileUtils.readFileToString;
 /**
  * A task to create a notice file which includes dependencies' notices.
  */
+@CacheableTask
 public class NoticeTask extends DefaultTask {
 
     @InputFile
+    @PathSensitive(PathSensitivity.RELATIVE)
     private File inputFile;
 
     @OutputFile
@@ -166,6 +171,7 @@ public class NoticeTask extends DefaultTask {
 
     @InputFiles
     @Optional
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getNoticeFiles() {
         FileTree tree = null;
         for (File dir : existingLicenseDirs()) {
@@ -184,6 +190,7 @@ public class NoticeTask extends DefaultTask {
 
     @InputFiles
     @Optional
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getSources() {
         return sources;
     }

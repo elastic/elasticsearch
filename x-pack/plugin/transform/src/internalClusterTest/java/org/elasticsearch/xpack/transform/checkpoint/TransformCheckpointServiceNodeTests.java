@@ -43,6 +43,7 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -168,7 +169,12 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             Settings.EMPTY,
-            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
+            new ClusterService(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                null,
+                mock(TaskManager.class)
+            ),
             transformsConfigManager,
             mockAuditor
         );

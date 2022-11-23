@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.utils.MlParserUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Objects;
 
 /**
  * All results must have a request_id.
@@ -28,54 +27,38 @@ import java.util.Objects;
 public class PyTorchInferenceResult implements ToXContentObject {
 
     private static final ParseField INFERENCE = new ParseField("inference");
-    private static final ParseField TIME_MS = new ParseField("time_ms");
 
     public static final ConstructingObjectParser<PyTorchInferenceResult, Void> PARSER = new ConstructingObjectParser<>(
         "pytorch_inference_result",
-        a -> new PyTorchInferenceResult((String) a[0], (double[][][]) a[1], (Long) a[2])
+        a -> new PyTorchInferenceResult((double[][][]) a[0])
     );
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PyTorchResult.REQUEST_ID);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> MlParserUtils.parse3DArrayOfDoubles(INFERENCE.getPreferredName(), p),
             INFERENCE,
             ObjectParser.ValueType.VALUE_ARRAY
         );
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), TIME_MS);
     }
 
     public static PyTorchInferenceResult fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    private final String requestId;
     private final double[][][] inference;
-    private final Long timeMs;
 
-    public PyTorchInferenceResult(String requestId, @Nullable double[][][] inference, @Nullable Long timeMs) {
-        this.requestId = Objects.requireNonNull(requestId);
+    public PyTorchInferenceResult(@Nullable double[][][] inference) {
         this.inference = inference;
-        this.timeMs = timeMs;
-    }
-
-    public String getRequestId() {
-        return requestId;
     }
 
     public double[][][] getInferenceResult() {
         return inference;
     }
 
-    public Long getTimeMs() {
-        return timeMs;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(PyTorchResult.REQUEST_ID.getPreferredName(), requestId);
         if (inference != null) {
             builder.startArray(INFERENCE.getPreferredName());
             for (double[][] doubles : inference) {
@@ -87,16 +70,13 @@ public class PyTorchInferenceResult implements ToXContentObject {
             }
             builder.endArray();
         }
-        if (timeMs != null) {
-            builder.field(TIME_MS.getPreferredName(), timeMs);
-        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestId, timeMs, Arrays.deepHashCode(inference));
+        return Arrays.deepHashCode(inference);
     }
 
     @Override
@@ -105,8 +85,6 @@ public class PyTorchInferenceResult implements ToXContentObject {
         if (other == null || getClass() != other.getClass()) return false;
 
         PyTorchInferenceResult that = (PyTorchInferenceResult) other;
-        return Objects.equals(requestId, that.requestId)
-            && Arrays.deepEquals(inference, that.inference)
-            && Objects.equals(timeMs, that.timeMs);
+        return Arrays.deepEquals(inference, that.inference);
     }
 }

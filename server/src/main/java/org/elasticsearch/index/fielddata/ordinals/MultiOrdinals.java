@@ -20,9 +20,7 @@ import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -88,10 +86,7 @@ public class MultiOrdinals extends Ordinals {
 
     @Override
     public Collection<Accountable> getChildResources() {
-        List<Accountable> resources = new ArrayList<>();
-        resources.add(Accountables.namedAccountable("offsets", endOffsets));
-        resources.add(Accountables.namedAccountable("ordinals", ords));
-        return Collections.unmodifiableCollection(resources);
+        return List.of(Accountables.namedAccountable("offsets", endOffsets), Accountables.namedAccountable("ordinals", ords));
     }
 
     @Override
@@ -190,8 +185,8 @@ public class MultiOrdinals extends Ordinals {
         }
 
         @Override
-        public long docValueCount() {
-            return currentEndOffset - currentOffset;
+        public int docValueCount() {
+            return Math.toIntExact(currentEndOffset - currentOffset);
         }
 
         @Override

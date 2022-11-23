@@ -65,14 +65,14 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
         clientId = randomFrom(ALLOWED_AUDIENCES);
         redirectUri = "https://" + randomAlphaOfLength(4) + ".rp.example.com/" + randomAlphaOfLength(6);
         String clientSecret = randomAlphaOfLength(24);
-        String clientSetup = """
+        String clientSetup = formatted("""
             {
               "grant_types": [ "implicit" ],
               "response_types": [ "token id_token" ],
               "preferred_client_id": "%s",
               "preferred_client_secret": "%s",
               "redirect_uris": [ "%s" ]
-            }""".formatted(clientId, clientSecret, redirectUri);
+            }""", clientId, clientSecret, redirectUri);
         registerClients(clientSetup);
     }
 
@@ -80,7 +80,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
     public void setupRoleMapping() throws Exception {
         try (var restClient = getElasticsearchClient()) {
             var client = new TestSecurityClient(restClient);
-            final String mappingJson = """
+            final String mappingJson = formatted("""
                 {
                   "roles": [ "%s" ],
                   "enabled": true,
@@ -91,7 +91,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
                     ]
                   }
                 }
-                """.formatted(ROLE_NAME, JWT_REALM_NAME, TEST_SUBJECT_ID);
+                """, ROLE_NAME, JWT_REALM_NAME, TEST_SUBJECT_ID);
             client.putRoleMapping(getTestName(), mappingJson);
         }
     }

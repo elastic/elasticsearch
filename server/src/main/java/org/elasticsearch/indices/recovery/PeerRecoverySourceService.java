@@ -133,7 +133,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         }
     }
 
-    private void recover(StartRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
+    private void recover(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
@@ -153,7 +153,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             throw new DelayRecoveryException("source shard is not marked yet as relocating to [" + request.targetNode() + "]");
         }
 
-        RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);
+        RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, task, shard);
         logger.trace(
             "[{}][{}] starting recovery to {}",
             request.shardId().getIndex().getName(),
@@ -179,7 +179,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
         @Override
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
-            recover(request, new ChannelActionListener<>(channel, Actions.START_RECOVERY, request));
+            recover(request, task, new ChannelActionListener<>(channel, Actions.START_RECOVERY, request));
         }
     }
 
@@ -204,10 +204,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         @Nullable
         private List<ActionListener<Void>> emptyListeners;
 
-        synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, IndexShard shard) {
+        synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, Task task, IndexShard shard) {
             assert lifecycle.started();
             final ShardRecoveryContext shardContext = ongoingRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
-            final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = shardContext.addNewRecovery(request, shard);
+            final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = shardContext.addNewRecovery(request, task, shard);
             final RemoteRecoveryTargetHandler recoveryTargetHandler = handlers.v2();
             nodeToHandlers.computeIfAbsent(recoveryTargetHandler.targetNode(), k -> new HashSet<>()).add(recoveryTargetHandler);
             shard.recoveryStats().incCurrentAsSource();
@@ -307,6 +307,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
              */
             synchronized Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> addNewRecovery(
                 StartRecoveryRequest request,
+                Task task,
                 IndexShard shard
             ) {
                 for (RecoverySourceHandler existingHandler : recoveryHandlers.keySet()) {
@@ -317,7 +318,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                         );
                     }
                 }
-                final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = createRecoverySourceHandler(request, shard);
+                final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = createRecoverySourceHandler(
+                    request,
+                    task,
+                    shard
+                );
                 recoveryHandlers.put(handlers.v1(), handlers.v2());
                 return handlers;
             }
@@ -344,6 +349,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
             private Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> createRecoverySourceHandler(
                 StartRecoveryRequest request,
+                Task task,
                 IndexShard shard
             ) {
                 RecoverySourceHandler handler;
@@ -353,7 +359,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     transportService,
                     request.targetNode(),
                     recoverySettings,
-                    throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime)
+                    throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime),
+                    task
                 );
                 handler = new RecoverySourceHandler(
                     shard,

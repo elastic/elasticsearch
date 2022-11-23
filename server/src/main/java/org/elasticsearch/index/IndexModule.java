@@ -8,12 +8,15 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
@@ -88,6 +91,8 @@ import java.util.function.Function;
  */
 public final class IndexModule {
 
+    private static final Logger logger = LogManager.getLogger(IndexModule.class);
+
     public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP = Setting.boolSetting("node.store.allow_mmap", true, Property.NodeScope);
 
     private static final FsDirectoryFactory DEFAULT_DIRECTORY_FACTORY = new FsDirectoryFactory();
@@ -137,9 +142,17 @@ public final class IndexModule {
         Property.IndexScope
     );
 
+    /**
+     * {@link Directory} wrappers allow to apply a function to the Lucene directory instances
+     * created by {@link org.elasticsearch.plugins.IndexStorePlugin.DirectoryFactory}.
+     */
+    @FunctionalInterface
+    public interface DirectoryWrapper extends CheckedFunction<Directory, Directory, IOException> {}
+
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
+    private final SetOnce<DirectoryWrapper> indexDirectoryWrapper = new SetOnce<>();
     private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
         new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
@@ -346,6 +359,17 @@ public final class IndexModule {
         this.indexReaderWrapper.set(indexReaderWrapperFactory);
     }
 
+    /**
+     * Sets a {@link Directory} wrapping method that allows to apply a function to the Lucene directory instance
+     * created by {@link org.elasticsearch.plugins.IndexStorePlugin.DirectoryFactory}.
+     *
+     * @param wrapper the wrapping function
+     */
+    public void setDirectoryWrapper(DirectoryWrapper wrapper) {
+        ensureNotFrozen();
+        this.indexDirectoryWrapper.set(Objects.requireNonNull(wrapper));
+    }
+
     IndexEventListener freeze() { // pkg private for testing
         if (this.frozen.compareAndSet(false, true)) {
             return new CompositeIndexEventListener(indexSettings, indexEventListeners);
@@ -452,12 +476,13 @@ public final class IndexModule {
             if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
                 BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = forceQueryCacheProvider.get();
                 if (queryCacheProvider == null) {
-                    queryCache = new IndexQueryCache(indexSettings, indicesQueryCache);
+                    queryCache = new IndexQueryCache(indexSettings.getIndex(), indicesQueryCache);
                 } else {
                     queryCache = queryCacheProvider.apply(indexSettings, indicesQueryCache);
                 }
             } else {
-                queryCache = new DisabledQueryCache(indexSettings);
+                logger.debug("Using no query cache for [{}]", indexSettings.getIndex());
+                queryCache = DisabledQueryCache.INSTANCE;
             }
             if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
                 indexAnalyzers = analysisRegistry.build(indexSettings);
@@ -503,7 +528,7 @@ public final class IndexModule {
         }
     }
 
-    private static IndexStorePlugin.DirectoryFactory getDirectoryFactory(
+    private IndexStorePlugin.DirectoryFactory getDirectoryFactory(
         final IndexSettings indexSettings,
         final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories
     ) {
@@ -530,6 +555,11 @@ public final class IndexModule {
             if (factory == null) {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
             }
+        }
+        final DirectoryWrapper directoryWrapper = this.indexDirectoryWrapper.get();
+        assert frozen.get() : "IndexModule configuration not frozen";
+        if (directoryWrapper != null) {
+            return (idxSettings, shardPath) -> directoryWrapper.apply(factory.newDirectory(idxSettings, shardPath));
         }
         return factory;
     }
@@ -581,7 +611,7 @@ public final class IndexModule {
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,
             () -> { throw new UnsupportedOperationException("no index query shard context available"); },
-            indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
+            indexSettings.getMode().idFieldMapperWithoutFieldData(),
             scriptService
         );
     }

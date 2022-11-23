@@ -24,7 +24,7 @@ import java.util.List;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Http request trace logger. See {@link #maybeTraceRequest(RestRequest, Exception)} for details.
+ * Http request trace logger. See {@link #maybeLogRequest(RestRequest, Exception)} for details.
  */
 class HttpTracer {
 
@@ -49,11 +49,11 @@ class HttpTracer {
      *
      * @param restRequest Rest request to trace
      * @param e           Exception when handling the request or {@code null} if none
-     * @return            This instance to use for logging the response via {@link #traceResponse} to this request if it was logged or
+     * @return            This instance to use for logging the response via {@link #logResponse} to this request if it was logged or
      *                    {@code null} if the request wasn't logged
      */
     @Nullable
-    HttpTracer maybeTraceRequest(RestRequest restRequest, @Nullable Exception e) {
+    HttpTracer maybeLogRequest(RestRequest restRequest, @Nullable Exception e) {
         if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
             logger.trace(
                 () -> format(
@@ -72,7 +72,7 @@ class HttpTracer {
     }
 
     /**
-     * Logs the response to a request that was logged by {@link #maybeTraceRequest(RestRequest, Exception)}.
+     * Logs the response to a request that was logged by {@link #maybeLogRequest(RestRequest, Exception)}.
      *
      * @param restResponse  RestResponse
      * @param httpChannel   HttpChannel the response was sent on
@@ -81,7 +81,7 @@ class HttpTracer {
      * @param requestId     Request id as returned by {@link RestRequest#getRequestId()}
      * @param success       Whether the response was successfully sent
      */
-    void traceResponse(
+    void logResponse(
         RestResponse restResponse,
         HttpChannel httpChannel,
         String contentLength,

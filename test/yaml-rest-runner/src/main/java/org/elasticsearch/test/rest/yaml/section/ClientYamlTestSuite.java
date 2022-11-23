@@ -10,10 +10,10 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -63,18 +64,17 @@ public class ClientYamlTestSuite {
 
         try (
             XContentParser parser = YamlXContent.yamlXContent.createParser(
-                executeableSectionRegistry,
-                LoggingDeprecationHandler.INSTANCE,
+                XContentParserConfiguration.EMPTY.withRegistry(executeableSectionRegistry),
                 Files.newInputStream(file)
             )
         ) {
-            return parse(api, filename, parser);
+            return parse(api, filename, Optional.of(file), parser);
         } catch (Exception e) {
             throw new IOException("Error parsing " + api + "/" + filename, e);
         }
     }
 
-    public static ClientYamlTestSuite parse(String api, String suiteName, XContentParser parser) throws IOException {
+    public static ClientYamlTestSuite parse(String api, String suiteName, Optional<Path> file, XContentParser parser) throws IOException {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new XContentParseException(
                 parser.getTokenLocation(),
@@ -100,11 +100,12 @@ public class ClientYamlTestSuite {
             }
         }
 
-        return new ClientYamlTestSuite(api, suiteName, setupSection, teardownSection, new ArrayList<>(testSections));
+        return new ClientYamlTestSuite(api, suiteName, file, setupSection, teardownSection, new ArrayList<>(testSections));
     }
 
     private final String api;
     private final String name;
+    private final Optional<Path> file;
     private final SetupSection setupSection;
     private final TeardownSection teardownSection;
     private final List<ClientYamlTestSection> testSections;
@@ -112,12 +113,14 @@ public class ClientYamlTestSuite {
     public ClientYamlTestSuite(
         String api,
         String name,
+        Optional<Path> file,
         SetupSection setupSection,
         TeardownSection teardownSection,
         List<ClientYamlTestSection> testSections
     ) {
         this.api = api.replace("\\", "/");  // since api's are sourced from the filesystem normalize backslashes to "/"
         this.name = name;
+        this.file = file;
         this.setupSection = Objects.requireNonNull(setupSection, "setup section cannot be null");
         this.teardownSection = Objects.requireNonNull(teardownSection, "teardown section cannot be null");
         this.testSections = Collections.unmodifiableList(testSections);
@@ -133,6 +136,10 @@ public class ClientYamlTestSuite {
 
     public String getPath() {
         return api + "/" + name;
+    }
+
+    public Optional<Path> getFile() {
+        return file;
     }
 
     public SetupSection getSetupSection() {

@@ -13,7 +13,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +28,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptSource> {
+public class StoredScriptTests extends AbstractXContentSerializingTestCase<StoredScriptSource> {
 
     public void testBasicAddDelete() {
         StoredScriptSource source = new StoredScriptSource("lang", "code", emptyMap());

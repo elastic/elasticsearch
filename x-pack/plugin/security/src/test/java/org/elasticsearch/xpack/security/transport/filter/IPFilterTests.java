@@ -39,7 +39,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -263,7 +262,7 @@ public class IPFilterTests extends ESTestCase {
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 
         // don't use the assert helper because we don't want the audit trail to be invoked here
-        String message = String.format(Locale.ROOT, "Expected address %s to be allowed", "8.8.8.8");
+        String message = formatted("Expected address %s to be allowed", "8.8.8.8");
         InetAddress address = InetAddresses.forString("8.8.8.8");
         assertThat(message, ipFilter.accept("default", new InetSocketAddress(address, 0)), is(true));
         verifyNoMoreInteractions(auditTrail);
@@ -290,7 +289,7 @@ public class IPFilterTests extends ESTestCase {
 
     private void assertAddressIsAllowedForProfile(String profile, String... inetAddresses) {
         for (String inetAddress : inetAddresses) {
-            String message = String.format(Locale.ROOT, "Expected address %s to be allowed", inetAddress);
+            String message = formatted("Expected address %s to be allowed", inetAddress);
             InetSocketAddress address = new InetSocketAddress(InetAddresses.forString(inetAddress), 0);
             assertTrue(message, ipFilter.accept(profile, address));
             ArgumentCaptor<SecurityIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(SecurityIpFilterRule.class);
@@ -305,7 +304,7 @@ public class IPFilterTests extends ESTestCase {
 
     private void assertAddressIsDeniedForProfile(String profile, String... inetAddresses) {
         for (String inetAddress : inetAddresses) {
-            String message = String.format(Locale.ROOT, "Expected address %s to be denied", inetAddress);
+            String message = formatted("Expected address %s to be denied", inetAddress);
             InetSocketAddress address = new InetSocketAddress(InetAddresses.forString(inetAddress), 0);
             assertFalse(message, ipFilter.accept(profile, address));
             ArgumentCaptor<SecurityIpFilterRule> ruleCaptor = ArgumentCaptor.forClass(SecurityIpFilterRule.class);

@@ -143,12 +143,11 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
     }
 
     public void testClusterStarted() {
-        final AuthenticateRequest request = new AuthenticateRequest();
-        request.username(nodeClientUsername());
-        final AuthenticateResponse authenticate = client().execute(AuthenticateAction.INSTANCE, request).actionGet(10, TimeUnit.SECONDS);
+        final AuthenticateResponse authenticate = client().execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE)
+            .actionGet(10, TimeUnit.SECONDS);
         assertThat(authenticate.authentication(), notNullValue());
-        assertThat(authenticate.authentication().getUser(), notNullValue());
-        assertThat(authenticate.authentication().getUser().enabled(), is(true));
+        assertThat(authenticate.authentication().getEffectiveSubject().getUser(), notNullValue());
+        assertThat(authenticate.authentication().getEffectiveSubject().getUser().enabled(), is(true));
     }
 
 }

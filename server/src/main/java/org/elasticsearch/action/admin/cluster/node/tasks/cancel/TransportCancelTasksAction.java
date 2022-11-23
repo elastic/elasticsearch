@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -87,7 +88,12 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     @Override
-    protected void taskOperation(CancelTasksRequest request, CancellableTask cancellableTask, ActionListener<TaskInfo> listener) {
+    protected void taskOperation(
+        Task actionTask,
+        CancelTasksRequest request,
+        CancellableTask cancellableTask,
+        ActionListener<TaskInfo> listener
+    ) {
         String nodeId = clusterService.localNode().getId();
         taskManager.cancelTaskAndDescendants(
             cancellableTask,

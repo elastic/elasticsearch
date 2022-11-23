@@ -26,7 +26,7 @@ public class DocumentMapper {
      */
     public static DocumentMapper createEmpty(MapperService mapperService) {
         RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
-            MapperBuilderContext.ROOT
+            MapperBuilderContext.root(false)
         );
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
         Mapping mapping = new Mapping(root, metadata, null);
@@ -97,7 +97,7 @@ public class DocumentMapper {
          * Build an empty source loader to validate that the mapping is compatible
          * with the source loading strategy declared on the source field mapper.
          */
-        sourceMapper().newSourceLoader(mapping().getRoot());
+        sourceMapper().newSourceLoader(mapping());
 
         settings.getMode().validateMapping(mappingLookup);
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {

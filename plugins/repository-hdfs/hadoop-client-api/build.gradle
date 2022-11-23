@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.build'
 apply plugin: 'com.github.johnrengelman.shadow'
 
 dependencies {
@@ -7,4 +7,10 @@ dependencies {
 
 tasks.named('shadowJar').configure {
   exclude 'org/apache/hadoop/util/ShutdownHookManager$*.class'
+}
+
+['jarHell', 'thirdPartyAudit', 'forbiddenApisMain', 'splitPackagesAudit'].each {
+  tasks.named(it).configure {
+    enabled = false
+  }
 }

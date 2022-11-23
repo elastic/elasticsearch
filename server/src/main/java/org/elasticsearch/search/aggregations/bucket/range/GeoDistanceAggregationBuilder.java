@@ -456,7 +456,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
-
+        AbstractRangeBuilder.sortRanges(ranges);
         return new GeoDistanceRangeAggregatorFactory(
             name,
             config,

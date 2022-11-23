@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigE
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -49,7 +48,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -68,7 +66,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -196,35 +193,20 @@ public class MetadataTests extends ESTestCase {
         assertThat(aliases.get(1).alias(), equalTo("bb"));
     }
 
-    public void testIndexAndAliasWithSameName() {
-        IndexMetadata.Builder builder = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .putAlias(AliasMetadata.builder("index").build());
-        try {
-            Metadata.builder().put(builder).build();
-            fail("exception should have been thrown");
-        } catch (IllegalStateException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo(
-                    "index, alias, and data stream names need to be unique, but the following duplicates were found [index (alias "
-                        + "of [index]) conflicts with index]"
-                )
-            );
-        }
-    }
-
     public void testAliasCollidingWithAnExistingIndex() {
         int indexCount = randomIntBetween(10, 100);
-        Set<String> indices = new HashSet<>(indexCount);
+        Set<String> indices = Sets.newHashSetWithExpectedSize(indexCount);
         for (int i = 0; i < indexCount; i++) {
             indices.add(randomAlphaOfLength(10));
         }
         Map<String, Set<String>> aliasToIndices = new HashMap<>();
         for (String alias : randomSubsetOf(randomIntBetween(1, 10), indices)) {
-            aliasToIndices.put(alias, new HashSet<>(randomSubsetOf(randomIntBetween(1, 3), indices)));
+            Set<String> indicesInAlias;
+            do {
+                indicesInAlias = new HashSet<>(randomSubsetOf(randomIntBetween(1, 3), indices));
+                indicesInAlias.remove(alias);
+            } while (indicesInAlias.isEmpty());
+            aliasToIndices.put(alias, indicesInAlias);
         }
         int properAliases = randomIntBetween(0, 3);
         for (int i = 0; i < properAliases; i++) {
@@ -570,7 +552,7 @@ public class MetadataTests extends ESTestCase {
 
     private Set<VotingConfigExclusion> randomVotingConfigExclusions() {
         final int size = randomIntBetween(0, 10);
-        final Set<VotingConfigExclusion> nodes = new HashSet<>(size);
+        final Set<VotingConfigExclusion> nodes = Sets.newHashSetWithExpectedSize(size);
         while (nodes.size() < size) {
             assertTrue(nodes.add(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))));
         }
@@ -1094,9 +1076,8 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsNullInCustoms() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        final ImmutableOpenMap.Builder<String, Metadata.Custom> mapBuilder = ImmutableOpenMap.builder();
-        mapBuilder.put(key, null);
-        final ImmutableOpenMap<String, Metadata.Custom> map = mapBuilder.build();
+        final Map<String, Metadata.Custom> map = new HashMap<>();
+        map.put(key, null);
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
     }
 
@@ -1240,37 +1221,30 @@ public class MetadataTests extends ESTestCase {
         IndexAbstraction value = metadata.getIndicesLookup().get("d1");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), containsInAnyOrder("a1", "a3"));
 
         value = metadata.getIndicesLookup().get("d2");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), contains("a1"));
 
         value = metadata.getIndicesLookup().get("d3");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), contains("a2"));
 
         value = metadata.getIndicesLookup().get("d4");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), empty());
 
         value = metadata.getIndicesLookup().get("a1");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
 
         value = metadata.getIndicesLookup().get("a2");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
 
         value = metadata.getIndicesLookup().get("a3");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
     }
 
     public void testDataStreamAliasValidation() {
@@ -1443,47 +1417,6 @@ public class MetadataTests extends ESTestCase {
         } catch (Exception e) {
             fail("did not expect exception when validating a system without any data streams but got " + e.getMessage());
         }
-    }
-
-    /**
-     * Tests for the implementation of data stream snapshot reconciliation are located in {@link DataStreamTests#testSnapshot()}
-     */
-    public void testSnapshot() {
-        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
-        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
-        List<String> indicesInSnapshot = new ArrayList<>();
-        for (var dsName : dataStreamsToSnapshot) {
-            // always include at least one backing index per data stream
-            DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
-            indicesInSnapshot.addAll(
-                randomSubsetOf(randomIntBetween(1, ds.getIndices().size()), ds.getIndices().stream().map(Index::getName).toList())
-            );
-        }
-        var reconciledMetadata = Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot);
-        assertThat(reconciledMetadata.dataStreams().size(), equalTo(postSnapshotMetadata.dataStreams().size()));
-        for (DataStream ds : reconciledMetadata.dataStreams().values()) {
-            assertThat(ds.getIndices().size(), greaterThanOrEqualTo(1));
-        }
-    }
-
-    public void testSnapshotWithMissingDataStream() {
-        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
-        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
-        List<String> indicesInSnapshot = new ArrayList<>();
-        for (var dsName : dataStreamsToSnapshot) {
-            // always include at least one backing index per data stream
-            DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
-            indicesInSnapshot.addAll(
-                randomSubsetOf(randomIntBetween(1, ds.getIndices().size()), ds.getIndices().stream().map(Index::getName).toList())
-            );
-        }
-        String missingDataStream = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        dataStreamsToSnapshot.add(missingDataStream);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot)
-        );
-        assertThat(e.getMessage(), containsString("unable to find data stream [" + missingDataStream + "]"));
     }
 
     public void testDataStreamAliases() {
@@ -2178,7 +2111,7 @@ public class MetadataTests extends ESTestCase {
         final Set<String> randomMappingDefinitions;
         {
             int numEntries = randomIntBetween(4, 8);
-            randomMappingDefinitions = new HashSet<>(numEntries);
+            randomMappingDefinitions = Sets.newHashSetWithExpectedSize(numEntries);
             for (int i = 0; i < numEntries; i++) {
                 Map<String, Object> mapping = RandomAliasActionsGenerator.randomMap(2);
                 String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping));
@@ -2324,6 +2257,16 @@ public class MetadataTests extends ESTestCase {
         // withLifecycleState rejects a nonsense Index
         String randomUUID = randomValueOtherThan(indexUUID, () -> randomAlphaOfLength(10));
         expectThrows(IndexNotFoundException.class, () -> metadata1.withLifecycleState(new Index(indexName, randomUUID), state));
+    }
+
+    public void testEmptyDiffReturnsSameInstance() throws IOException {
+        final Metadata instance = randomMetadata();
+        Diff<Metadata> diff = instance.diff(instance);
+        assertSame(instance, diff.apply(instance));
+        final BytesStreamOutput out = new BytesStreamOutput();
+        diff.writeTo(out);
+        final Diff<Metadata> deserializedDiff = Metadata.readDiffFrom(out.bytes().streamInput());
+        assertSame(instance, deserializedDiff.apply(instance));
     }
 
     public static Metadata randomMetadata() {

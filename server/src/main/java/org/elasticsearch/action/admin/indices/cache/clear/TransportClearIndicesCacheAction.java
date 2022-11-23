@@ -103,7 +103,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
     }
 
     /**
-     * The refresh request works against *all* shards.
+     * The indices clear cache request works against *all* shards.
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, ClearIndicesCacheRequest request, String[] concreteIndices) {

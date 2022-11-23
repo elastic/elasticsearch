@@ -109,7 +109,7 @@ to a local Java truststore and pass the location to the script as follows:
 +
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
+sudo CLI_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
 -----------------------------------
 --
 
@@ -261,19 +261,19 @@ sudo ES_PATH_CONF=/path/to/conf/dir bin/elasticsearch-plugin install <plugin nam
 === Proxy settings
 
 To install a plugin via a proxy, you can add the proxy details to the
-`ES_JAVA_OPTS` environment variable with the Java settings `http.proxyHost`
+`CLI_JAVA_OPTS` environment variable with the Java settings `http.proxyHost`
 and `http.proxyPort` (or `https.proxyHost` and `https.proxyPort`):
 
 [source,shell]
 -----------------------------------
-sudo ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install analysis-icu
+sudo CLI_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 Or on Windows:
 
 [source,shell]
 ------------------------------------
-set ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
+set CLI_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
 bin\elasticsearch-plugin install analysis-icu
 ------------------------------------
 

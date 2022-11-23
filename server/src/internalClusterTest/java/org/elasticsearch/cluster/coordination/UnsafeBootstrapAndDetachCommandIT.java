@@ -238,8 +238,8 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
 
         logger.info("--> stop 2nd and 3d master eligible node");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(1)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(2)));
+        internalCluster().stopNode(masterNodes.get(1));
+        internalCluster().stopNode(masterNodes.get(2));
 
         logger.info("--> ensure NO_MASTER_BLOCK on data-only node");
         assertBusy(() -> {
@@ -262,7 +262,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> stop 1st master-eligible node and data-only node");
         NodeEnvironment nodeEnvironment = internalCluster().getAnyMasterNodeInstance(NodeEnvironment.class);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(0)));
+        internalCluster().stopNode(masterNodes.get(0));
         assertBusy(() -> internalCluster().getInstance(GatewayMetaState.class, dataNode).allPendingAsyncStatesWritten());
         internalCluster().stopRandomDataNode();
 
@@ -351,7 +351,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         ClusterState state = internalCluster().client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node));
+        internalCluster().stopNode(node);
     }
 
     public void testCanRunUnsafeBootstrapAfterErroneousDetachWithoutLoosingMetadata() throws Exception {

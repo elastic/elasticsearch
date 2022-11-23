@@ -44,6 +44,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.usage.SearchUsageHolder;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,6 +71,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
+    private final SearchUsageHolder searchUsageHolder;
 
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
@@ -80,6 +83,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         TransportService transportService,
         NodeService nodeService,
         IndicesService indicesService,
+        UsageService usageService,
         ActionFilters actionFilters
     ) {
         super(
@@ -96,6 +100,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;
+        this.searchUsageHolder = usageService.getSearchUsageHolder();
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
     }
@@ -112,7 +117,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             "Computation of mapping/analysis stats runs expensive computations on mappings found in "
                 + "the cluster state that are too slow for a transport thread"
         );
-        assert Thread.currentThread().getName().contains("[" + ThreadPool.Names.MANAGEMENT + "]") : Thread.currentThread().getName();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
         assert task instanceof CancellableTask;
         final CancellableTask cancellableTask = (CancellableTask) task;
         final ClusterState state = clusterService.state();
@@ -208,7 +213,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                         new ShardStats(
                             indexShard.routingEntry(),
                             indexShard.shardPath(),
-                            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
+                            CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
                             commitStats,
                             seqNoStats,
                             retentionLeaseStats
@@ -223,14 +228,16 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
+        SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
             clusterStatus,
             nodeInfo,
             nodeStats,
-            shardsStats.toArray(new ShardStats[shardsStats.size()])
+            shardsStats.toArray(new ShardStats[shardsStats.size()]),
+            searchUsageStats
         );
-
     }
 
     public static class ClusterStatsNodeRequest extends TransportRequest {

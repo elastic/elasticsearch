@@ -12,7 +12,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
@@ -81,7 +80,7 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
             .execute(new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(ActionResponse.Empty response, XContentBuilder builder) throws Exception {
-                    return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
+                    return new RestResponse(RestStatus.OK, builder.startObject().endObject());
                 }
             });
     }

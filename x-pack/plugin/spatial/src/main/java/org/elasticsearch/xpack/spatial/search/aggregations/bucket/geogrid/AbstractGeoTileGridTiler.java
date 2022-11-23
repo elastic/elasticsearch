@@ -58,7 +58,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
         }
 
         if (precision == 0) {
-            return validTile(0, 0, 0) ? 1 : 0;
+            return setValuesByBruteForceScan(values, geoValue, 0, 0, 0, 0);
         }
 
         final int minXTile = GeoTileUtils.getXTile(bounds.minX(), tiles);

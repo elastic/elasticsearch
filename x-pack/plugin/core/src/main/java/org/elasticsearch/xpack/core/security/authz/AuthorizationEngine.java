@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -291,6 +294,16 @@ public interface AuthorizationEngine {
             }
             if (index == null) {
                 validationException = addValidationError("indexPrivileges must not be null", validationException);
+            } else {
+                for (int i = 0; i < index.length; i++) {
+                    BytesReference query = index[i].getQuery();
+                    if (query != null) {
+                        validationException = addValidationError(
+                            "may only check index privileges without any DLS query [" + query.utf8ToString() + "]",
+                            validationException
+                        );
+                    }
+                }
             }
             if (application == null) {
                 validationException = addValidationError("applicationPrivileges must not be null", validationException);
@@ -480,54 +493,51 @@ public interface AuthorizationEngine {
                 + originatingAuthorizationContext
                 + "]}";
         }
+
+        @Nullable
+        public static String[] indices(TransportRequest transportRequest) {
+            if (transportRequest instanceof final IndicesRequest indicesRequest) {
+                return indicesRequest.indices();
+            }
+            return null;
+        }
     }
 
     /**
-     * Represents the result of authorization. This includes whether the actions should be granted
-     * and if this should be considered an auditable event.
+     * Represents the result of authorization to tell whether the actions should be granted
      */
     class AuthorizationResult {
 
         private final boolean granted;
-        private final boolean auditable;
 
         /**
-         * Create an authorization result with the provided granted value that is auditable
+         * Create an authorization result with the provided granted value
          */
         public AuthorizationResult(boolean granted) {
-            this(granted, true);
-        }
-
-        public AuthorizationResult(boolean granted, boolean auditable) {
             this.granted = granted;
-            this.auditable = auditable;
         }
 
         public boolean isGranted() {
             return granted;
         }
 
-        public boolean isAuditable() {
-            return auditable;
-        }
-
         /**
          * Returns additional context about an authorization failure, if {@link #isGranted()} is false.
          */
         @Nullable
-        public String getFailureContext(RestrictedIndices restrictedIndices) {
+        public String getFailureContext(RequestInfo requestInfo, RestrictedIndices restrictedIndices) {
             return null;
         }
 
         /**
-         * Returns a new authorization result that is granted and auditable
+         * Returns a new authorization result that is granted
          */
         public static AuthorizationResult granted() {
             return new AuthorizationResult(true);
         }
 
         /**
-         * Returns a new authorization result that is denied and auditable
+         * Returns a new authorization result that is denied
          */
         public static AuthorizationResult deny() {
             return new AuthorizationResult(false);
@@ -541,19 +551,34 @@ public interface AuthorizationEngine {
      */
     class IndexAuthorizationResult extends AuthorizationResult {
 
+        public static final IndexAuthorizationResult DENIED = new IndexAuthorizationResult(IndicesAccessControl.DENIED);
+        public static final IndexAuthorizationResult EMPTY = new IndexAuthorizationResult(null);
+        public static final IndexAuthorizationResult ALLOW_NO_INDICES = new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES);
+
         private final IndicesAccessControl indicesAccessControl;
 
-        public IndexAuthorizationResult(boolean auditable, IndicesAccessControl indicesAccessControl) {
-            super(indicesAccessControl == null || indicesAccessControl.isGranted(), auditable);
+        public IndexAuthorizationResult(IndicesAccessControl indicesAccessControl) {
+            super(indicesAccessControl == null || indicesAccessControl.isGranted());
             this.indicesAccessControl = indicesAccessControl;
         }
 
         @Override
-        public String getFailureContext(RestrictedIndices restrictedIndices) {
+        public String getFailureContext(RequestInfo requestInfo, RestrictedIndices restrictedIndices) {
             if (isGranted()) {
                 return null;
             } else {
-                return getFailureDescription(indicesAccessControl.getDeniedIndices(), restrictedIndices);
+                assert indicesAccessControl != null;
+                String[] indices = RequestInfo.indices(requestInfo.getRequest());
+                if (indices == null
+                    || indices.length == 0
+                    || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
+                    return null;
+                }
+                Set<String> deniedIndices = Arrays.asList(indices)
+                    .stream()
+                    .filter(index -> false == indicesAccessControl.hasIndexPermissions(index))
+                    .collect(Collectors.toSet());
+                return getFailureDescription(deniedIndices, restrictedIndices);
             }
         }
 
@@ -580,6 +605,7 @@ public interface AuthorizationEngine {
             return message.toString();
         }
 
+        @Nullable
         public IndicesAccessControl getIndicesAccessControl() {
             return indicesAccessControl;
         }

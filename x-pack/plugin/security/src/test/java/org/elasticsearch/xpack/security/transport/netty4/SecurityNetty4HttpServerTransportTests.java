@@ -20,11 +20,11 @@ import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -32,6 +32,7 @@ import java.util.Collections;
 
 import javax.net.ssl.SSLEngine;
 
+import static org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests.randomCapitalization;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -74,6 +75,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NullDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
+            Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null
         );
@@ -84,7 +86,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     }
 
     public void testOptionalClientAuth() throws Exception {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.OPTIONAL);
+        String value = randomCapitalization(SslClientAuthenticationMode.OPTIONAL);
         Settings settings = Settings.builder()
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
@@ -99,6 +101,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NullDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
+            Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null
         );
@@ -109,7 +112,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     }
 
     public void testRequiredClientAuth() throws Exception {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.REQUIRED);
+        String value = randomCapitalization(SslClientAuthenticationMode.REQUIRED);
         Settings settings = Settings.builder()
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
@@ -124,6 +127,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NullDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
+            Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null
         );
@@ -134,7 +138,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     }
 
     public void testNoClientAuth() throws Exception {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.NONE);
+        String value = randomCapitalization(SslClientAuthenticationMode.NONE);
         Settings settings = Settings.builder()
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
@@ -149,6 +153,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NullDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
+            Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null
         );
@@ -169,6 +174,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NullDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
+            Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null
         );
@@ -190,6 +196,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NullDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
+            Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null
         );
@@ -220,6 +227,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             new NullDispatcher(),
             randomClusterSettings(),
             new SharedGroupFactory(settings),
+            Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null
         );

@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,7 +40,6 @@ import org.junit.rules.ExternalResource;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -59,7 +57,6 @@ import static org.hamcrest.Matchers.hasItem;
  *
  * @see SecuritySettingsSource
  */
-@SuppressWarnings("removal")
 public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
@@ -193,11 +190,15 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 .map(p -> p.descriptor().getClassname())
                 .collect(Collectors.toList());
             assertThat(
-                "plugin [" + LocalStateSecurity.class.getName() + "] not found in [" + pluginNames + "]",
+                "plugin [" + xpackPluginClass().getName() + "] not found in [" + pluginNames + "]",
                 pluginNames,
-                hasItem(LocalStateSecurity.class.getName())
+                hasItem(xpackPluginClass().getName())
             );
         }
+    }
+
+    protected Class<?> xpackPluginClass() {
+        return LocalStateSecurity.class;
     }
 
     @Override
@@ -431,12 +432,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         return inFipsJvm()
             ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch"))
             : Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch", "bcrypt", "bcrypt9"));
-    }
-
-    protected class TestRestHighLevelClient extends RestHighLevelClient {
-        public TestRestHighLevelClient() {
-            super(getRestClient(), client -> {}, List.of());
-        }
     }
 
     protected TestSecurityClient getSecurityClient(RequestOptions requestOptions) {

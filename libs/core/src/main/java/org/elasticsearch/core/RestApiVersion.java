@@ -8,7 +8,7 @@
 
 package org.elasticsearch.core;
 
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * A enum representing versions of the REST API (particularly with regard to backwards compatibility).
@@ -23,37 +23,40 @@ public enum RestApiVersion {
     public final byte major;
 
     private static final RestApiVersion CURRENT = V_8;
+    private static final RestApiVersion PREVIOUS = V_7;
 
     RestApiVersion(int major) {
         this.major = (byte) major;
     }
 
-    public RestApiVersion previous() {
-        return fromMajorVersion(major - 1);
-    }
-
-    public boolean matches(Function<RestApiVersion, Boolean> restApiVersionFunctions) {
-        return restApiVersionFunctions.apply(this);
-    }
-
-    private static RestApiVersion fromMajorVersion(int majorVersion) {
-        return valueOf("V_" + majorVersion);
-    }
-
-    public static RestApiVersion minimumSupported() {
-        return current().previous();
+    public boolean matches(Predicate<RestApiVersion> restApiVersionFunctions) {
+        return restApiVersionFunctions.test(this);
     }
 
     public static RestApiVersion current() {
         return CURRENT;
     }
 
-    public static Function<RestApiVersion, Boolean> equalTo(RestApiVersion restApiVersion) {
-        return r -> r.major == restApiVersion.major;
+    public static RestApiVersion previous() {
+        return PREVIOUS;
     }
 
-    public static Function<RestApiVersion, Boolean> onOrAfter(RestApiVersion restApiVersion) {
-        return r -> r.major >= restApiVersion.major;
+    public static RestApiVersion minimumSupported() {
+        return PREVIOUS;
+    }
+
+    public static Predicate<RestApiVersion> equalTo(RestApiVersion restApiVersion) {
+        return switch (restApiVersion) {
+            case V_8 -> r -> r.major == V_8.major;
+            case V_7 -> r -> r.major == V_7.major;
+        };
+    }
+
+    public static Predicate<RestApiVersion> onOrAfter(RestApiVersion restApiVersion) {
+        return switch (restApiVersion) {
+            case V_8 -> r -> r.major >= V_8.major;
+            case V_7 -> r -> r.major >= V_7.major;
+        };
     }
 
 }

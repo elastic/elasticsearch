@@ -117,10 +117,6 @@ public class IOUtilsTests extends ESTestCase {
         runDeleteFilesIgnoringExceptionsTest(Function.identity(), IOUtils::deleteFilesIgnoringExceptions);
     }
 
-    public void testDeleteFilesIgnoringExceptionsIterable() throws IOException {
-        runDeleteFilesIgnoringExceptionsTest((Function<Path[], List<Path>>) Arrays::asList, IOUtils::deleteFilesIgnoringExceptions);
-    }
-
     private <T> void runDeleteFilesIgnoringExceptionsTest(
         final Function<Path[], T> function,
         CheckedConsumer<T, IOException> deleteFilesIgnoringExceptions

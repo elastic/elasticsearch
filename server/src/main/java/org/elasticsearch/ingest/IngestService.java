@@ -43,7 +43,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -73,6 +72,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -109,30 +109,32 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Cluster state task executor for ingest pipeline operations
      */
-    static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = (currentState, taskContexts) -> {
-        final var allIndexMetadata = currentState.metadata().indices().values();
-        final IngestMetadata initialIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
+    static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = batchExecutionContext -> {
+        final var allIndexMetadata = batchExecutionContext.initialState().metadata().indices().values();
+        final IngestMetadata initialIngestMetadata = batchExecutionContext.initialState().metadata().custom(IngestMetadata.TYPE);
         var currentIngestMetadata = initialIngestMetadata;
-        for (final var taskContext : taskContexts) {
+        for (final var taskContext : batchExecutionContext.taskContexts()) {
             try {
                 final var task = taskContext.getTask();
-                currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
-                taskContext.success(task.listener.map(ignored -> AcknowledgedResponse.TRUE));
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
+                }
+                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);
             }
         }
         final var finalIngestMetadata = currentIngestMetadata;
         return finalIngestMetadata == initialIngestMetadata
-            ? currentState
-            : currentState.copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
+            ? batchExecutionContext.initialState()
+            : batchExecutionContext.initialState().copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
     };
 
     /**
      * Specialized cluster state update task specifically for ingest pipeline operations.
      * These operations all receive an AcknowledgedResponse.
      */
-    abstract static class PipelineClusterStateUpdateTask implements ClusterStateTaskListener {
+    public abstract static class PipelineClusterStateUpdateTask implements ClusterStateTaskListener {
         final ActionListener<AcknowledgedResponse> listener;
 
         PipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener) {
@@ -144,11 +146,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "should not be called";
         }
     }
 
@@ -217,7 +214,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             IndexMetadata indexMetadata = null;
             // start to look for default or final pipelines via settings found in the index meta data
             if (originalRequest != null) {
-                indexMetadata = metadata.indices().get(resolveIndexName(originalRequest.index(), epochMillis));
+                indexMetadata = metadata.indices()
+                    .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
             }
             // check the alias for the index request (this is how normal index requests are modeled)
             if (indexMetadata == null && indexRequest.index() != null) {
@@ -311,15 +309,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
     }
 
-    private static String resolveIndexName(final String unresolvedIndexName, final long epochMillis) {
-        List<String> resolvedNames = IndexNameExpressionResolver.DateMathExpressionResolver.resolve(
-            new IndexNameExpressionResolver.ResolverContext(epochMillis),
-            List.of(unresolvedIndexName)
-        );
-        assert resolvedNames.size() == 1;
-        return resolvedNames.get(0);
-    }
-
     public ClusterService getClusterService() {
         return clusterService;
     }
@@ -340,13 +329,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
     }
 
-    // visible for testing
-    static class DeletePipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
+    /**
+     * Used by this class and {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+     */
+    public static class DeletePipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final DeletePipelineRequest request;
 
         DeletePipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, DeletePipelineRequest request) {
             super(listener);
             this.request = request;
+        }
+
+        /**
+         * Used by the {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+         */
+        public DeletePipelineClusterStateUpdateTask(String id) {
+            this(null, new DeletePipelineRequest(id));
         }
 
         @Override
@@ -465,31 +463,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ActionListener<AcknowledgedResponse> listener,
         Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
     ) throws Exception {
-
-        Map<String, Object> pipelineConfig = null;
-        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        if (request.getVersion() == null
-            && currentIngestMetadata != null
-            && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
-            pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-            var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
-            if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {
-                // existing pipeline matches request pipeline -- no need to update
-                listener.onResponse(AcknowledgedResponse.TRUE);
-                return;
-            }
+        if (isNoOpPipelineUpdate(state, request)) {
+            // existing pipeline matches request pipeline -- no need to update
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
         }
 
-        final Map<String, Object> config = pipelineConfig == null
-            ? XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2()
-            : pipelineConfig;
         nodeInfoListener.accept(ActionListener.wrap(nodeInfos -> {
-            Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
-            for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
-                ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
-            }
+            validatePipelineRequest(request, nodeInfos);
 
-            validatePipeline(ingestInfos, request.getId(), config);
             clusterService.submitStateUpdateTask(
                 "put-pipeline-" + request.getId(),
                 new PutPipelineClusterStateUpdateTask(listener, request),
@@ -497,6 +479,31 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 PIPELINE_TASK_EXECUTOR
             );
         }, listener::onFailure));
+    }
+
+    public void validatePipelineRequest(PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {
+        final Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
+            ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
+        }
+
+        validatePipeline(ingestInfos, request.getId(), config);
+    }
+
+    public static boolean isNoOpPipelineUpdate(ClusterState state, PutPipelineRequest request) {
+        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        if (request.getVersion() == null
+            && currentIngestMetadata != null
+            && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
+            var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+            var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
+            if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -557,13 +564,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return processorMetrics;
     }
 
-    // visible for testing
-    static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
+    /**
+     * Used in this class and externally by the {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+     */
+    public static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final PutPipelineRequest request;
 
         PutPipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, PutPipelineRequest request) {
             super(listener);
             this.request = request;
+        }
+
+        /**
+         * Used by {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+         */
+        public PutPipelineClusterStateUpdateTask(PutPipelineRequest request) {
+            this(null, request);
         }
 
         @Override
@@ -884,56 +900,76 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         String index = indexRequest.index();
         String id = indexRequest.id();
         String routing = indexRequest.routing();
-        Long version = indexRequest.version();
+        long version = indexRequest.version();
         VersionType versionType = indexRequest.versionType();
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, sourceAsMap);
+        IngestDocument ingestDocument = new IngestDocument(index, id, version, routing, versionType, sourceAsMap);
+        /*
+         * Our assumption is that the listener passed to the processor is only ever called once. However, there is no way to enforce
+         * that in all processors and all of the code that they call. If the listener is called more than once it causes problems
+         * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
+         * is only executed once.
+         */
+        final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
-            long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-            totalMetrics.postIngest(ingestTimeInNanos);
-            if (e != null) {
-                totalMetrics.ingestFailed();
-                handler.accept(e);
-            } else if (result == null) {
-                itemDroppedHandler.accept(slot);
-                handler.accept(null);
+            if (listenerHasBeenCalled.getAndSet(true)) {
+                logger.warn("A listener was unexpectedly called more than once", new RuntimeException(e));
+                assert false : "A listener was unexpectedly called more than once";
             } else {
-                try {
-                    CollectionUtils.ensureNoSelfReferences(result.getSourceAndMetadata(), "ingest pipeline [" + pipeline.getId() + "]");
-                } catch (IllegalArgumentException ex) {
+                long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                totalMetrics.postIngest(ingestTimeInNanos);
+                if (e != null) {
                     totalMetrics.ingestFailed();
-                    handler.accept(ex);
-                    return;
-                }
-                Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
+                    handler.accept(e);
+                } else if (result == null) {
+                    itemDroppedHandler.accept(slot);
+                    handler.accept(null);
+                } else {
+                    org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
 
-                String newIndex = (String) metadataMap.get(IngestDocument.Metadata.INDEX);
-                // it's fine to set all metadata fields all the time, as ingest document holds their starting values
-                // before ingestion, which might also get modified during ingestion.
-                indexRequest.index(newIndex);
-                indexRequest.id((String) metadataMap.get(IngestDocument.Metadata.ID));
-                indexRequest.routing((String) metadataMap.get(IngestDocument.Metadata.ROUTING));
-                indexRequest.version(((Number) metadataMap.get(IngestDocument.Metadata.VERSION)).longValue());
-                if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
-                    indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
-                }
-                if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
-                    indexRequest.setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
-                }
-                if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
-                    indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
-                }
-                indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
-                if (metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES) != null) {
-                    Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
-                    @SuppressWarnings("unchecked")
-                    Map<String, String> map = (Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES);
-                    mergedDynamicTemplates.putAll(map);
-                    indexRequest.setDynamicTemplates(mergedDynamicTemplates);
-                }
-                postIngest(ingestDocument, indexRequest);
+                    // it's fine to set all metadata fields all the time, as ingest document holds their starting values
+                    // before ingestion, which might also get modified during ingestion.
+                    indexRequest.index(metadata.getIndex());
+                    indexRequest.id(metadata.getId());
+                    indexRequest.routing(metadata.getRouting());
+                    indexRequest.version(metadata.getVersion());
+                    if (metadata.getVersionType() != null) {
+                        indexRequest.versionType(VersionType.fromString(metadata.getVersionType()));
+                    }
+                    Number number;
+                    if ((number = metadata.getIfSeqNo()) != null) {
+                        indexRequest.setIfSeqNo(number.longValue());
+                    }
+                    if ((number = metadata.getIfPrimaryTerm()) != null) {
+                        indexRequest.setIfPrimaryTerm(number.longValue());
+                    }
+                    try {
+                        boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
+                        indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
+                    } catch (IllegalArgumentException ex) {
+                        // An IllegalArgumentException can be thrown when an ingest
+                        // processor creates a source map that is self-referencing.
+                        // In that case, we catch and wrap the exception so we can
+                        // include which pipeline failed.
+                        totalMetrics.ingestFailed();
+                        handler.accept(
+                            new IllegalArgumentException(
+                                "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
+                                ex
+                            )
+                        );
+                        return;
+                    }
+                    Map<String, String> map;
+                    if ((map = metadata.getDynamicTemplates()) != null) {
+                        Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
+                        mergedDynamicTemplates.putAll(map);
+                        indexRequest.setDynamicTemplates(mergedDynamicTemplates);
+                    }
+                    postIngest(ingestDocument, indexRequest);
 
-                handler.accept(null);
+                    handler.accept(null);
+                }
             }
         });
     }

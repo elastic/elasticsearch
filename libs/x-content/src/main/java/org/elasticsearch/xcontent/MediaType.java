@@ -8,8 +8,6 @@
 
 package org.elasticsearch.xcontent;
 
-import org.elasticsearch.core.Tuple;
-
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -40,10 +38,7 @@ public interface MediaType {
      * Parameters for validation is a map where a key is a parameter name, value is a parameter regex which is used for validation.
      * Regex will be applied with case insensitivity.
      */
-    class HeaderValue extends Tuple<String, Map<String, String>> {
-        public HeaderValue(String headerValue, Map<String, String> parametersForValidation) {
-            super(headerValue, parametersForValidation);
-        }
+    record HeaderValue(String v1, Map<String, String> v2) {
 
         public HeaderValue(String headerValue) {
             this(headerValue, Collections.emptyMap());

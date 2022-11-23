@@ -12,26 +12,39 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.hamcrest.CustomTypeSafeMatcher;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.iterableWithSize;
 
 public class ApplicationPrivilegeTests extends ESTestCase {
+
+    public static ApplicationPrivilege createPrivilege(final String applicationName, final String privilegeName, final String... patterns) {
+        return createPrivilege(applicationName, Collections.singleton(privilegeName), patterns);
+    }
+
+    public static ApplicationPrivilege createPrivilege(
+        final String applicationName,
+        final Set<String> privilegeNames,
+        final String... patterns
+    ) {
+        // TODO rewrite this to use `ApplicationPrivilege.get()`
+        return new ApplicationPrivilege(applicationName, privilegeNames, patterns);
+    }
 
     public void testValidationOfApplicationName() {
         final String specialCharacters = ":;$#%()+='.{}[]!@^&'";
@@ -145,10 +158,51 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         }
     }
 
+    public void testGetPrivilegeByWildcard() {
+        final ApplicationPrivilegeDescriptor apmRead = descriptor("apm", "read", "action:read/*");
+        final ApplicationPrivilegeDescriptor apmWrite = descriptor("apm", "write", "action:write/*");
+        final ApplicationPrivilegeDescriptor kibanaRead = descriptor("kibana", "read", "data:read/*", "action:read:*");
+        final ApplicationPrivilegeDescriptor kibanaWrite = descriptor("kibana", "write", "data:write/*", "action:w*");
+        final Set<ApplicationPrivilegeDescriptor> stored = Sets.newHashSet(apmRead, apmWrite, kibanaRead, kibanaWrite);
+
+        {
+            final Set<ApplicationPrivilege> everyThing = ApplicationPrivilege.get("*", Set.of("*"), stored);
+            assertThat(everyThing, hasItem(privilegeEquals("*", "*", Set.of("*"))));
+            assertThat(everyThing, hasItem(privilegeEquals("apm", "*", Set.of("*"))));
+            assertThat(everyThing, hasItem(privilegeEquals("kibana", "*", Set.of("*"))));
+            assertThat(everyThing, iterableWithSize(3));
+        }
+        {
+            final Set<ApplicationPrivilege> allKibana = ApplicationPrivilege.get("kibana", Set.of("*"), stored);
+            assertThat(allKibana, hasItem(privilegeEquals("kibana", "*", Set.of("*"))));
+            assertThat(allKibana, iterableWithSize(1));
+        }
+        {
+            final Set<ApplicationPrivilege> allRead = ApplicationPrivilege.get("*", Set.of("read"), stored);
+            assertThat(allRead, hasItem(privilegeEquals(kibanaRead)));
+            assertThat(allRead, hasItem(privilegeEquals(apmRead)));
+            assertThat(allRead, hasItem(privilegeEquals("*", "read", Set.of())));
+            assertThat(allRead, iterableWithSize(3));
+        }
+    }
+
     private void assertPrivilegeEquals(ApplicationPrivilege privilege, ApplicationPrivilegeDescriptor descriptor) {
-        assertThat(privilege.getApplication(), equalTo(descriptor.getApplication()));
-        assertThat(privilege.name(), contains(descriptor.getName()));
-        assertThat(Sets.newHashSet(privilege.getPatterns()), equalTo(descriptor.getActions()));
+        assertThat(privilege, privilegeEquals(descriptor));
+    }
+
+    private Matcher<ApplicationPrivilege> privilegeEquals(ApplicationPrivilegeDescriptor descriptor) {
+        return privilegeEquals(descriptor.getApplication(), descriptor.getName(), descriptor.getActions());
+    }
+
+    private Matcher<ApplicationPrivilege> privilegeEquals(String application, String name, Set<String> actions) {
+        return new CustomTypeSafeMatcher<>("equals(" + application + ";" + name + ";" + actions + ")") {
+            @Override
+            protected boolean matchesSafely(ApplicationPrivilege item) {
+                return item.getApplication().equals(application)
+                    && item.name().equals(Set.of(name))
+                    && Set.of(item.getPatterns()).equals(actions);
+            }
+        };
     }
 
     private ApplicationPrivilegeDescriptor descriptor(String application, String name, String... actions) {
@@ -160,17 +214,13 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         final EqualsHashCodeTestUtils.MutateFunction<ApplicationPrivilege> mutate = randomFrom(
             orig -> createPrivilege("x" + orig.getApplication(), getPrivilegeName(orig), orig.getPatterns()),
             orig -> createPrivilege(orig.getApplication(), "x" + getPrivilegeName(orig), orig.getPatterns()),
-            orig -> new ApplicationPrivilege(orig.getApplication(), getPrivilegeName(orig), "*")
+            orig -> createPrivilege(orig.getApplication(), getPrivilegeName(orig), "*")
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             privilege,
             original -> createPrivilege(original.getApplication(), getPrivilegeName(original), original.getPatterns()),
             mutate
         );
-    }
-
-    private ApplicationPrivilege createPrivilege(String applicationName, String privilegeName, String... patterns) {
-        return new ApplicationPrivilege(applicationName, privilegeName, patterns);
     }
 
     private String getPrivilegeName(ApplicationPrivilege privilege) {
@@ -214,10 +264,6 @@ public class ApplicationPrivilegeTests extends ESTestCase {
             patterns[i] = randomAlphaOfLengthBetween(2, 5) + "/" + suffix;
         }
 
-        final Map<String, Object> metadata = new HashMap<>();
-        for (int i = randomInt(3); i > 0; i--) {
-            metadata.put(randomAlphaOfLengthBetween(2, 5), randomFrom(randomBoolean(), randomInt(10), randomAlphaOfLength(5)));
-        }
         return createPrivilege(applicationName, privilegeName, patterns);
     }
 

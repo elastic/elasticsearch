@@ -512,7 +512,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testTranslogFlushSizeThreshold() {
-        ByteSizeValue translogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
+        ByteSizeValue translogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(
             translogFlushThresholdSize.getBytes() + "B",
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()
@@ -526,7 +526,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(actualValue, settings.getFlushThresholdSize());
-        ByteSizeValue newTranslogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
+        ByteSizeValue newTranslogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         ByteSizeValue actualNewTranslogFlushThresholdSize = ByteSizeValue.parseBytesSizeValue(
             newTranslogFlushThresholdSize.getBytes() + "B",
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()
@@ -543,7 +543,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testTranslogGenerationSizeThreshold() {
-        final ByteSizeValue size = new ByteSizeValue(Math.abs(randomInt()));
+        final ByteSizeValue size = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         final String key = IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey();
         final ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(size.getBytes() + "B", key);
         final IndexMetadata metadata = newIndexMeta(
@@ -552,7 +552,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(actualValue, settings.getGenerationThresholdSize());
-        final ByteSizeValue newSize = new ByteSizeValue(Math.abs(randomInt()));
+        final ByteSizeValue newSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         final ByteSizeValue actual = ByteSizeValue.parseBytesSizeValue(newSize.getBytes() + "B", key);
         settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, newSize.getBytes() + "B").build()));
         assertEquals(actual, settings.getGenerationThresholdSize());
@@ -744,9 +744,8 @@ public class IndexSettingsTests extends ESTestCase {
             .put(TIME_SERIES_START_TIME.getKey(), startTime)
             .put(TIME_SERIES_END_TIME.getKey(), endTime)
             .build();
-        IndexMetadata metadata = newIndexMeta("test", settings);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexMeta("test", settings));
         assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
     }
 

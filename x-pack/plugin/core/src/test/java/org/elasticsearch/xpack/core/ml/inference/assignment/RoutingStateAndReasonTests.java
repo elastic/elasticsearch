@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class RoutingStateAndReasonTests extends AbstractSerializingTestCase<RoutingStateAndReason> {
+public class RoutingStateAndReasonTests extends AbstractXContentSerializingTestCase<RoutingStateAndReason> {
 
     public static RoutingStateAndReason randomInstance() {
         return new RoutingStateAndReason(randomFrom(RoutingState.values()), randomBoolean() ? null : randomAlphaOfLength(10));

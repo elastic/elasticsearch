@@ -36,7 +36,7 @@ public final class FieldAliasMapper extends Mapper {
 
     public FieldAliasMapper(String simpleName, String name, String path) {
         super(simpleName);
-        this.name = name;
+        this.name = Mapper.internFieldName(name);
         this.path = path;
     }
 

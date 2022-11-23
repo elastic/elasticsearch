@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -532,7 +533,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
-            w.addDocument(type.createFields("foo", valueSupplier.get(), true, true, false));
+            final LuceneDocument doc = new LuceneDocument();
+            type.addFields(doc, "foo", valueSupplier.get(), true, true, false);
+            w.addDocument(doc);
         }
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = newSearcher(reader);
@@ -580,10 +583,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         // Create an index writer configured with the same index sort.
         NumberFieldType fieldType = new NumberFieldType("field", type);
-        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(
-            "index",
-            () -> { throw new UnsupportedOperationException(); }
-        ).build(null, null);
+        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            .build(null, null);
         SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();
@@ -593,7 +594,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, writerConfig);
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
-            w.addDocument(type.createFields("field", valueSupplier.get(), true, true, false));
+            final LuceneDocument doc = new LuceneDocument();
+            type.addFields(doc, "field", valueSupplier.get(), true, true, false);
+            w.addDocument(doc);
         }
 
         // Ensure that the optimized index sort query gives the same results as a points query.
@@ -822,7 +825,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             Version.CURRENT
-        ).build(MapperBuilderContext.ROOT).fieldType();
+        ).build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
@@ -834,7 +837,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             Version.CURRENT
-        ).nullValue(2.71f).build(MapperBuilderContext.ROOT).fieldType();
+        ).nullValue(2.71f).build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
@@ -847,7 +850,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             Version.CURRENT
-        ).build(MapperBuilderContext.ROOT).fieldType();
+        ).build(MapperBuilderContext.root(false)).fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but
          * we still do floating point comparisons. The "funny" trailing

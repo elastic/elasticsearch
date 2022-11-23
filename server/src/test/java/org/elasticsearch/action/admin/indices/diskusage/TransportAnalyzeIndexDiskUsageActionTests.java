@@ -208,7 +208,12 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             assertThat(response.getTotalShards(), equalTo(numberOfShards));
             assertThat(response.getFailedShards(), equalTo(failedShards.size()));
             assertThat(response.getSuccessfulShards(), equalTo(numberOfShards - failedShards.size()));
-            assertThat(response.getStats().get("test_index").getIndexSizeInBytes(), equalTo(totalIndexSize.get()));
+            if (numberOfShards == failedShards.size()) {
+                assertTrue(response.getStats().isEmpty());
+                assertThat(totalIndexSize.get(), equalTo(0L));
+            } else {
+                assertThat(response.getStats().get("test_index").getIndexSizeInBytes(), equalTo(totalIndexSize.get()));
+            }
         } finally {
             stopped.set(true);
             handlingThread.join();

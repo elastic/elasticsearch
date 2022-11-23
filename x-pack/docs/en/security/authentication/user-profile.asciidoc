@@ -2,7 +2,10 @@
 [[user-profile]]
 === User profiles
 
-beta::[]
+NOTE: The user profile feature is designed only for use by {kib} and
+Elastic’s {observability}, {ents}, and {elastic-sec} solutions. Individual
+users and external applications should not call this API directly. Elastic reserves
+the right to change or remove this feature in future releases without prior notice.
 
 Because the {stack} supports externally-managed users (such as users who
 authenticate via SAML, or users stored in an LDAP directory), there's a
@@ -69,10 +72,16 @@ In addition to the user's basic information, you can add data to a profile docum
 with the <<security-api-update-user-profile-data,update user profile API>>. For
 example, you can add user-specific preferences as part of the profile data.
 
-Use the <<security-api-suggest-user-profile,search user profile API>> to search profiles
-that match given criteria. This search API is designed to support user-suggestions,
+Use the <<security-api-suggest-user-profile,suggest user profile API>> to retrieve profiles
+that match given criteria. This API is designed to support user-suggestions,
 in collaboration with features such as those found in {kib}.
-However, the search user profile API is not intended to provide a general-purpose search API.
+However, the suggest user profile API is not intended to provide a general-purpose search API.
+
+Lastly, you can use the <<security-api-has-privileges-user-profile, has privileges API for
+user profiles>> to check the privileges of multiple users by specifying their profiles' unique IDs.
+This can be used in conjunction with the suggest user profile API in order to restrict the
+suggestions only to users that have the necessary permissions to actually perform
+the action in the context.
 
 ==== Limitations
 
@@ -82,7 +91,7 @@ However, the search user profile API is not intended to provide a general-purpos
 This means that a user must authenticate at least one time to create a
 user profile. Users who have never authenticated to {kib}
 (or another profile-aware application) won't have a user profile, and the
-<<security-api-suggest-user-profile,search user profile API>> won't return
+<<security-api-suggest-user-profile,suggest user profile API>> won't return
 any results for those users.
 
 * User profiles are meant for interactive users, such as a human user who

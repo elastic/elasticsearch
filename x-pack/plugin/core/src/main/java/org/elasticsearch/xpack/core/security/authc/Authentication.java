@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,7 +39,6 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -65,76 +63,81 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FA
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 
-// TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
-// That interface can be removed
+/**
+ * The Authentication class encapsulates identity information created after successful authentication
+ * and is the starting point of subsequent authorization.
+ *
+ * Authentication is serialized and travels across the cluster nodes as the sub-requests are handled,
+ * and can also be cached by long-running jobs that continue to act on behalf of the user, beyond
+ * the lifetime of the original request.
+ */
 public final class Authentication implements ToXContentObject {
 
     private static final Logger logger = LogManager.getLogger(Authentication.class);
 
     public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
     public static final Version VERSION_REALM_DOMAINS = Version.V_8_2_0;
-
-    private final User user;
-    private final RealmRef authenticatedBy;
-    private final RealmRef lookedUpBy;
-    private final Version version;
     private final AuthenticationType type;
-    private final Map<String, Object> metadata; // authentication contains metadata, includes api_key details (including api_key metadata)
-
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
 
-    private Authentication(
-        User user,
-        RealmRef authenticatedBy,
-        RealmRef lookedUpBy,
-        Version version,
-        AuthenticationType type,
-        Map<String, Object> metadata
-    ) {
-        this.user = Objects.requireNonNull(user);
-        this.authenticatedBy = Objects.requireNonNull(authenticatedBy);
-        this.lookedUpBy = lookedUpBy;
-        this.version = version;
+    private Authentication(Subject subject, AuthenticationType type) {
+        this(subject, subject, type);
+    }
+
+    private Authentication(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type) {
+        this.effectiveSubject = effectiveSubject;
+        this.authenticatingSubject = authenticatingSubject;
         this.type = type;
-        this.metadata = metadata;
-        if (user instanceof RunAsUser runAsUser) {
-            authenticatingSubject = new Subject(runAsUser.authenticatingUser, authenticatedBy, version, metadata);
-            // The lookup user for run-as currently doesn't have authentication metadata associated with them because
-            // lookupUser only returns the User object. The lookup user for authorization delegation does have
-            // authentication metadata, but the realm does not expose this difference between authenticatingUser and
-            // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
-            effectiveSubject = new Subject(user, lookedUpBy, version, Map.of());
-        } else {
-            authenticatingSubject = effectiveSubject = new Subject(user, authenticatedBy, version, metadata);
-        }
-        this.assertApiKeyMetadata();
-        this.assertDomainAssignment();
+        assertInternalConsistency();
     }
 
     public Authentication(StreamInput in) throws IOException {
-        this.user = AuthenticationSerializationHelper.readUserFrom(in);
-        this.authenticatedBy = new RealmRef(in);
-        if (in.readBoolean()) {
-            this.lookedUpBy = new RealmRef(in);
+        // Read the user(s)
+        final User outerUser = AuthenticationSerializationHelper.readUserWithoutTrailingBoolean(in);
+        final boolean hasInnerUser;
+        if (User.isInternal(outerUser)) {
+            hasInnerUser = false;
         } else {
-            this.lookedUpBy = null;
+            hasInnerUser = in.readBoolean();
         }
-        this.version = in.getVersion();
+        final User innerUser;
+        if (hasInnerUser) {
+            innerUser = AuthenticationSerializationHelper.readUserFrom(in);
+            assert false == User.isInternal(innerUser) : "internal users cannot participate in run-as";
+        } else {
+            innerUser = null;
+        }
+
+        final RealmRef authenticatedBy = new RealmRef(in);
+        final RealmRef lookedUpBy;
+        if (in.readBoolean()) {
+            lookedUpBy = new RealmRef(in);
+        } else {
+            lookedUpBy = null;
+        }
+
+        // The valid combinations for innerUser and lookedUpBy are:
+        // 1. InnerUser == null -> no run-as -> lookedUpBy must be null as well
+        // 2. innerUser != null -> lookedUp by can be either null (failed run-as lookup) or non-null (successful lookup)
+        // 3. lookedUpBy == null -> innerUser can be either null (no run-as) or non-null (failed run-as lookup)
+        // 4. lookedUpBy != null -> successful run-as -> innerUser must be NOT null
+        assert innerUser != null || lookedUpBy == null : "Authentication has no inner-user, but looked-up-by is [" + lookedUpBy + "]";
+
+        final Version version = in.getVersion();
         type = AuthenticationType.values()[in.readVInt()];
-        metadata = in.readMap();
-        if (user instanceof RunAsUser runAsUser) {
-            authenticatingSubject = new Subject(runAsUser.authenticatingUser, authenticatedBy, version, metadata);
+        final Map<String, Object> metadata = in.readMap();
+        if (innerUser != null) {
+            authenticatingSubject = new Subject(innerUser, authenticatedBy, version, metadata);
             // The lookup user for run-as currently doesn't have authentication metadata associated with them because
             // lookupUser only returns the User object. The lookup user for authorization delegation does have
             // authentication metadata, but the realm does not expose this difference between authenticatingUser and
             // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
-            effectiveSubject = new Subject(user, lookedUpBy, version, Map.of());
+            effectiveSubject = new Subject(outerUser, lookedUpBy, version, Map.of());
         } else {
-            authenticatingSubject = effectiveSubject = new Subject(user, authenticatedBy, version, metadata);
+            authenticatingSubject = effectiveSubject = new Subject(outerUser, authenticatedBy, version, metadata);
         }
-        this.assertApiKeyMetadata();
-        this.assertDomainAssignment();
+        assertInternalConsistency();
     }
 
     /**
@@ -152,37 +155,16 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject;
     }
 
+    public AuthenticationType getAuthenticationType() {
+        return type;
+    }
+
     /**
      * Whether the authentication contains a subject run-as another subject. That is, the authentication subject
      * is different from the effective subject.
      */
     public boolean isRunAs() {
         return authenticatingSubject != effectiveSubject;
-    }
-
-    /**
-     * Use {@code getEffectiveSubject().getUser()} instead.
-     */
-    @Deprecated
-    public User getUser() {
-        return user;
-    }
-
-    /**
-     * Use {@code getAuthenticatingSubject().getRealm()} instead.
-     */
-    @Deprecated
-    public RealmRef getAuthenticatedBy() {
-        return authenticatedBy;
-    }
-
-    /**
-     * The use case for this method is largely trying to tell whether there is a run-as user
-     * and can be replaced by {@code isRunAs}
-     */
-    @Deprecated
-    public RealmRef getLookedUpBy() {
-        return lookedUpBy;
     }
 
     /**
@@ -193,27 +175,14 @@ public final class Authentication implements ToXContentObject {
      */
     @Deprecated
     public RealmRef getSourceRealm() {
-        return lookedUpBy == null ? authenticatedBy : lookedUpBy;
-    }
-
-    /**
-     * Returns the authentication version.
-     * Nodes can only interpret authentications from current or older versions as the node's.
-     *
-     * Authentication is serialized and travels across the cluster nodes as the sub-requests are handled,
-     * and can also be cached by long-running jobs that continue to act on behalf of the user, beyond
-     * the lifetime of the original request.
-     */
-    public Version getVersion() {
-        return version;
-    }
-
-    public AuthenticationType getAuthenticationType() {
-        return type;
-    }
-
-    public Map<String, Object> getMetadata() {
-        return metadata;
+        // TODO: This code retains the existing behaviour which is slightly wrong because
+        // when run-as lookup fails, the effectiveSubject will have a null realm. In this
+        // case, the code returns the authenticatingSubject's realm. This is wrong in theory
+        // because it is not the intention of this method. In practice, it does not matter
+        // because failed lookup will be rejected at authZ time. But fixing it causes test
+        // failures. So leave it for now.
+        final RealmRef sourceRealm = effectiveSubject.getRealm();
+        return sourceRealm == null ? authenticatingSubject.getRealm() : sourceRealm;
     }
 
     /**
@@ -223,14 +192,42 @@ public final class Authentication implements ToXContentObject {
     public Authentication maybeRewriteForOlderVersion(Version olderVersion) {
         // TODO how can this not be true
         // assert olderVersion.onOrBefore(getVersion());
-        Authentication newAuthentication = new Authentication(
-            getUser(),
-            maybeRewriteRealmRef(olderVersion, getAuthenticatedBy()),
-            maybeRewriteRealmRef(olderVersion, getLookedUpBy()),
-            olderVersion,
-            getAuthenticationType(),
-            maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, this)
-        );
+
+        final Map<String, Object> newMetadata = maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, this);
+
+        final Authentication newAuthentication;
+        if (isRunAs()) {
+            // The lookup user for run-as currently doesn't have authentication metadata associated with them because
+            // lookupUser only returns the User object. The lookup user for authorization delegation does have
+            // authentication metadata, but the realm does not expose this difference between authenticatingUser and
+            // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
+            newAuthentication = new Authentication(
+                new Subject(
+                    effectiveSubject.getUser(),
+                    maybeRewriteRealmRef(olderVersion, effectiveSubject.getRealm()),
+                    olderVersion,
+                    effectiveSubject.getMetadata()
+                ),
+                new Subject(
+                    authenticatingSubject.getUser(),
+                    maybeRewriteRealmRef(olderVersion, authenticatingSubject.getRealm()),
+                    olderVersion,
+                    newMetadata
+                ),
+                type
+            );
+        } else {
+            newAuthentication = new Authentication(
+                new Subject(
+                    authenticatingSubject.getUser(),
+                    maybeRewriteRealmRef(olderVersion, authenticatingSubject.getRealm()),
+                    olderVersion,
+                    newMetadata
+                ),
+                type
+            );
+
+        }
         if (isAssignedToDomain() && false == newAuthentication.isAssignedToDomain()) {
             logger.info("Rewriting authentication [" + this + "] without domain");
         }
@@ -240,21 +237,22 @@ public final class Authentication implements ToXContentObject {
     /**
      * Returns a new {@code Authentication} that reflects a "run as another user" action under the current {@code Authentication}.
      * The security {@code RealmRef#Domain} of the resulting {@code Authentication} is that of the run-as user's realm.
+     *
+     * @param runAs The user to be impersonated
+     * @param lookupRealmRef The realm where the impersonated user is looked up from. It can be null if the user does
+     *                       not exist. The null lookup realm is used to indicate the lookup failure which will be rejected
+     *                       at authorization time.
      */
     public Authentication runAs(User runAs, @Nullable RealmRef lookupRealmRef) {
         assert supportsRunAs(null);
-        assert false == runAs instanceof RunAsUser;
         assert false == runAs instanceof AnonymousUser;
         assert false == hasSyntheticRealmNameOrType(lookupRealmRef) : "should not use synthetic realm name/type for lookup realms";
 
         Objects.requireNonNull(runAs);
         return new Authentication(
-            new RunAsUser(runAs, getUser()),
-            getAuthenticatedBy(),
-            lookupRealmRef,
-            getVersion(),
-            getAuthenticationType(),
-            getMetadata()
+            new Subject(runAs, lookupRealmRef, getEffectiveSubject().getVersion(), Map.of()),
+            authenticatingSubject,
+            type
         );
     }
 
@@ -263,14 +261,7 @@ public final class Authentication implements ToXContentObject {
      */
     public Authentication token() {
         assert false == isServiceAccount();
-        final Authentication newTokenAuthentication = new Authentication(
-            getUser(),
-            getAuthenticatedBy(),
-            getLookedUpBy(),
-            getVersion(),
-            AuthenticationType.TOKEN,
-            getMetadata()
-        );
+        final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
         assert Objects.equals(getDomain(), newTokenAuthentication.getDomain());
         return newTokenAuthentication;
     }
@@ -292,8 +283,8 @@ public final class Authentication implements ToXContentObject {
     public Authentication maybeAddAnonymousRoles(@Nullable AnonymousUser anonymousUser) {
         final boolean shouldAddAnonymousRoleNames = anonymousUser != null
             && anonymousUser.enabled()
-            && false == anonymousUser.equals(getUser())
-            && false == User.isInternal(getUser())
+            && false == anonymousUser.equals(getEffectiveSubject().getUser())
+            && false == User.isInternal(getEffectiveSubject().getUser())
             && false == isApiKey()
             && false == isServiceAccount();
 
@@ -305,33 +296,33 @@ public final class Authentication implements ToXContentObject {
         if (anonymousUser.roles().length == 0) {
             throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
         }
-        final String[] allRoleNames = ArrayUtils.concat(getUser().roles(), anonymousUser.roles());
+        final String[] allRoleNames = ArrayUtils.concat(getEffectiveSubject().getUser().roles(), anonymousUser.roles());
 
-        final User user;
-        if (getUser()instanceof RunAsUser runAsUser) {
-            user = new RunAsUser(
-                new User(
-                    runAsUser.principal(),
-                    allRoleNames,
-                    runAsUser.fullName(),
-                    runAsUser.email(),
-                    runAsUser.metadata(),
-                    runAsUser.enabled()
+        if (isRunAs()) {
+            final User user = effectiveSubject.getUser();
+            return new Authentication(
+                new Subject(
+                    new User(user.principal(), allRoleNames, user.fullName(), user.email(), user.metadata(), user.enabled()),
+                    effectiveSubject.getRealm(),
+                    effectiveSubject.getVersion(),
+                    effectiveSubject.getMetadata()
                 ),
-                runAsUser.authenticatingUser
+                authenticatingSubject,
+                type
             );
+
         } else {
-            user = new User(
-                getUser().principal(),
-                allRoleNames,
-                getUser().fullName(),
-                getUser().email(),
-                getUser().metadata(),
-                getUser().enabled()
+            final User user = authenticatingSubject.getUser();
+            return new Authentication(
+                new Subject(
+                    new User(user.principal(), allRoleNames, user.fullName(), user.email(), user.metadata(), user.enabled()),
+                    authenticatingSubject.getRealm(),
+                    authenticatingSubject.getVersion(),
+                    authenticatingSubject.getMetadata()
+                ),
+                type
             );
         }
-
-        return new Authentication(user, getAuthenticatedBy(), getLookedUpBy(), getVersion(), getAuthenticationType(), getMetadata());
     }
 
     /**
@@ -354,7 +345,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     public boolean isAuthenticatedWithServiceAccount() {
-        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType());
+        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatingSubject().getRealm().getType());
     }
 
     /**
@@ -396,7 +387,6 @@ public final class Authentication implements ToXContentObject {
         if (isRunAs()) {
             return false;
         }
-        assert false == getUser() instanceof RunAsUser;
 
         // We may allow service account to run-as in the future, but for now no service account requires it
         if (isServiceAccount()) {
@@ -405,7 +395,7 @@ public final class Authentication implements ToXContentObject {
 
         // There is no reason for internal users to run-as. This check prevents either internal user itself
         // or a token created for it (though no such thing in current code) to run-as.
-        if (User.isInternal(getUser())) {
+        if (User.isInternal(getEffectiveSubject().getUser())) {
             return false;
         }
 
@@ -421,7 +411,7 @@ public final class Authentication implements ToXContentObject {
         // Also, if anonymous access is disabled or anonymous username, roles are changed after the token is created.
         // Should we still consider the token being created by an anonymous user which is now different from the new
         // anonymous user?
-        if (getUser().equals(anonymousUser)) {
+        if (getEffectiveSubject().getUser().equals(anonymousUser)) {
             assert ANONYMOUS_REALM_TYPE.equals(getAuthenticatingSubject().getRealm().getType())
                 && ANONYMOUS_REALM_NAME.equals(getAuthenticatingSubject().getRealm().getName());
             return false;
@@ -447,15 +437,29 @@ public final class Authentication implements ToXContentObject {
 
     public String encode() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(version);
-        Version.writeVersion(version, output);
+        output.setVersion(getEffectiveSubject().getVersion());
+        Version.writeVersion(getEffectiveSubject().getVersion(), output);
         writeTo(output);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        AuthenticationSerializationHelper.writeUserTo(user, out);
-        authenticatedBy.writeTo(out);
+        if (isRunAs()) {
+            final User outerUser = effectiveSubject.getUser();
+            final User innerUser = authenticatingSubject.getUser();
+            assert false == User.isInternal(outerUser) && false == User.isInternal(innerUser)
+                : "internal users cannot participate in run-as";
+            User.writeUser(outerUser, out);
+            out.writeBoolean(true);
+            User.writeUser(innerUser, out);
+            out.writeBoolean(false);
+        } else {
+            final User user = effectiveSubject.getUser();
+            AuthenticationSerializationHelper.writeUserTo(user, out);
+        }
+        authenticatingSubject.getRealm().writeTo(out);
+        final RealmRef lookedUpBy = isRunAs() ? effectiveSubject.getRealm() : null;
+
         if (lookedUpBy != null) {
             out.writeBoolean(true);
             lookedUpBy.writeTo(out);
@@ -463,7 +467,7 @@ public final class Authentication implements ToXContentObject {
             out.writeBoolean(false);
         }
         out.writeVInt(type.ordinal());
-        out.writeGenericMap(metadata);
+        out.writeGenericMap(getAuthenticatingSubject().getMetadata());
     }
 
     /**
@@ -501,17 +505,14 @@ public final class Authentication implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Authentication that = (Authentication) o;
-        return user.equals(that.user)
-            && authenticatedBy.equals(that.authenticatedBy)
-            && Objects.equals(lookedUpBy, that.lookedUpBy)
-            && version.equals(that.version)
-            && type == that.type
-            && metadata.equals(that.metadata);
+        return type == that.type
+            && authenticatingSubject.equals(that.authenticatingSubject)
+            && effectiveSubject.equals(that.effectiveSubject);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(user, authenticatedBy, lookedUpBy, version, type, metadata);
+        return Objects.hash(type, authenticatingSubject, effectiveSubject);
     }
 
     @Override
@@ -525,14 +526,15 @@ public final class Authentication implements ToXContentObject {
      * Generates XContent without the start/end object.
      */
     public void toXContentFragment(XContentBuilder builder) throws IOException {
+        final User user = effectiveSubject.getUser();
         builder.field(User.Fields.USERNAME.getPreferredName(), user.principal());
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         if (isServiceAccount()) {
-            final String tokenName = (String) getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
+            final String tokenName = (String) getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
-            final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
+            final String tokenSource = (String) getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
             assert tokenSource != null : "token source cannot be null";
             builder.field(
                 User.Fields.TOKEN.getPreferredName(),
@@ -542,34 +544,34 @@ public final class Authentication implements ToXContentObject {
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
         builder.startObject(User.Fields.AUTHENTICATION_REALM.getPreferredName());
-        builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
-        builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatingSubject().getRealm().getName());
+        builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatingSubject().getRealm().getType());
         // domain name is generally ambiguous, because it can change during the lifetime of the authentication,
         // but it is good enough for display purposes (including auditing)
-        if (getAuthenticatedBy().getDomain() != null) {
-            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+        if (getAuthenticatingSubject().getRealm().getDomain() != null) {
+            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatingSubject().getRealm().getDomain().name());
         }
         builder.endObject();
         builder.startObject(User.Fields.LOOKUP_REALM.getPreferredName());
-        if (getLookedUpBy() != null) {
-            builder.field(User.Fields.REALM_NAME.getPreferredName(), getLookedUpBy().getName());
-            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getLookedUpBy().getType());
-            if (getLookedUpBy().getDomain() != null) {
-                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getLookedUpBy().getDomain().name());
+        final RealmRef lookedUpBy = isRunAs() ? getEffectiveSubject().getRealm() : null;
+        if (lookedUpBy != null) {
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), lookedUpBy.getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), lookedUpBy.getType());
+            if (lookedUpBy.getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), lookedUpBy.getDomain().name());
             }
         } else {
-            builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
-            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
-            if (getAuthenticatedBy().getDomain() != null) {
-                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatingSubject().getRealm().getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatingSubject().getRealm().getType());
+            if (getAuthenticatingSubject().getRealm().getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatingSubject().getRealm().getDomain().name());
             }
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
         if (isApiKey()) {
-            this.assertApiKeyMetadata();
-            final String apiKeyId = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
-            final String apiKeyName = (String) this.metadata.get(AuthenticationField.API_KEY_NAME_KEY);
+            final String apiKeyId = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+            final String apiKeyName = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
             if (apiKeyName == null) {
                 builder.field("api_key", Map.of("id", apiKeyId));
             } else {
@@ -578,19 +580,35 @@ public final class Authentication implements ToXContentObject {
         }
     }
 
-    private void assertApiKeyMetadata() {
-        assert (false == isAuthenticatedAsApiKey()) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
-            : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
-    }
+    private void assertInternalConsistency() {
+        if (false == Assertions.ENABLED) {
+            return;
+        }
 
-    private void assertDomainAssignment() {
-        if (Assertions.ENABLED) {
-            if (isAssignedToDomain()) {
-                assert false == isApiKey();
-                assert false == isServiceAccount();
-                assert false == isAuthenticatedAnonymously();
-                assert false == isAuthenticatedInternally();
-            }
+        assert effectiveSubject != null;
+        assert authenticatingSubject != null;
+        assert type != null;
+        assert effectiveSubject.getVersion().equals(authenticatingSubject.getVersion());
+
+        if (isRunAs()) {
+            assert authenticatingSubject != effectiveSubject : "isRunAs logic does not hold";
+            assert false == User.isInternal(effectiveSubject.getUser()) && false == User.isInternal(authenticatingSubject.getUser())
+                : "internal users cannot participate in run-as";
+        } else {
+            assert authenticatingSubject == effectiveSubject : "isRunAs logic does not hold";
+        }
+
+        // Assert API key metadata
+        assert (false == isAuthenticatedAsApiKey())
+            || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
+            : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
+
+        // Assert domain assignment
+        if (isAssignedToDomain()) {
+            assert false == isApiKey();
+            assert false == isServiceAccount();
+            assert false == isAuthenticatedAnonymously();
+            assert false == isAuthenticatedInternally();
         }
     }
 
@@ -611,14 +629,11 @@ public final class Authentication implements ToXContentObject {
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder("Authentication[").append(user)
-            .append(",type=")
-            .append(type)
-            .append(",by=")
-            .append(authenticatedBy);
-        if (lookedUpBy != null) {
-            builder.append(",lookup=").append(lookedUpBy);
+        StringBuilder builder = new StringBuilder("Authentication[effectiveSubject=").append(effectiveSubject);
+        if (isRunAs()) {
+            builder.append(",authenticatingSubject=").append(authenticatingSubject);
         }
+        builder.append(",type=").append(type);
         builder.append("]");
         return builder.toString();
     }
@@ -740,7 +755,7 @@ public final class Authentication implements ToXContentObject {
             return realmRef;
         }
 
-        static RealmRef newAnonymousRealmRef(String nodeName) {
+        public static RealmRef newAnonymousRealmRef(String nodeName) {
             // the "anonymous" internal realm is not part of any realm domain
             return new Authentication.RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName, null);
         }
@@ -779,12 +794,8 @@ public final class Authentication implements ToXContentObject {
         assert User.isInternal(internalUser);
         final Authentication.RealmRef authenticatedBy = newInternalAttachRealmRef(nodeName);
         Authentication authentication = new Authentication(
-            internalUser,
-            authenticatedBy,
-            null,
-            version,
-            AuthenticationType.INTERNAL,
-            Collections.emptyMap()
+            new Subject(internalUser, authenticatedBy, version, Map.of()),
+            AuthenticationType.INTERNAL
         );
         assert false == authentication.isAssignedToDomain();
         return authentication;
@@ -794,12 +805,8 @@ public final class Authentication implements ToXContentObject {
         // TODO assert SystemUser.is(fallbackUser);
         final Authentication.RealmRef authenticatedBy = newInternalFallbackRealmRef(nodeName);
         Authentication authentication = new Authentication(
-            fallbackUser,
-            authenticatedBy,
-            null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.INTERNAL,
-            Collections.emptyMap()
+            new Subject(fallbackUser, authenticatedBy, Version.CURRENT, Map.of()),
+            Authentication.AuthenticationType.INTERNAL
         );
         assert false == authentication.isAssignedToDomain();
         return authentication;
@@ -808,12 +815,8 @@ public final class Authentication implements ToXContentObject {
     public static Authentication newAnonymousAuthentication(AnonymousUser anonymousUser, String nodeName) {
         final Authentication.RealmRef authenticatedBy = newAnonymousRealmRef(nodeName);
         Authentication authentication = new Authentication(
-            anonymousUser,
-            authenticatedBy,
-            null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.ANONYMOUS,
-            Collections.emptyMap()
+            new Subject(anonymousUser, authenticatedBy, Version.CURRENT, Map.of()),
+            Authentication.AuthenticationType.ANONYMOUS
         );
         assert false == authentication.isAssignedToDomain();
         return authentication;
@@ -821,15 +824,10 @@ public final class Authentication implements ToXContentObject {
 
     public static Authentication newServiceAccountAuthentication(User serviceAccountUser, String nodeName, Map<String, Object> metadata) {
         // TODO make the service account user a separate class/interface
-        assert false == serviceAccountUser instanceof RunAsUser;
         final Authentication.RealmRef authenticatedBy = newServiceAccountRealmRef(nodeName);
         Authentication authentication = new Authentication(
-            serviceAccountUser,
-            authenticatedBy,
-            null,
-            Version.CURRENT,
-            AuthenticationType.TOKEN,
-            metadata
+            new Subject(serviceAccountUser, authenticatedBy, Version.CURRENT, metadata),
+            AuthenticationType.TOKEN
         );
         assert false == authentication.isAssignedToDomain();
         return authentication;
@@ -837,8 +835,10 @@ public final class Authentication implements ToXContentObject {
 
     public static Authentication newRealmAuthentication(User user, RealmRef realmRef) {
         // TODO make the type system ensure that this is not a run-as user
-        assert false == user instanceof RunAsUser;
-        Authentication authentication = new Authentication(user, realmRef, null, Version.CURRENT, AuthenticationType.REALM, Map.of());
+        Authentication authentication = new Authentication(
+            new Subject(user, realmRef, Version.CURRENT, Map.of()),
+            AuthenticationType.REALM
+        );
         assert false == authentication.isServiceAccount();
         assert false == authentication.isApiKey();
         assert false == authentication.isAuthenticatedInternally();
@@ -849,16 +849,11 @@ public final class Authentication implements ToXContentObject {
     public static Authentication newApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
         assert authResult.isAuthenticated() : "API Key authn result must be successful";
         final User apiKeyUser = authResult.getValue();
-        assert false == apiKeyUser instanceof RunAsUser;
         assert apiKeyUser.roles().length == 0 : "The user associated to an API key authentication must have no role";
         final Authentication.RealmRef authenticatedBy = newApiKeyRealmRef(nodeName);
         Authentication authentication = new Authentication(
-            apiKeyUser,
-            authenticatedBy,
-            null,
-            Version.CURRENT,
-            AuthenticationType.API_KEY,
-            authResult.getMetadata()
+            new Subject(apiKeyUser, authenticatedBy, Version.CURRENT, authResult.getMetadata()),
+            AuthenticationType.API_KEY
         );
         assert false == authentication.isAssignedToDomain();
         return authentication;
@@ -874,7 +869,7 @@ public final class Authentication implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> maybeRewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
-        Map<String, Object> metadata = authentication.getMetadata();
+        Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
         // If authentication user is an API key or a token created by an API key,
         // regardless whether it has run-as, the metadata must contain API key role descriptors
         if (authentication.isAuthenticatedAsApiKey()) {
@@ -882,7 +877,7 @@ public final class Authentication implements ToXContentObject {
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain limited role descriptor for API key authentication";
-            if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
+            if (authentication.getEffectiveSubject().getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);
                 metadata.put(
@@ -895,7 +890,7 @@ public final class Authentication implements ToXContentObject {
                         (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                     )
                 );
-            } else if (authentication.getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
+            } else if (authentication.getEffectiveSubject().getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
                     metadata = new HashMap<>(metadata);
                     metadata.put(
@@ -950,59 +945,33 @@ public final class Authentication implements ToXContentObject {
         INTERNAL
     }
 
-    // Package private for testing
-    static class RunAsUser extends User {
-        final User authenticatingUser;
-
-        RunAsUser(User effectiveUser, User authenticatingUser) {
-            super(
-                effectiveUser.principal(),
-                effectiveUser.roles(),
-                effectiveUser.fullName(),
-                effectiveUser.email(),
-                effectiveUser.metadata(),
-                effectiveUser.enabled()
-            );
-            this.authenticatingUser = Objects.requireNonNull(authenticatingUser);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (false == super.equals(o)) return false;
-            RunAsUser runAsUser = (RunAsUser) o;
-            return authenticatingUser.equals(runAsUser.authenticatingUser);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), authenticatingUser);
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("RunAsUser[username=").append(principal());
-            sb.append(",roles=[").append(Strings.arrayToCommaDelimitedString(roles())).append("]");
-            sb.append(",fullName=").append(fullName());
-            sb.append(",email=").append(email());
-            sb.append(",metadata=");
-            sb.append(metadata());
-            if (enabled() == false) {
-                sb.append(",(disabled)");
-            }
-            sb.append(",authenticatingUser=[").append(authenticatingUser.toString()).append("]");
-            sb.append("]");
-            return sb.toString();
-        }
-    }
-
     public static class AuthenticationSerializationHelper {
 
         private AuthenticationSerializationHelper() {}
 
+        /**
+         * Read the User object as well as the trailing boolean flag if the user is *not* an internal user.
+         * The trailing boolean, if exits, must be false (indicating no following inner-user).
+         */
         public static User readUserFrom(StreamInput input) throws IOException {
+            final User user = readUserWithoutTrailingBoolean(input);
+            if (false == User.isInternal(user)) {
+                boolean hasInnerUser = input.readBoolean();
+                assert false == hasInnerUser : "no inner user is possible, otherwise use UserTuple.readFrom";
+            }
+            return user;
+        }
+
+        public static void writeUserTo(User user, StreamOutput output) throws IOException {
+            if (User.isInternal(user)) {
+                writeInternalUser(user, output);
+            } else {
+                User.writeUser(user, output);
+                output.writeBoolean(false); // simple user, no inner user possible
+            }
+        }
+
+        private static User readUserWithoutTrailingBoolean(StreamInput input) throws IOException {
             final boolean isInternalUser = input.readBoolean();
             final String username = input.readString();
             if (isInternalUser) {
@@ -1019,57 +988,31 @@ public final class Authentication implements ToXContentObject {
                 }
                 throw new IllegalStateException("username [" + username + "] does not match any internal user");
             }
-            return partialReadUserFrom(username, input);
-        }
-
-        public static void writeUserTo(User user, StreamOutput output) throws IOException {
-            if (SystemUser.is(user)) {
-                output.writeBoolean(true);
-                output.writeString(SystemUser.NAME);
-            } else if (XPackUser.is(user)) {
-                output.writeBoolean(true);
-                output.writeString(XPackUser.NAME);
-            } else if (XPackSecurityUser.is(user)) {
-                output.writeBoolean(true);
-                output.writeString(XPackSecurityUser.NAME);
-            } else if (SecurityProfileUser.is(user)) {
-                output.writeBoolean(true);
-                output.writeString(SecurityProfileUser.NAME);
-            } else if (AsyncSearchUser.is(user)) {
-                output.writeBoolean(true);
-                output.writeString(AsyncSearchUser.NAME);
-            } else {
-                doWriteUserTo(user, output);
-            }
-        }
-
-        private static User partialReadUserFrom(String username, StreamInput input) throws IOException {
             String[] roles = input.readStringArray();
             Map<String, Object> metadata = input.readMap();
             String fullName = input.readOptionalString();
             String email = input.readOptionalString();
             boolean enabled = input.readBoolean();
-            User outerUser = new User(username, roles, fullName, email, metadata, enabled);
-            boolean hasInnerUser = input.readBoolean();
-            if (hasInnerUser) {
-                User innerUser = readUserFrom(input);
-                assert false == User.isInternal(innerUser) : "authenticating user cannot be internal";
-                return new RunAsUser(outerUser, innerUser);
-            } else {
-                return outerUser;
-            }
+            return new User(username, roles, fullName, email, metadata, enabled);
         }
 
-        private static void doWriteUserTo(User user, StreamOutput output) throws IOException {
-            if (user instanceof RunAsUser runAsUser) {
-                User.writeUser(user, output);
-                output.writeBoolean(true);
-                User.writeUser(runAsUser.authenticatingUser, output);
+        private static void writeInternalUser(User user, StreamOutput output) throws IOException {
+            assert User.isInternal(user);
+            output.writeBoolean(true);
+            if (SystemUser.is(user)) {
+                output.writeString(SystemUser.NAME);
+            } else if (XPackUser.is(user)) {
+                output.writeString(XPackUser.NAME);
+            } else if (XPackSecurityUser.is(user)) {
+                output.writeString(XPackSecurityUser.NAME);
+            } else if (SecurityProfileUser.is(user)) {
+                output.writeString(SecurityProfileUser.NAME);
+            } else if (AsyncSearchUser.is(user)) {
+                output.writeString(AsyncSearchUser.NAME);
             } else {
-                // no backcompat necessary, since there is no inner user
-                User.writeUser(user, output);
+                assert false;
+                throw new IllegalStateException("user [" + user + "] is not internal");
             }
-            output.writeBoolean(false); // last user written, regardless of bwc, does not have an inner user
         }
     }
 }

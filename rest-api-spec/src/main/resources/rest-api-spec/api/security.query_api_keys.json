@@ -21,7 +21,13 @@
         }
       ]
     },
-    "params":{},
+    "params":{
+      "with_limited_by":{
+        "type":"boolean",
+        "default":false,
+        "description": "flag to show the limited-by role descriptors of API Keys"
+      }
+    },
     "body":{
       "description":"From, size, query, sort and search_after",
       "required":false

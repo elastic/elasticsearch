@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
@@ -42,16 +43,13 @@ public final class ApplicationPrivilege extends Privilege {
      */
     private static final Pattern VALID_NAME_OR_ACTION = Pattern.compile("^\\p{Graph}*$");
 
-    public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, "none", new String[0]);
+    public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, Collections.singleton("none"));
 
     private final String application;
     private final String[] patterns;
 
-    public ApplicationPrivilege(String application, String privilegeName, String... patterns) {
-        this(application, Collections.singleton(privilegeName), patterns);
-    }
-
-    public ApplicationPrivilege(String application, Set<String> name, String... patterns) {
+    // TODO make this private once ApplicationPrivilegeTests::createPrivilege uses ApplicationPrivilege::get
+    ApplicationPrivilege(String application, Set<String> name, String... patterns) {
         super(name, patterns);
         this.application = application;
         this.patterns = patterns;
@@ -162,8 +160,23 @@ public final class ApplicationPrivilege extends Privilege {
         }
     }
 
-    private static boolean isValidPrivilegeName(String name) {
+    public static boolean isValidPrivilegeName(String name) {
         return VALID_NAME.matcher(name).matches();
+    }
+
+    public static void validateActionName(String action) {
+        if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
+            throw new IllegalArgumentException("action [" + action + "] must contain one of [ '/' , '*' , ':' ]");
+        }
+        if (false == isValidPrivilegeOrActionName(action)) {
+            throw new IllegalArgumentException(
+                "Application privilege names and actions must match the pattern "
+                    + VALID_NAME_OR_ACTION.pattern()
+                    + " (found '"
+                    + action
+                    + "')"
+            );
+        }
     }
 
     /**
@@ -172,7 +185,7 @@ public final class ApplicationPrivilege extends Privilege {
      * @throws IllegalArgumentException if the name is not valid
      */
     public static void validatePrivilegeOrActionName(String name) {
-        if (VALID_NAME_OR_ACTION.matcher(name).matches() == false) {
+        if (isValidPrivilegeOrActionName(name) == false) {
             throw new IllegalArgumentException(
                 "Application privilege names and actions must match the pattern "
                     + VALID_NAME_OR_ACTION.pattern()
@@ -181,6 +194,10 @@ public final class ApplicationPrivilege extends Privilege {
                     + "')"
             );
         }
+    }
+
+    private static boolean isValidPrivilegeOrActionName(String name) {
+        return VALID_NAME_OR_ACTION.matcher(name).matches();
     }
 
     /**
@@ -192,18 +209,15 @@ public final class ApplicationPrivilege extends Privilege {
         if (name.isEmpty()) {
             return Collections.singleton(NONE.apply(application));
         } else if (application.contains("*")) {
-            Predicate<String> predicate = Automatons.predicate(application);
-            final Set<ApplicationPrivilege> result = stored.stream()
+            final Set<ApplicationPrivilege> result = Sets.newHashSet(resolve(application, name, Collections.emptyMap()));
+            final Predicate<String> predicate = Automatons.predicate(application);
+            stored.stream()
                 .map(ApplicationPrivilegeDescriptor::getApplication)
                 .filter(predicate)
                 .distinct()
                 .map(appName -> resolve(appName, name, stored))
-                .collect(Collectors.toSet());
-            if (result.isEmpty()) {
-                return Collections.singleton(resolve(application, name, Collections.emptyMap()));
-            } else {
-                return result;
-            }
+                .forEach(result::add);
+            return result;
         } else {
             return Collections.singleton(resolve(application, name, stored));
         }

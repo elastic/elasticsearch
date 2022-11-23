@@ -16,6 +16,8 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.FrozenCacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes;
@@ -177,7 +179,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     private static int positionalWrite(SharedBytes.IO fc, long start, ByteBuffer byteBuffer) throws IOException {
-        assert assertCurrentThreadMayWriteCacheFile();
+        assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         byteBuffer.flip();
         int written = fc.write(byteBuffer, start);
         assert byteBuffer.hasRemaining() == false;
@@ -303,7 +305,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         final Consumer<Long> progressUpdater,
         final long startTimeNanos
     ) throws IOException {
-        assert assertCurrentThreadMayWriteCacheFile();
+        assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         logger.trace(
             "{}: writing channel {} pos {} length {} (details: {})",
             fileInfo.physicalName(),

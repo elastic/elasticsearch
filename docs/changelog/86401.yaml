@@ -1,5 +1,0 @@
-pr: 86401
-summary: Allow `serial_diff` under `min_doc_count` aggs
-area: Aggregations
-type: bug
-issues: []

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -22,6 +23,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -73,7 +75,9 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer,
+            AllocationDeciders allocationDeciders
         ) {
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(
@@ -91,7 +95,9 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                 nodeEnvironment,
                 namedWriteableRegistry,
                 expressionResolver,
-                repositoriesServiceSupplier
+                repositoriesServiceSupplier,
+                tracer,
+                allocationDeciders
             );
         }
 

@@ -90,7 +90,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
                 true,
                 indicesAndAliases
             );
-            indicesAndFilters.put(index, new AliasFilter(aliasFilter.getQueryBuilder(), aliases));
+            indicesAndFilters.put(index, AliasFilter.of(aliasFilter.getQueryBuilder(), aliases));
         }
 
         Set<String> nodeIds = new HashSet<>();

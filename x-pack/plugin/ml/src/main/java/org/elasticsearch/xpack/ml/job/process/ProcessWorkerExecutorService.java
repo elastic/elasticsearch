@@ -33,6 +33,9 @@ public class ProcessWorkerExecutorService extends AbstractProcessWorkerExecutorS
 
     @Override
     public synchronized void execute(Runnable command) {
+        if (command instanceof AbstractInitializableRunnable initializableRunnable) {
+            initializableRunnable.init();
+        }
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(processName + " worker service has shutdown", true);
             if (command instanceof AbstractRunnable runnable) {

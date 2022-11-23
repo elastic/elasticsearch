@@ -200,7 +200,7 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
         }
 
         @Override
-        public long docValueCount() {
+        public int docValueCount() {
             return documentOrds.length;
         }
 

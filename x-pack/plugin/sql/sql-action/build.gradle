@@ -17,9 +17,9 @@ dependencies {
   api(project(':libs:elasticsearch-x-content')) {
     transitive = false
   }
-  api xpackProject('plugin:core')
-  api xpackProject('plugin:ql')
-  api xpackProject('plugin:sql:sql-proto')
+  api project(':x-pack:plugin:core')
+  api project(':x-pack:plugin:ql')
+  api project(':x-pack:plugin:sql:sql-proto')
 
   testImplementation project(":test:framework")
   testImplementation(project(xpackModule('ql:test-fixtures')))

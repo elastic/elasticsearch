@@ -33,26 +33,21 @@ aggregate_double_metric with time series mappings:
                               type: aggregate_metric_double
                               metrics: [min, max, sum, value_count]
                               default_metric: max
-                              time_series_metric: counter
+                              time_series_metric: gauge
                             rx:
                               type: aggregate_metric_double
                               metrics: [min, max, sum, value_count]
                               default_metric: max
                               time_series_metric: gauge
-                            packets_dropped:
-                              type: aggregate_metric_double
-                              metrics: [min, max, sum, value_count]
-                              default_metric: max
-                              time_series_metric: summary
-
 
 ---
 aggregate_double_metric with wrong time series mappings:
   - skip:
       version: " - 7.15.99"
       reason: introduced in 7.16.0
+
   - do:
-      catch: /Unknown value \[histogram\] for field \[time_series_metric\] \- accepted values are \[gauge, counter, summary\]/
+      catch: /Unknown value \[histogram\] for field \[time_series_metric\] \- accepted values are \[gauge\]/
       indices.create:
         index: tsdb_index
         body:
@@ -78,16 +73,11 @@ aggregate_double_metric with wrong time series mappings:
                         type: keyword
                       network:
                         properties:
-                          packets_dropped:
-                            type: aggregate_metric_double
-                            metrics: [ min, max, sum, value_count ]
-                            default_metric: max
-                            time_series_metric: summary
                           tx:
                             type: aggregate_metric_double
                             metrics: [min, max, sum, value_count]
                             default_metric: max
-                            time_series_metric: counter
+                            time_series_metric: gauge
                           rx:
                             type: aggregate_metric_double
                             metrics: [min, max, sum, value_count]

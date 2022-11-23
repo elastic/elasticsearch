@@ -34,7 +34,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean preserveOriginal;
 
     public MultiplexerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.filterNames = settings.getAsList("filters");
         this.preserveOriginal = settings.getAsBoolean("preserve_original", true);
     }

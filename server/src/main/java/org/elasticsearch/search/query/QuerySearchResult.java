@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -227,6 +228,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public DelayableWriteable<InternalAggregations> aggregations() {
         return aggregations;
+    }
+
+    public void setSearchProfileDfsPhaseResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
+        if (profileShardResults == null) {
+            return;
+        }
+        profileShardResults.setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
     }
 
     /**

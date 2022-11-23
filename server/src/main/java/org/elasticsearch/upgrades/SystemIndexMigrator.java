@@ -10,7 +10,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -26,8 +25,10 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -184,10 +185,10 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         // If we don't have that index at all, and also don't have the next one
                         markAsFailed(
                             new IllegalStateException(
-                                new ParameterizedMessage(
-                                    "failed to resume system index migration from index [{}], that index is not present in the cluster",
+                                format(
+                                    "failed to resume system index migration from index [%s], that index is not present in the cluster",
                                     stateIndexName
-                                ).getFormattedMessage()
+                                )
                             )
                         );
                     }
@@ -379,6 +380,47 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
         Index oldIndex = imd.getIndex();
         String newIndexName = migrationInfo.getNextIndexName();
+
+        /**
+         * This should be on for all System indices except for .kibana_ indices. See allowsTemplates in KibanaPlugin.java for more info.
+         */
+        if (migrationInfo.allowsTemplates() == false) {
+            final String v2template = MetadataIndexTemplateService.findV2Template(clusterState.metadata(), newIndexName, false);
+            if (Objects.nonNull(v2template)) {
+                logger.error(
+                    "unable to create new index [{}] from feature [{}] because it would match composable template [{}]",
+                    newIndexName,
+                    migrationInfo.getFeatureName(),
+                    v2template
+                );
+                markAsFailed(
+                    new IllegalStateException(
+                        "unable to create new index [" + newIndexName + "] because it would match composable template [" + v2template + "]"
+                    )
+                );
+                return;
+            }
+            final List<IndexTemplateMetadata> v1templates = MetadataIndexTemplateService.findV1Templates(
+                clusterState.metadata(),
+                newIndexName,
+                false
+            );
+            if (v1templates.isEmpty() == false) {
+                logger.error(
+                    "unable to create new index [{}] from feature [{}] because it would match legacy templates [{}]",
+                    newIndexName,
+                    migrationInfo.getFeatureName(),
+                    v1templates
+                );
+                markAsFailed(
+                    new IllegalStateException(
+                        "unable to create new index [" + newIndexName + "] because it would match legacy templates [" + v1templates + "]"
+                    )
+                );
+                return;
+            }
+        }
+
         logger.info("migrating index [{}] from feature [{}] to new index [{}]", oldIndexName, migrationInfo.getFeatureName(), newIndexName);
         ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(listener::accept, this::markAsFailed);
         try {

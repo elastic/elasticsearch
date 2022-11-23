@@ -12,6 +12,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,6 +60,41 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
+    @BeforeClass
+    public static void maybeSkip() {
+        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+    }
+
+    @Before
+    public void setUpLogging() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
+                "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
+                "logger.org.elasticsearch.xpack.ml.action": "TRACE"
+              }
+            }
+            """);
+        client().performRequest(request);
+    }
+
+    @After
+    public void removeLogging() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.ml.inference": "INFO",
+                "logger.org.elasticsearch.xpack.ml.process": "INFO",
+                "logger.org.elasticsearch.xpack.ml.action": "INFO"
+              }
+            }
+            """);
+        client().performRequest(request);
+    }
+
     public void testTrainedModelDeployment() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 
@@ -73,8 +111,10 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("timeout", "70s");
                 }));
                 waitForDeploymentStarted(modelId);
-                assertInfer(modelId);
-                assertInfer(modelId);
+                // attempt inference on new and old nodes multiple times
+                for (int i = 0; i < 10; i++) {
+                    assertInfer(modelId);
+                }
             }
             case UPGRADED -> {
                 ensureHealth(".ml-inference-*,.ml-config*", (request -> {
@@ -135,11 +175,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
             var stat = stats.get(0);
-            assertThat(
-                stat.toString(),
-                XContentMapValues.extractValue("deployment_stats.allocation_status.state", stat),
-                equalTo("fully_allocated")
-            );
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
         }, 30, TimeUnit.SECONDS);
     }
@@ -156,8 +191,8 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity("""
-            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
+        request.setJsonEntity(formatted("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
     }
 
@@ -169,9 +204,9 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             { "vocabulary": [%s] }
-            """.formatted(quotedWords));
+            """, quotedWords));
         client().performRequest(request);
     }
 
@@ -241,9 +276,9 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);
@@ -252,9 +287,9 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private Response newInfer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
         var response = client().performRequest(request);
         assertOK(response);
         return response;

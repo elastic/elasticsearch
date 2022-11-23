@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class MergeStats implements Writeable, ToXContentFragment {
 
@@ -52,6 +53,39 @@ public class MergeStats implements Writeable, ToXContentFragment {
         totalStoppedTimeInMillis = in.readVLong();
         totalThrottledTimeInMillis = in.readVLong();
         totalBytesPerSecAutoThrottle = in.readVLong();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MergeStats that = (MergeStats) o;
+        return total == that.total
+            && totalTimeInMillis == that.totalTimeInMillis
+            && totalNumDocs == that.totalNumDocs
+            && totalSizeInBytes == that.totalSizeInBytes
+            && current == that.current
+            && currentNumDocs == that.currentNumDocs
+            && currentSizeInBytes == that.currentSizeInBytes
+            && totalStoppedTimeInMillis == that.totalStoppedTimeInMillis
+            && totalThrottledTimeInMillis == that.totalThrottledTimeInMillis
+            && totalBytesPerSecAutoThrottle == that.totalBytesPerSecAutoThrottle;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            total,
+            totalTimeInMillis,
+            totalNumDocs,
+            totalSizeInBytes,
+            current,
+            currentNumDocs,
+            currentSizeInBytes,
+            totalStoppedTimeInMillis,
+            totalThrottledTimeInMillis,
+            totalBytesPerSecAutoThrottle
+        );
     }
 
     public void add(
@@ -169,7 +203,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getTotalSize() {
-        return new ByteSizeValue(totalSizeInBytes);
+        return ByteSizeValue.ofBytes(totalSizeInBytes);
     }
 
     public long getTotalBytesPerSecAutoThrottle() {
@@ -192,7 +226,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getCurrentSize() {
-        return new ByteSizeValue(currentSizeInBytes);
+        return ByteSizeValue.ofBytes(currentSizeInBytes);
     }
 
     @Override
@@ -208,7 +242,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.TOTAL_STOPPED_TIME_IN_MILLIS, Fields.TOTAL_STOPPED_TIME, getTotalStoppedTime());
         builder.humanReadableField(Fields.TOTAL_THROTTLED_TIME_IN_MILLIS, Fields.TOTAL_THROTTLED_TIME, getTotalThrottledTime());
         if (builder.humanReadable() && totalBytesPerSecAutoThrottle != -1) {
-            builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC).value(new ByteSizeValue(totalBytesPerSecAutoThrottle).toString());
+            builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC).value(ByteSizeValue.ofBytes(totalBytesPerSecAutoThrottle).toString());
         }
         builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES, totalBytesPerSecAutoThrottle);
         builder.endObject();

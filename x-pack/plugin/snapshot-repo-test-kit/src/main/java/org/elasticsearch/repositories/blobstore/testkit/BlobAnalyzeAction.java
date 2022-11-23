@@ -848,7 +848,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
             builder.startObject("blob");
             builder.field("name", blobName);
-            builder.humanReadableField("size_bytes", "size", new ByteSizeValue(blobLength));
+            builder.humanReadableField("size_bytes", "size", ByteSizeValue.ofBytes(blobLength));
             builder.field("read_start", checksumStart);
             builder.field("read_end", checksumEnd);
             builder.field("read_early", readEarly);

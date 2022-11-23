@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -64,12 +63,12 @@ public class RestGetRolesAction extends SecurityBaseRestHandler {
                 // if the user asked for specific roles, but none of them were found
                 // we'll return an empty result and 404 status code
                 if (roles.length != 0 && response.roles().length == 0) {
-                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                    return new RestResponse(RestStatus.NOT_FOUND, builder);
                 }
 
                 // either the user asked for all roles, or at least one of the roles
                 // the user asked for was found
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }

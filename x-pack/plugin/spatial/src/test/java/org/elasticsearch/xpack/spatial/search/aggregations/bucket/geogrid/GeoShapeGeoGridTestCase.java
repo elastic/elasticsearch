@@ -10,12 +10,8 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -28,7 +24,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
@@ -39,7 +34,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
+import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
@@ -163,7 +158,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
         GeoBoundingBox bbox = randomBBox();
 
-        List<BinaryGeoShapeDocValuesField> docs = new ArrayList<>();
+        List<BinaryShapeDocValuesField> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             Point p = randomPoint();
             double lon = GeoTestUtils.encodeDecodeLon(p.getX());
@@ -179,7 +174,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         final long numDocsInBucket = numDocsWithin;
 
         testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, bbox, iw -> {
-            for (BinaryGeoShapeDocValuesField docField : docs) {
+            for (BinaryShapeDocValuesField docField : docs) {
                 iw.addDocument(Collections.singletonList(docField));
             }
         }, geoGrid -> {
@@ -261,14 +256,6 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         Consumer<InternalGeoGrid<T>> verify,
         GeoGridAggregationBuilder aggregationBuilder
     ) throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        buildIndex.accept(indexWriter);
-        indexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
         aggregationBuilder.precision(precision);
         if (geoBoundingBox != null) {
             aggregationBuilder.setGeoBoundingBox(geoBoundingBox);
@@ -284,15 +271,10 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             null,
             Collections.emptyMap()
         );
-
-        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-
-        verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
-
-        indexReader.close();
-        directory.close();
+        testCase(
+            buildIndex,
+            agg -> verify.accept((InternalGeoGrid<T>) agg),
+            new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
+        );
     }
 }

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
@@ -79,7 +78,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
-        perSegCollector = new PerSegmentCollects(aggCtx.getLeafReaderContext());
+        perSegCollector = new PerSegmentCollects(aggCtx);
         entries.add(perSegCollector);
 
         // Deferring collector
@@ -164,7 +163,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         private long parentBucket;
         private int matchedDocs;
 
-        PerParentBucketSamples(long parentBucket, Scorable scorer, LeafReaderContext readerContext) {
+        PerParentBucketSamples(long parentBucket, Scorable scorer, AggregationExecutionContext aggCtx) {
             try {
                 this.parentBucket = parentBucket;
 
@@ -172,7 +171,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
                 circuitBreakerConsumer.accept((long) shardSize * getPriorityQueueSlotSize());
 
                 tdc = createTopDocsCollector(shardSize);
-                currentLeafCollector = tdc.getLeafCollector(readerContext);
+                currentLeafCollector = tdc.getLeafCollector(aggCtx.getLeafReaderContext());
                 setScorer(scorer);
             } catch (IOException e) {
                 throw new ElasticsearchException("IO error creating collector", e);
@@ -201,8 +200,8 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             currentLeafCollector.setScorer(scorer);
         }
 
-        public void changeSegment(LeafReaderContext readerContext) throws IOException {
-            currentLeafCollector = tdc.getLeafCollector(readerContext);
+        public void changeSegment(AggregationExecutionContext aggCtx) throws IOException {
+            currentLeafCollector = tdc.getLeafCollector(aggCtx.getLeafReaderContext());
         }
 
         public int getDocCount() {
@@ -211,24 +210,24 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     class PerSegmentCollects extends Scorable {
-        private LeafReaderContext readerContext;
+        private AggregationExecutionContext aggCtx;
         int maxDocId = Integer.MIN_VALUE;
         private float currentScore;
         private int currentDocId = -1;
         private Scorable currentScorer;
 
-        PerSegmentCollects(LeafReaderContext readerContext) throws IOException {
+        PerSegmentCollects(AggregationExecutionContext aggCtx) throws IOException {
             // The publisher behaviour for Reader/Scorer listeners triggers a
             // call to this constructor with a null scorer so we can't call
             // scorer.getWeight() and pass the Weight to our base class.
             // However, passing null seems to have no adverse effects here...
-            this.readerContext = readerContext;
+            this.aggCtx = aggCtx;
             for (int i = 0; i < perBucketSamples.size(); i++) {
                 PerParentBucketSamples perBucketSample = perBucketSamples.get(i);
                 if (perBucketSample == null) {
                     continue;
                 }
-                perBucketSample.changeSegment(readerContext);
+                perBucketSample.changeSegment(aggCtx);
             }
         }
 
@@ -245,7 +244,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
 
         public void replayRelatedMatches(List<ScoreDoc> sd) throws IOException {
             try {
-                final LeafBucketCollector leafCollector = deferred.getLeafCollector(readerContext);
+                final LeafBucketCollector leafCollector = deferred.getLeafCollector(aggCtx);
                 leafCollector.setScorer(this);
 
                 currentScore = 0;
@@ -256,7 +255,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
                 for (ScoreDoc scoreDoc : sd) {
                     // Doc ids from TopDocCollector are root-level Reader so
                     // need rebasing
-                    int rebased = scoreDoc.doc - readerContext.docBase;
+                    int rebased = scoreDoc.doc - aggCtx.getLeafReaderContext().docBase;
                     if ((rebased >= 0) && (rebased <= maxDocId)) {
                         currentScore = scoreDoc.score;
                         currentDocId = rebased;
@@ -285,7 +284,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             perBucketSamples = bigArrays.grow(perBucketSamples, parentBucket + 1);
             PerParentBucketSamples sampler = perBucketSamples.get((int) parentBucket);
             if (sampler == null) {
-                sampler = new PerParentBucketSamples(parentBucket, currentScorer, readerContext);
+                sampler = new PerParentBucketSamples(parentBucket, currentScorer, aggCtx);
                 perBucketSamples.set((int) parentBucket, sampler);
             }
             sampler.collect(docId);

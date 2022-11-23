@@ -14,39 +14,45 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
 
     public static final String CONTENT_TYPE = "_source";
-    private final XContentFieldFilter filter;
+
+    /** The source mode */
+    private enum Mode {
+        DISABLED,
+        STORED,
+        SYNTHETIC
+    }
 
     private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(
-        Defaults.ENABLED,
-        Defaults.SYNTHETIC,
+        null,
+        Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY
     );
 
     public static class Defaults {
         public static final String NAME = SourceFieldMapper.NAME;
-        public static final boolean ENABLED = true;
-        public static final boolean SYNTHETIC = false;
 
         public static final FieldType FIELD_TYPE = new FieldType();
 
@@ -64,10 +70,22 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", false, m -> toType(m).enabled, Defaults.ENABLED)
+        private final Parameter<Explicit<Boolean>> enabled = Parameter.explicitBoolParam("enabled", false, m -> toType(m).enabled, true)
+            .setSerializerCheck((includeDefaults, isConfigured, value) -> value.explicit())
             // this field mapper may be enabled but once enabled, may not be disabled
-            .setMergeValidator((previous, current, conflicts) -> (previous == current) || (previous && current == false));
-        private final Parameter<Boolean> synthetic = Parameter.boolParam("synthetic", false, m -> toType(m).synthetic, false);
+            .setMergeValidator(
+                (previous, current, conflicts) -> (previous.value() == current.value()) || (previous.value() && current.value() == false)
+            );
+        private final Parameter<Mode> mode = new Parameter<>(
+            "mode",
+            true,
+            () -> null,
+            (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
+            m -> toType(m).enabled.explicit() ? null : toType(m).mode,
+            (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
+            v -> v.toString().toLowerCase(Locale.ROOT)
+        ).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
+            .setSerializerCheck((includeDefaults, isConfigured, value) -> value != null); // don't emit if `enabled` is configured
         private final Parameter<List<String>> includes = Parameter.stringArrayParam(
             "includes",
             false,
@@ -85,23 +103,30 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            if (IndexSettings.isTimeSeriesModeEnabled()) {
-                return new Parameter<?>[] { enabled, synthetic, includes, excludes };
+            return new Parameter<?>[] { enabled, mode, includes, excludes };
+        }
+
+        private boolean isDefault() {
+            if (mode.get() != null) {
+                return false;
             }
-            return new Parameter<?>[] { enabled, includes, excludes };
+            if (enabled.get().value() == false) {
+                return false;
+            }
+            return includes.getValue().isEmpty() && excludes.getValue().isEmpty();
         }
 
         @Override
         public SourceFieldMapper build() {
-            if (enabled.getValue() == Defaults.ENABLED
-                && synthetic.getValue() == Defaults.SYNTHETIC
-                && includes.getValue().isEmpty()
-                && excludes.getValue().isEmpty()) {
+            if (enabled.getValue().explicit() && mode.get() != null) {
+                throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
+            }
+            if (isDefault()) {
                 return DEFAULT;
             }
             return new SourceFieldMapper(
-                enabled.getValue(),
-                synthetic.getValue(),
+                mode.get(),
+                enabled.get(),
                 includes.getValue().toArray(String[]::new),
                 excludes.getValue().toArray(String[]::new)
             );
@@ -137,32 +162,53 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private final boolean enabled;
+    // nullable for bwc reasons
+    private final @Nullable Mode mode;
+    private final Explicit<Boolean> enabled;
+
     /** indicates whether the source will always exist and be complete, for use by features like the update API */
     private final boolean complete;
-    private final boolean synthetic;
 
     private final String[] includes;
     private final String[] excludes;
+    private final SourceFilter sourceFilter;
 
-    private SourceFieldMapper(boolean enabled, boolean synthetic, String[] includes, String[] excludes) {
-        super(new SourceFieldType(enabled));
+    private SourceFieldMapper(Mode mode, Explicit<Boolean> enabled, String[] includes, String[] excludes) {
+        super(new SourceFieldType((enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED)));
+        assert enabled.explicit() == false || mode == null;
+        this.mode = mode;
         this.enabled = enabled;
-        this.synthetic = synthetic;
+        this.sourceFilter = buildSourceFilter(includes, excludes);
         this.includes = includes;
         this.excludes = excludes;
-        final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
-        if (filtered && synthetic) {
+        if (this.sourceFilter != null && mode == Mode.SYNTHETIC) {
             throw new IllegalArgumentException("filtering the stored _source is incompatible with synthetic source");
         }
-        this.filter = enabled && filtered
-            ? XContentFieldFilter.newFieldFilter(includes, excludes)
-            : (sourceBytes, contentType) -> sourceBytes;
-        this.complete = enabled && synthetic == false && CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes);
+        this.complete = stored() && sourceFilter == null;
+    }
+
+    private static SourceFilter buildSourceFilter(String[] includes, String[] excludes) {
+        if (CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes)) {
+            return null;
+        }
+        return new SourceFilter(includes, excludes);
+    }
+
+    private boolean stored() {
+        if (enabled.explicit() || mode == null) {
+            return enabled.value();
+        }
+        return mode == Mode.STORED;
     }
 
     public boolean enabled() {
-        return enabled;
+        if (enabled.explicit()) {
+            return enabled.value();
+        }
+        if (mode != null) {
+            return mode != Mode.DISABLED;
+        }
+        return enabled.value();
     }
 
     public boolean isComplete() {
@@ -190,11 +236,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Nullable
     public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
-        if (enabled && synthetic == false && originalSource != null) {
-            // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-            return filter.apply(originalSource, contentType);
-        } else {
+        if (stored() == false) {
             return null;
+        }
+        if (originalSource != null && sourceFilter != null) {
+            // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
+            return Source.fromBytes(originalSource, contentType).filter(sourceFilter).internalSourceRef();
+        } else {
+            return originalSource;
         }
     }
 
@@ -208,14 +257,22 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return new Builder().init(this);
     }
 
-    public <T> SourceLoader newSourceLoader(RootObjectMapper root) {
-        if (synthetic) {
-            return new SourceLoader.Synthetic(root);
+    /**
+     * Build something to load source {@code _source}.
+     */
+    public <T> SourceLoader newSourceLoader(Mapping mapping) {
+        if (mode == Mode.SYNTHETIC) {
+            return new SourceLoader.Synthetic(mapping);
         }
         return SourceLoader.FROM_STORED_SOURCE;
     }
 
     public boolean isSynthetic() {
-        return synthetic;
+        return mode == Mode.SYNTHETIC;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

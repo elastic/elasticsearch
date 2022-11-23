@@ -172,8 +172,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         out.writeStringArray(indices);
         MappingMetadata.writeMappingMetadata(out, mappings);
         out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
-        out.writeMap(settings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
-        out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
+        out.writeMap(settings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(dataStreams, StreamOutput::writeString, StreamOutput::writeOptionalString);
     }
 

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -129,14 +128,16 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             // count *just the primaries* currently doing recovery on the node and check against primariesInitialRecoveries
 
             int primariesInRecovery = 0;
-            for (ShardRouting shard : node.shardsWithState(ShardRoutingState.INITIALIZING)) {
+            for (ShardRouting shard : node.initializing()) {
                 // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
                 // we only count initial recoveries here, so we need to make sure that relocating node is null
                 if (shard.primary() && shard.relocatingNodeId() == null) {
                     primariesInRecovery++;
                 }
             }
-            if (primariesInRecovery >= primariesInitialRecoveries) {
+            if (allocation.isSimulating()) {
+                return allocation.decision(Decision.YES, NAME, "primary allocation is not throttled when simulating");
+            } else if (primariesInRecovery >= primariesInitialRecoveries) {
                 // TODO: Should index creation not be throttled for primary shards?
                 return allocation.decision(
                     THROTTLE,

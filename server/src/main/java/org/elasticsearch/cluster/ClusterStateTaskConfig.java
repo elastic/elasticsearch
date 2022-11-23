@@ -27,7 +27,7 @@ public interface ClusterStateTaskConfig {
     TimeValue timeout();
 
     /**
-     * The {@link Priority} for this cluster state update task configuration. Avoid priorites other than {@link Priority#NORMAL} where
+     * The {@link Priority} for this cluster state update task configuration. Avoid priorities other than {@link Priority#NORMAL} where
      * possible. A stream of higher-priority tasks can starve lower-priority ones from running. Higher-priority tasks should definitely
      * share a {@link ClusterStateTaskExecutor} instance so that they are executed in batches.
      *

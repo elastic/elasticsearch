@@ -100,12 +100,12 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
     }
 
     public void testIdWithPrimaryShardUnassigned() {
-        shardRouting = newShardRouting("_index_2", 789, null, randomAlphaOfLength(5), true, UNASSIGNED);
+        shardRouting = newShardRouting("_index_2", 789, null, true, UNASSIGNED);
         assertEquals("_state_uuid_2:_na:_index_2:789:p", ShardMonitoringDoc.id("_state_uuid_2", shardRouting));
     }
 
     public void testIdWithReplicaShardUnassigned() {
-        shardRouting = newShardRouting("_index_3", 159, null, randomAlphaOfLength(5), false, UNASSIGNED);
+        shardRouting = newShardRouting("_index_3", 159, null, false, UNASSIGNED);
         assertEquals("_state_uuid_3:_na:_index_3:159:r", ShardMonitoringDoc.id("_state_uuid_3", shardRouting));
     }
 

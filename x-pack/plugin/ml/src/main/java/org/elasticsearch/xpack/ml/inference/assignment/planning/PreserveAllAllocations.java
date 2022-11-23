@@ -22,21 +22,21 @@ public class PreserveAllAllocations extends AbstractPreserveAllocations {
 
     @Override
     protected int calculateUsedCores(Node n, Model m) {
-        return m.currentAllocationByNodeId().get(n.id()) * m.threadsPerAllocation();
+        return m.currentAllocationsByNodeId().get(n.id()) * m.threadsPerAllocation();
     }
 
     @Override
     protected Map<String, Integer> calculateAllocationsPerNodeToPreserve(Model m) {
-        return m.currentAllocationByNodeId().entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> 0));
+        return m.currentAllocationsByNodeId().entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> 0));
     }
 
     @Override
     protected int calculatePreservedAllocations(Model m) {
-        return m.currentAllocationByNodeId().values().stream().mapToInt(Integer::intValue).sum();
+        return m.currentAllocationsByNodeId().values().stream().mapToInt(Integer::intValue).sum();
     }
 
     @Override
     protected int addPreservedAllocations(Node n, Model m) {
-        return m.currentAllocationByNodeId().get(n.id());
+        return m.currentAllocationsByNodeId().get(n.id());
     }
 }

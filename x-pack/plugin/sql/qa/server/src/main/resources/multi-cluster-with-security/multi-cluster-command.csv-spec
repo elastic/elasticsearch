@@ -23,6 +23,7 @@ SHOW TABLES CATALOG 'my_remote_cluster';
 
      catalog     |     name          |     type      |     kind
 -----------------+-------------------+---------------+---------------
+my_remote_cluster|apps               |TABLE          |INDEX
 my_remote_cluster|empty_mapping      |TABLE          |INDEX
 my_remote_cluster|logs               |TABLE          |INDEX
 my_remote_cluster|logs_nanos         |TABLE          |INDEX
@@ -36,6 +37,7 @@ SHOW TABLES CATALOG LIKE 'my_remote_%';
 
      catalog     |     name          |     type      |     kind
 -----------------+-------------------+---------------+---------------
+my_remote_cluster|apps               |TABLE          |INDEX
 my_remote_cluster|empty_mapping      |TABLE          |INDEX
 my_remote_cluster|logs               |TABLE          |INDEX
 my_remote_cluster|logs_nanos         |TABLE          |INDEX
@@ -49,6 +51,7 @@ SHOW TABLES CATALOG 'my_remote_cluster' INCLUDE FROZEN;
 
      catalog     |     name          |     type      |     kind
 -----------------+-------------------+---------------+---------------
+my_remote_cluster|apps               |TABLE          |INDEX
 my_remote_cluster|empty_mapping      |TABLE          |INDEX
 my_remote_cluster|frozen_emp         |TABLE          |INDEX
 my_remote_cluster|logs               |TABLE          |INDEX
@@ -119,6 +122,7 @@ SHOW TABLES CATALOG '*';
 
      catalog     |     name          |     type      |     kind
 -----------------+-------------------+---------------+---------------
+my_remote_cluster|apps               |TABLE          |INDEX
 my_remote_cluster|empty_mapping      |TABLE          |INDEX
 my_remote_cluster|logs               |TABLE          |INDEX
 my_remote_cluster|logs_nanos         |TABLE          |INDEX

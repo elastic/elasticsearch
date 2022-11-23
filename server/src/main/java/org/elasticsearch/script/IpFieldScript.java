@@ -143,7 +143,6 @@ public abstract class IpFieldScript extends AbstractFieldScript {
     }
 
     public final void emit(String v) {
-        checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
@@ -161,6 +160,7 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         }
 
         public void emit(String v) {
+            script.checkMaxSize(script.count());
             script.emit(v);
         }
     }

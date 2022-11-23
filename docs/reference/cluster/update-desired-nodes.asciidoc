@@ -50,6 +50,10 @@ DELETE /_internal/desired_nodes
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
+`dry_run`::
+    (Optional, Boolean) If `true`, then the request simulates the update and
+    returns a response with `dry_run` field set to `true`.
+
 [[update-desired-nodes-desc]]
 ==== {api-description-title}
 
@@ -57,6 +61,9 @@ This API creates or update the desired nodes. External orchestrators can use
 this API to let Elasticsearch know about the cluster topology, including future
 changes such as adding or removing nodes. Using this information, the system is
 able to take better decisions.
+
+It's possible to run the update in "dry run" mode by adding the
+`?dry_run` query parameter. This will validate the request result, but will not actually perform the update.
 
 [[update-desired-nodes-examples]]
 ==== {api-examples-title}
@@ -92,7 +99,8 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-  "replaced_existing_history_id": false
+  "replaced_existing_history_id": false,
+  "dry_run": false
 }
 --------------------------------------------------
 

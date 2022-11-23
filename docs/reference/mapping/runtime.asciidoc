@@ -58,7 +58,7 @@ the `fields` parameter on the `_search` API to
 runs only against the top hits just like script fields do.
 
 You can use <<script-fields,script fields>> to access values in `_source` and
-return calculated values based on a script valuation. Runtime fields have these
+return calculated values based on a script valuation. Runtime fields have the
 same capabilities, but provide greater flexibility because you can query and
 aggregate on runtime fields in a search request. Script fields can only fetch
 values.
@@ -110,9 +110,9 @@ against runtime fields.
 You map runtime fields by adding a `runtime` section under the mapping
 definition and defining
 <<modules-scripting-using,a Painless script>>. This script has access to the
-entire context of a document, including the original `_source` and any mapped
-fields plus their values. At query time, the script runs and generates values
-for each scripted field that is required for the query.
+entire context of a document, including the original `_source` via `params._source`
+and any mapped fields plus their values. At query time, the script runs and 
+generates values for each scripted field that is required for the query.
 
 .Emitting runtime field values
 ****
@@ -267,8 +267,7 @@ as part of the `runtime_mappings` section, just as you would if
 
 Defining a runtime field in a search request uses the same format as defining
 a runtime field in the index mapping. Just copy the field definition from
-the `runtime_mappings` in the search request to the `runtime` section of the
-index mapping.
+the `runtime_mappings` in the index mapping to the `runtime` section of the search request.
 
 The following search request adds a `day_of_week` field to the
 `runtime_mappings` section. The field values will be calculated dynamically,
@@ -817,6 +816,10 @@ experimental[]
 The <<search-fields,`fields`>> parameter on the `_search` API can also be used to retrieve fields from
 the related indices via runtime fields with a type of `lookup`.
 
+NOTE: Fields that are retrieved by runtime fields of type `lookup` can be used
+to enrich the hits in a search response. It's not possible to query or aggregate
+on these fields.
+
 [source,console]
 ----
 POST ip_location/_doc?refresh
@@ -1358,9 +1361,9 @@ field within a document. A grok pattern is like a regular expression that
 supports aliased expressions that you can reuse.
 
 The script matches on the `%{COMMONAPACHELOG}` log pattern, which understands
-the structure of Apache logs. If the pattern matches, the script emits the
-value of the matching IP address. If the pattern doesn't match
-(`clientip != null`), the script just returns the field value without crashing.
+the structure of Apache logs. If the pattern matches (`clientip != null`),
+the script emits the value of the matching IP address. If the pattern doesn't
+match, the script just returns the field value without crashing.
 
 [source,console]
 ----

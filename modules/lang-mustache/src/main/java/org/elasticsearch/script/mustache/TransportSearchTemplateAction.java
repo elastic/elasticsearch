@@ -25,6 +25,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.usage.SearchUsageHolder;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -41,6 +43,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
     private final NodeClient client;
+    private final SearchUsageHolder searchUsageHolder;
 
     @Inject
     public TransportSearchTemplateAction(
@@ -48,19 +51,21 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         ActionFilters actionFilters,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
-        NodeClient client
+        NodeClient client,
+        UsageService usageService
     ) {
         super(SearchTemplateAction.NAME, transportService, actionFilters, SearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
+        this.searchUsageHolder = usageService.getSearchUsageHolder();
     }
 
     @Override
     protected void doExecute(Task task, SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
-            SearchRequest searchRequest = convert(request, response, scriptService, xContentRegistry);
+            SearchRequest searchRequest = convert(request, response, scriptService, xContentRegistry, searchUsageHolder);
             if (searchRequest != null) {
                 client.search(searchRequest, listener.delegateFailure((l, searchResponse) -> {
                     try {
@@ -82,7 +87,8 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         SearchTemplateRequest searchTemplateRequest,
         SearchTemplateResponse response,
         ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        SearchUsageHolder searchUsageHolder
     ) throws IOException {
         Script script = new Script(
             searchTemplateRequest.getScriptType(),
@@ -103,7 +109,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, source)) {
             SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
-            builder.parseXContent(parser, false);
+            builder.parseXContent(parser, false, searchUsageHolder);
             builder.explain(searchTemplateRequest.isExplain());
             builder.profile(searchTemplateRequest.isProfile());
             checkRestTotalHitsAsInt(searchRequest, builder);

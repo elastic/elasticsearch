@@ -31,8 +31,6 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -62,7 +60,7 @@ public final class IOUtils {
      * @param objects objects to close
      */
     public static void close(final Closeable... objects) throws IOException {
-        close(null, Arrays.asList(objects));
+        close(null, objects);
     }
 
     /**
@@ -82,8 +80,28 @@ public final class IOUtils {
      *
      * @param objects objects to close
      */
-    public static void close(final Exception e, final Closeable... objects) throws IOException {
-        close(e, Arrays.asList(objects));
+    public static void close(final Exception ex, final Closeable... objects) throws IOException {
+        Exception firstException = ex;
+        for (final Closeable object : objects) {
+            try {
+                close(object);
+            } catch (final IOException | RuntimeException e) {
+                firstException = addOrSuppress(firstException, e);
+            }
+        }
+
+        if (firstException != null) {
+            throwRuntimeOrIOException(firstException);
+        }
+    }
+
+    private static void throwRuntimeOrIOException(Exception firstException) throws IOException {
+        if (firstException instanceof IOException) {
+            throw (IOException) firstException;
+        } else {
+            // since we only assigned an IOException or a RuntimeException to ex above, in this case ex must be a RuntimeException
+            throw (RuntimeException) firstException;
+        }
     }
 
     /**
@@ -95,41 +113,27 @@ public final class IOUtils {
      * @param objects objects to close
      */
     public static void close(final Iterable<? extends Closeable> objects) throws IOException {
-        close(null, objects);
-    }
-
-    /**
-     * Closes all given {@link Closeable}s. If a non-null exception is passed in, or closing a
-     * stream causes an exception, throws the exception with other {@link RuntimeException} or
-     * {@link IOException} exceptions added as suppressed.
-     *
-     * @param ex existing Exception to add exceptions occurring during close to
-     * @param objects objects to close
-     *
-     * @see #close(Closeable...)
-     */
-    public static void close(final Exception ex, final Iterable<? extends Closeable> objects) throws IOException {
-        Exception firstException = ex;
+        Exception firstException = null;
         for (final Closeable object : objects) {
             try {
                 close(object);
             } catch (final IOException | RuntimeException e) {
-                if (firstException == null) {
-                    firstException = e;
-                } else {
-                    firstException.addSuppressed(e);
-                }
+                firstException = addOrSuppress(firstException, e);
             }
         }
 
         if (firstException != null) {
-            if (firstException instanceof IOException) {
-                throw (IOException) firstException;
-            } else {
-                // since we only assigned an IOException or a RuntimeException to ex above, in this case ex must be a RuntimeException
-                throw (RuntimeException) firstException;
-            }
+            throwRuntimeOrIOException(firstException);
         }
+    }
+
+    private static Exception addOrSuppress(Exception firstException, Exception e) {
+        if (firstException == null) {
+            firstException = e;
+        } else {
+            firstException.addSuppressed(e);
+        }
+        return firstException;
     }
 
     /**
@@ -138,7 +142,9 @@ public final class IOUtils {
      * @param objects objects to close
      */
     public static void closeWhileHandlingException(final Closeable... objects) {
-        closeWhileHandlingException(Arrays.asList(objects));
+        for (final Closeable object : objects) {
+            closeWhileHandlingException(object);
+        }
     }
 
     /**
@@ -170,15 +176,6 @@ public final class IOUtils {
      * @param files the paths of files to delete
      */
     public static void deleteFilesIgnoringExceptions(final Path... files) {
-        deleteFilesIgnoringExceptions(Arrays.asList(files));
-    }
-
-    /**
-     * Deletes all given files, suppressing all thrown {@link IOException}s. Some of the files may be null, if so they are ignored.
-     *
-     * @param files the paths of files to delete
-     */
-    public static void deleteFilesIgnoringExceptions(final Collection<? extends Path> files) {
         for (final Path name : files) {
             if (name != null) {
                 // noinspection EmptyCatchBlock

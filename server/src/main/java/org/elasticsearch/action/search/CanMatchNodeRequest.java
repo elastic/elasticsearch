@@ -88,7 +88,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
             indices = in.readStringArray();
             shardId = new ShardId(in);
             shardRequestIndex = in.readVInt();
-            aliasFilter = new AliasFilter(in);
+            aliasFilter = AliasFilter.readFrom(in);
             indexBoost = in.readFloat();
             readerId = in.readOptionalWriteable(ShardSearchContextId::new);
             keepAlive = in.readOptionalTimeValue();
@@ -217,7 +217,8 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
             r.readerId,
             r.keepAlive,
             r.waitForCheckpoint,
-            waitForCheckpointsTimeout
+            waitForCheckpointsTimeout,
+            false
         );
         shardSearchRequest.setParentTask(getParentTask());
         return shardSearchRequest;

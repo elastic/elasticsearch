@@ -10,7 +10,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -68,7 +67,7 @@ public class RestOpenJobAction extends BaseRestHandler {
                     builder.field("opened", r.isAcknowledged());
                     builder.field(NodeAcknowledgedResponse.NODE_FIELD, r.getNode());
                     builder.endObject();
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new RestResponse(RestStatus.OK, builder);
                 }
             });
         };

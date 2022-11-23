@@ -150,7 +150,6 @@ public final class WordPieceTokenFilter extends TokenFilter {
                 }
                 int encoding = vocabulary.get(currentValidSubStr);
                 WordPieceToken t = new WordPieceToken(currentValidSubStr, encoding, offsetAtt.startOffset(), offsetAtt.endOffset());
-                tokenizedValues.add(t);
                 tokens.add(t);
                 start = end;
             }
@@ -161,6 +160,7 @@ public final class WordPieceTokenFilter extends TokenFilter {
                 tokenizedValues.add(t);
                 termAtt.setEmpty().append(unknownToken);
             } else {
+                tokenizedValues.addAll(tokens);
                 current = captureState();
                 WordPieceToken token = tokens.removeFirst();
                 termAtt.setEmpty().append(token.charSequence());

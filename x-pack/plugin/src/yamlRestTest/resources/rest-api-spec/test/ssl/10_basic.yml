@@ -7,3 +7,4 @@
   - match: { $body.0.path: "testnode.crt" }
   - match: { $body.0.format: "PEM" }
   - match: { $body.0.has_private_key: true }
+  - match: { $body.0.issuer: "CN=Elasticsearch Test Node, OU=elasticsearch, O=org" }

@@ -90,6 +90,36 @@ public class AuthenticationTestHelper {
         );
     }
 
+    public static User userWithRandomMetadataAndDetails(final String username, final String... roles) {
+        return new User(
+            username,
+            roles,
+            ESTestCase.randomFrom(ESTestCase.randomAlphaOfLengthBetween(1, 10), null),
+            // Not a very realistic email address, but we don't validate this nor rely on correct format, so keeping it simple
+            ESTestCase.randomFrom(ESTestCase.randomAlphaOfLengthBetween(1, 10), null),
+            randomUserMetadata(),
+            true
+        );
+    }
+
+    public static Map<String, Object> randomUserMetadata() {
+        return ESTestCase.randomFrom(
+            Map.of(
+                "employee_id",
+                ESTestCase.randomAlphaOfLength(5),
+                "number",
+                1,
+                "numbers",
+                List.of(1, 3, 5),
+                "extra",
+                Map.of("favorite pizza", "hawaii", "age", 42)
+            ),
+            Map.of(ESTestCase.randomAlphaOfLengthBetween(3, 8), ESTestCase.randomAlphaOfLengthBetween(3, 8)),
+            Map.of(),
+            null
+        );
+    }
+
     public static RealmDomain randomDomain(boolean includeInternal) {
         final Supplier<String> randomRealmTypeSupplier = randomRealmTypeSupplier(includeInternal);
         final Set<RealmConfig.RealmIdentifier> domainRealms = new HashSet<>(
@@ -106,6 +136,10 @@ public class AuthenticationTestHelper {
             )
         );
         return new RealmDomain(ESTestCase.randomAlphaOfLengthBetween(3, 8), domainRealms);
+    }
+
+    public static Authentication.RealmRef randomRealmRef() {
+        return randomRealmRef(ESTestCase.randomBoolean());
     }
 
     public static Authentication.RealmRef randomRealmRef(boolean underDomain) {
@@ -130,6 +164,10 @@ public class AuthenticationTestHelper {
                 null
             );
         }
+    }
+
+    public static RealmConfig.RealmIdentifier randomRealmIdentifier(boolean includeInternal) {
+        return new RealmConfig.RealmIdentifier(randomRealmTypeSupplier(includeInternal).get(), ESTestCase.randomAlphaOfLengthBetween(3, 8));
     }
 
     private static Supplier<String> randomRealmTypeSupplier(boolean includeInternal) {
@@ -171,7 +209,7 @@ public class AuthenticationTestHelper {
     }
 
     public static String randomInternalUsername() {
-        return builder().internal().build(false).getUser().principal();
+        return builder().internal().build(false).getEffectiveSubject().getUser().principal();
     }
 
     /**
@@ -206,7 +244,7 @@ public class AuthenticationTestHelper {
         private AuthenticationTestBuilder(Authentication authentication) {
             assert false == authentication.isRunAs() : "authenticating authentication cannot itself be run-as";
             this.authenticatingAuthentication = authentication;
-            this.version = authentication.getVersion();
+            this.version = authentication.getEffectiveSubject().getVersion();
         }
 
         public AuthenticationTestBuilder realm() {
@@ -464,7 +502,7 @@ public class AuthenticationTestHelper {
                 if (version == null) {
                     version = Version.CURRENT;
                 }
-                if (version.before(authentication.getVersion())) {
+                if (version.before(authentication.getEffectiveSubject().getVersion())) {
                     return authentication.maybeRewriteForOlderVersion(version);
                 } else {
                     return authentication;

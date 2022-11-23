@@ -28,7 +28,7 @@ int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
 
 dependencies {
   "yamlRestTestV${compatVersion}CompatImplementation" project(':test:framework')
-  "yamlRestTestV${compatVersion}CompatImplementation"(testArtifact(xpackProject('plugin')))
+  "yamlRestTestV${compatVersion}CompatImplementation"(testArtifact(project(':x-pack:plugin')))
   compatXpackTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
 }
 
@@ -39,7 +39,7 @@ tasks.named("copyRestCompatTestTask").configure { task ->
     task.getIncludeXpack().set(List.of("license", "migration", "ml", "rollup", "sql", "ssl"));
     task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir("restResources/v${compatVersion}/yamlTests/original"));
     task.setXpackConfigToFileTree(
-      config -> project.fileTree(
+      config -> fileTree(
         config.getSingleFile().toPath()
       )
     )

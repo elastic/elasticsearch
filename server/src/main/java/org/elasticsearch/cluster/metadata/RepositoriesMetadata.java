@@ -171,7 +171,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     }
 
     public RepositoriesMetadata(StreamInput in) throws IOException {
-        this.repositories = in.readList(RepositoryMetadata::new);
+        this.repositories = in.readImmutableList(RepositoryMetadata::new);
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {

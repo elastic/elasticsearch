@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.stats.AnalysisStats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.MappingStats;
+import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -49,7 +50,6 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
-import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.XContentType;
@@ -336,8 +336,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             null,
             Collections.emptyList(),
             false,
-            PluginType.ISOLATED,
-            "",
+            false,
+            false,
             false
         );
         final PluginRuntimeInfo pluginRuntimeInfo = new PluginRuntimeInfo(pluginDescriptor);
@@ -409,6 +409,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.nodeInfo()).thenReturn(mockNodeInfo);
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[] { mockShardStats });
+        when(mockNodeResponse.searchUsageStats()).thenReturn(new SearchUsageStats());
 
         final Metadata metadata = testClusterState.metadata();
         final ClusterStatsResponse clusterStatsResponse = new ClusterStatsResponse(
@@ -441,7 +442,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         );
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
-        final String expectedJson = """
+        final String expectedJson = formatted("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-07T12:03:22.133Z",
@@ -541,6 +542,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "file_sizes": {}
                   },
                   "mappings": {
+                    "total_field_count" : 0,
+                    "total_deduplicated_field_count" : 0,
+                    "total_deduplicated_mapping_size_in_bytes" : 0,
                     "field_types": [],
                     "runtime_field_types": []
                   },
@@ -554,7 +558,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "built_in_filters": [],
                     "built_in_analyzers": []
                   },
-                  "versions": []
+                  "versions": [],
+                  "search" : {
+                    "total" : 0,
+                    "queries" : {},
+                    "sections" : {}
+                  }
                 },
                 "nodes": {
                   "count": {
@@ -566,10 +575,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "data_frozen": 0,
                     "data_hot": 0,
                     "data_warm": 0,
+                    "index": 0,
                     "ingest": 0,
                     "master": 1,
                     "ml": 0,
                     "remote_cluster_client": 0,
+                    "search": 0,
                     "transform": 0,
                     "voting_only": 0
                   },
@@ -651,7 +662,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       "extended_plugins": [],
                       "has_native_controller": false,
                       "licensed": false,
-                      "type": "isolated",
                       "is_official": false
                     }
                   ],
@@ -742,7 +752,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   }
                 }
               }
-            }""".formatted(needToEnableTLS ? ",\"cluster_needs_tls\": true" : "", mockNodeVersion, Version.CURRENT, apmIndicesExist);
+            }""", needToEnableTLS ? ",\"cluster_needs_tls\": true" : "", mockNodeVersion, Version.CURRENT, apmIndicesExist);
         assertEquals(stripWhitespace(expectedJson), xContent.utf8ToString());
     }
 

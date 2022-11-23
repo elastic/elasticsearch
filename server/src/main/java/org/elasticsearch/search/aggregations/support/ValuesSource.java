@@ -89,7 +89,7 @@ public abstract class ValuesSource {
      * need to call it many times over the course of running the aggregation.
      * Other aggregations should feel free to call it once.
      */
-    protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException;
+    protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException;
 
     /**
      * Check if this values source supports using global and segment ordinals.
@@ -116,7 +116,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
             throw new AggregationExecutionException("can't round a [BYTES]");
         }
 
@@ -152,6 +152,10 @@ public abstract class ValuesSource {
                     return LongUnaryOperator.identity();
                 }
 
+                @Override
+                public boolean supportsGlobalOrdinalsMapping() {
+                    return true;
+                }
             };
 
             @Override
@@ -222,9 +226,7 @@ public abstract class ValuesSource {
              * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
              * {@link #globalOrdinalsMapping} will result in an {@link UnsupportedOperationException}.
              */
-            public boolean supportsGlobalOrdinalsMapping() {
-                return true;
-            }
+            public abstract boolean supportsGlobalOrdinalsMapping();
 
             @Override
             public boolean hasOrdinals() {
@@ -487,7 +489,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer(AggregationContext context) throws IOException {
             return Rounding::prepareForUnknown;
         }
 
@@ -685,7 +687,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer(AggregationContext context) throws IOException {
             // TODO lookup the min and max rounding when appropriate
             return Rounding::prepareForUnknown;
         }
@@ -722,7 +724,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
             throw new AggregationExecutionException("can't round a [GEO_POINT]");
         }
 

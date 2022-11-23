@@ -11,16 +11,15 @@ safe, adhere to the <<es-security-principles,{es} security principles>>.
 
 The first principle is to run {es} with security enabled. Configuring security
 can be complicated, so we made it easy to
-<<configuring-stack-security,start the {stack} with security enabled>> by
-default. Just start {es} to enable and configure the {stack} security features.
-You can then connect a {kib} instance to your
-secured {es} cluster and enroll additional nodes. You'll have password
-protection, internode communication secured with Transport Layer Security (TLS),
-and encrypted connections between {es} and {kib}.
+<<configuring-stack-security,start the {stack} with security enabled and configured>>.
+For any new clusters, just start {es} to automatically enable password protection, 
+secure internode communication with Transport Layer Security (TLS), and encrypt
+connections between {es} and {kib}.
 
-If you prefer to manage security on your own, you can
-<<manually-configure-security,manually configure security>> to secure {es}
-clusters and any clients that communicate with your clusters. You can also
+If you have an existing, unsecured cluster (or prefer to manage security on your
+own), you can
+<<manually-configure-security,manually enable and configure security>> to secure
+{es} clusters and any clients that communicate with your clusters. You can also
 implement additional security measures, such as role-based access control, IP
 filtering, and auditing.
 

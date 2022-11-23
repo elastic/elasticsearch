@@ -1,0 +1,66 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+# This file contains a whitelist for update_by_query scripts
+
+class java.lang.String {
+  String org.elasticsearch.painless.api.Augmentation sha1()
+  String org.elasticsearch.painless.api.Augmentation sha256()
+}
+
+class org.elasticsearch.painless.api.Json {
+  def load(String)
+  String dump(def)
+  String dump(def, boolean)
+}
+
+class org.elasticsearch.script.Metadata {
+    String getIndex()
+    String getId()
+    String getRouting()
+    long getVersion()
+    String getOp()
+    void setOp(String)
+}
+
+class org.elasticsearch.script.UpdateByQueryScript {
+    Metadata metadata()
+    WriteField field(String)
+}
+
+class org.elasticsearch.script.field.WriteField {
+    String getName()
+    boolean exists()
+    WriteField move(def)
+    WriteField overwrite(def)
+    void remove()
+    WriteField set(def)
+    WriteField append(def)
+    boolean isEmpty()
+    int size()
+    Iterator iterator()
+    def get(def)
+    def get(int, def)
+    boolean hasValue(Predicate)
+    WriteField transform(Function)
+    WriteField deduplicate()
+    WriteField removeValuesIf(Predicate)
+    WriteField removeValue(int)
+    NestedDocument doc()
+    NestedDocument doc(int)
+    Iterable docs()
+}
+
+class org.elasticsearch.script.field.NestedDocument {
+    WriteField field(String)
+    Stream fields(String)
+    boolean isEmpty()
+    int size()
+    boolean exists()
+    void remove()
+}

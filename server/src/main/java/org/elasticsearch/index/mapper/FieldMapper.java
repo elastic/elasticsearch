@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
@@ -61,7 +62,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     );
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
+    protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
@@ -98,9 +99,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         String onScriptError
     ) {
         super(simpleName);
-        if (mappedFieldType.name().isEmpty()) {
-            throw new IllegalArgumentException("name cannot be empty string");
-        }
+        // could be blank but not empty on indices created < 8.6.0
+        assert mappedFieldType.name().isEmpty() == false;
         this.mappedFieldType = mappedFieldType;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
@@ -131,6 +131,16 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     public MultiFields multiFields() {
         return multiFields;
+    }
+
+    /**
+     * Will this field ignore malformed values for this field and accept the
+     * document ({@code true}) or will it reject documents with malformed
+     * values for this field ({@code false}). Some fields don't have a concept
+     * of "malformed" and will return {@code false} here.
+     */
+    public boolean ignoreMalformed() {
+        return false;
     }
 
     /**
@@ -1152,7 +1162,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             validate();
         }
 
-        private void validate() {
+        protected final void validate() {
             for (Parameter<?> param : getParameters()) {
                 param.validate();
             }
@@ -1203,9 +1213,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param fieldNode         the root node of the map of mappings for this field
          */
         public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
-            Map<String, Parameter<?>> paramsMap = new HashMap<>();
+            final Parameter<?>[] params = getParameters();
+            // we know the paramsMap size up-front
+            Map<String, Parameter<?>> paramsMap = Maps.newHashMapWithExpectedSize(params.length);
+            // don't know this map's size up-front
             Map<String, Parameter<?>> deprecatedParamsMap = new HashMap<>();
-            for (Parameter<?> param : getParameters()) {
+            for (Parameter<?> param : params) {
                 paramsMap.put(param.name, param);
                 for (String deprecatedName : param.deprecatedNames) {
                     deprecatedParamsMap.put(deprecatedName, param);
@@ -1216,18 +1229,21 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 Map.Entry<String, Object> entry = iterator.next();
                 final String propName = entry.getKey();
                 final Object propNode = entry.getValue();
-                if (Objects.equals("fields", propName)) {
-                    TypeParsers.parseMultiField(multiFieldsBuilder::add, name, parserContext, propName, propNode);
-                    iterator.remove();
-                    continue;
-                }
-                if (Objects.equals("copy_to", propName)) {
-                    TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
-                    iterator.remove();
-                    continue;
-                }
-                if (Objects.equals("boost", propName)) {
-                    if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                switch (propName) {
+                    case "fields" -> {
+                        TypeParsers.parseMultiField(multiFieldsBuilder::add, name, parserContext, propName, propNode);
+                        iterator.remove();
+                        continue;
+                    }
+                    case "copy_to" -> {
+                        TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
+                        iterator.remove();
+                        continue;
+                    }
+                    case "boost" -> {
+                        if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+                            throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
+                        }
                         deprecationLogger.warn(
                             DeprecationCategory.API,
                             "boost",
@@ -1236,8 +1252,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         );
                         iterator.remove();
                         continue;
-                    } else {
-                        throw new MapperParsingException("Unknown parameter [boost] on mapper [" + name + "]");
                     }
                 }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
@@ -1310,14 +1324,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected void handleUnknownParamOnLegacyIndex(String propName, Object propNode) {
             // ignore
-        }
-
-        protected static ContentPath parentPath(String name) {
-            int endPos = name.lastIndexOf(".");
-            if (endPos == -1) {
-                return new ContentPath(0);
-            }
-            return new ContentPath(name.substring(0, endPos));
         }
 
         // These parameters were previously *always* parsed by TypeParsers#parseField(), even if they

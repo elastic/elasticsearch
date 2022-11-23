@@ -13,6 +13,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.script.FieldScript;
@@ -112,7 +113,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         if (in.readBoolean()) {
             int size = in.readVInt();
-            scriptFields = new HashSet<>(size);
+            scriptFields = Sets.newHashSetWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 scriptFields.add(new ScriptField(in));
             }

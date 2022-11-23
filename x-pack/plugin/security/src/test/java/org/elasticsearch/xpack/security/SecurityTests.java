@@ -51,17 +51,22 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -69,10 +74,12 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -94,6 +101,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -112,6 +120,7 @@ public class SecurityTests extends ESTestCase {
 
     private Security security = null;
     private ThreadContext threadContext = null;
+    private SecurityContext securityContext = null;
     private TestUtils.UpdatableLicenseState licenseState;
 
     public static class DummyExtension implements SecurityExtension {
@@ -153,6 +162,7 @@ public class SecurityTests extends ESTestCase {
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
+        securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
@@ -460,34 +470,23 @@ public class SecurityTests extends ESTestCase {
             new FieldPermissionsDefinition(new String[] { "field_granted" }, Strings.EMPTY_ARRAY)
         );
         IndicesAccessControl.IndexAccessControl indexGrantedAccessControl = new IndicesAccessControl.IndexAccessControl(
-            true,
             permissions,
             DocumentPermissions.allowAll()
         );
         permissionsMap.put("index_granted", indexGrantedAccessControl);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
-            false,
-            FieldPermissions.DEFAULT,
-            DocumentPermissions.allowAll()
+            randomFrom(FieldPermissions.DEFAULT, null),
+            randomFrom(DocumentPermissions.allowAll(), null)
         );
-        permissionsMap.put("index_not_granted", indexAccessControl);
-        IndicesAccessControl.IndexAccessControl nullFieldPermissions = new IndicesAccessControl.IndexAccessControl(
-            true,
-            null,
-            DocumentPermissions.allowAll()
-        );
-        permissionsMap.put("index_null", nullFieldPermissions);
-        IndicesAccessControl index = new IndicesAccessControl(true, permissionsMap);
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, index);
+        permissionsMap.put("index_granted_all_permissions", indexAccessControl);
+        IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, permissionsMap);
+        securityContext.putIndicesAccessControl(indicesAccessControl);
 
         assertTrue(fieldFilter.apply("index_granted").test("field_granted"));
         assertFalse(fieldFilter.apply("index_granted").test(randomAlphaOfLengthBetween(3, 10)));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test("field_granted"));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test(randomAlphaOfLengthBetween(3, 10)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 10)));
-        expectThrows(IllegalStateException.class, () -> fieldFilter.apply("index_not_granted"));
-        assertTrue(fieldFilter.apply("index_null").test(randomAlphaOfLengthBetween(3, 6)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_null"));
+        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_granted_all_permissions"));
+        assertTrue(fieldFilter.apply("index_granted_all_permissions").test(randomAlphaOfLengthBetween(3, 10)));
+        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_other"));
     }
 
     public void testGetFieldFilterSecurityDisabled() throws Exception {
@@ -577,7 +576,7 @@ public class SecurityTests extends ESTestCase {
             )
             .build();
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
-        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM."));
+        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM."));
     }
 
     public void testValidateForFipsMultipleValidationErrors() {
@@ -597,10 +596,10 @@ public class SecurityTests extends ESTestCase {
             .build();
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
         assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
-        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM."));
+        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM."));
     }
 
-    public void testValidateForFipsNoErrors() {
+    public void testValidateForFipsNoErrorsOrLogs() throws IllegalAccessException {
         final Settings settings = Settings.builder()
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
@@ -611,15 +610,82 @@ public class SecurityTests extends ESTestCase {
                     Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
                 )
             )
+            .put(
+                XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey(),
+                randomFrom(
+                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                )
+            )
+            .put(
+                ApiKeyService.PASSWORD_HASHING_ALGORITHM.getKey(),
+                randomFrom(
+                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                )
+            )
+            .put(
+                ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey(),
+                randomFrom(
+                    Hasher.getAvailableAlgoCacheHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2") || alg.equals("ssha256"))
+                        .collect(Collectors.toList())
+                )
+            )
             .build();
-        Security.validateForFips(settings);
-        // no exception thrown
+        expectLogs(Security.class, Collections.emptyList(), () -> Security.validateForFips(settings));
     }
 
-    public void testValidateForFipsNoErrorsForDefaultSettings() {
+    public void testValidateForFipsNonFipsCompliantCacheHashAlgoWarningLog() throws IllegalAccessException {
+        String key = randomCacheHashSetting();
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(key, randomNonFipsCompliantCacheHash())
+            .build();
+        expectLogs(Security.class, List.of(logEventForNonCompliantCacheHash(key)), () -> Security.validateForFips(settings));
+    }
+
+    public void testValidateForFipsNonFipsCompliantStoredHashAlgoWarningLog() throws IllegalAccessException {
+        String key = randomFrom(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).getKey();
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(key, randomNonFipsCompliantStoredHash())
+            .build();
+        expectLogs(Security.class, List.of(logEventForNonCompliantStoredHash(key)), () -> Security.validateForFips(settings));
+    }
+
+    public void testValidateForMultipleNonFipsCompliantCacheHashAlgoWarningLogs() throws IllegalAccessException {
+        String firstKey = randomCacheHashSetting();
+        String secondKey = randomValueOtherThan(firstKey, this::randomCacheHashSetting);
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(firstKey, randomNonFipsCompliantCacheHash())
+            .put(secondKey, randomNonFipsCompliantCacheHash())
+            .build();
+        expectLogs(
+            Security.class,
+            List.of(logEventForNonCompliantCacheHash(firstKey), logEventForNonCompliantCacheHash(secondKey)),
+            () -> Security.validateForFips(settings)
+        );
+    }
+
+    public void testValidateForFipsValidationErrorAndWarningLogs() throws IllegalAccessException {
+        String firstKey = randomCacheHashSetting();
+        String secondKey = randomValueOtherThan(firstKey, this::randomCacheHashSetting);
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(firstKey, randomNonFipsCompliantCacheHash())
+            .put(secondKey, randomNonFipsCompliantCacheHash())
+            .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
+            .build();
+        expectLogs(Security.class, List.of(logEventForNonCompliantCacheHash(firstKey), logEventForNonCompliantCacheHash(secondKey)), () -> {
+            final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
+            assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
+        });
+    }
+
+    public void testValidateForFipsNoErrorsOrLogsForDefaultSettings() throws IllegalAccessException {
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).build();
-        Security.validateForFips(settings);
-        // no exception thrown
+        expectLogs(Security.class, Collections.emptyList(), () -> Security.validateForFips(settings));
     }
 
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {
@@ -704,7 +770,10 @@ public class SecurityTests extends ESTestCase {
                 null,
                 null,
                 usageService,
-                null
+                null,
+                Tracer.NOOP,
+                mock(ClusterService.class),
+                List.of()
             );
             actionModule.initRestHandlers(null);
 
@@ -748,15 +817,77 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    private void logAndFail(Exception e) {
-        logger.error("unexpected exception", e);
-        fail("unexpected exception " + e.getMessage());
-    }
-
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
         assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), notNullValue());
         assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), hasSize(expectedValues.length));
         assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), containsInAnyOrder(expectedValues));
+    }
+
+    private String randomCacheHashSetting() {
+        Authentication.RealmRef ref = AuthenticationTestHelper.randomRealmRef(randomBoolean());
+        return randomFrom(
+            getFullSettingKey(
+                new RealmConfig.RealmIdentifier(ref.getType(), ref.getName()),
+                CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING
+            ),
+            CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING.getKey(),
+            ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey()
+        );
+    }
+
+    private String randomNonFipsCompliantCacheHash() {
+        return randomFrom(
+            Hasher.getAvailableAlgoCacheHash()
+                .stream()
+                .filter(alg -> (alg.startsWith("pbkdf2") || alg.equals("ssha256")) == false)
+                .collect(Collectors.toList())
+        );
+    }
+
+    private String randomNonFipsCompliantStoredHash() {
+        return randomFrom(
+            Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2") == false).collect(Collectors.toList())
+        );
+    }
+
+    private MockLogAppender.SeenEventExpectation logEventForNonCompliantCacheHash(String settingKey) {
+        return new MockLogAppender.SeenEventExpectation(
+            "cache hash not fips compliant",
+            Security.class.getName(),
+            Level.WARN,
+            "[*] is not recommended for in-memory credential hashing in a FIPS 140 JVM. "
+                + "The recommended hasher for ["
+                + settingKey
+                + "] is SSHA256."
+        );
+    }
+
+    private MockLogAppender.SeenEventExpectation logEventForNonCompliantStoredHash(String settingKey) {
+        return new MockLogAppender.SeenEventExpectation(
+            "stored hash not fips compliant",
+            Security.class.getName(),
+            Level.WARN,
+            "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                + "Please set the appropriate value for ["
+                + settingKey
+                + "] setting."
+        );
+    }
+
+    private void expectLogs(Class<?> clazz, List<MockLogAppender.LoggingExpectation> expected, Runnable runnable)
+        throws IllegalAccessException {
+        final MockLogAppender mockAppender = new MockLogAppender();
+        final Logger logger = LogManager.getLogger(clazz);
+        mockAppender.start();
+        try {
+            Loggers.addAppender(logger, mockAppender);
+            expected.forEach(mockAppender::addExpectation);
+            runnable.run();
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+        }
     }
 }

@@ -13,6 +13,7 @@ import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsProducer;
+import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
@@ -37,6 +38,7 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -118,6 +120,10 @@ final class IndexDiskUsageAnalyzer {
                 startTimeInNanos = System.nanoTime();
                 analyzeTermVectors(reader, stats);
                 executionTime.termVectorsTimeInNanos += System.nanoTime() - startTimeInNanos;
+
+                startTimeInNanos = System.nanoTime();
+                analyzeKnnVectors(reader, stats);
+                executionTime.knnVectorsTimeInNanos += System.nanoTime() - startTimeInNanos;
             }
         }
         logger.debug("analyzing the disk usage took {} stats: {}", executionTime, stats);
@@ -253,8 +259,10 @@ final class IndexDiskUsageAnalyzer {
                 case BINARY -> iterateDocValues(maxDocs, () -> docValuesReader.getBinary(field), BinaryDocValues::binaryValue);
                 case SORTED -> {
                     SortedDocValues sorted = iterateDocValues(maxDocs, () -> docValuesReader.getSorted(field), SortedDocValues::ordValue);
-                    sorted.lookupOrd(0);
-                    sorted.lookupOrd(sorted.getValueCount() - 1);
+                    if (sorted.getValueCount() > 0) {
+                        sorted.lookupOrd(0);
+                        sorted.lookupOrd(sorted.getValueCount() - 1);
+                    }
                 }
                 case SORTED_SET -> {
                     SortedSetDocValues sortedSet = iterateDocValues(maxDocs, () -> docValuesReader.getSortedSet(field), dv -> {
@@ -262,8 +270,10 @@ final class IndexDiskUsageAnalyzer {
                             cancellationChecker.logEvent();
                         }
                     });
-                    sortedSet.lookupOrd(0);
-                    sortedSet.lookupOrd(sortedSet.getValueCount() - 1);
+                    if (sortedSet.getValueCount() > 0) {
+                        sortedSet.lookupOrd(0);
+                        sortedSet.lookupOrd(sortedSet.getValueCount() - 1);
+                    }
                 }
                 default -> {
                     assert false : "Unknown docValues type [" + dvType + "]";
@@ -385,8 +395,10 @@ final class IndexDiskUsageAnalyzer {
             directory.resetBytesRead();
             if (field.getPointDimensionCount() > 0) {
                 final PointValues values = pointsReader.getValues(field.name);
-                values.intersect(new PointsVisitor());
-                stats.addPoints(field.name, directory.getBytesRead());
+                if (values != null) {
+                    values.intersect(new PointsVisitor());
+                    stats.addPoints(field.name, directory.getBytesRead());
+                }
             }
         }
     }
@@ -504,6 +516,36 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
+    void analyzeKnnVectors(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
+        KnnVectorsReader vectorReader = reader.getVectorReader();
+        if (vectorReader == null) {
+            return;
+        }
+        for (FieldInfo field : reader.getFieldInfos()) {
+            cancellationChecker.checkForCancellation();
+            directory.resetBytesRead();
+            if (field.getVectorDimension() > 0) {
+                iterateDocValues(reader.maxDoc(), () -> vectorReader.getVectorValues(field.name), vectors -> {
+                    cancellationChecker.logEvent();
+                    vectors.vectorValue();
+                });
+
+                // do a couple of randomized searches to figure out min and max offsets of index file
+                VectorValues vectorValues = vectorReader.getVectorValues(field.name);
+                int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
+                int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
+                for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
+                    if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
+                        break;
+                    }
+                    cancellationChecker.checkForCancellation();
+                    vectorReader.search(field.name, vectorValues.vectorValue(), 100, null, Integer.MAX_VALUE);
+                }
+                stats.addKnnVectors(field.name, directory.getBytesRead());
+            }
+        }
+    }
+
     private static class TrackingReadBytesDirectory extends FilterDirectory {
         private final Map<String, BytesReadTracker> trackers = new HashMap<>();
 
@@ -596,7 +638,7 @@ final class IndexDiskUsageAnalyzer {
     }
 
     /**
-     * Lucene Codec organizes data field by field for doc values, points, postings, and norms; and document by document
+     * Lucene Codec organizes data field by field for doc values, points, postings, vectors, and norms; and document by document
      * for stored fields and term vectors. BytesReadTracker then can simply track the min and max read positions.
      * This would allow us to traverse only two ends of each partition.
      */
@@ -692,10 +734,11 @@ final class IndexDiskUsageAnalyzer {
         long pointsTimeInNanos;
         long normsTimeInNanos;
         long termVectorsTimeInNanos;
+        long knnVectorsTimeInNanos;
 
         long totalInNanos() {
             return invertedIndexTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos + pointsTimeInNanos + normsTimeInNanos
-                + termVectorsTimeInNanos;
+                + termVectorsTimeInNanos + knnVectorsTimeInNanos;
         }
 
         @Override
@@ -720,6 +763,9 @@ final class IndexDiskUsageAnalyzer {
                 + "ms"
                 + ", term vectors: "
                 + termVectorsTimeInNanos / 1000_000
+                + "ms"
+                + ", knn vectors: "
+                + knnVectorsTimeInNanos / 1000_000
                 + "ms";
         }
     }

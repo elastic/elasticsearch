@@ -16,12 +16,12 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -55,12 +55,15 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.innerRemoveComponentTemplate;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -71,6 +74,12 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Settings nodeSettings() {
+        // Disable the health node selection so the task assignment does not interfere with the cluster state during the test
+        return Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build();
+    }
 
     public void testLegacyNoopUpdate() throws IOException {
         ClusterState state = ClusterState.EMPTY_STATE;
@@ -241,7 +250,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
         IndexTemplateMetadata template = metadata.templates().get(templateName);
-        ImmutableOpenMap<String, AliasMetadata> aliasMap = template.getAliases();
+        Map<String, AliasMetadata> aliasMap = template.getAliases();
         assertThat(aliasMap.size(), equalTo(1));
         AliasMetadata metaAlias = aliasMap.get(aliasName);
         String filterString = metaAlias.filter() == null ? null : metaAlias.filter().string();
@@ -1999,6 +2008,103 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // The unreferenced template can be removed without an exception
         MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs");
+    }
+
+    public void testV2TemplateOverlaps() throws Exception {
+        {
+            ComposableIndexTemplate template = new ComposableIndexTemplate(
+                Arrays.asList("egg*", "baz"),
+                null,
+                null,
+                1L,
+                null,
+                null,
+                null,
+                null
+            );
+            MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+            ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
+            ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(
+                Arrays.asList("abc", "baz*"),
+                null,
+                null,
+                1L,
+                null,
+                null,
+                null,
+                null
+            );
+
+            // when validating is false, we return the conflicts instead of throwing an exception
+            var overlaps = metadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, false);
+
+            assertThat(overlaps, allOf(aMapWithSize(1), hasKey("foo")));
+
+            // try now the same thing with validation on
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> metadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "index template [foo2] has index patterns [abc, baz*] matching patterns from existing "
+                        + "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [1], multiple "
+                        + "index templates may not match during index creation, please use a different priority"
+                )
+            );
+
+            ComposableIndexTemplate nonConflict = new ComposableIndexTemplate(
+                Arrays.asList("abc", "bar*"),
+                null,
+                null,
+                1L,
+                null,
+                null,
+                null,
+                null
+            );
+
+            overlaps = metadataIndexTemplateService.v2TemplateOverlaps(state, "no-conflict", nonConflict, true);
+            assertTrue(overlaps.isEmpty());
+        }
+
+        {
+            ComposableIndexTemplate template = new ComposableIndexTemplate(
+                Arrays.asList("egg*", "baz"),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+            MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+            ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
+            ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(
+                Arrays.asList("abc", "baz*"),
+                null,
+                null,
+                0L,
+                null,
+                null,
+                null,
+                null
+            );
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> metadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "index template [foo2] has index patterns [abc, baz*] matching patterns from existing "
+                        + "templates [foo] with patterns (foo => [egg*, baz]) that have the same priority [0], multiple "
+                        + "index templates may not match during index creation, please use a different priority"
+                )
+            );
+        }
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

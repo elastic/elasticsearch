@@ -129,9 +129,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     }
 
     private static boolean assertSearchCoordinationThread() {
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.SEARCH_COORDINATION)
-            : "not called from the right thread " + Thread.currentThread().getName();
-        return true;
+        return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
     }
 
     @Override

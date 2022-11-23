@@ -654,4 +654,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     public ClusterApplierRecordingService.Stats getStats() {
         return recordingService.getStats();
     }
+
+    // Exposed only for testing
+    public int getTimeoutClusterStateListenersSize() {
+        return timeoutClusterStateListeners.size();
+    }
 }

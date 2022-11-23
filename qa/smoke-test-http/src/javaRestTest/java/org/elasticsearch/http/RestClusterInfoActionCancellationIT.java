@@ -27,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.hamcrest.Matchers;
 
 import java.util.EnumSet;
 import java.util.concurrent.CancellationException;
@@ -78,7 +79,17 @@ public class RestClusterInfoActionCancellationIT extends HttpSmokeTestCase {
 
         assertThat(future.isDone(), equalTo(false));
         awaitTaskWithPrefixOnMaster(actionName);
-
+        // To ensure that the task is executing on master, we wait until the first blocked execution of the task registers its cluster state
+        // observer for further retries. This ensures that a task is not cancelled before we have started its execution, which could result
+        // in the task being unregistered and the test not being able to find any cancelled tasks.
+        assertBusy(
+            () -> assertThat(
+                internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+                    .getClusterApplierService()
+                    .getTimeoutClusterStateListenersSize(),
+                Matchers.greaterThan(0)
+            )
+        );
         cancellable.cancel();
         assertAllCancellableTasksAreCancelled(actionName);
 

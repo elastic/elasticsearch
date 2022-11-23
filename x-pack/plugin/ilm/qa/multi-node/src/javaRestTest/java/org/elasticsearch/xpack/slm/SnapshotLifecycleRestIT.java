@@ -67,11 +67,6 @@ import static org.hamcrest.Matchers.startsWith;
 public class SnapshotLifecycleRestIT extends ESRestTestCase {
     private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
 
-    @Override
-    protected boolean waitForAllSnapshotsWiped() {
-        return true;
-    }
-
     // as we are testing the SLM history entries we'll preserve the "slm-history-ilm-policy" policy as it'll be associated with the
     // .slm-history-* indices and we won't be able to delete it when we wipe out the cluster
     @Override
@@ -365,9 +360,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
             assertBusy(() -> {
                 try {
-                    Map<String, List<Map<?, ?>>> snaps = wipeSnapshots();
-                    logger.info("--> checking for wiped snapshots: {}", snaps);
-                    assertThat(snaps.size(), equalTo(0));
+                    wipeSnapshots();
                 } catch (ResponseException e) {
                     logger.error("got exception wiping snapshots", e);
                     fail("got exception: " + EntityUtils.toString(e.getResponse().getEntity()));

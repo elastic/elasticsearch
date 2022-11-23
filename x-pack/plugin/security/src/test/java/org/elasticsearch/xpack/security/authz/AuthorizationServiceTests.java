@@ -2879,7 +2879,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 RequestInfo requestInfo,
                 AuthorizationInfo authorizationInfo,
                 Map<String, IndexAbstraction> indicesLookup,
-                ActionListener<Set<String>> listener
+                ActionListener<AuthorizationEngine.AuthorizedIndices> listener
             ) {
                 throw new UnsupportedOperationException("not implemented");
             }

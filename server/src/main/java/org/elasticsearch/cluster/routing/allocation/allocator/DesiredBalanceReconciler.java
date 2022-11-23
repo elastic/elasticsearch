@@ -11,6 +11,9 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -95,8 +98,11 @@ public class DesiredBalanceReconciler {
 
         assert routingNodes.unassigned().isEmpty();
 
-        final var shardCounts = allocation.metadata()
-            .stream()
+        final var shardCounts = allocation.metadata().stream().filter(indexMetadata ->
+        // skip any pre-7.2 closed indices which have no routing table entries at all
+        indexMetadata.getCreationVersion().onOrAfter(Version.V_7_2_0)
+            || indexMetadata.getState() == IndexMetadata.State.OPEN
+            || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
             .flatMap(
                 indexMetadata -> IntStream.range(0, indexMetadata.getNumberOfShards())
                     .mapToObj(
@@ -151,7 +157,7 @@ public class DesiredBalanceReconciler {
     private void allocateUnassigned() {
         RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
         if (logger.isTraceEnabled()) {
-            logger.trace("Start allocating unassigned shards");
+            logger.trace("Start allocating unassigned shards: {}", routingNodes.toString());
         }
         if (unassigned.isEmpty()) {
             return;

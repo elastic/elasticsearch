@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ScriptClassInfo;
@@ -77,13 +78,11 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             if (userBlockNode.getStatementNodes().isEmpty()) {
                 throw userFunctionNode.createError(
                     new IllegalArgumentException(
-                        "invalid function definition: "
-                            + "found no statements for function "
-                            + "["
-                            + functionName
-                            + "] with ["
-                            + typeParameters.size()
-                            + "] parameters"
+                        Strings.format(
+                            "invalid function definition: found no statements for function [%s] with [%d] parameters",
+                            functionName,
+                            typeParameters.size()
+                        )
                     )
                 );
             }
@@ -161,13 +160,11 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             if (semanticScope.getReturnType() != void.class) {
                 throw userReturnNode.createError(
                     new ClassCastException(
-                        "cannot cast from "
-                            + "["
-                            + semanticScope.getReturnCanonicalTypeName()
-                            + "] to "
-                            + "["
-                            + PainlessLookupUtility.typeToCanonicalTypeName(void.class)
-                            + "]"
+                        Strings.format(
+                            "cannot cast from [%s] to [%s]",
+                            semanticScope.getReturnCanonicalTypeName(),
+                            PainlessLookupUtility.typeToCanonicalTypeName(void.class)
+                        )
                     )
                 );
             }

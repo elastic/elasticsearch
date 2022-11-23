@@ -163,6 +163,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         if (securityContext != null) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String username = securityContext.getUser().principal();
+                // DFA doesn't support CCS, but if it did it would need this filter, so it's safest to have the filter.
                 final String[] sourceIndices = Arrays.stream(preparedForPutConfig.getSource().getIndex())
                     .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
                     .toArray(String[]::new);

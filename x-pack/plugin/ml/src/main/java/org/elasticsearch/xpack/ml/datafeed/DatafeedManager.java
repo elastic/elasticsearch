@@ -107,6 +107,7 @@ public final class DatafeedManager {
     ) {
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
+                // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
                 final String[] indices = request.getDatafeed()
                     .getIndices()
                     .stream()

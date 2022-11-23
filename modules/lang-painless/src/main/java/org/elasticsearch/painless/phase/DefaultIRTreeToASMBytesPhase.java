@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
@@ -788,12 +789,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                         methodWriter.push(-1L);
                     } else {
                         throw new IllegalStateException(
-                            "unexpected unary math operation ["
-                                + operation
-                                + "] "
-                                + "for type ["
-                                + irUnaryMathNode.getDecorationString(IRDExpressionType.class)
-                                + "]"
+                            Strings.format(
+                                "unexpected unary math operation [%s] for type [%s]",
+                                operation,
+                                irUnaryMathNode.getDecorationString(IRDExpressionType.class)
+                            )
                         );
                     }
 
@@ -813,12 +813,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 }
             } else {
                 throw new IllegalStateException(
-                    "unexpected unary math operation ["
-                        + operation
-                        + "] "
-                        + "for type ["
-                        + irUnaryMathNode.getDecorationString(IRDExpressionType.class)
-                        + "]"
+                    Strings.format(
+                        "unexpected unary math operation [%s] for type [%s]",
+                        operation,
+                        irUnaryMathNode.getDecorationString(IRDExpressionType.class)
+                    )
                 );
             }
         }
@@ -845,12 +844,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 methodWriter.invokeVirtual(Type.getType(Matcher.class), WriterConstants.MATCHER_MATCHES);
             } else {
                 throw new IllegalStateException(
-                    "unexpected binary math operation ["
-                        + operation
-                        + "] "
-                        + "for type ["
-                        + irBinaryMathNode.getDecorationString(IRDExpressionType.class)
-                        + "]"
+                    Strings.format(
+                        "unexpected binary math operation [%s] for type [%s]",
+                        operation,
+                        irBinaryMathNode.getDecorationString(IRDExpressionType.class)
+                    )
                 );
             }
         } else {
@@ -973,24 +971,22 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (comparisonType == void.class || comparisonType == byte.class || comparisonType == short.class || comparisonType == char.class) {
             throw new IllegalStateException(
-                "unexpected comparison operation ["
-                    + operation
-                    + "] "
-                    + "for type ["
-                    + irComparisonNode.getDecorationString(IRDExpressionType.class)
-                    + "]"
+                Strings.format(
+                    "unexpected comparison operation [%s] for type [%s]",
+                    operation,
+                    irComparisonNode.getDecorationString(IRDExpressionType.class)
+                )
             );
         } else if (comparisonType == boolean.class) {
             if (eq) methodWriter.ifCmp(type, MethodWriter.EQ, jump);
             else if (ne) methodWriter.ifCmp(type, MethodWriter.NE, jump);
             else {
                 throw new IllegalStateException(
-                    "unexpected comparison operation ["
-                        + operation
-                        + "] "
-                        + "for type ["
-                        + irComparisonNode.getDecorationString(IRDExpressionType.class)
-                        + "]"
+                    Strings.format(
+                        "unexpected comparison operation [%s] for type [%s]",
+                        operation,
+                        irComparisonNode.getDecorationString(IRDExpressionType.class)
+                    )
                 );
             }
         } else if (comparisonType == int.class
@@ -1005,12 +1001,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 else if (gte) methodWriter.ifCmp(type, MethodWriter.GE, jump);
                 else {
                     throw new IllegalStateException(
-                        "unexpected comparison operation ["
-                            + operation
-                            + "] "
-                            + "for type ["
-                            + irComparisonNode.getDecorationString(IRDExpressionType.class)
-                            + "]"
+                        Strings.format(
+                            "unexpected comparison operation [%s] for type [%s]",
+                            operation,
+                            irComparisonNode.getDecorationString(IRDExpressionType.class)
+                        )
                     );
                 }
 
@@ -1054,12 +1049,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                     writejump = false;
                 } else {
                     throw new IllegalStateException(
-                        "unexpected comparison operation ["
-                            + operation
-                            + "] "
-                            + "for type ["
-                            + irComparisonNode.getDecorationString(IRDExpressionType.class)
-                            + "]"
+                        Strings.format(
+                            "unexpected comparison operation [%s] for type [%s]",
+                            operation,
+                            irComparisonNode.getDecorationString(IRDExpressionType.class)
+                        )
                     );
                 }
             } else {
@@ -1083,12 +1077,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                     }
                 } else {
                     throw new IllegalStateException(
-                        "unexpected comparison operation ["
-                            + operation
-                            + "] "
-                            + "for type ["
-                            + irComparisonNode.getDecorationString(IRDExpressionType.class)
-                            + "]"
+                        Strings.format(
+                            "unexpected comparison operation [%s] for type [%s]",
+                            operation,
+                            irComparisonNode.getDecorationString(IRDExpressionType.class)
+                        )
                     );
                 }
             }

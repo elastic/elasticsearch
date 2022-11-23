@@ -10,10 +10,14 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
+import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.BucketExtractorProcessor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor;
 import org.elasticsearch.xpack.ql.type.Schema;
 
 import java.util.ArrayList;
-import java.util.BitSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -25,11 +29,13 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
 
     private final List<Object[]> data;
     private final Map<String, Object> lastAfterKey;
+    private final Map<BinaryArithmeticProcessor, Object> leftMathProcessors;
+    private final Map<BinaryArithmeticProcessor, Object> rightMathProcessors;
 
     PivotRowSet(
         Schema schema,
         List<BucketExtractor> exts,
-        BitSet mask,
+        List<Integer> mask,
         SearchResponse response,
         int sizeRequested,
         int limit,
@@ -39,6 +45,8 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
         super(schema, exts, mask, response, sizeRequested, limit, mightProducePartialPages);
 
         data = buckets.isEmpty() ? emptyList() : new ArrayList<>();
+        leftMathProcessors = new HashMap<>();
+        rightMathProcessors = new HashMap<>();
 
         // the last page contains no data, handle that to avoid NPEs and such
         if (buckets.isEmpty()) {
@@ -67,6 +75,8 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
                 // be sure to remember the last consumed group before changing to the new one
                 lastCompletedGroupKey = currentRowGroupKey;
                 currentRowGroupKey = key;
+                leftMathProcessors.clear();
+                rightMathProcessors.clear();
                 // save the data
                 data.add(currentRow);
 
@@ -79,7 +89,14 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
 
             for (int columnIndex = 0; columnIndex < currentRow.length; columnIndex++) {
                 BucketExtractor extractor = userExtractor(columnIndex);
-                Object value = extractor.extract(bucket);
+                Object value = null;
+                if (extractor instanceof ComputingExtractor ce) {
+                    if (ce.processor()instanceof BinaryArithmeticProcessor b) {
+                        value = computePivotMath(b, bucket);
+                    }
+                } else {
+                    value = extractor.extract(bucket);
+                }
 
                 // rerun the bucket through all the extractors but update only the non-null components
                 // since the pivot extractors will react only when encountering the matching group
@@ -115,6 +132,34 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
         size = data.size();
         remainingData = remainingData(afterKey != null, size, limit);
         lastAfterKey = currentRowGroupKey;
+    }
+
+    private Object computePivotMath(BinaryArithmeticProcessor processor, CompositeAggregation.Bucket bucket) {
+        if (leftMathProcessors.get(processor) == null) {
+            if (processor.left()instanceof BinaryArithmeticProcessor ba) {
+                leftMathProcessors.put(processor, computePivotMath(ba, bucket));
+            } else if ((processor.left()instanceof BucketExtractorProcessor be)) {
+                leftMathProcessors.put(processor, be.process(bucket));
+            } else if (processor.left()instanceof ConstantProcessor c) {
+                leftMathProcessors.put(processor, c.process(bucket));
+            }
+        }
+
+        if (rightMathProcessors.get(processor) == null) {
+            if (processor.right()instanceof BinaryArithmeticProcessor ba) {
+                rightMathProcessors.put(processor, computePivotMath(ba, bucket));
+            } else if ((processor.right()instanceof BucketExtractorProcessor be)) {
+                rightMathProcessors.put(processor, be.process(bucket));
+            } else if (processor.right()instanceof ConstantProcessor c) {
+                rightMathProcessors.put(processor, c.process(bucket));
+            }
+        }
+
+        if ((leftMathProcessors.get(processor) != null) && rightMathProcessors.get(processor) != null) {
+            return processor.doProcess(leftMathProcessors.get(processor), rightMathProcessors.get(processor));
+        }
+
+        return null;
     }
 
     private boolean hasNull(Object[] currentRow) {

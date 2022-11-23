@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -40,7 +41,6 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -209,12 +209,9 @@ public class QueryContainer {
      * compact the information in the listener through a bitset that acts as a mask
      * on what extractors are used for the visible columns.
      */
-    public BitSet columnMask(List<Attribute> columns) {
-        BitSet mask = new BitSet(fields.size());
-        if (columns.size() > 0) {
-            aliasName(columns.get(0));
-        }
-
+    public List<Integer> columnMask(List<Attribute> columns) {
+        List<Integer> mask = new ArrayList<>(columns.size());
+        List<QueryContainer.FieldInfo> fieldsForMask = new ArrayList<>(fields);
         for (Attribute column : columns) {
             Expression expression = aliases.resolve(column, column);
 
@@ -222,18 +219,19 @@ public class QueryContainer {
             String id = Expressions.id(expression);
             int index = -1;
 
-            for (int i = 0; i < fields.size(); i++) {
-                FieldInfo field = fields.get(i);
+            for (int i = 0; i < fieldsForMask.size(); i++) {
+                FieldInfo field = fieldsForMask.get(i);
                 // if the index is already set there is a collision,
                 // so continue searching for the other field with the same id
-                if (mask.get(i) == false && field.id().equals(id)) {
+                if (field != null && field.id().equals(id)) {
                     index = i;
+                    fieldsForMask.set(i, null);
                     break;
                 }
             }
 
             if (index > -1) {
-                mask.set(index);
+                mask.add(index);
             } else {
                 throw new SqlIllegalArgumentException("Cannot resolve field extractor index for column [{}]", column);
             }
@@ -630,6 +628,11 @@ public class QueryContainer {
 
         if (expression instanceof ScalarFunction) {
             return resolvedTreeComputingRef((ScalarFunction) expression, attr);
+        }
+
+        // for math operation in Pivot queries
+        if (expression instanceof ReferenceAttribute) {
+            return new Tuple<>(this, new PivotMathFieldRef(((ReferenceAttribute) expression).name(), expression.dataType()));
         }
 
         throw new SqlIllegalArgumentException("Unknown output attribute {}", attr);

@@ -22,8 +22,9 @@ import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.time.ZoneId;
 import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
+import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -101,16 +102,14 @@ public class QueryContainerTests extends ESTestCase {
             .addColumn(first)
             .addColumn(fourth);
 
-        BitSet result = queryContainer.columnMask(Arrays.asList(first, first, second, third, firstAliased.toAttribute()));
+        List<Integer> result = queryContainer.columnMask(Arrays.asList(first, first, second, third, firstAliased.toAttribute()));
 
-        BitSet expected = new BitSet();
-        expected.set(0, true);
-        expected.set(1, true);
-        expected.set(2, false);
-        expected.set(3, true);
-        expected.set(4, true);
-        expected.set(5, true);
-        expected.set(6, false);
+        List<Integer> expected = new ArrayList<>();
+        expected.add(0, 1);
+        expected.add(1, 3);
+        expected.add(2, 4);
+        expected.add(3, 0);
+        expected.add(4, 5);
 
         assertEquals(expected, result);
     }

@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 
-import java.util.BitSet;
 import java.util.List;
 
 /**
@@ -26,7 +25,7 @@ class SchemaCompositeAggRowSet extends CompositeAggRowSet implements SchemaRowSe
     SchemaCompositeAggRowSet(
         Schema schema,
         List<BucketExtractor> exts,
-        BitSet mask,
+        List<Integer> mask,
         SearchResponse r,
         int sizeRequested,
         int limitAggs,

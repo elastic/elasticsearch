@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractor
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -33,7 +32,7 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
         return new CompositeAggCursor(
             new SearchSourceBuilder().size(randomInt(1000)),
             extractors,
-            randomBitSet(extractorsSize),
+            randomArrayList(extractorsSize),
             randomIntBetween(10, 1024),
             randomBoolean(),
             randomAlphaOfLength(5)
@@ -53,7 +52,7 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
         return new CompositeAggCursor(
             instance.next(),
             instance.extractors(),
-            randomValueOtherThan(instance.mask(), () -> randomBitSet(instance.extractors().size())),
+            randomValueOtherThan(instance.mask(), () -> randomArrayList(instance.extractors().size())),
             randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 512)),
             instance.includeFrozen() == false,
             instance.indices()
@@ -84,10 +83,10 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
         return randomZone();
     }
 
-    static BitSet randomBitSet(int size) {
-        BitSet mask = new BitSet(size);
+    static List<Integer> randomArrayList(int size) {
+        List<Integer> mask = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            mask.set(i, randomBoolean());
+            mask.add(randomIntBetween(0, 512));
         }
         return mask;
     }

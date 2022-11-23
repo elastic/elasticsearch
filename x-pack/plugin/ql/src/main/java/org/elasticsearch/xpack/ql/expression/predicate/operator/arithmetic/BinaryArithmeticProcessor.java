@@ -36,7 +36,7 @@ public final class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<O
     }
 
     @Override
-    protected Object doProcess(Object left, Object right) {
+    public Object doProcess(Object left, Object right) {
         BinaryArithmeticOperation f = function();
 
         if (left == null || right == null) {

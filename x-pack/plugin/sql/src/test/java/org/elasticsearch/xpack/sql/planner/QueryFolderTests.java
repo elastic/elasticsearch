@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef;
 import org.elasticsearch.xpack.sql.querydsl.container.PivotColumnRef;
+import org.elasticsearch.xpack.sql.querydsl.container.PivotMathFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
@@ -541,7 +542,7 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(asList("c1", "c2"), Expressions.names(ee.output()));
 
         List<QueryContainer.FieldInfo> fields = ee.queryContainer().fields();
-        assertEquals(4, fields.size());
+        assertEquals(6, fields.size());
         assertEquals(PivotColumnRef.class, fields.get(0).extraction().getClass());
         assertEquals("A", ((PivotColumnRef) fields.get(0).extraction()).value());
         assertEquals(PivotColumnRef.class, fields.get(1).extraction().getClass());
@@ -549,6 +550,10 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(GroupByRef.class, fields.get(2).extraction().getClass());
         assertEquals(PivotColumnRef.class, fields.get(3).extraction().getClass());
         assertEquals("B", ((PivotColumnRef) fields.get(3).extraction()).value());
+        assertEquals(PivotMathFieldRef.class, fields.get(4).extraction().getClass());
+        assertEquals("a", ((PivotMathFieldRef) fields.get(4).extraction()).name());
+        assertEquals(PivotMathFieldRef.class, fields.get(5).extraction().getClass());
+        assertEquals("a", ((PivotMathFieldRef) fields.get(5).extraction()).name());
     }
 
     public void testFoldingOfPivotDroppingPivotedColumn() {

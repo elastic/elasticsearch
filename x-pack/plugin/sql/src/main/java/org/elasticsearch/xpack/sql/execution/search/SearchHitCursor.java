@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.util.Check;
 
 import java.io.IOException;
-import java.util.BitSet;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -41,7 +41,7 @@ public class SearchHitCursor implements Cursor {
 
     private final SearchSourceBuilder nextQuery;
     private final List<HitExtractor> extractors;
-    private final BitSet mask;
+    private final List<Integer> mask;
     private final int limit;
     private final boolean includeFrozen;
     private final boolean allowPartialSearchResults;
@@ -49,7 +49,7 @@ public class SearchHitCursor implements Cursor {
     SearchHitCursor(
         SearchSourceBuilder nextQuery,
         List<HitExtractor> exts,
-        BitSet mask,
+        List<Integer> mask,
         int remainingLimit,
         boolean includeFrozen,
         boolean allowPartialSearchResults
@@ -67,7 +67,7 @@ public class SearchHitCursor implements Cursor {
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(HitExtractor.class);
-        mask = BitSet.valueOf(in.readByteArray());
+        mask = Arrays.stream(in.readIntArray()).boxed().toList();
         includeFrozen = in.readBoolean();
         allowPartialSearchResults = in.getVersion().onOrAfter(Version.V_8_3_0) && in.readBoolean();
     }
@@ -78,7 +78,7 @@ public class SearchHitCursor implements Cursor {
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
-        out.writeByteArray(mask.toByteArray());
+        out.writeIntArray(mask.stream().mapToInt(i -> i).toArray());
         out.writeBoolean(includeFrozen);
         if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
             out.writeBoolean(allowPartialSearchResults);
@@ -94,7 +94,7 @@ public class SearchHitCursor implements Cursor {
         return nextQuery;
     }
 
-    BitSet mask() {
+    List<Integer> mask() {
         return mask;
     }
 

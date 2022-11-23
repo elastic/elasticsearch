@@ -58,11 +58,11 @@ public abstract class BinaryProcessor implements Processor {
         // no-op
     }
 
-    protected Processor left() {
+    public Processor left() {
         return left;
     }
 
-    protected Processor right() {
+    public Processor right() {
         return right;
     }
 

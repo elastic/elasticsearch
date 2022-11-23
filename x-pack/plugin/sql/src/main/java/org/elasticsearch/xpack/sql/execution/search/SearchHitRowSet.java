@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -39,7 +38,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
     private int row = 0;
 
-    SearchHitRowSet(List<HitExtractor> exts, BitSet mask, int sizeRequested, int limit, SearchResponse response) {
+    SearchHitRowSet(List<HitExtractor> exts, List<Integer> mask, int sizeRequested, int limit, SearchResponse response) {
         super(exts, mask);
 
         this.hits = response.getHits().getHits();

@@ -11,7 +11,6 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 
-import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 
@@ -29,7 +28,7 @@ class CompositeAggRowSet extends ResultRowSet<BucketExtractor> {
 
     CompositeAggRowSet(
         List<BucketExtractor> exts,
-        BitSet mask,
+        List<Integer> mask,
         SearchResponse response,
         int sizeRequested,
         int remainingLimit,

@@ -95,6 +95,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
@@ -827,6 +828,22 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         @Override
         protected PhysicalPlan rule(EsQueryExec exec) {
             QueryContainer qContainer = exec.queryContainer();
+            boolean isPivot = qContainer.fields().stream().anyMatch(t -> t.extraction() instanceof PivotColumnRef);
+            if (isPivot) {
+                List<QueryContainer.FieldInfo> fieldsWithNotNullAttributes = qContainer.fields()
+                    .stream()
+                    .filter(f -> f.attribute() != null)
+                    .collect(Collectors.toList());
+                List<String> fieldNames = fieldsWithNotNullAttributes.stream().map(f -> f.attribute().name()).collect(Collectors.toList());
+                List<Attribute> missingAttr = exec.output()
+                    .stream()
+                    .filter(attr -> fieldNames.contains(attr.name()) == false)
+                    .collect(Collectors.toList());
+                for (Attribute attr : missingAttr) {
+                    qContainer = qContainer.addColumn(attr);
+                }
+                return exec.with(qContainer);
+            }
 
             // references (aka aggs) are in place
             if (qContainer.hasColumns()) {
@@ -836,7 +853,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             for (Attribute attr : exec.output()) {
                 qContainer = qContainer.addColumn(attr);
             }
-
             // after all attributes have been resolved
             return exec.with(qContainer);
         }

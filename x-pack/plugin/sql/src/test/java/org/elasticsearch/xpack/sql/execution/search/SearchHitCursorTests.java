@@ -32,7 +32,7 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
         return new SearchHitCursor(
             new SearchSourceBuilder().size(randomInt(1000)),
             extractors,
-            CompositeAggregationCursorTests.randomBitSet(extractorsSize),
+            CompositeAggregationCursorTests.randomArrayList(extractorsSize),
             randomIntBetween(10, 1024),
             randomBoolean(),
             randomBoolean()
@@ -53,7 +53,7 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
         return new SearchHitCursor(
             instance.next(),
             instance.extractors(),
-            randomValueOtherThan(instance.mask(), () -> CompositeAggregationCursorTests.randomBitSet(instance.extractors().size())),
+            randomValueOtherThan(instance.mask(), () -> CompositeAggregationCursorTests.randomArrayList(instance.extractors().size())),
             randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 1024)),
             instance.includeFrozen() == false,
             instance.allowPartialSearchResults() == false

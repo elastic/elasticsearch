@@ -200,6 +200,35 @@ null           |48396.28571428572|62140.666666666664
 5              |39052.875        |46705.555555555555
 ;
 
+pivotWithComplexMathExpression
+schema::languages:bt|Male:d|Female:d|Percent:d|Male+Female:d
+SELECT *,Female/(Female+Male)*100 AS Percent,Male+Female FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M' AS Male, 'F' AS Female)) ORDER BY languages ASC;
+
+   languages   |      Male       |      Female      |Percent      |   Male+Female
+---------------+-----------------+------------------+-------------+-----------------
+null           |48396.28571428572|62140.666666666664|56,217097838 |110536,952380952
+1              |49767.22222222222|47073.25          |48,609066974 |96840,472222222
+2              |44103.90909090909|50684.4           |53,471151122 |94788,309090909
+3              |51741.90909090909|53660.0           |50,909893818 |105401,909090909
+4              |47058.90909090909|49291.5           |51,158578838 |96350,4091
+5              |39052.875        |46705.555555555555|54,461765745 |85758,430555556
+;
+
+pivotWithMathExpression
+schema::languages:bt|Male:d|Female:d|Male-Female:d
+SELECT *, Male-Female FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M' AS Male, 'F' AS Female)) ORDER BY languages ASC;
+
+   languages   |      Male       |      Female      |   Male-Female
+---------------+-----------------+------------------+----------------
+null           |48396.28571428572|62140.666666666664|-13744,380952381
+1              |49767.22222222222|47073.25          |2693,972222222
+2              |44103.90909090909|50684.4           |-6580,490909091
+3              |51741.90909090909|53660.0           |-1918,090909091
+4              |47058.90909090909|49291.5           |-2232,590909091
+5              |39052.875        |46705.555555555555|-7652,680555556
+;
+
+
 sumWithoutSubquery
 schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|name:s|1:l|2:l
 // tag::sumWithoutSubquery

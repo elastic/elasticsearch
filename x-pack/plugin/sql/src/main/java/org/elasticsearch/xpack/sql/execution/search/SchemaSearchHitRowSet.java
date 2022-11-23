@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 
-import java.util.BitSet;
 import java.util.List;
 
 /**
@@ -22,7 +21,14 @@ import java.util.List;
 class SchemaSearchHitRowSet extends SearchHitRowSet implements SchemaRowSet {
     private final Schema schema;
 
-    SchemaSearchHitRowSet(Schema schema, List<HitExtractor> exts, BitSet mask, int sizeRequested, int limitHits, SearchResponse response) {
+    SchemaSearchHitRowSet(
+        Schema schema,
+        List<HitExtractor> exts,
+        List<Integer> mask,
+        int sizeRequested,
+        int limitHits,
+        SearchResponse response
+    ) {
         super(exts, mask, sizeRequested, limitHits, response);
         this.schema = schema;
     }

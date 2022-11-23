@@ -990,9 +990,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (child instanceof NamedExpression) {
                         return child;
                     }
-                    if (child.resolved() == false) {
-                        return ua;
-                    }
                     if (child instanceof Cast c) {
                         if (c.field() instanceof NamedExpression) {
                             return new Alias(c.source(), ((NamedExpression) c.field()).name(), c);

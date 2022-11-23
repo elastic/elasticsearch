@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.ql.type.Schema;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -33,7 +32,7 @@ public class PivotCursor extends CompositeAggCursor {
         Map<String, Object> previousKey,
         SearchSourceBuilder next,
         List<BucketExtractor> exts,
-        BitSet mask,
+        List<Integer> mask,
         int remainingLimit,
         boolean includeFrozen,
         String... indices

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -206,7 +205,7 @@ public class QuerierTests extends ESTestCase {
             private int rowCounter = 0;
             private final int dataSize;
 
-            TestResultRowSet(List<E> extractors, BitSet mask, int dataSize) {
+            TestResultRowSet(List<E> extractors, List<Integer> mask, int dataSize) {
                 super(extractors, mask);
                 this.dataSize = dataSize;
             }
@@ -242,7 +241,7 @@ public class QuerierTests extends ESTestCase {
         ;
 
         Cursor.Page page = new Cursor.Page(
-            new TestResultRowSet<NamedWriteable>(List.of(randomHitExtractor(0)), new BitSet(), dataSize),
+            new TestResultRowSet<NamedWriteable>(List.of(randomHitExtractor(0)), new ArrayList<>(), dataSize),
             Cursor.EMPTY
         );
 

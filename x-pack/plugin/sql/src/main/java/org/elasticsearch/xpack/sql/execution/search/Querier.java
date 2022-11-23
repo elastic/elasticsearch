@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.GlobalCountRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.querydsl.container.PivotColumnRef;
+import org.elasticsearch.xpack.sql.querydsl.container.PivotMathFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
@@ -83,9 +84,9 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -416,11 +417,11 @@ public class Querier {
                 Bucket implicitGroup = buckets.get(0);
                 List<BucketExtractor> extractors = initBucketExtractors(response);
 
-                Object[] values = new Object[mask.cardinality()];
+                Object[] values = new Object[mask.size()];
 
                 int index = 0;
-                for (int i = mask.nextSetBit(0); i >= 0; i = mask.nextSetBit(i + 1)) {
-                    values[index++] = extractors.get(i).extract(implicitGroup);
+                for (int i = 0; i < mask.size(); i++) {
+                    values[index++] = extractors.get(mask.get(i)).extract(implicitGroup);
                 }
                 delegate.onResponse(Page.last(Rows.singleton(schema, values)));
 
@@ -518,7 +519,9 @@ public class Querier {
     abstract static class BaseAggActionListener extends BaseActionListener {
         final QueryContainer query;
         final SearchRequest request;
-        final BitSet mask;
+        final List<Integer> mask;
+
+        final Map<String, PivotExtractor> pivotExtractors = new HashMap<>();
 
         BaseAggActionListener(
             ActionListener<Page> listener,
@@ -542,8 +545,13 @@ public class Querier {
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             TotalHits totalHits = response.getHits().getTotalHits();
             ConstantExtractor totalCount = new TotalHitsExtractor(totalHits == null ? -1L : totalHits.value);
+
             for (QueryContainer.FieldInfo ref : refs) {
-                exts.add(createExtractor(ref.extraction(), totalCount));
+                BucketExtractor bucketExtractor = createExtractor(ref.extraction(), totalCount);
+                if (bucketExtractor instanceof PivotExtractor) {
+                    pivotExtractors.put(ref.attribute().name(), (PivotExtractor) bucketExtractor);
+                }
+                exts.add(bucketExtractor);
             }
             return exts;
         }
@@ -568,20 +576,45 @@ public class Querier {
             if (ref == GlobalCountRef.INSTANCE) {
                 return totalCount;
             }
+            if (ref instanceof PivotMathFieldRef) {
+                return pivotExtractors.get(((PivotMathFieldRef) ref).name());
+            }
 
             if (ref instanceof ComputedRef computedRef) {
                 Pipe proc = computedRef.processor();
 
-                // wrap only agg inputs
-                proc = proc.transformDown(AggPathInput.class, l -> {
-                    BucketExtractor be = createExtractor(l.context(), totalCount);
-                    return new AggExtractorInput(l.source(), l.expression(), l.action(), be);
-                });
+                // for math operation in Pivot queries
+                if (checkPivotInComputedRef(proc.children())) {
+                    proc = proc.transformDown(ReferenceInput.class, l -> {
+                        BucketExtractor be = createExtractor(l.context(), totalCount);
+                        return new AggExtractorInput(l.source(), l.expression(), null, be);
+                    });
+                } else {
+                    // wrap only agg inputs
+                    proc = proc.transformDown(AggPathInput.class, l -> {
+                        BucketExtractor be = createExtractor(l.context(), totalCount);
+                        return new AggExtractorInput(l.source(), l.expression(), l.action(), be);
+                    });
+                }
 
                 return new ComputingExtractor(proc.asProcessor());
             }
 
             throw new SqlIllegalArgumentException("Unexpected value reference {}", ref.getClass());
+        }
+
+        private boolean checkPivotInComputedRef(List<Pipe> children) {
+            boolean isReferenceInput = children.stream().anyMatch(c -> c instanceof ReferenceInput);
+            if (isReferenceInput) {
+                return true;
+            }
+            for (Pipe pipe : children) {
+                boolean isReferenceInputInChildren = checkPivotInComputedRef(pipe.children());
+                if (isReferenceInputInChildren) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -590,7 +623,7 @@ public class Querier {
      */
     static class SearchHitActionListener extends BaseActionListener {
         private final QueryContainer query;
-        private final BitSet mask;
+        private final List<Integer> mask;
         private final AbstractFieldHitExtractor.MultiValueSupport multiValueFieldLeniency;
         private final SearchSourceBuilder source;
 

@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.sql.util.Check;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,14 +53,14 @@ public class CompositeAggCursor implements Cursor {
     private final String[] indices;
     private final SearchSourceBuilder nextQuery;
     private final List<BucketExtractor> extractors;
-    private final BitSet mask;
+    private final List<Integer> mask;
     private final int limit;
     private final boolean includeFrozen;
 
     CompositeAggCursor(
         SearchSourceBuilder nextQuery,
         List<BucketExtractor> exts,
-        BitSet mask,
+        List<Integer> mask,
         int remainingLimit,
         boolean includeFrozen,
         String... indices
@@ -80,7 +79,7 @@ public class CompositeAggCursor implements Cursor {
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(BucketExtractor.class);
-        mask = BitSet.valueOf(in.readByteArray());
+        mask = Arrays.stream(in.readIntArray()).boxed().toList();
         includeFrozen = in.readBoolean();
     }
 
@@ -91,7 +90,7 @@ public class CompositeAggCursor implements Cursor {
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
-        out.writeByteArray(mask.toByteArray());
+        out.writeIntArray(mask.stream().mapToInt(i -> i).toArray());
         out.writeBoolean(includeFrozen);
     }
 
@@ -108,7 +107,7 @@ public class CompositeAggCursor implements Cursor {
         return nextQuery;
     }
 
-    BitSet mask() {
+    List<Integer> mask() {
         return mask;
     }
 

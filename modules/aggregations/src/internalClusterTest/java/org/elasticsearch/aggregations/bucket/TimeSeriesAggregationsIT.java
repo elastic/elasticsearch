@@ -77,8 +77,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         int numberOfIndices = randomIntBetween(1, 3);
         numberOfDimensions = randomIntBetween(1, 5);
-        numberOfMetrics = 10;
-        randomIntBetween(1, 10);
+        numberOfMetrics = randomIntBetween(1, 10);
         String[] routingKeys = randomSubsetOf(
             randomIntBetween(1, numberOfDimensions),
             IntStream.rangeClosed(0, numberOfDimensions - 1).boxed().toArray(Integer[]::new)
@@ -130,7 +129,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
             );
         }
 
-        int numberOfDocs = randomIntBetween(dimCardinality, dimCardinality * 100);
+        int numberOfDocs = randomIntBetween(dimCardinality, dimCardinality * 5);
         logger.info(
             "Dimensions: "
                 + numberOfDimensions

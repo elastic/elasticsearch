@@ -59,10 +59,9 @@ public class HttpTracerTests extends ESTestCase {
             headers.put(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList("idHeader"));
             headers.put("traceparent", Collections.singletonList("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"));
 
-            RestRequest request = new FakeRestRequest.Builder(new NamedXContentRegistry(Collections.emptyList())).withMethod(RestRequest.Method.GET)
-                .withPath("uri")
-                .withHeaders(headers)
-                .build();
+            RestRequest request = new FakeRestRequest.Builder(new NamedXContentRegistry(Collections.emptyList())).withMethod(
+                RestRequest.Method.GET
+            ).withPath("uri").withHeaders(headers).build();
 
             HttpTracer tracer = new HttpTracer().maybeTraceRequest(request, null);
             assertNotNull(tracer);

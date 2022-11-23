@@ -836,8 +836,7 @@ public class PluginsServiceTests extends ESTestCase {
                 // test frameworks run with stable api classes on classpath, so we
                 // have no choice but to let our class read the unnamed module that
                 // owns the stable api classes
-                UberModuleClassLoader umcl = (UberModuleClassLoader) stablePluginClassLoader;
-                umcl.addReadsUnnamedModule(CharFilterFactory.class.getClassLoader().getUnnamedModule());
+                ((UberModuleClassLoader) stablePluginClassLoader).addReadsSystemClassLoaderUnnamedModule();
             }
 
             Class<?> stableClass = stablePluginClassLoader.loadClass("p.A");

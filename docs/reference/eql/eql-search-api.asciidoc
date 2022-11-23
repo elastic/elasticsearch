@@ -48,7 +48,7 @@ or alias.
 * See <<eql-required-fields>>.
 
 * experimental:[] For cross-cluster search, the local and remote clusters must use the same {es} version.
-Local clusters v 7.17.7 or later also support cross-cluster search to remote clusters v 7.15 or later.
+Local clusters version 7.17.7 or later also support cross-cluster search to remote clusters version 7.15.0 or later.
 For security, see <<remote-clusters-security>>.
 
 [[eql-search-api-limitations]]

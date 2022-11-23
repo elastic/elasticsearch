@@ -140,7 +140,11 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
      * @param action A description of the action to be taken to remedy the problem
      * @param helpURL Optional evergreen url to a help document
      */
-    public record Definition(String indicatorName, String id, String cause, String action, String helpURL) {}
+    public record Definition(String indicatorName, String id, String cause, String action, String helpURL) {
+        public String getUniqueId() {
+            return HEALTH_API_ID_PREFIX + indicatorName + ":diagnosis:" + id;
+        }
+    }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked() {
@@ -152,7 +156,7 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         }
         return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
             builder.startObject();
-            builder.field("id", HEALTH_API_ID_PREFIX + definition.indicatorName + ":diagnosis:" + definition.id);
+            builder.field("id", definition.getUniqueId());
             builder.field("cause", definition.cause);
             builder.field("action", definition.action);
             builder.field("help_url", definition.helpURL);

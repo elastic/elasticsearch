@@ -85,7 +85,7 @@ public record RemoteAccessAuthentication(Authentication authentication, Collecti
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
-    static RemoteAccessAuthentication decode(final String header) throws IOException {
+    private static RemoteAccessAuthentication decode(final String header) throws IOException {
         Objects.requireNonNull(header);
         final byte[] bytes = Base64.getDecoder().decode(header);
         final StreamInput in = StreamInput.wrap(bytes);

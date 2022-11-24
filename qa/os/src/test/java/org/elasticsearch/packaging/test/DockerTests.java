@@ -1223,7 +1223,6 @@ public class DockerTests extends PackagingTestCase {
         assertTrue(readinessProbe(9399));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91874")
     public void test600Interrupt() {
         waitForElasticsearch(installation, "elastic", PASSWORD);
         final Result containerLogs = getContainerLogs();
@@ -1233,7 +1232,7 @@ public class DockerTests extends PackagingTestCase {
         final List<ProcessInfo> infos = ProcessInfo.getProcessInfo(sh, "java");
         final int maxPid = infos.stream().map(i -> i.pid()).max(Integer::compareTo).get();
 
-        sh.run("kill -int " + maxPid); // send ctrl+c to all java processes
+        sh.run("bash -c 'kill -int " + maxPid + "'"); // send ctrl+c to all java processes
         final Result containerLogsAfter = getContainerLogs();
 
         assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout(), containsString("stopping ..."));

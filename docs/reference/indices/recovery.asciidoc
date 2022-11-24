@@ -4,10 +4,9 @@
 <titleabbrev>Index recovery</titleabbrev>
 ++++
 
-
-Returns information about ongoing and completed shard recoveries for one or more
-indices. For data streams, the API returns information for the stream's backing
-indices.
+Returns information about ongoing and completed shard recoveries for one or
+more indices. For data streams, the API returns information for the stream's
+backing indices.
 
 [source,console]
 ----
@@ -33,14 +32,14 @@ index, or alias.
 [[index-recovery-api-desc]]
 ==== {api-description-title}
 
-Use the index recovery API
-to get information about ongoing and completed shard recoveries.
+Use the index recovery API to get information about ongoing and completed shard
+recoveries.
 
 // tag::shard-recovery-desc[]
-Shard recovery is the process
-of syncing a replica shard from a primary shard.
-Upon completion,
-the replica shard is available for search.
+Shard recovery is the process of initializing a shard copy, such as restoring a
+primary shard from a snapshot or syncing a replica shard from a primary shard.
+When a shard recovery completes, the recovered shard is available for search
+and indexing.
 
 Recovery automatically occurs during the following processes:
 
@@ -51,6 +50,14 @@ Recovery automatically occurs during the following processes:
 * <<indices-clone-index,Clone>>, <<indices-shrink-index,shrink>>, or
 <<indices-split-index,split>> operation.
 // end::shard-recovery-desc[]
+
+The index recovery API reports information about completed recoveries only for
+shard copies that currently exist in the cluster. It only reports the last
+recovery for each shard copy and does not report historical information about
+earlier recoveries, nor does it report information about the recoveries of
+shard copies that no longer exist. This means that if a shard copy completes a
+recovery and then {es} relocates it onto a different node then the information
+about the original recovery will not be shown in the recovery API.
 
 [[index-recovery-api-path-params]]
 ==== {api-path-parms-title}

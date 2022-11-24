@@ -231,7 +231,8 @@ public final class AuthorizationUtils {
     ) {
         if (RemoteConnectionManager.resolveRemoteClusterAlias(connection).isPresent()) {
             // We can only pre-authorize actions targeting a node which belongs to the same cluster.
-            // TODO: Ensure we remove any existing pre-authorization before sending the request to the remote cluster node.
+            assert threadContext.getHeader(ParentActionAuthorization.THREAD_CONTEXT_KEY) == null
+                : "pre-authorization not expected to be set for remote cluster requests";
             return;
         }
 

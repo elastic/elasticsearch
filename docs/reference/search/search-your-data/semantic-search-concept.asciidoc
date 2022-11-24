@@ -40,9 +40,6 @@ search against.
 [[install-model-start-deployment]]
 === Install a text embedding NLP model and start the deployment
 
-To use semantic search, you need to install a text embedding NLP {ml} model in 
-your cluster first.
-
 . Use the {eland-docs}[Eland client] to install a {nlp} model. Clone the Eland 
 repository then create a Docker image of Eland by using the following script:
 +

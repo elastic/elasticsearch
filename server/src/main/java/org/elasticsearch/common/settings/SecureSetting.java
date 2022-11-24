@@ -10,7 +10,6 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.transport.TcpTransport;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
@@ -25,7 +24,7 @@ import java.util.Set;
 public abstract class SecureSetting<T> extends Setting<T> {
 
     /** Determines whether legacy settings with sensitive values should be allowed. */
-    private static final boolean ALLOW_INSECURE_SETTINGS = Booleans.parseBoolean(System.getProperty("es.allow_insecure_settings", "false"));
+    public static final boolean ALLOW_INSECURE_SETTINGS = Booleans.parseBoolean(System.getProperty("es.allow_insecure_settings", "false"));
 
     private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(
         Property.Deprecated,
@@ -33,16 +32,19 @@ public abstract class SecureSetting<T> extends Setting<T> {
         Property.Consistent
     );
 
-    private static final Property[] FIXED_PROPERTIES = { Property.NodeScope };
-
-    // Example: RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION
-    private static final Property[] FIXED_INSECURE_NOT_DEPRECATED_PROPERTIES = { Property.NodeScope, Property.Filtered };
+    private static final Property[] FIXED_SECURE_SETTING_PROPERTIES = { Property.NodeScope };
 
     // Example: S3Repository.ACCESS_KEY_SETTING and S3Repository.SECRET_KEY_SETTING
-    private static final Property[] FIXED_INSECURE_DEPRECATED_PROPERTIES = { Property.NodeScope, Property.Filtered, Property.Deprecated };
+    private static final Property[] FIXED_DEPRECATED_INSECURE_SETTING_PROPERTIES = {
+        Property.NodeScope,
+        Property.Filtered,
+        Property.Deprecated };
+
+    // Example: RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION
+    private static final Property[] FIXED_NOT_DEPRECATED_INSECURE_SETTING_PROPERTIES = { Property.NodeScope, Property.Filtered };
 
     private SecureSetting(String key, Property... properties) {
-        super(key, (String) null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES, Property.class));
+        super(key, (String) null, null, ArrayUtils.concat(properties, FIXED_SECURE_SETTING_PROPERTIES, Property.class));
         assert assertAllowedProperties(properties);
         KeyStoreWrapper.validateSettingName(key);
     }
@@ -146,7 +148,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
      */
     @Deprecated
     public static Setting<SecureString> insecureString(String name, Property... properties) {
-        return new InsecureStringSetting(name, ArrayUtils.concat(FIXED_INSECURE_DEPRECATED_PROPERTIES, properties, Property.class));
+        return new InsecureStringSetting(name, ArrayUtils.concat(FIXED_DEPRECATED_INSECURE_SETTING_PROPERTIES, properties, Property.class));
     }
 
     /**
@@ -154,7 +156,10 @@ public abstract class SecureSetting<T> extends Setting<T> {
      * @see #secureString(String, Setting, Property...)
      */
     public static Setting<SecureString> insecureStringNotDeprecated(String name, Property... properties) {
-        return new InsecureStringSetting(name, ArrayUtils.concat(FIXED_INSECURE_NOT_DEPRECATED_PROPERTIES, properties, Property.class));
+        return new InsecureStringSetting(
+            name,
+            ArrayUtils.concat(FIXED_NOT_DEPRECATED_INSECURE_SETTING_PROPERTIES, properties, Property.class)
+        );
     }
 
     /**
@@ -191,6 +196,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
     private static class InsecureStringSetting extends Setting<SecureString> {
         private final String name;
 
+        @SuppressWarnings("deprecation")
         private InsecureStringSetting(String name, Property... properties) {
             super(name, "", SecureString::new, properties);
             this.name = name;
@@ -198,10 +204,12 @@ public abstract class SecureSetting<T> extends Setting<T> {
 
         @Override
         public SecureString get(Settings settings) {
-            if (((ALLOW_INSECURE_SETTINGS == false) && (TcpTransport.isUntrustedRemoteClusterEnabled() == false)) && exists(settings)) {
-                throw new IllegalArgumentException(
-                    "Setting [" + name + "] is insecure, " + "but property [allow_insecure_settings] is not set"
-                );
+            if (properties.contains(Property.Deprecated)) {
+                if ((ALLOW_INSECURE_SETTINGS == false) && exists(settings)) {
+                    throw new IllegalArgumentException(
+                        "Setting [" + name + "] is insecure, " + "but property [allow_insecure_settings] is not set"
+                    );
+                }
             }
             return super.get(settings);
         }

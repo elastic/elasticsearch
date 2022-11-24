@@ -154,7 +154,7 @@ public class Setting<T> implements ToXContentObject {
     private final Setting<T> fallbackSetting;
     private final Function<String, T> parser;
     private final Validator<T> validator;
-    private final EnumSet<Property> properties;
+    protected final EnumSet<Property> properties;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
     private static final EnumSet<Property> DEPRECATED_PROPERTIES = EnumSet.of(

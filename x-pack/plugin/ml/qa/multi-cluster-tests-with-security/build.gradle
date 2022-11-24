@@ -8,7 +8,6 @@ apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(':x-pack:qa')
-  testImplementation project(':client:rest-high-level')
 }
 
 Version ccsCompatVersion = new Version(VersionProperties.getElasticsearchVersion().getMajor(), VersionProperties.getElasticsearchVersion().getMinor() - 1, 0)
@@ -34,10 +33,7 @@ def remoteCluster = testClusters.register('remote-cluster') {
 testClusters.register('mixed-cluster') {
     testDistribution = 'DEFAULT'
     numberOfNodes = 2
-    // Node roles are configured this way in order to verify redirecting the transform request from the node lacking
-    // remote_cluster_client role to the node that is remote_cluster_client.
-    nodes."mixed-cluster-0".setting 'node.roles', '[data,ingest,master,transform]'
-    nodes."mixed-cluster-1".setting 'node.roles', '[data,ingest,master,transform,remote_cluster_client]'
+    setting 'node.roles', '[data,ingest,master]'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'

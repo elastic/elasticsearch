@@ -12,16 +12,8 @@ setup:
         username: "joe"
         body:  >
           {
-            "password": "transform-password",
-            "roles" : [  "transform_admin", "x_cluster_role" ]
-          }
-  - do:
-      security.put_user:
-        username: "bob"
-        body:  >
-          {
-            "password": "transform-password",
-            "roles" : [ "transform_admin", "x_cluster_role_only_dest" ]
+            "password": "joe-password",
+            "roles" : [ "x_cluster_role" ]
           }
   - do:
       security.put_role:
@@ -31,26 +23,8 @@ setup:
             "cluster": ["manage_ml"],
             "indices": [
               {
-                "names": ["test_index", "same_index_local_and_remote"],
+                "names": ["test_index"],
                 "privileges": ["read", "view_index_metadata"]
-              },
-              {
-                "names": ["simple-remote-transform*", "simple-local-remote-transform", "same-index-local-and-remote-transform"],
-                "privileges": ["create_index", "index", "read"]
-              }
-            ]
-          }
-
-  - do:
-      security.put_role:
-        name: "x_cluster_role_only_dest"
-        body:  >
-          {
-            "cluster": [],
-            "indices": [
-              {
-                "names": ["simple-remote-transform*", "simple-local-remote-transform", "same-index-local-and-remote-transform"],
-                "privileges": ["create_index", "index", "read"]
               }
             ]
           }
@@ -60,15 +34,41 @@ teardown:
       security.delete_user:
         username: "joe"
         ignore: 404
-  - do:
-      security.delete_user:
-        username: "bob"
-        ignore: 404
 
 ---
-"Test datafeed":
+"Test ML job with local indices only":
   - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is joe
+      catch: /Cannot create datafeed \[jobs-crud-put-with-datafeed\] because user joe lacks permissions on the indices/
+      headers: { Authorization: "Basic am9lOmpvZS1wYXNzd29yZA==" }  # This is joe
+      ml.put_job:
+        job_id: jobs-crud-put-with-datafeed
+        body: >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent"
+            },
+            "datafeed_config": {
+              "indexes":["test_index", "test_index-2"]
+            }
+          }
+  - match: { job_id: "jobs-crud-put-with-datafeed" }
+  - is_true: datafeed_config
+  - match: { datafeed_config.job_id: "jobs-crud-put-with-datafeed" }
+  - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed" }
+  - is_true: datafeed_config.authorization.roles
+  - is_true: create_time
+
+---
+"Test ML job with local and remote index":
+  - do:
+      headers: { Authorization: "Basic am9lOmpvZS1wYXNzd29yZA==" }  # This is joe
       ml.put_job:
         job_id: jobs-crud-put-with-datafeed
         body: >
@@ -93,11 +93,3 @@ teardown:
   - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed" }
   - is_true: datafeed_config.authorization.roles
   - is_true: create_time
-
-  - do:
-      ml.get_datafeeds:
-        datafeed_id: "jobs-crud-put-with-datafeed"
-
-  - match: { count: 1 }
-  - match: { datafeeds.0.job_id: "jobs-crud-put-with-datafeed" }
-  - match: { datafeeds.0.datafeed_id: "jobs-crud-put-with-datafeed" }

@@ -51,7 +51,7 @@ class DoubleAvgAggregator implements AggregatorFunction {
                 state.add(block.getDouble(i));
             }
         }
-        state.count += block.getPositionCount() - block.nullValuesCount();
+        state.count += block.validPositionCount();
     }
 
     @Override

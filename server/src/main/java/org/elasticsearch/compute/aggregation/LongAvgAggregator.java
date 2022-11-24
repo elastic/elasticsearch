@@ -47,11 +47,9 @@ class LongAvgAggregator implements AggregatorFunction {
         Block block = page.getBlock(channel);
         AvgState state = this.state;
         for (int i = 0; i < block.getPositionCount(); i++) {
-            if (block.isNull(i) == false) { // skip null values
-                state.value = Math.addExact(state.value, block.getLong(i));
-            }
+            state.value = Math.addExact(state.value, block.getLong(i));
         }
-        state.count += block.getPositionCount() - block.nullValuesCount();
+        state.count += block.validPositionCount();
     }
 
     @Override

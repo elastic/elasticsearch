@@ -23,26 +23,9 @@ public final class LongArrayBlock extends Block {
         this.values = values;
     }
 
-    public LongArrayBlock(Number[] values, int positionCount) {
-        super(positionCount);
-        assert values.length == positionCount;
-        this.values = new long[positionCount];
-        for (int i = 0; i < positionCount; i++) {
-            if (values[i] == null) {
-                nullsMask.set(i);
-                this.values[i] = 0L;
-            } else {
-                this.values[i] = values[i].longValue();
-            }
-        }
-    }
-
     public LongArrayBlock(long[] values, int positionCount, BitSet nulls) {
         super(positionCount, nulls);
         this.values = values;
-        for (int i = nullsMask.nextSetBit(0); i >= 0; i = nullsMask.nextSetBit(i + 1)) {
-            this.values[i] = nullValue();
-        }
     }
 
     @Override
@@ -71,9 +54,5 @@ public final class LongArrayBlock extends Block {
     public long[] getRawLongArray() {
         assert nullValuesCount() == 0;
         return values;
-    }
-
-    private long nullValue() {
-        return 0L;
     }
 }

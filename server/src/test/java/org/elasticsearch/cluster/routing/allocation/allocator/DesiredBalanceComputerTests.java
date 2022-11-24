@@ -378,29 +378,34 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     public void testSimulatesAchievingDesiredBalanceBeforeDelegating() {
 
         var allocateCalled = new AtomicBoolean();
-        var desiredBalanceComputer = new DesiredBalanceComputer(mock(ThreadPool.class), new ShardsAllocator() {
-            @Override
-            public void allocate(RoutingAllocation allocation) {
-                assertTrue(allocateCalled.compareAndSet(false, true));
-                // whatever the allocation in the current cluster state, the desired balance service should start by moving all the
-                // known shards to their desired locations before delegating to the inner allocator
-                for (var routingNode : allocation.routingNodes()) {
-                    assertThat(
-                        allocation.routingNodes().toString(),
-                        routingNode.numberOfOwningShards(),
-                        equalTo(routingNode.nodeId().equals("node-2") ? 0 : 2)
-                    );
-                    for (var shardRouting : routingNode) {
-                        assertTrue(shardRouting.toString(), shardRouting.started());
+        var desiredBalanceComputer = new DesiredBalanceComputer(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            mock(ThreadPool.class),
+            new ShardsAllocator() {
+                @Override
+                public void allocate(RoutingAllocation allocation) {
+                    assertTrue(allocateCalled.compareAndSet(false, true));
+                    // whatever the allocation in the current cluster state, the desired balance service should start by moving all the
+                    // known shards to their desired locations before delegating to the inner allocator
+                    for (var routingNode : allocation.routingNodes()) {
+                        assertThat(
+                            allocation.routingNodes().toString(),
+                            routingNode.numberOfOwningShards(),
+                            equalTo(routingNode.nodeId().equals("node-2") ? 0 : 2)
+                        );
+                        for (var shardRouting : routingNode) {
+                            assertTrue(shardRouting.toString(), shardRouting.started());
+                        }
                     }
                 }
-            }
 
-            @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-                throw new AssertionError("only used for allocation explain");
+                @Override
+                public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                    throw new AssertionError("only used for allocation explain");
+                }
             }
-        });
+        );
         var clusterState = createInitialClusterState(3);
         var index = clusterState.metadata().index(TEST_INDEX).getIndex();
 
@@ -647,12 +652,12 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             routingAllocationWithDecidersOf(clusterState, ClusterInfo.EMPTY, Settings.EMPTY),
             List.of()
         );
-        var desiredBalance = new DesiredBalanceComputer(mock(ThreadPool.class), new BalancedShardsAllocator(Settings.EMPTY)).compute(
-            DesiredBalance.INITIAL,
-            input,
-            queue(),
-            ignored -> iteration.incrementAndGet() < 1000
-        );
+        var desiredBalance = new DesiredBalanceComputer(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            mock(ThreadPool.class),
+            new BalancedShardsAllocator(Settings.EMPTY)
+        ).compute(DesiredBalance.INITIAL, input, queue(), ignored -> iteration.incrementAndGet() < 1000);
 
         try {
             assertThat(
@@ -813,7 +818,12 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             )
         );
 
-        var desiredBalance = new DesiredBalanceComputer(mock(ThreadPool.class), new BalancedShardsAllocator(settings)).compute(
+        var desiredBalance = new DesiredBalanceComputer(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            mock(ThreadPool.class),
+            new BalancedShardsAllocator(settings)
+        ).compute(
             initial,
             new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState, clusterInfo, settings), List.of()),
             queue(),
@@ -921,31 +931,39 @@ public class DesiredBalanceComputerTests extends ESTestCase {
      * @return a {@link DesiredBalanceComputer} which allocates unassigned primaries to node-0 and unassigned replicas to node-1
      */
     private static DesiredBalanceComputer createDesiredBalanceComputer() {
-        return new DesiredBalanceComputer(mock(ThreadPool.class), new ShardsAllocator() {
-            @Override
-            public void allocate(RoutingAllocation allocation) {
-                final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
-                while (unassignedIterator.hasNext()) {
-                    final var shardRouting = unassignedIterator.next();
-                    if (shardRouting.primary()) {
-                        unassignedIterator.initialize("node-0", null, 0L, allocation.changes());
-                    } else if (isCorrespondingPrimaryStarted(shardRouting, allocation)) {
-                        unassignedIterator.initialize("node-1", null, 0L, allocation.changes());
-                    } else {
-                        unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+        return new DesiredBalanceComputer(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            mock(ThreadPool.class),
+            new ShardsAllocator() {
+                @Override
+                public void allocate(RoutingAllocation allocation) {
+                    final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+                    while (unassignedIterator.hasNext()) {
+                        final var shardRouting = unassignedIterator.next();
+                        if (shardRouting.primary()) {
+                            unassignedIterator.initialize("node-0", null, 0L, allocation.changes());
+                        } else if (isCorrespondingPrimaryStarted(shardRouting, allocation)) {
+                            unassignedIterator.initialize("node-1", null, 0L, allocation.changes());
+                        } else {
+                            unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                        }
                     }
                 }
-            }
 
-            private static boolean isCorrespondingPrimaryStarted(ShardRouting shardRouting, RoutingAllocation allocation) {
-                return allocation.routingNodes().assignedShards(shardRouting.shardId()).stream().anyMatch(r -> r.primary() && r.started());
-            }
+                private static boolean isCorrespondingPrimaryStarted(ShardRouting shardRouting, RoutingAllocation allocation) {
+                    return allocation.routingNodes()
+                        .assignedShards(shardRouting.shardId())
+                        .stream()
+                        .anyMatch(r -> r.primary() && r.started());
+                }
 
-            @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-                throw new AssertionError("only used for allocation explain");
+                @Override
+                public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                    throw new AssertionError("only used for allocation explain");
+                }
             }
-        });
+        );
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

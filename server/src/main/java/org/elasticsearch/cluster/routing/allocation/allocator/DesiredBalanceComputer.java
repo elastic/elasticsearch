@@ -19,7 +19,11 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -34,7 +38,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toSet;
@@ -47,14 +51,39 @@ public class DesiredBalanceComputer {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
+    private final Settings settings;
+    private final ClusterSettings clusterSettings;
     private final ThreadPool threadPool;
     private final ShardsAllocator delegateAllocator;
 
     protected final MeanMetric iterations = new MeanMetric();
 
-    public DesiredBalanceComputer(ThreadPool threadPool, ShardsAllocator delegateAllocator) {
+    public static final Setting<TimeValue> PROGRESS_LOG_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.desired_balance.progress_log_interval",
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    private TimeValue progressLogInterval;
+
+    public DesiredBalanceComputer(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        ShardsAllocator delegateAllocator
+    ) {
+        this.settings = settings;
+        this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.delegateAllocator = delegateAllocator;
+        watchSetting(settings, clusterSettings, PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
+    }
+
+    private <T> void watchSetting(Settings settings, ClusterSettings clusterSettings, Setting<T> setting, Consumer<T> consumer) {
+        consumer.accept(setting.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(setting, consumer);
     }
 
     public DesiredBalance compute(
@@ -218,7 +247,7 @@ public class DesiredBalanceComputer {
         }
 
         final int iterationCountWarningInterval = computeIterationCountWarningInterval(routingAllocation);
-        final long timeWarningInterval = TimeUnit.MINUTES.toMillis(1);
+        final long timeWarningInterval = progressLogInterval.millis();
         final long computationStartedTime = threadPool.rawRelativeTimeInMillis();
         long nextWarningTime = computationStartedTime + timeWarningInterval;
 

@@ -66,8 +66,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -817,28 +815,15 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         DiskThresholdDecider diskThresholdDecider = createDiskThresholdDecider(diskSettings.build());
 
-        DiscoveryNode discoveryNode1 = new DiscoveryNode(
-            "node1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            Version.CURRENT
-        );
-        DiscoveryNode discoveryNode2 = new DiscoveryNode(
-            "node2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            Version.CURRENT
-        );
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build();
+        DiscoveryNode discoveryNode1 = newNode("node1");
+        DiscoveryNode discoveryNode2 = newNode("node2");
 
         var testMetadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0).build();
         var fooMetadata = IndexMetadata.builder("foo").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
         ClusterState baseClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(Metadata.builder().put(testMetadata, false).put(fooMetadata, false).build())
             .routingTable(RoutingTable.builder().addAsNew(testMetadata).addAsNew(fooMetadata).build())
-            .nodes(discoveryNodes)
+            .nodes(DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build())
             .build();
 
         // Two shards consuming each 80% of disk space while 70% is allowed, so shard 0 isn't allowed here
@@ -997,31 +982,14 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         DiskThresholdDecider diskThresholdDecider = createDiskThresholdDecider(diskSettings);
 
-        DiscoveryNode masterNode = new DiscoveryNode(
-            "master",
-            "master",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
-        DiscoveryNode dataNode = new DiscoveryNode(
-            "data",
-            "data",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            singleton(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
-        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder().add(dataNode);
+        var discoveryNodesBuilder = DiscoveryNodes.builder().add(newNode("data", "data", Set.of(DiscoveryNodeRole.DATA_ROLE)));
         if (randomBoolean()) {
-            discoveryNodesBuilder.add(masterNode);
+            discoveryNodesBuilder.add(newNode("master", "master", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
         }
-        DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
 
         var testMetadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
-            .nodes(discoveryNodes)
+            .nodes(discoveryNodesBuilder.build())
             .metadata(Metadata.builder().put(testMetadata, false).build())
             .routingTable(RoutingTable.builder().addAsNew(testMetadata).build())
             .build();

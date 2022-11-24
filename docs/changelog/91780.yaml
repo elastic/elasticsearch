@@ -1,0 +1,5 @@
+pr: 91780
+summary: Check stable plugin version at install and load time
+area: Infra/Plugins
+type: enhancement
+issues: []

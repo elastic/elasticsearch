@@ -25,12 +25,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-public record RemoteAccessAuthentication(Authentication authentication, Collection<BytesReference> roleDescriptorsBytesIntersection) {
+public record RemoteAccessAuthentication(Authentication authentication, List<BytesReference> roleDescriptorsBytesIntersection) {
     public static final String REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY = "_remote_access_authentication";
 
     public static void writeToContextAsRemoteAccessAuthentication(
@@ -38,7 +37,7 @@ public record RemoteAccessAuthentication(Authentication authentication, Collecti
         final Authentication authentication,
         final RoleDescriptorsIntersection roleDescriptorsIntersection
     ) throws IOException {
-        ensureContextDoesNotContainRemoteAccessAuthentication(ctx);
+        ensureHeaderNotInContext(ctx);
         ctx.putHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY, encode(authentication, roleDescriptorsIntersection));
     }
 
@@ -96,7 +95,7 @@ public record RemoteAccessAuthentication(Authentication authentication, Collecti
         return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesIntersection);
     }
 
-    private static void ensureContextDoesNotContainRemoteAccessAuthentication(final ThreadContext ctx) {
+    private static void ensureHeaderNotInContext(final ThreadContext ctx) {
         if (ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) != null) {
             throw new IllegalStateException(
                 "remote access authentication [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is already present in the context"

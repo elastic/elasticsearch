@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -65,6 +66,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.mockito.Mockito.mock;
 
 public class DesiredBalanceComputerTests extends ESTestCase {
 
@@ -330,7 +332,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     public void testSimulatesAchievingDesiredBalanceBeforeDelegating() {
 
         var allocateCalled = new AtomicBoolean();
-        var desiredBalanceComputer = new DesiredBalanceComputer(new ShardsAllocator() {
+        var desiredBalanceComputer = new DesiredBalanceComputer(mock(ThreadPool.class), new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {
                 assertTrue(allocateCalled.compareAndSet(false, true));
@@ -599,7 +601,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             routingAllocationWithDecidersOf(clusterState, ClusterInfo.EMPTY, Settings.EMPTY),
             List.of()
         );
-        var desiredBalance = new DesiredBalanceComputer(new BalancedShardsAllocator(Settings.EMPTY)).compute(
+        var desiredBalance = new DesiredBalanceComputer(mock(ThreadPool.class), new BalancedShardsAllocator(Settings.EMPTY)).compute(
             DesiredBalance.INITIAL,
             input,
             queue(),
@@ -765,7 +767,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             )
         );
 
-        var desiredBalance = new DesiredBalanceComputer(new BalancedShardsAllocator(settings)).compute(
+        var desiredBalance = new DesiredBalanceComputer(mock(ThreadPool.class), new BalancedShardsAllocator(settings)).compute(
             initial,
             new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState, clusterInfo, settings), List.of()),
             queue(),
@@ -873,7 +875,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
      * @return a {@link DesiredBalanceComputer} which allocates unassigned primaries to node-0 and unassigned replicas to node-1
      */
     private static DesiredBalanceComputer createDesiredBalanceComputer() {
-        return new DesiredBalanceComputer(new ShardsAllocator() {
+        return new DesiredBalanceComputer(mock(ThreadPool.class), new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();

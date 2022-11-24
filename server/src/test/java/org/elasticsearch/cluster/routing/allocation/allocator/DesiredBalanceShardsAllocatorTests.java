@@ -208,7 +208,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(shardsAllocator) {
+            new DesiredBalanceComputer(threadPool, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -306,7 +306,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(shardsAllocator) {
+            new DesiredBalanceComputer(threadPool, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -46,11 +47,13 @@ public class DesiredBalanceComputer {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
+    private final ThreadPool threadPool;
     private final ShardsAllocator delegateAllocator;
 
     protected final MeanMetric iterations = new MeanMetric();
 
-    public DesiredBalanceComputer(ShardsAllocator delegateAllocator) {
+    public DesiredBalanceComputer(ThreadPool threadPool, ShardsAllocator delegateAllocator) {
+        this.threadPool = threadPool;
         this.delegateAllocator = delegateAllocator;
     }
 
@@ -215,8 +218,8 @@ public class DesiredBalanceComputer {
         }
 
         final int iterationCountWarningInterval = computeIterationCountWarningInterval(routingAllocation);
-        final long timeWarningInterval = TimeUnit.MINUTES.toNanos(1);
-        final long computationStartedTime = System.nanoTime();
+        final long timeWarningInterval = TimeUnit.MINUTES.toMillis(1);
+        final long computationStartedTime = threadPool.rawRelativeTimeInMillis();
         long nextWarningTime = computationStartedTime + timeWarningInterval;
 
         int i = 0;
@@ -269,7 +272,7 @@ public class DesiredBalanceComputer {
             }
             if (i % 100 == 0) {
                 final int iterations = i;
-                final long currentTime = System.nanoTime();
+                final long currentTime = threadPool.relativeTimeInMillis();
                 final boolean shouldWarnByTime = nextWarningTime <= currentTime;
                 if (shouldWarnByTime) {
                     nextWarningTime = currentTime + timeWarningInterval;

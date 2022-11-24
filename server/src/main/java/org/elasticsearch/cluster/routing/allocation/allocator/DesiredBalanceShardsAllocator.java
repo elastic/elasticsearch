@@ -82,7 +82,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler
     ) {
-        this(delegateAllocator, threadPool, clusterService, new DesiredBalanceComputer(delegateAllocator), reconciler);
+        this(delegateAllocator, threadPool, clusterService, new DesiredBalanceComputer(threadPool, delegateAllocator), reconciler);
     }
 
     public DesiredBalanceShardsAllocator(

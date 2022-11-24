@@ -10,6 +10,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
@@ -33,6 +34,12 @@ public abstract class SecureSetting<T> extends Setting<T> {
     );
 
     private static final Property[] FIXED_PROPERTIES = { Property.NodeScope };
+
+    // Example: RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION
+    private static final Property[] FIXED_INSECURE_NOT_DEPRECATED_PROPERTIES = { Property.NodeScope, Property.Filtered };
+
+    // Example: S3Repository.ACCESS_KEY_SETTING and S3Repository.SECRET_KEY_SETTING
+    private static final Property[] FIXED_INSECURE_DEPRECATED_PROPERTIES = { Property.NodeScope, Property.Filtered, Property.Deprecated };
 
     private SecureSetting(String key, Property... properties) {
         super(key, (String) null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES, Property.class));
@@ -138,8 +145,16 @@ public abstract class SecureSetting<T> extends Setting<T> {
      * @deprecated only used by S3 repository module insecure credentials functionality
      */
     @Deprecated
-    public static Setting<SecureString> insecureString(String name) {
-        return new InsecureStringSetting(name);
+    public static Setting<SecureString> insecureString(String name, Property... properties) {
+        return new InsecureStringSetting(name, ArrayUtils.concat(FIXED_INSECURE_DEPRECATED_PROPERTIES, properties, Property.class));
+    }
+
+    /**
+     * A setting which contains a sensitive string which must be found outside secure settings.
+     * @see #secureString(String, Setting, Property...)
+     */
+    public static Setting<SecureString> insecureStringNotDeprecated(String name, Property... properties) {
+        return new InsecureStringSetting(name, ArrayUtils.concat(FIXED_INSECURE_NOT_DEPRECATED_PROPERTIES, properties, Property.class));
     }
 
     /**
@@ -176,14 +191,14 @@ public abstract class SecureSetting<T> extends Setting<T> {
     private static class InsecureStringSetting extends Setting<SecureString> {
         private final String name;
 
-        private InsecureStringSetting(String name) {
-            super(name, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope);
+        private InsecureStringSetting(String name, Property... properties) {
+            super(name, "", SecureString::new, properties);
             this.name = name;
         }
 
         @Override
         public SecureString get(Settings settings) {
-            if (ALLOW_INSECURE_SETTINGS == false && exists(settings)) {
+            if (((ALLOW_INSECURE_SETTINGS == false) && (TcpTransport.isUntrustedRemoteClusterEnabled() == false)) && exists(settings)) {
                 throw new IllegalArgumentException(
                     "Setting [" + name + "] is insecure, " + "but property [allow_insecure_settings] is not set"
                 );

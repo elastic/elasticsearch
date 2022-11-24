@@ -149,6 +149,8 @@ public class ApiKeyService {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
 
+    public static final String API_KEY_SCHEME = "ApiKey";
+    public static final String API_KEY_HEADER = API_KEY_SCHEME + " ";
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = XPackSettings.defaultStoredHashAlgorithmSetting(
         "xpack.security.authc.api_key.hashing.algorithm",
         (s) -> Hasher.PBKDF2.name()
@@ -971,7 +973,7 @@ public class ApiKeyService {
         if (false == isEnabled()) {
             return null;
         }
-        final SecureString apiKeyString = Authenticator.extractCredentialFromAuthorizationHeader(threadContext, "ApiKey");
+        final SecureString apiKeyString = Authenticator.extractCredentialFromAuthorizationHeader(threadContext, API_KEY_SCHEME);
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
             char[] apiKeyCredChars = null;

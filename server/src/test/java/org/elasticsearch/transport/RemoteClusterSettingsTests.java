@@ -77,7 +77,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
 
     public void testAuthorizationDefault() {
         final String alias = randomAlphaOfLength(8);
-        assertThat(REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), emptyString());
+        assertThat(REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).get(Settings.EMPTY).toString(), emptyString());
     }
 
     public void testAuthorizationFiltered() {

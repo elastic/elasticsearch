@@ -117,7 +117,7 @@ setup:
         index: embedded_text
         body:
           model_id: text_embedding_model
-          query_string: "the octopus comforter smells"
+          model_text: "the octopus comforter smells"
           knn:
             field: embedding
             k: 3

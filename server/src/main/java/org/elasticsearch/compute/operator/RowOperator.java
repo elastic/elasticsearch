@@ -8,11 +8,12 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ConstantBytesRefBlock;
 import org.elasticsearch.compute.data.ConstantDoubleBlock;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.ConstantLongBlock;
-import org.elasticsearch.compute.data.ConstantStringBlock;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -75,7 +76,7 @@ public class RowOperator implements Operator {
             } else if (object instanceof Double doubleVal) {
                 blocks[i] = new ConstantDoubleBlock(doubleVal, 1);
             } else if (object instanceof String stringVal) {
-                blocks[i] = new ConstantStringBlock(stringVal, 1);
+                blocks[i] = new ConstantBytesRefBlock(new BytesRef(stringVal), 1);
             } else {
                 throw new UnsupportedOperationException();
             }

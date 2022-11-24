@@ -368,7 +368,7 @@ public class DesiredBalanceComputer {
     private static int computeIterationCountWarningInterval(RoutingAllocation allocation) {
         final int relativeSize = allocation.metadata().getTotalNumberOfShards();
         int iterations = 1000;
-        while (iterations < relativeSize) {
+        while (iterations < relativeSize && iterations < 1_000_000_000) {
             iterations *= 10;
         }
         return iterations;

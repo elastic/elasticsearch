@@ -251,6 +251,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             assert MasterService.isPublishFailureException(e) : e;
             onNoLongerMaster();
         }
+
+        @Override
+        public String toString() {
+            return "ReconcileDesiredBalanceTask[lastConvergedIndex=" + desiredBalance.lastConvergedIndex() + "]";
+        }
     }
 
     private final class ReconcileDesiredBalanceExecutor implements ClusterStateTaskExecutor<ReconcileDesiredBalanceTask> {

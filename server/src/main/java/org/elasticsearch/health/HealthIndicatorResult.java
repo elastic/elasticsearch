@@ -28,11 +28,16 @@ public record HealthIndicatorResult(
     List<Diagnosis> diagnosisList
 ) implements ChunkedToXContent {
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         Iterator<? extends ToXContent> diagnosisIterator = Collections.emptyIterator();
         if (diagnosisList != null && diagnosisList.isEmpty() == false) {
             diagnosisIterator = diagnosisList.stream()
-                .flatMap(s -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(s.toXContentChunked(), Spliterator.ORDERED), false))
+                .flatMap(
+                    s -> StreamSupport.stream(
+                        Spliterators.spliteratorUnknownSize(s.toXContentChunked(outerParams), Spliterator.ORDERED),
+                        false
+                    )
+                )
                 .iterator();
         }
         return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {

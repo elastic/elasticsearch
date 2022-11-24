@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -29,6 +31,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -49,6 +54,9 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -65,6 +73,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
@@ -97,6 +108,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -153,6 +165,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -347,6 +360,103 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(searchRequest.get().source().query(), is(boolQuery));
         InvalidateApiKeyResponse invalidateApiKeyResponse = invalidateApiKeyResponseListener.get();
         assertThat(invalidateApiKeyResponse.getInvalidatedApiKeys(), emptyIterable());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testInvalidateApiKeysWillFlipInvalidatedFlagAndRecordTimestamp() {
+        final int docId = randomIntBetween(0, Integer.MAX_VALUE);
+        final String apiKeyId = randomAlphaOfLength(20);
+
+        // Mock the search request for keys to invalidate
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE));
+        doAnswer(invocation -> {
+            final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
+            final var searchHit = new SearchHit(docId, apiKeyId);
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.map(buildApiKeySourceDoc("some_hash".toCharArray()));
+                searchHit.sourceRef(BytesReference.bytes(builder));
+            }
+            final var internalSearchResponse = new InternalSearchResponse(
+                new SearchHits(
+                    new SearchHit[] { searchHit },
+                    new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                    randomFloat(),
+                    null,
+                    null,
+                    null
+                ),
+                null,
+                null,
+                null,
+                false,
+                null,
+                0
+            );
+            final var searchResponse = new SearchResponse(
+                internalSearchResponse,
+                randomAlphaOfLengthBetween(3, 8),
+                1,
+                1,
+                0,
+                10,
+                null,
+                null
+            );
+            listener.onResponse(searchResponse);
+            return null;
+        }).when(client).search(any(SearchRequest.class), anyActionListener());
+
+        // Capture the Update request so that we can verify it is configured as expected
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client, BulkAction.INSTANCE));
+        final var updateRequestBuilder = Mockito.spy(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
+        when(client.prepareUpdate(eq(SECURITY_MAIN_ALIAS), eq(apiKeyId))).thenReturn(updateRequestBuilder);
+
+        // Stub bulk and cache clearing calls so that the entire action flow can complete (not strictly necessary but nice to have)
+        doAnswer(invocation -> {
+            final var listener = (ActionListener<BulkResponse>) invocation.getArguments()[1];
+            listener.onResponse(
+                new BulkResponse(
+                    new BulkItemResponse[] {
+                        BulkItemResponse.success(
+                            docId,
+                            DocWriteRequest.OpType.UPDATE,
+                            new UpdateResponse(
+                                mock(ShardId.class),
+                                apiKeyId,
+                                randomLong(),
+                                randomLong(),
+                                randomLong(),
+                                DocWriteResponse.Result.UPDATED
+                            )
+                        ) },
+                    randomLongBetween(1, 100)
+                )
+            );
+            return null;
+        }).when(client).bulk(any(BulkRequest.class), anyActionListener());
+        doAnswer(invocation -> {
+            final var listener = (ActionListener<ClearSecurityCacheResponse>) invocation.getArguments()[2];
+            listener.onResponse(mock(ClearSecurityCacheResponse.class));
+            return null;
+        }).when(client).execute(eq(ClearSecurityCacheAction.INSTANCE), any(ClearSecurityCacheRequest.class), anyActionListener());
+
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+        final ApiKeyService service = createApiKeyService(settings);
+        PlainActionFuture<InvalidateApiKeyResponse> future = new PlainActionFuture<>();
+        service.invalidateApiKeys(null, null, null, new String[] { apiKeyId }, future);
+        final InvalidateApiKeyResponse invalidateApiKeyResponse = future.actionGet();
+
+        assertThat(invalidateApiKeyResponse.getInvalidatedApiKeys(), equalTo(List.of(apiKeyId)));
+        verify(updateRequestBuilder).setDoc(
+            argThat(
+                (ArgumentMatcher<Map<String, Object>>) argument -> argument.size() == 2
+                    && argument.containsKey("api_key_invalidated")
+                    && argument.get("api_key_invalidated") == Boolean.TRUE
+                    && argument.containsKey("invalidation_time")
+                    && argument.get("invalidation_time") instanceof Long
+            )
+        );
     }
 
     public void testCreateApiKeyWillCacheOnCreation() {
@@ -2017,8 +2127,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         sourceMap.put("api_key_hash", new String(hash));
         sourceMap.put("name", randomAlphaOfLength(12));
         sourceMap.put("version", 0);
-        sourceMap.put("role_descriptors", Collections.singletonMap("a role", Collections.singletonMap("cluster", "all")));
-        sourceMap.put("limited_by_role_descriptors", Collections.singletonMap("limited role", Collections.singletonMap("cluster", "all")));
+        sourceMap.put("role_descriptors", Collections.singletonMap("a role", Collections.singletonMap("cluster", List.of("all"))));
+        sourceMap.put(
+            "limited_by_role_descriptors",
+            Collections.singletonMap("limited role", Collections.singletonMap("cluster", List.of("all")))
+        );
         Map<String, Object> creatorMap = new HashMap<>();
         creatorMap.put("principal", "test_user");
         creatorMap.put("full_name", "test user");

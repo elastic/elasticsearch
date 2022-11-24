@@ -178,11 +178,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                 redTransportService.disconnectFromNode(blueTransportService.getLocalDiscoNode());
             }
         };
-        TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(
-            recoveryActionToBlock,
-            recoveryStarted,
-            connectionBreaker
-        );
+        TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(recoveryActionToBlock, recoveryStarted, connectionBreaker);
         redTransportService.addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.FINALIZE, (handler, request, channel, task) -> {
             finalizeReceived.set(true);
             handler.messageReceived(request, channel, task);
@@ -586,11 +582,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         private final Runnable connectionBreaker;
         private final AtomicInteger blocksRemaining;
 
-        private TransientReceiveRejected(
-            String actionName,
-            AtomicBoolean recoveryStarted,
-            Runnable connectionBreaker
-        ) {
+        private TransientReceiveRejected(String actionName, AtomicBoolean recoveryStarted, Runnable connectionBreaker) {
             this.actionName = actionName;
             this.recoveryStarted = recoveryStarted;
             this.connectionBreaker = connectionBreaker;

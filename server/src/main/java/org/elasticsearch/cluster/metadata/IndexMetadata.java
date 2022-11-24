@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -82,6 +84,8 @@ import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
+
+    private static final Logger logger = LogManager.getLogger(IndexMetadata.class);
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(
         5,
@@ -2140,7 +2144,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             var aliasesMap = aliases.build();
             for (AliasMetadata alias : aliasesMap.values()) {
                 if (alias.alias().equals(index)) {
-                    throw new IllegalArgumentException("alias name [" + index + "] self-conflicts with index name");
+                    if (indexCreatedVersion.equals(Version.V_8_5_0)) {
+                        var updatedBuilder = ImmutableOpenMap.builder(aliasesMap);
+                        final var brokenAlias = updatedBuilder.remove(index);
+                        final var fixedAlias = AliasMetadata.newAliasMetadata(brokenAlias, index + "-alias-corrupted-by-8-5");
+                        aliasesMap = updatedBuilder.fPut(fixedAlias.getAlias(), fixedAlias).build();
+                        logger.warn("Repaired corrupted alias with the same name as its index for [{}]", index);
+                        break;
+                    } else {
+                        throw new IllegalArgumentException("alias name [" + index + "] self-conflicts with index name");
+                    }
                 }
             }
 

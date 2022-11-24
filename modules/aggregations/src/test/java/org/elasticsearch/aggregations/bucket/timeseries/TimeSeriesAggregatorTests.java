@@ -10,6 +10,7 @@ package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatDocValuesField;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -26,6 +27,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -77,6 +81,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
+        fields.add(new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
         final TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
         for (int i = 0; i < dimensions.length; i += 2) {
             if (dimensions[i + 1]instanceof Number n) {
@@ -97,6 +102,37 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.build().toBytesRef()));
         // TODO: Handle metrics
         iw.addDocument(fields);
+    }
+
+    public void testWithDateHistogramExecutedAsFilterByFilterWithTimeSeriesIndexSearcher() throws IOException {
+        DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("by_timestamp").field("@timestamp")
+            .fixedInterval(DateHistogramInterval.HOUR)
+            .subAggregation(new TimeSeriesAggregationBuilder("ts").subAggregation(sum("sum").field("val1")));
+
+        // Before this threw a CollectionTerminatedException because FilterByFilterAggregation#getLeafCollector() always returns a
+        // LeafBucketCollector.NO_OP_COLLECTOR instance. And TimeSeriesIndexSearcher can't deal with this when initializing the
+        // leaf walkers.
+        testCase(iw -> {
+            long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
+            for (int i = 1; i <= 5000; i++) {
+                writeTS(iw, startTime++, new Object[] { "dim1", "aaa" }, new Object[] { "val1", 1 });
+            }
+        }, internalAggregation -> {
+            InternalDateHistogram dateHistogram = (InternalDateHistogram) internalAggregation;
+            assertThat(dateHistogram.getBuckets(), hasSize(1));
+            InternalTimeSeries timeSeries = dateHistogram.getBuckets().get(0).getAggregations().get("ts");
+            assertThat(timeSeries.getBuckets(), hasSize(1));
+            Sum sum = timeSeries.getBuckets().get(0).getAggregations().get("sum");
+            assertThat(sum.value(), equalTo(5000.0));
+        },
+            new AggTestConfig(
+                aggregationBuilder,
+                TimeSeriesIdFieldMapper.FIELD_TYPE,
+                new DateFieldMapper.DateFieldType("@timestamp"),
+                new KeywordFieldMapper.KeywordFieldType("dim1"),
+                new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
+            ).withQuery(new MatchAllDocsQuery())
+        );
     }
 
     private void timeSeriesTestCase(

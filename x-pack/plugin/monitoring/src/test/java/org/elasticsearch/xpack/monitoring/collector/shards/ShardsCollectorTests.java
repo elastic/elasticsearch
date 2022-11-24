@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -196,7 +197,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         // This is only used by the test to decide how many shards should be covered
         when(routingTable.allShards()).thenReturn(allShards);
 
-        Collections.shuffle(allShards);
+        Collections.shuffle(allShards, new Random(numberOfPrimaryShards));
 
         return routingTable;
     }

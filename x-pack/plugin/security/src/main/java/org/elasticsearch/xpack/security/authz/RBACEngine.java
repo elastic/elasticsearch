@@ -34,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -86,7 +87,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -455,7 +455,7 @@ public class RBACEngine implements AuthorizationEngine {
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         Map<String, IndexAbstraction> indicesLookup,
-        ActionListener<Set<String>> listener
+        ActionListener<AuthorizationEngine.AuthorizedIndices> listener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
@@ -741,11 +741,7 @@ public class RBACEngine implements AuthorizationEngine {
         );
     }
 
-    static Set<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
-        return resolveAuthorizedIndicesFromRole(role, requestInfo, lookup, () -> LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
-    }
-
-    static Set<String> resolveAuthorizedIndicesFromRole(
+    static AuthorizedIndices resolveAuthorizedIndicesFromRole(
         Role role,
         RequestInfo requestInfo,
         Map<String, IndexAbstraction> lookup,
@@ -757,7 +753,7 @@ public class RBACEngine implements AuthorizationEngine {
         TransportRequest request = requestInfo.getRequest();
         final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
 
-        return new AuthorizedIndicesSet(() -> {
+        return new AuthorizedIndices(() -> {
             Consumer<Collection<String>> timeChecker = timerSupplier.get();
             Set<String> indicesAndAliases = new HashSet<>();
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
@@ -931,103 +927,24 @@ public class RBACEngine implements AuthorizationEngine {
             || action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 
-    /**
-     * A lazily loaded Set for authorized indices. It avoids loading the set if only contains check is required.
-     * It only loads the set if iterating through it is necessary, i.e. when expanding wildcards.
-     * <p>
-     * NOTE that the lazy loading is NOT thread-safe and must NOT be used by multi-threads.
-     * The current usage has it wrapped inside a CachingAsyncSupplier which guarantees it to be accessed
-     * from a single thread. Extra caution is needed if moving or using this class in other places.
-     */
-    static class AuthorizedIndicesSet implements Set<String> {
+    static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
 
-        private final Supplier<Set<String>> supplier;
-        private final Predicate<String> predicate;
-        private Set<String> authorizedIndices = null;
+        private final CachedSupplier<Set<String>> allAuthorizedAndAvailableSupplier;
+        private final Predicate<String> isAuthorizedPredicate;
 
-        AuthorizedIndicesSet(Supplier<Set<String>> supplier, Predicate<String> predicate) {
-            this.supplier = Objects.requireNonNull(supplier);
-            this.predicate = Objects.requireNonNull(predicate);
-        }
-
-        private Set<String> getAuthorizedIndices() {
-            if (authorizedIndices == null) {
-                authorizedIndices = supplier.get();
-            }
-            return authorizedIndices;
+        AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailableSupplier, Predicate<String> isAuthorizedPredicate) {
+            this.allAuthorizedAndAvailableSupplier = new CachedSupplier<>(allAuthorizedAndAvailableSupplier);
+            this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 
         @Override
-        public int size() {
-            return getAuthorizedIndices().size();
+        public Supplier<Set<String>> all() {
+            return allAuthorizedAndAvailableSupplier;
         }
 
         @Override
-        public boolean isEmpty() {
-            return getAuthorizedIndices().isEmpty();
-        }
-
-        @Override
-        public boolean contains(Object o) {
-            if (authorizedIndices == null) {
-                return predicate.test((String) o);
-            } else {
-                return authorizedIndices.contains(o);
-            }
-        }
-
-        @Override
-        public Iterator<String> iterator() {
-            return getAuthorizedIndices().iterator();
-        }
-
-        @Override
-        public Object[] toArray() {
-            return getAuthorizedIndices().toArray();
-        }
-
-        @Override
-        public <T> T[] toArray(T[] a) {
-            return getAuthorizedIndices().toArray(a);
-        }
-
-        @Override
-        public boolean add(String s) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean remove(Object o) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean containsAll(Collection<?> c) {
-            if (authorizedIndices == null) {
-                return c.stream().allMatch(this::contains);
-            } else {
-                return authorizedIndices.containsAll(c);
-            }
-        }
-
-        @Override
-        public boolean addAll(Collection<? extends String> c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean retainAll(Collection<?> c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean removeAll(Collection<?> c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void clear() {
-            throw new UnsupportedOperationException();
+        public boolean check(String name) {
+            return this.isAuthorizedPredicate.test(name);
         }
     }
 }

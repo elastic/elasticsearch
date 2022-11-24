@@ -117,7 +117,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89860")
     public void testDoesNotElectNonMasterNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
             cluster.runRandomly();
@@ -1636,6 +1635,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         reason = "test includes assertions about JoinHelper logging",
         value = "org.elasticsearch.cluster.coordination.JoinHelper:INFO"
     )
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91837")
     public void testCannotJoinClusterWithDifferentUUID() throws IllegalAccessException {
         try (Cluster cluster1 = new Cluster(randomIntBetween(1, 3))) {
             cluster1.runRandomly();

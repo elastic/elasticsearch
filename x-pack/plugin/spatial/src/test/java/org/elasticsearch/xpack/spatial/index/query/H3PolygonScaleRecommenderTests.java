@@ -55,13 +55,16 @@ public abstract class H3PolygonScaleRecommenderTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             Point point = randomSafePoint();
             String cell = H3.geoToH3Address(point.getLat(), point.getLon(), 0);
-            double scaleFactor = scaleRecommender().recommend(cell);
-            H3LatLonGeometry hexagon = makeGeometry(cell, scaleFactor);
-            try {
-                Component2D component2D = hexagon.toComponent2D();
-                testInflatedContainsAllChildren(component2D, cell);
-            } catch (Exception e) {
-                fail("Failed with scale-factor=" + scaleFactor + " for cell " + cell + " " + cellLocation(cell) + ": " + e.getMessage());
+            H3PolygonScaleRecommender.Inflation inflation = scaleRecommender().recommend(cell);
+            if (inflation.canInflate()) {
+                H3LatLonGeometry hexagon = makeGeometry(cell, inflation.scaleFactor());
+                try {
+                    Component2D component2D = hexagon.toComponent2D();
+                    testInflatedContainsAllChildren(component2D, cell);
+                } catch (Exception e) {
+                    String cellDesc = cell + " " + cellLocation(cell) + ": " + e.getMessage();
+                    fail("Failed with scale-factor=" + inflation.scaleFactor() + " for cell " + cellDesc);
+                }
             }
         }
     }

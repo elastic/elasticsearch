@@ -79,7 +79,6 @@ public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShape
          * Determine the {@link GeoRelation} between the current shape and a {@link LatLonGeometry}. It only supports
          * simple geometries, therefore it will fail if the LatLonGeometry is a {@link org.apache.lucene.geo.Rectangle}
          * that crosses the dateline.
-         * TODO: this is a test only method, perhaps should be moved to test code
          */
         public GeoRelation relate(LatLonGeometry geometry) throws IOException {
             return relate(LatLonGeometry.create(geometry));

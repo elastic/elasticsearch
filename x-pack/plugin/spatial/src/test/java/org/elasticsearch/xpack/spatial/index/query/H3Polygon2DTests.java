@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.not;
  * The behaviour of H3Polygon2D is mostly done in NormalizedH3Polygon2DTests, but we have a few specific tests her to focus on edge cases.
  */
 public class H3Polygon2DTests extends ESTestCase {
-    TestGeometryCollector testGeometryCollector = TestGeometryCollector.createGeometryCollector();
-    // TestGeometryCollector testGeometryCollector = TestGeometryCollector.createWKTExporter("H3Polygon2DTests");
+    // TestGeometryCollector testGeometryCollector = TestGeometryCollector.createGeometryCollector();
+    TestGeometryCollector testGeometryCollector = TestGeometryCollector.createWKTExporter("H3Polygon2DTests");
 
     public void testPolygon() {
         testGeometryCollector.start("testPolygon", 0, 10);

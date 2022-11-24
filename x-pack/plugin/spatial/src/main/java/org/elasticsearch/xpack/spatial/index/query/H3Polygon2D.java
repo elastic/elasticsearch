@@ -191,7 +191,11 @@ abstract class H3Polygon2D implements Component2D {
                 if (pole == NEITHER) {
                     pole = checkPole(boundary);
                 }
-                this.hexagon = initialize(boundary, pole);
+                try {
+                    this.hexagon = initialize(boundary, pole);
+                } catch (Exception e) {
+                    throw new IllegalStateException("Failed to normalize cell " + h3Address + " scaled to " + scaleFactor, e);
+                }
             }
 
             /**

@@ -81,7 +81,7 @@ public interface ChunkedRestResponseBody {
                 Streams.noCloseStream(out)
             );
 
-            private final Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked();
+            private final Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked(params);
 
             private BytesStream target;
 

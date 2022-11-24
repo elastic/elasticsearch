@@ -65,7 +65,7 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
     }
 
     @Override
-    public Iterator<ToXContent> toXContentChunked() {
+    public Iterator<ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             Iterators.single((b, p) -> b.startObject()),
             shardRecoveryStates.entrySet()

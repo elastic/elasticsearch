@@ -171,12 +171,11 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(block.getPositionCount(), equalTo(positionCount));
     }
 
-    public void testConstantStringBlock() {
+    public void testConstantBytesRefBlock() {
         for (int i = 0; i < 1000; i++) {
             int positionCount = randomIntBetween(1, Integer.MAX_VALUE);
-            int length = randomInt(5);
-            String value = randomUnicodeOfLength(length);
-            Block block = new ConstantStringBlock(value, positionCount);
+            BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 20)));
+            Block block = new ConstantBytesRefBlock(value, positionCount);
 
             assertThat(block.getPositionCount(), is(positionCount));
 
@@ -186,11 +185,11 @@ public class BasicBlockTests extends ESTestCase {
 
             BytesRef bytes = new BytesRef();
             bytes = block.getBytesRef(0, bytes);
-            assertThat(bytes.utf8ToString(), is(value));
+            assertThat(bytes, is(value));
             bytes = block.getBytesRef(positionCount - 1, bytes);
-            assertThat(bytes.utf8ToString(), is(value));
+            assertThat(bytes, is(value));
             bytes = block.getBytesRef(randomIntBetween(1, positionCount - 1), bytes);
-            assertThat(bytes.utf8ToString(), is(value));
+            assertThat(bytes, is(value));
         }
     }
 

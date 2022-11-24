@@ -14,7 +14,7 @@ by the model.
 ----
 GET my-index/_semantic_search
 {
-  "query_string": "A picture of a snow capped mountain",
+  "model_text": "A picture of a snow capped mountain",
   "model_id": "my-text-embedding-model",
   "knn": {
     "field": "text_embedding",
@@ -69,8 +69,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
-`query_string`::
-(Required, string) The input text to embed.
+`model_text`::
+(Required, string) The input to the text embedding model.
 
 `knn`::
 (Required, object)
@@ -80,7 +80,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn]
 [%collapsible%open]
 ====
 `field`::
-(Required, string) 
+(Required, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
 
 `filter`::
@@ -88,11 +88,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 
 `k`::
-(Required, integer) 
+(Required, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
 
 `num_candidates`::
-(Required, integer) 
+(Required, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 ====
 
@@ -101,7 +101,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 <<query-dsl,Query DSL>>.
 
 `text_embedding_config`::
-(Object, optional) Override certain setting of the text embedding model's 
+(Object, optional) Override certain setting of the text embedding model's
 configuration.
 +
 .Properties of text_embedding inference

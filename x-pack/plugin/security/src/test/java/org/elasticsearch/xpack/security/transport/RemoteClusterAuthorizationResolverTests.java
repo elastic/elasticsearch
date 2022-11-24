@@ -70,9 +70,7 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
         );
         assertThat(remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterNameA).value(), is(equalTo("initialize")));
         assertRuntimeExceptionMissingValueMessage(() -> remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterNameB));
-        assertRuntimeExceptionMissingValueMessage(
-            () -> remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterDoesNotExist)
-        );
+        assertRuntimeExceptionMissingValueMessage(() -> remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterDoesNotExist));
         final DiscoveryNode masterNodeA = this.clusterService.state().nodes().getMasterNode();
 
         // Add clusterB authorization setting
@@ -85,9 +83,7 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
         ClusterServiceUtils.setState(this.clusterService, newClusterState1);
         assertThat(remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterNameA).value(), is(equalTo("addB")));
         assertThat(remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterNameB).value(), is(equalTo(clusterBapiKey1)));
-        assertRuntimeExceptionMissingValueMessage(
-            () -> remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterDoesNotExist)
-        );
+        assertRuntimeExceptionMissingValueMessage(() -> remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterDoesNotExist));
 
         // Change clusterB authorization setting
         final String clusterBapiKey2 = randomApiKey();
@@ -99,9 +95,7 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
         ClusterServiceUtils.setState(this.clusterService, newClusterState2);
         assertThat(remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterNameA).value(), is(equalTo("editB")));
         assertThat(remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterNameB).value(), is(equalTo(clusterBapiKey2)));
-        assertRuntimeExceptionMissingValueMessage(
-            () -> remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterDoesNotExist)
-        );
+        assertRuntimeExceptionMissingValueMessage(() -> remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterDoesNotExist));
 
         // Remove clusterB authorization setting
         final Settings.Builder newSettingsOmitClusterBBuilder = Settings.builder();
@@ -114,9 +108,7 @@ public class RemoteClusterAuthorizationResolverTests extends ESTestCase {
         ClusterServiceUtils.setState(this.clusterService, newClusterState3);
         assertThat(remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterNameA).value(), is(equalTo("omitB")));
         assertRuntimeExceptionMissingValueMessage(() -> remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterNameB));
-        assertRuntimeExceptionMissingValueMessage(
-            () -> remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterDoesNotExist)
-        );
+        assertRuntimeExceptionMissingValueMessage(() -> remoteClusterAuthorizationResolver.resolveApiKeyCredentials(clusterDoesNotExist));
     }
 
     private static void assertRuntimeExceptionMissingValueMessage(ThrowingRunnable throwingRunnable) {

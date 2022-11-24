@@ -110,9 +110,9 @@ teardown:
               "indexes":["my_remote_cluster:remote_test_index"]
             }
           }
-  - match: { job_id: "job-with-local-and-remote-index" }
+  - match: { job_id: "job-with-remote-index-only" }
   - is_true: datafeed_config
-  - match: { datafeed_config.job_id: "job-with-local-and-remote-index" }
-  - match: { datafeed_config.datafeed_id: "job-with-local-and-remote-index" }
+  - match: { datafeed_config.job_id: "job-with-remote-index-only" }
+  - match: { datafeed_config.datafeed_id: "job-with-remote-index-only" }
   - is_true: datafeed_config.authorization.roles
   - is_true: create_time

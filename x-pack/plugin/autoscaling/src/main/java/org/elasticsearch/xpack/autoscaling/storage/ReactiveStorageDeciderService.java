@@ -286,7 +286,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.roles = roles;
         }
 
-        record ShardNodeDecisions(ShardRouting shard, List<NodeDecision> nodeDecisions) {}
+        record ShardNodeDecisions(ShardRouting shard, List<NodeDecision> nodeDecisions) {
+            static ShardNodeDecisions preferPrimary(ShardNodeDecisions snd1, ShardNodeDecisions snd2) {
+                return snd1.shard().primary() ? snd1 : snd2;
+            }
+        }
 
         public ShardsAllocationResults storagePreventsAllocation() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
@@ -326,25 +330,17 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .filter(s -> allocatedToTier(s, allocation))
                 .flatMap(shard -> cannotRemainDueToStorage(shard, allocation).stream())
                 .toList();
-            List<ShardNodeDecisions> otherNodesOnTierAllocationDecisions = unmovableShardNodeDecisions.stream()
-                .map(ShardNodeDecisions::shard)
-                .map(
-                    shard -> new ShardNodeDecisions(
-                        shard,
-                        state.getRoutingNodes()
-                            .stream()
-                            .filter(n -> nodeTierPredicate.test(n.node()))
-                            .filter(n -> shard.currentNodeId().equals(n.nodeId()) == false)
-                            .map(
-                                n -> new NodeDecision(
-                                    n.node(),
-                                    withAllocationDebugEnabled(allocation, () -> allocationDeciders.canAllocate(shard, n, allocation))
-                                )
-                            )
-                            .toList()
+            Map<ShardId, ShardNodeDecisions> perShardIdUnmovable = unmovableShardNodeDecisions.stream()
+                .collect(toMap(snd -> snd.shard().shardId(), Function.identity(), ShardNodeDecisions::preferPrimary, TreeMap::new));
+            Map<ShardId, NodeDecisions> otherNodesOnTierAllocationDecisions = perShardIdUnmovable.values()
+                .stream()
+                .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
+                .collect(
+                    toMap(
+                        snd -> snd.shard().shardId(),
+                        snd -> new NodeDecisions(canAllocateDecisions(allocation, snd.shard()), snd.nodeDecisions())
                     )
-                )
-                .toList();
+                );
             Set<ShardRouting> unmovableShards = unmovableShardNodeDecisions.stream().map(e -> e.shard).collect(Collectors.toSet());
 
             long unmovableBytes = unmovableShards.stream()
@@ -358,53 +354,60 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .filter(Predicate.not(unmovableShards::contains))
                 .flatMap(shard -> cannotAllocateDueToStorage(shard, allocation).stream())
                 .toList();
-            List<ShardNodeDecisions> canRemainDecisionsForUnallocatedShards = unallocatedShardNodeDecisions.stream()
-                .filter(snd -> snd.nodeDecisions.size() > 0)
-                .map(ShardNodeDecisions::shard)
-                .map(
-                    shard -> new ShardNodeDecisions(
-                        shard,
-                        List.of(
-                            new NodeDecision(
-                                allocation.routingNodes().node(shard.currentNodeId()).node(),
-                                withAllocationDebugEnabled(
-                                    allocation,
-                                    () -> allocationDeciders.canRemain(
-                                        shard,
-                                        allocation.routingNodes().node(shard.currentNodeId()),
-                                        allocation
-                                    )
-                                )
-                            )
-                        )
+            Map<ShardId, ShardNodeDecisions> perShardIdUnallocated = unallocatedShardNodeDecisions.stream()
+                .collect(toMap(snd -> snd.shard().shardId(), Function.identity(), ShardNodeDecisions::preferPrimary, TreeMap::new));
+            Map<ShardId, NodeDecisions> canRemainDecisionsForUnallocatedShards = perShardIdUnallocated.values()
+                .stream()
+                .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
+                .collect(
+                    toMap(
+                        snd -> snd.shard().shardId(),
+                        snd -> new NodeDecisions(snd.nodeDecisions(), canRemainDecisions(allocation, snd.shard()))
                     )
-                )
-                .toList();
+                );
             long unallocatableBytes = unallocatedShardNodeDecisions.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum();
 
-            Map<ShardId, List<NodeDecision>> shardAllocateDecisions = Stream.concat(
-                unallocatedShardNodeDecisions.stream(),
-                otherNodesOnTierAllocationDecisions.stream()
+            Map<ShardId, NodeDecisions> shardDecisions = Stream.concat(
+                canRemainDecisionsForUnallocatedShards.entrySet().stream(),
+                otherNodesOnTierAllocationDecisions.entrySet().stream()
             )
-                .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                .collect(toMap(snd -> snd.shard.shardId(), snd -> snd.nodeDecisions, (a, b) -> b));
+                .collect(toSortedMap(Map.Entry::getKey, Map.Entry::getValue))
+                .entrySet()
+                .stream()
+                .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
+                .collect(toSortedMap(Map.Entry::getKey, Map.Entry::getValue));
             return new ShardsAllocationResults(
                 unallocatableBytes + unmovableBytes,
                 Stream.concat(unmovableShardNodeDecisions.stream(), unallocatedShardNodeDecisions.stream())
                     .map(e -> e.shard.shardId())
                     .collect(Collectors.toCollection(TreeSet::new)),
-                Stream.concat(unmovableShardNodeDecisions.stream(), canRemainDecisionsForUnallocatedShards.stream())
-                    .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                    .collect(
-                        toSortedMap(
-                            snd -> snd.shard.shardId(),
-                            snd -> new NodeDecisions(shardAllocateDecisions.getOrDefault(snd.shard.shardId(), List.of()), snd.nodeDecisions)
-                        )
+                shardDecisions
+            );
+        }
+
+        private List<NodeDecision> canAllocateDecisions(RoutingAllocation allocation, ShardRouting shardRouting) {
+            return state.getRoutingNodes()
+                .stream()
+                .filter(n -> nodeTierPredicate.test(n.node()))
+                .filter(n -> shardRouting.currentNodeId().equals(n.nodeId()) == false)
+                .map(
+                    n -> new NodeDecision(
+                        n.node(),
+                        withAllocationDebugEnabled(allocation, () -> allocationDeciders.canAllocate(shardRouting, n, allocation))
                     )
-                    .entrySet()
-                    .stream()
-                    .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
-                    .collect(toSortedMap(Map.Entry::getKey, Map.Entry::getValue))
+                )
+                .toList();
+        }
+
+        private List<NodeDecision> canRemainDecisions(RoutingAllocation allocation, ShardRouting shard) {
+            return List.of(
+                new NodeDecision(
+                    allocation.routingNodes().node(shard.currentNodeId()).node(),
+                    withAllocationDebugEnabled(
+                        allocation,
+                        () -> allocationDeciders.canRemain(shard, allocation.routingNodes().node(shard.currentNodeId()), allocation)
+                    )
+                )
             );
         }
 

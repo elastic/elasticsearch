@@ -367,7 +367,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testInvalidateApiKeysWillFlipInvalidatedFlagAndRecordTimestamp() {
+    public void testInvalidateApiKeysWillSetInvalidatedFlagAndRecordTimestamp() {
         final int docId = randomIntBetween(0, Integer.MAX_VALUE);
         final String apiKeyId = randomAlphaOfLength(20);
 
@@ -455,11 +455,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(invalidateApiKeyResponse.getInvalidatedApiKeys(), equalTo(List.of(apiKeyId)));
         verify(updateRequestBuilder).setDoc(
             argThat(
-                (ArgumentMatcher<Map<String, Object>>) argument -> argument.size() == 2
-                    && argument.containsKey("api_key_invalidated")
-                    && argument.get("api_key_invalidated") == Boolean.TRUE
-                    && argument.containsKey("invalidation_time")
-                    && argument.get("invalidation_time").equals(invalidationTime)
+                (ArgumentMatcher<Map<String, Object>>) argument -> Map.of(
+                    "api_key_invalidated",
+                    true,
+                    "invalidation_time",
+                    invalidationTime
+                ).equals(argument)
             )
         );
     }

@@ -153,4 +153,29 @@ public class SetProcessorFactoryTests extends ESTestCase {
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config2));
         assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + expectedMediaType + "]"));
     }
+
+    public void testSetWithLongIds() throws Exception {
+        var processorTag = randomAlphaOfLength(10);
+        var value = randomAlphaOfLength(512);
+        var config = new HashMap<String, Object>();
+        config.put("field", "_id");
+        config.put("value", value);
+
+        var setProcessor = factory.create(null, processorTag, null, config);
+        assertThat(setProcessor.getTag(), equalTo(processorTag));
+        assertThat(setProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("_id"));
+        assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo(value));
+        assertThat(setProcessor.isOverrideEnabled(), equalTo(true));
+
+        var longId = randomAlphaOfLength(513);
+        var exception = expectThrows(ElasticsearchException.class, () -> {
+            config.put("field", "_id");
+            config.put("value", longId);
+            factory.create(null, processorTag, null, config);
+        });
+
+        assertThat(
+            exception.getMessage(),
+            equalTo("[value] _id [" + longId + "] is too long, must not be longer than 512 bytes but was: 513"));
+    }
 }

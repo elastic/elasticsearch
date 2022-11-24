@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -17,6 +18,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -96,6 +98,7 @@ public final class SetProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
+        public static final String ID = "_id";
         private final ScriptService scriptService;
 
         public Factory(ScriptService scriptService) {
@@ -115,6 +118,20 @@ public final class SetProcessor extends AbstractProcessor {
             ValueSource valueSource = null;
             if (copyFrom == null) {
                 Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
+
+                if (field.equals(ID) && value instanceof String) {
+                    int valueLength = ((String) value).getBytes(StandardCharsets.UTF_8).length;
+                    if (valueLength > IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES) {
+                        throw newConfigurationException(
+                            TYPE,
+                            processorTag,
+                            "value",
+                            "_id [" + value + "] is too long, must not be longer than " + IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES
+                                + " bytes but was: " + valueLength
+                        );
+                    }
+                }
+
                 valueSource = ValueSource.wrap(value, scriptService, Map.of(Script.CONTENT_TYPE_OPTION, mediaType));
             } else {
                 Object value = config.remove("value");

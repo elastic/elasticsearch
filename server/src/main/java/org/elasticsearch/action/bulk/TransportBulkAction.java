@@ -80,6 +80,7 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -565,8 +566,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     );
                     shardRequests.add(new BulkItemRequest(i, docWriteRequest));
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException | ResourceNotFoundException e) {
+                    Exception causeException = e;
+                    if (e instanceof IndexNotFoundException
+                        && ((IndexNotFoundException) e).getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                        causeException = new IllegalArgumentException(
+                            "only write ops with an op_type of create are allowed in data streams",
+                            e
+                        );
+                    }
                     String name = ia != null ? ia.getName() : docWriteRequest.index();
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), e);
+                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), causeException);
                     BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
                     // make sure the request gets never processed again

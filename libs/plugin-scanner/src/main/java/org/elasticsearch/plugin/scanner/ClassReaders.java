@@ -6,16 +6,20 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.plugin.scanner;
+package org.elasticsearch.plugin.scanner;
 
+import org.elasticsearch.core.PathUtils;
 import org.objectweb.asm.ClassReader;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
 import java.util.zip.ZipFile;
@@ -44,6 +48,17 @@ public class ClassReaders {
         }
     }
 
+    public static Stream<ClassReader> ofPaths(Set<URL> classpathFiles) {
+        return ofPaths(classpathFiles.stream().map(ClassReaders::toPath));
+    }
+
+    private static Path toPath(URL url) {
+        try {
+            return PathUtils.get(url.toURI());
+        } catch (URISyntaxException e) {
+            throw new AssertionError(e);
+        }
+    }
     /**
      * This method must be used within a try-with-resources statement or similar
      * control structure.
@@ -95,4 +110,6 @@ public class ClassReaders {
             throw new UncheckedIOException(e);
         }
     }
+
+
 }

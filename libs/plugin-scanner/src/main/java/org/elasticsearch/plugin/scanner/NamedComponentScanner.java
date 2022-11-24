@@ -6,17 +6,48 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.plugin.scanner;
+package org.elasticsearch.plugin.scanner;
 
+import org.elasticsearch.jdk.JarHell;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 
+import java.io.File;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class NamedComponentScanner {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    public static void main(String[] args) {
+        Set<URL> classpathFiles = JarHell.parseClassPath(System.getProperty("java.class.path"));
+        List<ClassReader> classReaders = ClassReaders.ofPaths(classpathFiles).collect(Collectors.toList());
+
+        NamedComponentScanner scanner = new NamedComponentScanner();
+        scanner.scanForNamedClasses(classReaders);
+        scanner.writeToFile(namedComponentsMap);
+    }
+
+    private void writeToFile(Map<String, Map<String, String>> namedComponentsMap) {
+        try {
+            String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
+            File file = getParameters().getOutputFile().getAsFile().get();
+            Path of = Path.of(file.getAbsolutePath());
+            Files.writeString(of, json);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
 
     // returns a Map<String, Map<String,String> - extensible interface -> map{ namedName -> className }
     public Map<String, Map<String, String>> scanForNamedClasses(Collection<ClassReader> classReaderStream) {
@@ -60,4 +91,7 @@ public class NamedComponentScanner {
     private String pathToClassName(String classWithSlashes) {
         return classWithSlashes.replace('/', '.');
     }
+
+
+
 }

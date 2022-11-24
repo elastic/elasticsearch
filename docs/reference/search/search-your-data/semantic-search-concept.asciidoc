@@ -19,8 +19,8 @@ semantically similar as learned by the model.
 === Prerequisites
 
 * To use semantic search, you must have:
-** a text embedding NLP model deployed to create the embeddings of the input data 
-and the search query,
+** a text embedding NLP model deployed to create the embeddings of the input 
+data and the search query,
 ** an index that contains the dens vector representation of the input data to 
 search against.
 

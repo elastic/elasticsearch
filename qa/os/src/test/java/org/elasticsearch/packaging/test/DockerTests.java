@@ -1107,7 +1107,7 @@ public class DockerTests extends PackagingTestCase {
             .collect(Collectors.toList());
         int maxPid = processes.stream().map(i -> Integer.parseInt(i.trim())).max(Integer::compareTo).get();
 
-        sh.run("kill -int " + maxPid); // send ctrl+c to all java processes
+        sh.run("bash -c 'kill -int " + maxPid + "'"); // send ctrl+c to all java processes
         final Result containerLogsAfter = getContainerLogs();
 
         assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout, containsString("stopping ..."));

@@ -8,28 +8,28 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 
-public class CheckShardsOnDataPathRequest extends BaseNodesRequest<CheckShardsOnDataPathRequest> {
+public class NodePrevalidateShardPathResponse extends BaseNodeResponse {
 
     private final Set<ShardId> shardIds;
 
-    public CheckShardsOnDataPathRequest(Set<ShardId> shardIds, String... nodeIds) {
-        super(nodeIds);
+    protected NodePrevalidateShardPathResponse(DiscoveryNode node, Set<ShardId> shardIds) {
+        super(node);
         this.shardIds = Set.copyOf(Objects.requireNonNull(shardIds));
     }
 
-    public CheckShardsOnDataPathRequest(StreamInput in) throws IOException {
+    protected NodePrevalidateShardPathResponse(StreamInput in) throws IOException {
         super(in);
-        this.shardIds = Set.copyOf(Objects.requireNonNull(in.readSet(ShardId::new)));
+        shardIds = Set.copyOf(Objects.requireNonNull(in.readSet(ShardId::new)));
     }
 
     @Override
@@ -45,15 +45,13 @@ public class CheckShardsOnDataPathRequest extends BaseNodesRequest<CheckShardsOn
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o instanceof CheckShardsOnDataPathRequest == false) return false;
-        CheckShardsOnDataPathRequest other = (CheckShardsOnDataPathRequest) o;
-        return Objects.equals(shardIds, other.shardIds)
-            && Arrays.equals(nodesIds(), other.nodesIds())
-            && Objects.equals(timeout(), other.timeout());
+        if (o instanceof NodePrevalidateShardPathResponse == false) return false;
+        NodePrevalidateShardPathResponse other = (NodePrevalidateShardPathResponse) o;
+        return Objects.equals(shardIds, other.shardIds) && Objects.equals(getNode(), other.getNode());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(shardIds, Arrays.hashCode(nodesIds()), timeout());
+        return Objects.hash(shardIds, getNode());
     }
 }

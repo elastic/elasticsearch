@@ -8,28 +8,26 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- * A node-specific request derived from the corresponding {@link CheckShardsOnDataPathRequest}.
-*/
-public class NodeCheckShardsOnDataPathRequest extends TransportRequest {
+public class PrevalidateShardPathRequest extends BaseNodesRequest<PrevalidateShardPathRequest> {
 
     private final Set<ShardId> shardIds;
 
-    public NodeCheckShardsOnDataPathRequest(Collection<ShardId> shardIds) {
+    public PrevalidateShardPathRequest(Set<ShardId> shardIds, String... nodeIds) {
+        super(nodeIds);
         this.shardIds = Set.copyOf(Objects.requireNonNull(shardIds));
     }
 
-    public NodeCheckShardsOnDataPathRequest(StreamInput in) throws IOException {
+    public PrevalidateShardPathRequest(StreamInput in) throws IOException {
         super(in);
         this.shardIds = Set.copyOf(Objects.requireNonNull(in.readSet(ShardId::new)));
     }
@@ -37,23 +35,25 @@ public class NodeCheckShardsOnDataPathRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeCollection(shardIds, (o, value) -> value.writeTo(o));
+        out.writeCollection(shardIds);
     }
 
-    public Set<ShardId> getShardIDs() {
+    public Set<ShardId> getShardIds() {
         return shardIds;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o instanceof NodeCheckShardsOnDataPathRequest == false) return false;
-        NodeCheckShardsOnDataPathRequest other = (NodeCheckShardsOnDataPathRequest) o;
-        return Objects.equals(shardIds, other.shardIds);
+        if (o instanceof PrevalidateShardPathRequest == false) return false;
+        PrevalidateShardPathRequest other = (PrevalidateShardPathRequest) o;
+        return Objects.equals(shardIds, other.shardIds)
+            && Arrays.equals(nodesIds(), other.nodesIds())
+            && Objects.equals(timeout(), other.timeout());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(shardIds);
+        return Objects.hash(shardIds, Arrays.hashCode(nodesIds()), timeout());
     }
 }

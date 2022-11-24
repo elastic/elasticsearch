@@ -16,7 +16,7 @@
         ids: $node_id
 
   - match: { is_safe: true}
-  - contains: {nodes: {id: "$node_id", result: {is_safe: true, reason: non_red_cluster_status, message: ""}}}
+  - contains: {nodes: {id: "$node_id", result: {is_safe: true, reason: no_problems, message: ""}}}
 ---
 "Prevalidation with no node specified":
   - skip:

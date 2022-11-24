@@ -23,34 +23,34 @@ import java.util.Set;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
-public class CheckShardsOnDataPathRequestSerializationTests extends AbstractWireSerializingTestCase<CheckShardsOnDataPathRequest> {
+public class PrevalidateShardPathRequestSerializationTests extends AbstractWireSerializingTestCase<PrevalidateShardPathRequest> {
 
     @Override
-    protected Writeable.Reader<CheckShardsOnDataPathRequest> instanceReader() {
-        return CheckShardsOnDataPathRequest::new;
+    protected Writeable.Reader<PrevalidateShardPathRequest> instanceReader() {
+        return PrevalidateShardPathRequest::new;
     }
 
     @Override
-    protected CheckShardsOnDataPathRequest createTestInstance() {
-        Set<ShardId> shardIds = randomSet(0, 100, CheckShardsOnDataPathRequestSerializationTests::randomShardId);
+    protected PrevalidateShardPathRequest createTestInstance() {
+        Set<ShardId> shardIds = randomSet(0, 100, PrevalidateShardPathRequestSerializationTests::randomShardId);
         String[] nodeIds = randomArray(1, 5, String[]::new, () -> randomAlphaOfLength(20));
-        CheckShardsOnDataPathRequest request = new CheckShardsOnDataPathRequest(shardIds, nodeIds);
+        PrevalidateShardPathRequest request = new PrevalidateShardPathRequest(shardIds, nodeIds);
         return randomBoolean() ? request : request.timeout(randomTimeValue());
     }
 
     @Override
-    protected CheckShardsOnDataPathRequest mutateInstance(CheckShardsOnDataPathRequest request) throws IOException {
+    protected PrevalidateShardPathRequest mutateInstance(PrevalidateShardPathRequest request) throws IOException {
         int i = randomInt(2);
         return switch (i) {
-            case 0 -> new CheckShardsOnDataPathRequest(
-                createSetMutation(request.getShardIds(), CheckShardsOnDataPathRequestSerializationTests::randomShardId),
+            case 0 -> new PrevalidateShardPathRequest(
+                createSetMutation(request.getShardIds(), PrevalidateShardPathRequestSerializationTests::randomShardId),
                 request.nodesIds()
             ).timeout(request.timeout());
-            case 1 -> new CheckShardsOnDataPathRequest(
+            case 1 -> new PrevalidateShardPathRequest(
                 request.getShardIds(),
                 createArrayMutation(request.nodesIds(), () -> randomAlphaOfLength(20), String[]::new)
             ).timeout(request.timeout());
-            case 2 -> new CheckShardsOnDataPathRequest(request.getShardIds(), request.nodesIds()).timeout(
+            case 2 -> new PrevalidateShardPathRequest(request.getShardIds(), request.nodesIds()).timeout(
                 randomValueOtherThan(request.timeout(), () -> new TimeValue(randomLongBetween(1000, 10000)))
             );
             default -> throw new IllegalStateException("unexpected value: " + i);

@@ -39,22 +39,22 @@ import java.util.Set;
  * of a specific shard. The response contains a subset of the request shard IDs which are in the cluster state
  * of this node and have a matching shard path on the local data path.
  */
-public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
-    CheckShardsOnDataPathRequest,
-    CheckShardsOnDataPathResponse,
-    NodeCheckShardsOnDataPathRequest,
-    NodeCheckShardsOnDataPathResponse> {
+public class TransportPrevalidateShardPathAction extends TransportNodesAction<
+    PrevalidateShardPathRequest,
+    PrevalidateShardPathResponse,
+    NodePrevalidateShardPathRequest,
+    NodePrevalidateShardPathResponse> {
 
-    public static final String ACTION_NAME = "internal:admin/indices/check_shards_on_data_path";
-    public static final ActionType<CheckShardsOnDataPathResponse> TYPE = new ActionType<>(ACTION_NAME, CheckShardsOnDataPathResponse::new);
-    private static final Logger logger = LogManager.getLogger(TransportCheckShardsOnDataPathAction.class);
+    public static final String ACTION_NAME = "internal:admin/indices/prevalidate_shard_path";
+    public static final ActionType<PrevalidateShardPathResponse> TYPE = new ActionType<>(ACTION_NAME, PrevalidateShardPathResponse::new);
+    private static final Logger logger = LogManager.getLogger(TransportPrevalidateShardPathAction.class);
 
     private final TransportService transportService;
     private final NodeEnvironment nodeEnv;
     private final Settings settings;
 
     @Inject
-    public TransportCheckShardsOnDataPathAction(
+    public TransportPrevalidateShardPathAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
@@ -68,10 +68,10 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
             clusterService,
             transportService,
             actionFilters,
-            CheckShardsOnDataPathRequest::new,
-            NodeCheckShardsOnDataPathRequest::new,
+            PrevalidateShardPathRequest::new,
+            NodePrevalidateShardPathRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            NodeCheckShardsOnDataPathResponse.class
+            NodePrevalidateShardPathResponse.class
         );
         this.transportService = transportService;
         this.nodeEnv = nodeEnv;
@@ -79,30 +79,30 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
     }
 
     @Override
-    protected CheckShardsOnDataPathResponse newResponse(
-        CheckShardsOnDataPathRequest request,
-        List<NodeCheckShardsOnDataPathResponse> nodeResponses,
+    protected PrevalidateShardPathResponse newResponse(
+        PrevalidateShardPathRequest request,
+        List<NodePrevalidateShardPathResponse> nodeResponses,
         List<FailedNodeException> failures
     ) {
-        return new CheckShardsOnDataPathResponse(clusterService.getClusterName(), nodeResponses, failures);
+        return new PrevalidateShardPathResponse(clusterService.getClusterName(), nodeResponses, failures);
     }
 
     @Override
-    protected NodeCheckShardsOnDataPathRequest newNodeRequest(CheckShardsOnDataPathRequest request) {
-        return new NodeCheckShardsOnDataPathRequest(request.getShardIds());
+    protected NodePrevalidateShardPathRequest newNodeRequest(PrevalidateShardPathRequest request) {
+        return new NodePrevalidateShardPathRequest(request.getShardIds());
     }
 
     @Override
-    protected NodeCheckShardsOnDataPathResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
-        return new NodeCheckShardsOnDataPathResponse(in);
+    protected NodePrevalidateShardPathResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        return new NodePrevalidateShardPathResponse(in);
     }
 
     @Override
-    protected NodeCheckShardsOnDataPathResponse nodeOperation(NodeCheckShardsOnDataPathRequest request, Task task) {
+    protected NodePrevalidateShardPathResponse nodeOperation(NodePrevalidateShardPathRequest request, Task task) {
         Set<ShardId> localShards = new HashSet<>();
         ShardPath shardPath = null;
         // For each shard we only check whether the shard path exists, regardless of whether the content is a valid index or not.
-        for (ShardId shardId : request.getShardIDs()) {
+        for (ShardId shardId : request.getShardIds()) {
             try {
                 var indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
                 String customDataPath = null;
@@ -121,6 +121,6 @@ public class TransportCheckShardsOnDataPathAction extends TransportNodesAction<
                 logger.error(() -> String.format(Locale.ROOT, "error loading shard path for shard [%s]", shardId), e);
             }
         }
-        return new NodeCheckShardsOnDataPathResponse(transportService.getLocalNode(), localShards);
+        return new NodePrevalidateShardPathResponse(transportService.getLocalNode(), localShards);
     }
 }

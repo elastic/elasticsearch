@@ -167,11 +167,11 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
     }
 
     public enum Reason implements Writeable {
-        NON_RED_CLUSTER_STATUS("non_red_cluster_status"),
+        NO_PROBLEMS("no_problems"),
         NO_RED_SHARDS_ON_NODE("no_red_shards_on_node"),
         RED_INDICES_ARE_SEARCHABLE_SNAPSHOT("red_indices_are_searchable_snapshot_based"),
         ERROR_CONTACTING_NODE("error_contacting_node"),
-        MAY_CONTAIN_RED_SHARD_COPY("may_contain_red_shard_copy");
+        CONTAINS_RED_SHARD_COPY("contains_red_shard_copy");
 
         private final String reason;
 

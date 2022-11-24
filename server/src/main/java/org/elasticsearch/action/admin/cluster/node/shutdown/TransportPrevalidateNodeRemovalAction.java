@@ -169,7 +169,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                         dn.getName(),
                         dn.getId(),
                         dn.getExternalId(),
-                        new Result(true, NodesRemovalPrevalidation.Reason.NON_RED_CLUSTER_STATUS, "")
+                        new Result(true, NodesRemovalPrevalidation.Reason.NO_PROBLEMS, "")
                     )
                 )
                 .toList();
@@ -229,10 +229,10 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 ) // Convert to ShardId
                 .collect(Collectors.toSet());
             var nodeIds = requestNodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
-            var checkShardsRequest = new CheckShardsOnDataPathRequest(redShards, nodeIds).timeout(request.timeout());
-            client.execute(TransportCheckShardsOnDataPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
+            var checkShardsRequest = new PrevalidateShardPathRequest(redShards, nodeIds).timeout(request.timeout());
+            client.execute(TransportPrevalidateShardPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
                 @Override
-                public void onResponse(CheckShardsOnDataPathResponse response) {
+                public void onResponse(PrevalidateShardPathResponse response) {
                     listener.onResponse(new PrevalidateNodeRemovalResponse(createPrevalidationResult(clusterNodes, response)));
                 }
 
@@ -244,16 +244,16 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         }
     }
 
-    private NodesRemovalPrevalidation createPrevalidationResult(DiscoveryNodes nodes, CheckShardsOnDataPathResponse response) {
+    private NodesRemovalPrevalidation createPrevalidationResult(DiscoveryNodes nodes, PrevalidateShardPathResponse response) {
         List<NodeResult> nodeResults = new ArrayList<>(response.getNodes().size() + response.failures().size());
-        for (NodeCheckShardsOnDataPathResponse nodeResponse : response.getNodes()) {
+        for (NodePrevalidateShardPathResponse nodeResponse : response.getNodes()) {
             Result result;
             if (nodeResponse.getShardIds().isEmpty()) {
                 result = new Result(true, NodesRemovalPrevalidation.Reason.NO_RED_SHARDS_ON_NODE, "");
             } else {
                 result = new Result(
                     false,
-                    NodesRemovalPrevalidation.Reason.MAY_CONTAIN_RED_SHARD_COPY,
+                    NodesRemovalPrevalidation.Reason.CONTAINS_RED_SHARD_COPY,
                     Strings.format("node contains copies of the following red shards: %s", nodeResponse.getShardIds())
                 );
             }

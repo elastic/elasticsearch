@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalid
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalResponse;
-import org.elasticsearch.action.admin.cluster.node.shutdown.TransportCheckShardsOnDataPathAction;
+import org.elasticsearch.action.admin.cluster.node.shutdown.TransportPrevalidateShardPathAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
@@ -73,7 +73,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
         assertNotNull(nodeResult);
         assertThat(nodeResult.name(), equalTo(nodeName));
-        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.NON_RED_CLUSTER_STATUS));
+        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.NO_PROBLEMS));
         assertThat(nodeResult.result().message(), equalTo(""));
         assertTrue(nodeResult.result().isSafe());
         // Enforce a replica to get unassigned
@@ -88,7 +88,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         assertNotNull(nodeResult2);
         assertThat(nodeResult2.name(), equalTo(node2));
         assertTrue(nodeResult2.result().isSafe());
-        assertThat(nodeResult2.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.NON_RED_CLUSTER_STATUS));
+        assertThat(nodeResult2.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.NO_PROBLEMS));
         assertThat(nodeResult2.result().message(), equalTo(""));
     }
 
@@ -155,6 +155,9 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._name", node2));
         shardActiveRequestSent.await();
         ensureGreen(indexName);
+        // To ensure that the index doesn't get relocated back to node1 after stopping node2, we
+        // index a doc to make the index copy on node1 (in case not deleted after the relocation) stale.
+        indexDoc(indexName, "some_id", "foo", "bar");
         internalCluster().stopNode(node2);
         ensureRed(indexName);
         // Ensure that node1 still has data for the unassigned index
@@ -172,7 +175,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
         assertThat(nodeResult.name(), equalTo(node1));
         assertFalse(nodeResult.result().isSafe());
-        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.MAY_CONTAIN_RED_SHARD_COPY));
+        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.CONTAINS_RED_SHARD_COPY));
         assertThat(nodeResult.result().message(), equalTo("node contains copies of the following red shards: [[" + indexName + "][0]]"));
     }
 
@@ -195,7 +198,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         ensureRed(indexName);
         MockTransportService node2TransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node2);
         node2TransportService.addRequestHandlingBehavior(
-            TransportCheckShardsOnDataPathAction.ACTION_NAME + "[n]",
+            TransportPrevalidateShardPathAction.ACTION_NAME + "[n]",
             (handler, request, channel, task) -> { logger.info("drop the check shards request"); }
         );
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder()

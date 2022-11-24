@@ -8,34 +8,36 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 
-public class NodeCheckShardsOnDataPathResponse extends BaseNodeResponse {
+/**
+ * A node-specific request derived from the corresponding {@link PrevalidateShardPathRequest}.
+*/
+public class NodePrevalidateShardPathRequest extends TransportRequest {
 
     private final Set<ShardId> shardIds;
 
-    protected NodeCheckShardsOnDataPathResponse(DiscoveryNode node, Set<ShardId> shardIds) {
-        super(node);
+    public NodePrevalidateShardPathRequest(Collection<ShardId> shardIds) {
         this.shardIds = Set.copyOf(Objects.requireNonNull(shardIds));
     }
 
-    protected NodeCheckShardsOnDataPathResponse(StreamInput in) throws IOException {
+    public NodePrevalidateShardPathRequest(StreamInput in) throws IOException {
         super(in);
-        shardIds = Set.copyOf(Objects.requireNonNull(in.readSet(ShardId::new)));
+        this.shardIds = Set.copyOf(Objects.requireNonNull(in.readSet(ShardId::new)));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeCollection(shardIds);
+        out.writeCollection(shardIds, (o, value) -> value.writeTo(o));
     }
 
     public Set<ShardId> getShardIds() {
@@ -45,13 +47,13 @@ public class NodeCheckShardsOnDataPathResponse extends BaseNodeResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o instanceof NodeCheckShardsOnDataPathResponse == false) return false;
-        NodeCheckShardsOnDataPathResponse other = (NodeCheckShardsOnDataPathResponse) o;
-        return Objects.equals(shardIds, other.shardIds) && Objects.equals(getNode(), other.getNode());
+        if (o instanceof NodePrevalidateShardPathRequest == false) return false;
+        NodePrevalidateShardPathRequest other = (NodePrevalidateShardPathRequest) o;
+        return Objects.equals(shardIds, other.shardIds);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(shardIds, getNode());
+        return Objects.hash(shardIds);
     }
 }

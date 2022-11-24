@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
@@ -931,7 +932,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * process. In short, this method recreates the status-quo in the cluster.
          */
         private Map<String, ModelNode> buildModelFromAssigned() {
-            Map<String, ModelNode> nodes = new HashMap<>();
+            Map<String, ModelNode> nodes = Maps.newMapWithExpectedSize(routingNodes.size());
             for (RoutingNode rn : routingNodes) {
                 ModelNode node = new ModelNode(writeLoadForecaster, metadata, rn);
                 nodes.put(rn.nodeId(), node);
@@ -1220,18 +1221,19 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     static class ModelNode implements Iterable<ModelIndex> {
-        private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
         private double writeLoad = 0.0;
         private double diskUsageInBytes = 0.0;
         private final WriteLoadForecaster writeLoadForecaster;
         private final Metadata metadata;
         private final RoutingNode routingNode;
+        private final Map<String, ModelIndex> indices;
 
         ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, RoutingNode routingNode) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.metadata = metadata;
             this.routingNode = routingNode;
+            this.indices = Maps.newMapWithExpectedSize(routingNode.size() + 10);// some extra to account for shard movements
         }
 
         public ModelIndex getIndex(String indexName) {

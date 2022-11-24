@@ -142,7 +142,7 @@ class Component2DRelationVisitor extends TriangleTreeReader.DecodedVisitor {
     }
 
     private boolean canBeContained() {
-        return relation == GeoRelation.QUERY_CONTAINS;
+        return relation == null || relation == GeoRelation.QUERY_CONTAINS;
     }
 
     private boolean canBeInside() {

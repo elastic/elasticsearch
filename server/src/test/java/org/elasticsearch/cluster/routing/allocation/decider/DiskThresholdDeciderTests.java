@@ -521,10 +521,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logShardStates(clusterState);
-        // primary shard already has been relocated away
-        assertThat(clusterState.getRoutingNodes().node(nodeWithPrimary).size(), equalTo(0));
-        // node with increased space still has its shard
-        assertThat(clusterState.getRoutingNodes().node(nodeWithoutPrimary).size(), equalTo(1));
+        assertThat(
+            clusterState.getRoutingNodes().node(nodeWithPrimary).size() + clusterState.getRoutingNodes().node(nodeWithoutPrimary).size(),
+            equalTo(1)
+        );
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node4").size(), equalTo(1));
 

@@ -144,7 +144,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
 
     private String xContentToString(ChunkedToXContent xContent) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
-        xContent.toXContentChunked().forEachRemaining(xcontent -> {
+        xContent.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(xcontent -> {
             try {
                 xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
             } catch (IOException e) {

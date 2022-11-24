@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
@@ -264,6 +265,31 @@ public abstract class AbstractStreamTests extends ESTestCase {
         testData.writeTo(out);
 
         try (DoubleArray in = DoubleArray.readFrom(getStreamInput(out.bytes()))) {
+            assertThat(in.size(), equalTo(testData.size()));
+            for (int i = 0; i < size; i++) {
+                assertThat(in.get(i), equalTo(testData.get(i)));
+            }
+        }
+    }
+
+    public void testSmallBigLongArray() throws IOException {
+        assertBigLongArray(between(0, PageCacheRecycler.DOUBLE_PAGE_SIZE));
+    }
+
+    public void testLargeBigLongArray() throws IOException {
+        assertBigLongArray(between(PageCacheRecycler.DOUBLE_PAGE_SIZE, 10000));
+    }
+
+    private void assertBigLongArray(int size) throws IOException {
+        LongArray testData = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(size, false);
+        for (int i = 0; i < size; i++) {
+            testData.set(i, randomLong());
+        }
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        testData.writeTo(out);
+
+        try (LongArray in = LongArray.readFrom(getStreamInput(out.bytes()))) {
             assertThat(in.size(), equalTo(testData.size()));
             for (int i = 0; i < size; i++) {
                 assertThat(in.get(i), equalTo(testData.get(i)));

@@ -1,7 +1,7 @@
 ---
 - job:
-    name: elastic+elasticsearch+%BRANCH%+periodic+dra-snapshot
-    workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+periodic+dra-snapshot
+    name: elastic+elasticsearch+%BRANCH%+dra-snapshot
+    workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+dra-snapshot
     display-name: "elastic / elasticsearch # %BRANCH% - DRA snapshot"
     description: "Publishing Daily Releasable Artifacts (DRAs) of Elasticsearch %BRANCH% snapshots.\n"
     node: "ubuntu-20.04"

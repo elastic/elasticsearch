@@ -93,7 +93,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         @SuppressWarnings("unchecked")
-        public Iterator<? extends ToXContent> toXContentChunked() {
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
                 builder.startObject();
                 if (status != null) {
@@ -111,7 +111,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                                 // indicators however the affected resources which are the O(indices) fields are
                                 // flat mapped over all diagnoses within the indicator
                                 Iterators.single((ToXContent) (builder, params) -> builder.field(indicator.name())),
-                                indicator.toXContentChunked()
+                                indicator.toXContentChunked(outerParams)
                             )
                         )
                         .toArray(Iterator[]::new)

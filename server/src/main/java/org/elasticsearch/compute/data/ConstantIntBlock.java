@@ -8,8 +8,6 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.BitSet;
-
 /**
  * Block implementation that stores a constant integer value.
  */
@@ -18,19 +16,13 @@ public class ConstantIntBlock extends Block {
     private final int value;
 
     public ConstantIntBlock(int value, int positionCount) {
-        super(positionCount);
-        this.value = value;
-    }
-
-    public ConstantIntBlock(int value, int positionCount, BitSet nulls) {
-        super(positionCount, nulls);
+        super(positionCount, null);
         this.value = value;
     }
 
     @Override
     public int getInt(int position) {
         assert assertPosition(position);
-        assert isNull(position) == false;
         return value;
     }
 

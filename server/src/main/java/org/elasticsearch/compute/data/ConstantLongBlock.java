@@ -8,8 +8,6 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.BitSet;
-
 /**
  * Block implementation that stores a constant long value.
  */
@@ -18,19 +16,13 @@ public final class ConstantLongBlock extends Block {
     private final long value;
 
     public ConstantLongBlock(long value, int positionCount) {
-        super(positionCount);
-        this.value = value;
-    }
-
-    public ConstantLongBlock(long value, int positionCount, BitSet nulls) {
-        super(positionCount, nulls);
+        super(positionCount, null);
         this.value = value;
     }
 
     @Override
     public long getLong(int position) {
         assert assertPosition(position);
-        assert isNull(position) == false;
         return value;
     }
 

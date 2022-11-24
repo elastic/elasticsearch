@@ -180,6 +180,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     private Client client;
     private SecurityIndexManager securityIndex;
     private CacheInvalidatorRegistry cacheInvalidatorRegistry;
+    private Clock clock;
 
     @Before
     public void createThreadPool() {
@@ -208,6 +209,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         this.client = mock(Client.class);
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
         this.cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
+        // Mock a clock that returns real clock time by default
+        clock = mock(Clock.class);
+        doAnswer(invocation -> Instant.now()).when(clock).instant();
     }
 
     public void testCreateApiKeyUsesBulkIndexAction() throws Exception {
@@ -441,8 +445,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(ClearSecurityCacheAction.INSTANCE), any(ClearSecurityCacheRequest.class), anyActionListener());
 
-        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
-        final ApiKeyService service = createApiKeyService(settings);
+        final long invalidationTime = randomMillisUpToYear9999();
+        when(clock.instant()).thenReturn(Instant.ofEpochMilli(invalidationTime));
+        final ApiKeyService service = createApiKeyService();
         PlainActionFuture<InvalidateApiKeyResponse> future = new PlainActionFuture<>();
         service.invalidateApiKeys(null, null, null, new String[] { apiKeyId }, future);
         final InvalidateApiKeyResponse invalidateApiKeyResponse = future.actionGet();
@@ -454,7 +459,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     && argument.containsKey("api_key_invalidated")
                     && argument.get("api_key_invalidated") == Boolean.TRUE
                     && argument.containsKey("invalidation_time")
-                    && argument.get("invalidation_time") instanceof Long
+                    && argument.get("invalidation_time").equals(invalidationTime)
             )
         );
     }
@@ -2104,7 +2109,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .build();
         final ApiKeyService service = new ApiKeyService(
             settings,
-            Clock.systemUTC(),
+            clock,
             client,
             securityIndex,
             ClusterServiceUtils.createClusterService(threadPool),

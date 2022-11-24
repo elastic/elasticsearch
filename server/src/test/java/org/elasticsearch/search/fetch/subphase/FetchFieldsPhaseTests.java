@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -82,7 +83,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
             processor.setNextReader(context);
             for (int doc = 0; doc < context.reader().maxDoc(); doc++) {
                 SearchHit searchHit = new SearchHit(doc + context.docBase);
-                processor.process(new FetchSubPhase.HitContext(searchHit, context, doc, Source.empty(null)));
+                processor.process(new FetchSubPhase.HitContext(searchHit, context, doc, Map.of(), Source.empty(null)));
                 assertNotNull(searchHit.getFields().get("field"));
             }
         }

@@ -40,17 +40,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LOW_PRIORITY_MODELS_PER_NODE;
 
 class TrainedModelAssignmentRebalancer {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentRebalancer.class);
-
-    /**
-     * We set the max number of low priority models per node to 100,
-     * a value that effectively removes the processor constraint and
-     * transforms the problem to memory bin packing.
-     */
-    private static final int MAX_LOW_PRIORITY_MODELS_PER_NODE = 100;
 
     private final TrainedModelAssignmentMetadata currentMetadata;
     private final Map<DiscoveryNode, NodeLoad> nodeLoads;

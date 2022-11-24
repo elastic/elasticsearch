@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.stats.AnalysisStats;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.MappingStats;
+import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -408,6 +409,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.nodeInfo()).thenReturn(mockNodeInfo);
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[] { mockShardStats });
+        when(mockNodeResponse.searchUsageStats()).thenReturn(new SearchUsageStats());
 
         final Metadata metadata = testClusterState.metadata();
         final ClusterStatsResponse clusterStatsResponse = new ClusterStatsResponse(
@@ -556,7 +558,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "built_in_filters": [],
                     "built_in_analyzers": []
                   },
-                  "versions": []
+                  "versions": [],
+                  "search" : {
+                    "total" : 0,
+                    "queries" : {},
+                    "sections" : {}
+                  }
                 },
                 "nodes": {
                   "count": {

@@ -68,6 +68,14 @@ public class EqlSpecLoader {
         return null;
     }
 
+    private static Integer getInteger(TomlTable table, String key) {
+        Long s = table.getLong(key);
+        if (s != null) {
+            return s.intValue();
+        }
+        return null;
+    }
+
     private static List<EqlSpec> readFromStream(InputStream is, Set<String> uniqueTestNames) throws Exception {
         List<EqlSpec> testSpecs = new ArrayList<>();
 
@@ -81,25 +89,34 @@ public class EqlSpecLoader {
             spec.name(getTrimmedString(table, "name"));
             spec.note(getTrimmedString(table, "note"));
             spec.description(getTrimmedString(table, "description"));
+            spec.size(getInteger(table, "size"));
 
             List<?> arr = table.getList("tags");
             if (arr != null) {
                 String[] tags = new String[arr.size()];
                 int i = 0;
                 for (Object obj : arr) {
-                    tags[i] = (String) obj;
+                    tags[i++] = (String) obj;
                 }
                 spec.tags(tags);
             }
 
             arr = table.getList("expected_event_ids");
             if (arr != null) {
-                long[] expectedEventIds = new long[arr.size()];
-                int i = 0;
-                for (Object obj : arr) {
-                    expectedEventIds[i++] = (Long) obj;
+                List<long[]> expectedEventIdsList = new ArrayList<>();
+                if (arr.size() == 0) {
+                    expectedEventIdsList.add(new long[] {});
+                } else if (arr.stream().allMatch(x -> x instanceof Long)) {
+                    long[] expectedEventIds = asLongArray(arr);
+                    expectedEventIdsList.add(expectedEventIds);
+                } else if (arr.stream().allMatch(x -> x instanceof List)) {
+                    for (Object o : arr) {
+                        expectedEventIdsList.add(asLongArray((List) o));
+                    }
+                } else {
+                    throw new IllegalArgumentException("Invalid expected_event_ids");
                 }
-                spec.expectedEventIds(expectedEventIds);
+                spec.expectedEventIds(expectedEventIdsList);
             }
 
             arr = table.getList("join_keys");
@@ -108,5 +125,14 @@ public class EqlSpecLoader {
         }
 
         return testSpecs;
+    }
+
+    private static long[] asLongArray(List<?> arr) {
+        long[] expectedEventIds = new long[arr.size()];
+        int i = 0;
+        for (Object obj : arr) {
+            expectedEventIds[i++] = (Long) obj;
+        }
+        return expectedEventIds;
     }
 }

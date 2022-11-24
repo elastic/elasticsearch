@@ -67,14 +67,15 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
             randomBoolean() ? null : randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
+            randomBoolean() ? null : new TermsQueryBuilder("foo", "bar"),
             SemanticSearchActionKnnQueryOptionsTests.randomInstance(),
             TextEmbeddingConfigUpdateTests.randomUpdate(),
             randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(1, 10)),
-            randomBoolean() ? null : List.of(new TermsQueryBuilder("foo", "bar", "cat")),
             randomBoolean() ? null : FetchSourceContext.of(randomBoolean()),
             randomBoolean() ? null : List.of(new FieldAndFormat("foo", null)),
             randomBoolean() ? null : List.of(new FieldAndFormat("foo", null)),
-            randomBoolean() ? null : StoredFieldsContext.fromList(List.of("A", "B"))
+            randomBoolean() ? null : StoredFieldsContext.fromList(List.of("A", "B")),
+            randomBoolean() ? -1 : randomIntBetween(1, 10)
         );
     }
 
@@ -94,12 +95,13 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
             null,
             null,
             null,
-            null
+            null,
+            -1
         );
         var validation = action.validate();
         assertNotNull(validation);
         assertThat(validation.validationErrors(), hasSize(3));
-        assertThat(validation.validationErrors().get(0), containsString("query_string cannot be null"));
+        assertThat(validation.validationErrors().get(0), containsString("model_text cannot be null"));
         assertThat(validation.validationErrors().get(1), containsString("model_id cannot be null"));
         assertThat(validation.validationErrors().get(2), containsString("knn cannot be null"));
     }

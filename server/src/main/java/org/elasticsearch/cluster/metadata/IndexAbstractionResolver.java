@@ -15,10 +15,11 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class IndexAbstractionResolver {
 
@@ -43,15 +44,23 @@ public class IndexAbstractionResolver {
         Metadata metadata,
         boolean includeDataStreams
     ) {
-        Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
-        return resolveIndexAbstractions(indices, indicesOptions, metadata, availableIndexAbstractions, includeDataStreams);
+        final Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
+        return resolveIndexAbstractions(
+            indices,
+            indicesOptions,
+            metadata,
+            () -> availableIndexAbstractions,
+            availableIndexAbstractions::contains,
+            includeDataStreams
+        );
     }
 
     public List<String> resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         Metadata metadata,
-        Collection<String> availableIndexAbstractions,
+        Supplier<Set<String>> allAuthorizedAndAvailable,
+        Predicate<String> isAuthorized,
         boolean includeDataStreams
     ) {
         List<String> finalIndices = new ArrayList<>();
@@ -72,7 +81,7 @@ public class IndexAbstractionResolver {
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : availableIndexAbstractions) {
+                for (String authorizedIndex : allAuthorizedAndAvailable.get()) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,
@@ -100,7 +109,7 @@ public class IndexAbstractionResolver {
             } else {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
-                } else if (indicesOptions.ignoreUnavailable() == false || availableIndexAbstractions.contains(indexAbstraction)) {
+                } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
                     finalIndices.add(indexAbstraction);
                 }
             }

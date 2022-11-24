@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -155,7 +156,14 @@ public class ClusterModuleTests extends ModuleTestCase {
                 public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                     return Collections.singletonList(new EnableAllocationDecider(settings, clusterSettings));
                 }
-            }), clusterInfoService, null, threadPool, EmptySystemIndices.INSTANCE, ClusterModuleTests::getFakeRerouteService)
+            }),
+                clusterInfoService,
+                null,
+                threadPool,
+                EmptySystemIndices.INSTANCE,
+                ClusterModuleTests::getFakeRerouteService,
+                WriteLoadForecaster.DEFAULT
+            )
         );
         assertEquals(e.getMessage(), "Cannot specify allocation decider [" + EnableAllocationDecider.class.getName() + "] twice");
     }
@@ -166,7 +174,14 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonList(new FakeAllocationDecider());
             }
-        }), clusterInfoService, null, threadPool, EmptySystemIndices.INSTANCE, ClusterModuleTests::getFakeRerouteService);
+        }),
+            clusterInfoService,
+            null,
+            threadPool,
+            EmptySystemIndices.INSTANCE,
+            ClusterModuleTests::getFakeRerouteService,
+            WriteLoadForecaster.DEFAULT
+        );
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
     }
 
@@ -176,7 +191,14 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonMap(name, supplier);
             }
-        }), clusterInfoService, null, threadPool, EmptySystemIndices.INSTANCE, ClusterModuleTests::getFakeRerouteService);
+        }),
+            clusterInfoService,
+            null,
+            threadPool,
+            EmptySystemIndices.INSTANCE,
+            ClusterModuleTests::getFakeRerouteService,
+            WriteLoadForecaster.DEFAULT
+        );
     }
 
     public void testRegisterShardsAllocator() {
@@ -205,7 +227,8 @@ public class ClusterModuleTests extends ModuleTestCase {
                 null,
                 threadPool,
                 EmptySystemIndices.INSTANCE,
-                ClusterModuleTests::getFakeRerouteService
+                ClusterModuleTests::getFakeRerouteService,
+                WriteLoadForecaster.DEFAULT
             )
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
@@ -263,7 +286,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
-            ClusterModuleTests::getFakeRerouteService
+            ClusterModuleTests::getFakeRerouteService,
+            WriteLoadForecaster.DEFAULT
         );
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
@@ -277,7 +301,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
-            ClusterModuleTests::getFakeRerouteService
+            ClusterModuleTests::getFakeRerouteService,
+            WriteLoadForecaster.DEFAULT
         );
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }

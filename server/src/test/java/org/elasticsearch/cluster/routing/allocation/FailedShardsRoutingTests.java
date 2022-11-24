@@ -151,6 +151,12 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         // check promotion of replica to primary
         assertThat(clusterState.getRoutingNodes().node(origReplicaNodeId).iterator().next().state(), equalTo(STARTED));
         assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo(origReplicaNodeId));
+
+        if (clusterState.routingTable().index("test").shard(0).replicaShards().get(0).assignedToNode() == false) {
+            // desired node may be ignored due to previous failure - try again if so
+            clusterState = startShardsAndReroute(allocation, clusterState);
+        }
+
         assertThat(
             clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(),
             anyOf(equalTo(origPrimaryNodeId), equalTo("node3"))

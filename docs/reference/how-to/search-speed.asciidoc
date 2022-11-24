@@ -10,7 +10,6 @@ goes to the filesystem cache so that Elasticsearch can keep hot regions of the
 index in physical memory.
 
 [discrete]
-tag::readahead[]
 === Avoid page cache thrashing by using modest readahead values on Linux
 
 Search can cause a lot of randomized read I/O. When the underlying block
@@ -35,7 +34,6 @@ as a transient setting). We recommend a value of `128KiB` for readahead.
 WARNING: `blockdev` expects values in 512 byte sectors whereas `lsblk` reports
 values in `KiB`. As an example, to temporarily set readahead to `128KiB`
 for `/dev/nvme0n1`, specify `blockdev --setra 256 /dev/nvme0n1`.
-end::readahead[]
 
 [discrete]
 === Use faster hardware

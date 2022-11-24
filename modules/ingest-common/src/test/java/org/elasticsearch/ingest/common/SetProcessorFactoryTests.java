@@ -176,6 +176,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
 
         assertThat(
             exception.getMessage(),
-            equalTo("[value] _id [" + longId + "] is too long, must not be longer than 512 bytes but was: 513"));
+            equalTo("[value] _id [" + longId + "] is too long, must not be longer than 512 bytes but was: 513")
+        );
     }
 }

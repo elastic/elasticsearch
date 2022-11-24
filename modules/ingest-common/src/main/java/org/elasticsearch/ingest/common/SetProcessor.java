@@ -126,8 +126,12 @@ public final class SetProcessor extends AbstractProcessor {
                             TYPE,
                             processorTag,
                             "value",
-                            "_id [" + value + "] is too long, must not be longer than " + IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES
-                                + " bytes but was: " + valueLength
+                            "_id ["
+                                + value
+                                + "] is too long, must not be longer than "
+                                + IndexRequest.MAX_DOCUMENT_ID_LENGTH_IN_BYTES
+                                + " bytes but was: "
+                                + valueLength
                         );
                     }
                 }

@@ -282,7 +282,7 @@ public class DesiredBalanceComputer {
                     () -> Strings.format(
                         "Desired balance computation for [%d] is still not converged after [%d] [%d] iterations",
                         desiredBalanceInput.index(),
-                        Duration.ofNanos(currentTime - computationStartedTime).toString(),
+                        Duration.ofMillis(currentTime - computationStartedTime).toString(),
                         iterations
                     )
                 );

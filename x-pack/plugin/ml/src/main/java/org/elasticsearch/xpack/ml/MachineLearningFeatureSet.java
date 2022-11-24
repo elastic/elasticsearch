@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchException;
@@ -72,6 +73,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 public class MachineLearningFeatureSet implements XPackFeatureSet {
+
+    private static final Logger logger = LogManager.getLogger(MachineLearningFeatureSet.class);
 
     /**
      * List of platforms for which the native processes are available
@@ -368,58 +371,88 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                     nodeCount
                 );
                 listener.onResponse(usage);
-            }, listener::onFailure);
+            }, e -> {
+                logger.warn("Failed to get trained models usage to include in ML usage", e);
+                MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(
+                    available,
+                    enabled,
+                    jobsUsage,
+                    datafeedsUsage,
+                    analyticsUsage,
+                    inferenceUsage,
+                    nodeCount
+                );
+                listener.onResponse(usage);
+            });
 
             // Step 5. Extract usage from ingest statistics and gather trained model config count
+            GetTrainedModelsAction.Request getModelsRequest = new GetTrainedModelsAction.Request(
+                "*",
+                Collections.emptyList(),
+                Collections.emptySet()
+            );
+            getModelsRequest.setPageParams(new PageParams(0, 10_000));
             ActionListener<NodesStatsResponse> nodesStatsListener = ActionListener.wrap(response -> {
                 addInferenceIngestUsage(response, inferenceUsage);
-                GetTrainedModelsAction.Request getModelsRequest = new GetTrainedModelsAction.Request(
-                    "*",
-                    Collections.emptyList(),
-                    Collections.emptySet()
-                );
-                getModelsRequest.setPageParams(new PageParams(0, 10_000));
                 client.execute(GetTrainedModelsAction.INSTANCE, getModelsRequest, trainedModelsListener);
-            }, listener::onFailure);
+            }, e -> {
+                logger.warn("Failed to get inference ingest usage to include in ML usage", e);
+                client.execute(GetTrainedModelsAction.INSTANCE, getModelsRequest, trainedModelsListener);
+            });
 
             // Step 4. Extract usage from data frame analytics configs and then request ingest node stats
+            String[] ingestNodes = ingestNodes(state);
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
+                .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
             ActionListener<GetDataFrameAnalyticsAction.Response> dataframeAnalyticsListener = ActionListener.wrap(response -> {
                 addDataFrameAnalyticsUsage(response, analyticsUsage);
-                String[] ingestNodes = ingestNodes(state);
-                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
-                    .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
                 client.execute(NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
-            }, listener::onFailure);
+            }, e -> {
+                logger.warn("Failed to get data frame analytics configs to include in ML usage", e);
+                client.execute(NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
+            });
 
             // Step 3. Extract usage from data frame analytics stats and then request data frame analytics configs
+            GetDataFrameAnalyticsAction.Request getDfaRequest = new GetDataFrameAnalyticsAction.Request(Metadata.ALL);
+            getDfaRequest.setPageParams(new PageParams(0, 10_000));
             ActionListener<GetDataFrameAnalyticsStatsAction.Response> dataframeAnalyticsStatsListener = ActionListener.wrap(response -> {
                 addDataFrameAnalyticsStatsUsage(response, analyticsUsage);
-                GetDataFrameAnalyticsAction.Request getDfaRequest = new GetDataFrameAnalyticsAction.Request(Metadata.ALL);
-                getDfaRequest.setPageParams(new PageParams(0, 10_000));
                 client.execute(GetDataFrameAnalyticsAction.INSTANCE, getDfaRequest, dataframeAnalyticsListener);
-            }, listener::onFailure);
+            }, e -> {
+                logger.warn("Failed to get data frame analytics stats to include in ML usage", e);
+                client.execute(GetDataFrameAnalyticsAction.INSTANCE, getDfaRequest, dataframeAnalyticsListener);
+            });
 
             // Step 2. Extract usage from datafeeds stats and return usage response
+            GetDataFrameAnalyticsStatsAction.Request dataframeAnalyticsStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(
+                GetDatafeedsStatsAction.ALL
+            );
+            dataframeAnalyticsStatsRequest.setPageParams(new PageParams(0, 10_000));
             ActionListener<GetDatafeedsStatsAction.Response> datafeedStatsListener = ActionListener.wrap(response -> {
                 addDatafeedsUsage(response);
-                GetDataFrameAnalyticsStatsAction.Request dataframeAnalyticsStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(
-                    GetDatafeedsStatsAction.ALL
-                );
-                dataframeAnalyticsStatsRequest.setPageParams(new PageParams(0, 10_000));
                 client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
-            }, listener::onFailure);
+            }, e -> {
+                logger.warn("Failed to get datafeed stats to include in ML usage", e);
+                client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
+            });
 
             // Step 1. Extract usage from jobs stats and then request stats for all datafeeds
-            GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(Metadata.ALL);
+            GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(GetDatafeedsStatsAction.ALL);
             ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(response -> {
                 jobManagerHolder.getJobManager().expandJobs(Metadata.ALL, true, ActionListener.wrap(jobs -> {
                     addJobsUsage(response, jobs.results());
-                    GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(GetDatafeedsStatsAction.ALL);
                     client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener);
-                }, listener::onFailure));
-            }, listener::onFailure);
+                }, e -> {
+                    logger.warn("Failed to get job configs to include in ML usage", e);
+                    client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener);
+                }));
+            }, e -> {
+                logger.warn("Failed to get job stats to include in ML usage", e);
+                client.execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest, datafeedStatsListener);
+            });
 
             // Step 0. Kick off the chain of callbacks by requesting jobs stats
+            GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(Metadata.ALL);
             client.execute(GetJobsStatsAction.INSTANCE, jobStatsRequest, jobStatsListener);
         }
 

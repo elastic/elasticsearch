@@ -200,6 +200,7 @@ public class LogicalPlanTests extends ESTestCase {
         plan = ((LimitWithOffset) plan).child();
         assertEquals(Sample.class, plan.getClass());
         Sample sample = (Sample) plan;
+        assertEquals(1, sample.maxSamplesPerKey());
         List<? extends LogicalPlan> queries = sample.queries();
         assertEquals(2, queries.size());
         LogicalPlan subPlan = queries.get(0);
@@ -225,6 +226,19 @@ public class LogicalPlanTests extends ESTestCase {
         key = keys.get(1);
         assertEquals(UnresolvedAttribute.class, key.getClass());
         assertEquals("host", key.name());
+    }
+
+    public void testSampleWithMaxSamplesPerKey() {
+        LogicalPlan plan = parser.createStatement(
+            "sample by pid with max_samples_per_key=3 [process where process_name == \"*\" ] "
+                + "by host_name [file where file_path == \"*\"] by host"
+        );
+
+        assertTrue(plan instanceof LimitWithOffset);
+        plan = ((LimitWithOffset) plan).child();
+        assertEquals(Sample.class, plan.getClass());
+        Sample sample = (Sample) plan;
+        assertEquals(3, sample.maxSamplesPerKey());
     }
 
     private LogicalPlan wrapFilter(Expression exp) {

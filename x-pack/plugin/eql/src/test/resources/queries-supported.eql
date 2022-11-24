@@ -732,3 +732,7 @@ sample by ?x, ?y, z, ?t [any where true] by z [any where t == y] by t
 sample by z, ?t [any where true] by ?a, ?b [any where t == y] by ?a, ?b
 sample by z, ?t [any where true] by ?a, ?b [any where t == y] by ?a, ?b
 sample by z, ?`t?t` [any where ?a == concat(?b,?c)] by ?a, ?b [any where ?`abc` == y] by ?a, ?b
+
+sample with max_samples_per_key=3 [any where true] [any where true]
+sample by x with max_samples_per_key=5 [any where true] [any where true]
+sample by ?x with max_samples_per_key=6 [any where true] by y [any where true] by z

@@ -41,5 +41,12 @@
     "bool": true,
     "os": "reahat",
     "id": 6
+  },
+  {
+    "event_type": "alert_1",
+    "host": "farcry",
+    "bool": true,
+    "os": "reahat",
+    "id": 7
   }
 ]

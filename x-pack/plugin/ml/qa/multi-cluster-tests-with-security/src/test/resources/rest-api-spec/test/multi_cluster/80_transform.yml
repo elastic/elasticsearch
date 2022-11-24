@@ -1,0 +1,103 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+          {
+            "password": "transform-password",
+            "roles" : [  "transform_admin", "x_cluster_role" ]
+          }
+  - do:
+      security.put_user:
+        username: "bob"
+        body:  >
+          {
+            "password": "transform-password",
+            "roles" : [ "transform_admin", "x_cluster_role_only_dest" ]
+          }
+  - do:
+      security.put_role:
+        name: "x_cluster_role"
+        body:  >
+          {
+            "cluster": ["manage_ml"],
+            "indices": [
+              {
+                "names": ["test_index", "same_index_local_and_remote"],
+                "privileges": ["read", "view_index_metadata"]
+              },
+              {
+                "names": ["simple-remote-transform*", "simple-local-remote-transform", "same-index-local-and-remote-transform"],
+                "privileges": ["create_index", "index", "read"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "x_cluster_role_only_dest"
+        body:  >
+          {
+            "cluster": [],
+            "indices": [
+              {
+                "names": ["simple-remote-transform*", "simple-local-remote-transform", "same-index-local-and-remote-transform"],
+                "privileges": ["create_index", "index", "read"]
+              }
+            ]
+          }
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "bob"
+        ignore: 404
+
+---
+"Test datafeed":
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is joe
+      ml.put_job:
+        job_id: jobs-crud-put-with-datafeed
+        body: >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent"
+            },
+            "datafeed_config": {
+              "indexes":["test_index", "my_remote_cluster:remote_test_index"]
+            }
+          }
+  - match: { job_id: "jobs-crud-put-with-datafeed" }
+  - is_true: datafeed_config
+  - match: { datafeed_config.job_id: "jobs-crud-put-with-datafeed" }
+  - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed" }
+  - is_true: datafeed_config.authorization.roles
+  - is_true: create_time
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: "jobs-crud-put-with-datafeed"
+
+  - match: { count: 1 }
+  - match: { datafeeds.0.job_id: "jobs-crud-put-with-datafeed" }
+  - match: { datafeeds.0.datafeed_id: "jobs-crud-put-with-datafeed" }

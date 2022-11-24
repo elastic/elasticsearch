@@ -33,6 +33,9 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 public class ExceptionsHelperTests extends ESTestCase {
+    public  void testConvert() {
+        assertThat(ExceptionsHelper.convertToElastic(new IllegalArgumentException("illegal")).status(), equalTo(RestStatus.BAD_REQUEST));
+    }
 
     public void testMaybeError() {
         final Error outOfMemoryError = new OutOfMemoryError();

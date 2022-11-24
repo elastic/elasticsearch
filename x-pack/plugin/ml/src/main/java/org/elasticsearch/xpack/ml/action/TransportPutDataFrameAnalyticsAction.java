@@ -169,10 +169,6 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 final String[] sourceIndices = Arrays.stream(preparedForPutConfig.getSource().getIndex())
                     .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
                     .toArray(String[]::new);
-                RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(sourceIndices)
-                    .privileges("read")
-                    .build();
                 RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                     .indices(preparedForPutConfig.getDest().getIndex())
                     .privileges("read", "index", "create_index")
@@ -182,9 +178,16 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
                 privRequest.username(username);
                 privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
-                RoleDescriptor.IndicesPrivileges[] indicesPrivileges = sourceIndices.length > 0
-                    ? new RoleDescriptor.IndicesPrivileges[] { sourceIndexPrivileges, destIndexPrivileges }
-                    : new RoleDescriptor.IndicesPrivileges[] { destIndexPrivileges };
+                RoleDescriptor.IndicesPrivileges[] indicesPrivileges;
+                if (sourceIndices.length > 0) {
+                    RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                        .indices(sourceIndices)
+                        .privileges("read")
+                        .build();
+                    indicesPrivileges = new RoleDescriptor.IndicesPrivileges[] { sourceIndexPrivileges, destIndexPrivileges };
+                } else {
+                    indicesPrivileges = new RoleDescriptor.IndicesPrivileges[] { destIndexPrivileges };
+                }
                 privRequest.indexPrivileges(indicesPrivileges);
 
                 ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(

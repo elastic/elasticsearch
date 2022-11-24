@@ -45,7 +45,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> response.toXContentChunked().next().toXContent(JsonXContent.contentBuilder(), params)
+            () -> response.toXContentChunked(params).next().toXContent(JsonXContent.contentBuilder(), params)
         );
         assertThat(
             e,
@@ -127,24 +127,24 @@ public class IndicesStatsResponseTests extends ESTestCase {
             null,
             ClusterState.EMPTY_STATE
         );
-        final var iteratorClusterLevel = indicesStatsResponse.toXContentChunked();
         final ToXContent.Params paramsClusterLevel = new ToXContent.MapParams(Map.of("level", "cluster"));
+        final var iteratorClusterLevel = indicesStatsResponse.toXContentChunked(paramsClusterLevel);
         int chunksSeenClusterLevel = 0;
         final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), Streams.NULL_OUTPUT_STREAM);
         while (iteratorClusterLevel.hasNext()) {
             iteratorClusterLevel.next().toXContent(builder, paramsClusterLevel);
             chunksSeenClusterLevel++;
         }
-        assertEquals(2, chunksSeenClusterLevel);
+        assertEquals(1, chunksSeenClusterLevel);
 
-        final var iteratorIndexLevel = indicesStatsResponse.toXContentChunked();
         final ToXContent.Params paramsIndexLevel = new ToXContent.MapParams(Map.of("level", "indices"));
+        final var iteratorIndexLevel = indicesStatsResponse.toXContentChunked(paramsIndexLevel);
         int chunksSeenIndexLevel = 0;
         while (iteratorIndexLevel.hasNext()) {
             iteratorIndexLevel.next().toXContent(builder, paramsIndexLevel);
             chunksSeenIndexLevel++;
         }
-        assertEquals(3 + shards, chunksSeenIndexLevel);
+        assertEquals(2 + shards, chunksSeenIndexLevel);
     }
 
     private ShardRouting createShardRouting(ShardId shardId, boolean isPrimary) {

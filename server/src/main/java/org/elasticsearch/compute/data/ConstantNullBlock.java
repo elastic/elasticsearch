@@ -9,35 +9,45 @@
 package org.elasticsearch.compute.data;
 
 /**
- * Block implementation that stores a constant double value.
+ * Block implementation representing a constant null value.
  */
-public final class ConstantDoubleBlock extends Block {
+public final class ConstantNullBlock extends Block {
 
-    private final double value;
+    public ConstantNullBlock(int positionCount) {
+        super(positionCount);
+        this.nullsMask.set(0, positionCount);
+    }
 
-    public ConstantDoubleBlock(double value, int positionCount) {
-        super(positionCount, null);
-        this.value = value;
+    @Override
+    public int getInt(int position) {
+        assert assertPosition(position);
+        return 0;
+    }
+
+    @Override
+    public long getLong(int position) {
+        assert assertPosition(position);
+        return 0L;
     }
 
     @Override
     public double getDouble(int position) {
         assert assertPosition(position);
-        return value;
+        return 0.0d;
     }
 
     @Override
     public Object getObject(int position) {
-        return getDouble(position);
+        return null;
     }
 
     @Override
     public Block filter(int... positions) {
-        return new ConstantDoubleBlock(value, positions.length);
+        return new ConstantNullBlock(positions.length);
     }
 
     @Override
     public String toString() {
-        return "ConstantDoubleBlock{positions=" + getPositionCount() + ", value=" + value + '}';
+        return "ConstantNullBlock{positions=" + getPositionCount() + '}';
     }
 }

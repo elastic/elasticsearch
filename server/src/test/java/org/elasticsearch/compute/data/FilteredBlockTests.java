@@ -54,7 +54,7 @@ public class FilteredBlockTests extends ESTestCase {
         var filteredTwice = filtered.filter(IntStream.range(0, positionCount / 2).filter(i -> i % 2 == 0).toArray());
 
         assertEquals(positionCount / 4, filteredTwice.getPositionCount());
-        var anyPosition = randomIntBetween(0, positionCount / 4);
+        var anyPosition = randomIntBetween(0, positionCount / 4 - 1);
         assertEquals(anyPosition * 4, filteredTwice.getInt(anyPosition));
     }
 

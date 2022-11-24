@@ -12,10 +12,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantDoubleBlock;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.ConstantLongBlock;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.ConstantStringBlock;
 import org.elasticsearch.compute.data.Page;
 
-import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -78,9 +78,7 @@ public class RowOperator implements Operator {
             } else if (object instanceof String stringVal) {
                 blocks[i] = new ConstantStringBlock(stringVal, 1);
             } else if (object == null) {
-                BitSet nulls = new BitSet(1);
-                nulls.set(0);
-                blocks[i] = new ConstantLongBlock(0L, 1, nulls);
+                blocks[i] = new ConstantNullBlock(1);
             } else {
                 throw new UnsupportedOperationException();
             }

@@ -79,7 +79,7 @@ public class IndicesSegmentResponse extends BaseBroadcastResponse implements Chu
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(Iterators.single(((builder, params) -> {
             builder.startObject();
             RestActions.buildBroadcastShardsHeader(builder, params, this);

@@ -160,7 +160,12 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             redNodeName
         );
 
+        final AtomicBoolean recoveryStarted = new AtomicBoolean(false);
+        final AtomicBoolean finalizeReceived = new AtomicBoolean(false);
+
+        final SingleStartEnforcer validator = new SingleStartEnforcer(indexName, recoveryStarted, finalizeReceived);
         redTransportService.addSendBehavior(blueTransportService, (connection, requestId, action, request, options) -> {
+            validator.accept(action, request);
             connection.sendRequest(requestId, action, request, options);
         });
         Runnable connectionBreaker = () -> {
@@ -175,6 +180,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         };
         TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(
             recoveryActionToBlock,
+            recoveryStarted,
+            finalizeReceived,
             connectionBreaker
         );
         redTransportService.addRequestHandlingBehavior(recoveryActionToBlock, handlingBehavior);
@@ -542,17 +549,50 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
     }
 
+    private class SingleStartEnforcer implements BiConsumer<String, TransportRequest> {
+
+        private final AtomicBoolean recoveryStarted;
+        private final AtomicBoolean finalizeReceived;
+        private final String indexName;
+
+        private SingleStartEnforcer(String indexName, AtomicBoolean recoveryStarted, AtomicBoolean finalizeReceived) {
+            this.indexName = indexName;
+            this.recoveryStarted = recoveryStarted;
+            this.finalizeReceived = finalizeReceived;
+        }
+
+        @Override
+        public void accept(String action, TransportRequest request) {
+            // The cluster state applier will immediately attempt to retry the recovery on a cluster state
+            // update. We want to assert that the first and only recovery attempt succeeds
+            if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action)) {
+                StartRecoveryRequest startRecoveryRequest = (StartRecoveryRequest) request;
+                ShardId shardId = startRecoveryRequest.shardId();
+                logger.info("--> attempting to send start_recovery request for shard: " + shardId);
+                if (indexName.equals(shardId.getIndexName()) && recoveryStarted.get() && finalizeReceived.get() == false) {
+                    throw new IllegalStateException("Recovery cannot be started twice");
+                }
+            }
+        }
+    }
+
     private class TransientReceiveRejected implements StubbableTransport.RequestHandlingBehavior<TransportRequest> {
 
         private final String actionName;
+        private final AtomicBoolean recoveryStarted;
+        private final AtomicBoolean finalizeReceived;
         private final Runnable connectionBreaker;
         private final AtomicInteger blocksRemaining;
 
         private TransientReceiveRejected(
             String actionName,
+            AtomicBoolean recoveryStarted,
+            AtomicBoolean finalizeReceived,
             Runnable connectionBreaker
         ) {
             this.actionName = actionName;
+            this.recoveryStarted = recoveryStarted;
+            this.finalizeReceived = finalizeReceived;
             this.connectionBreaker = connectionBreaker;
             this.blocksRemaining = new AtomicInteger(randomIntBetween(1, 3));
         }
@@ -564,6 +604,10 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             TransportChannel channel,
             Task task
         ) throws Exception {
+            recoveryStarted.set(true);
+            if (actionName.equals(PeerRecoveryTargetService.Actions.FINALIZE)) {
+                finalizeReceived.set(true);
+            }
             if (blocksRemaining.getAndUpdate(i -> i == 0 ? 0 : i - 1) != 0) {
                 String rejected = "rejected";
                 String circuit = "circuit";

@@ -35,7 +35,7 @@ public record RcsClusterCredentials(String scheme, SecureString value) {
             throw new IllegalArgumentException("Empty value not supported");
         } else if (RCS_SUPPORTED_AUTHENTICATION_SCHEMES.contains(scheme) == false) {
             throw new IllegalArgumentException(
-                String.format("Unsupported scheme [%s], supported schemes are %s", scheme, RCS_SUPPORTED_AUTHENTICATION_SCHEMES)
+                "Unsupported scheme [" + scheme + "], supported schemes are " + RCS_SUPPORTED_AUTHENTICATION_SCHEMES
             );
         }
     }

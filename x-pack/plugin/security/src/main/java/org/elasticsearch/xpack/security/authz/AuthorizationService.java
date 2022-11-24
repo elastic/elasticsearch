@@ -533,7 +533,7 @@ public class AuthorizationService {
         final String action = requestInfo.getAction();
         securityContext.putIndicesAccessControl(indicesAccessControl);
 
-        if (indicesAccessControl.isGranted() && AuthorizationUtils.isParentAction(action)) {
+        if (result.isGranted() && AuthorizationUtils.isParentAction(action)) {
             AuthorizationContext parentContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
             AuthorizationUtils.putParentAuthorizationContext(threadContext, parentContext);
         }

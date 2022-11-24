@@ -18,12 +18,12 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-public abstract class ChunkedBroadCastResponse extends BaseBroadcastResponse implements ChunkedToXContent {
-    public ChunkedBroadCastResponse(StreamInput in) throws IOException {
+public abstract class ChunkedBroadcastResponse extends BaseBroadcastResponse implements ChunkedToXContent {
+    public ChunkedBroadcastResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    public ChunkedBroadCastResponse(
+    public ChunkedBroadcastResponse(
         int totalShards,
         int successfulShards,
         int failedShards,

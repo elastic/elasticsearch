@@ -13,7 +13,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.ChunkedBroadCastResponse;
+import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class IndicesSegmentResponse extends ChunkedBroadCastResponse {
+public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
 
     private final ShardSegments[] shards;
 

@@ -87,3 +87,32 @@ teardown:
   - match: { datafeed_config.datafeed_id: "job-with-local-and-remote-index" }
   - is_true: datafeed_config.authorization.roles
   - is_true: create_time
+
+---
+"Test ML job with remote index only":
+  - do:
+      headers: { Authorization: "Basic am9lOmpvZS1wYXNzd29yZA==" }  # This is joe
+      ml.put_job:
+        job_id: job-with-remote-index-only
+        body: >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent"
+            },
+            "datafeed_config": {
+              "indexes":["my_remote_cluster:remote_test_index"]
+            }
+          }
+  - match: { job_id: "job-with-local-and-remote-index" }
+  - is_true: datafeed_config
+  - match: { datafeed_config.job_id: "job-with-local-and-remote-index" }
+  - match: { datafeed_config.datafeed_id: "job-with-local-and-remote-index" }
+  - is_true: datafeed_config.authorization.roles
+  - is_true: create_time

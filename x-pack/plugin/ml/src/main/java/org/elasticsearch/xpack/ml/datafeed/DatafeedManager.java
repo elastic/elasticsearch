@@ -134,10 +134,10 @@ public final class DatafeedManager {
                     } else {
                         indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
                     }
-                    privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
                     if (privRequest.indexPrivileges().length == 0) {
                         privResponseListener.onResponse(new HasPrivilegesResponse());
                     } else {
+                        privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
                         client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
                     }
                 }, e -> {

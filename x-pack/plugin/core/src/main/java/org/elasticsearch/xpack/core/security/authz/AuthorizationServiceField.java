@@ -15,6 +15,8 @@ public final class AuthorizationServiceField {
     public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
     public static final String AUTHORIZATION_INFO_KEY = "_authz_info";
 
+    public static final String PARENT_AUTHORIZATION_CONTEXT_KEY = "_parent_authorization_context";
+
     // Most often, transient authorisation headers are scoped (i.e. set, read and cleared) for the authorisation and execution
     // of individual actions (i.e. there is a different scope between the parent and the child actions)
     public static final Collection<String> ACTION_SCOPE_AUTHORIZATION_KEYS = List.of(INDICES_PERMISSIONS_KEY, AUTHORIZATION_INFO_KEY);

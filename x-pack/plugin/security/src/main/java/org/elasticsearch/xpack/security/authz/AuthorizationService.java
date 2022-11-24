@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuthorizationResult;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
@@ -77,6 +78,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -220,6 +222,7 @@ public class AuthorizationService {
     ) {
 
         final AuthorizationContext enclosingContext = extractAuthorizationContext(threadContext, action);
+        final ParentActionAuthorization parentAuthorization = extractParentAuthorization(threadContext);
 
         /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
          * as well, but which must not bleed across different action context (eg parent-child action contexts).
@@ -258,7 +261,13 @@ public class AuthorizationService {
                 // this never goes async so no need to wrap the listener
                 authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
             } else {
-                final RequestInfo requestInfo = new RequestInfo(authentication, unwrappedRequest, action, enclosingContext);
+                final RequestInfo requestInfo = new RequestInfo(
+                    authentication,
+                    unwrappedRequest,
+                    action,
+                    enclosingContext,
+                    parentAuthorization
+                );
                 final AuthorizationEngine engine = getAuthorizationEngine(authentication);
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
                     threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
@@ -289,6 +298,16 @@ public class AuthorizationService {
 
         final IndicesAccessControl parentAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         return new AuthorizationContext(originatingAction, authorizationInfo, parentAccessControl);
+    }
+
+    @Nullable
+    private static ParentActionAuthorization extractParentAuthorization(ThreadContext threadContext) {
+        try {
+            return ParentActionAuthorization.readFromThreadContext(threadContext);
+        } catch (IOException e) {
+            logger.debug("Failed to read parent authorization from thread context. Falling back to do full authorization.", e);
+            return null;
+        }
     }
 
     private String requireAuditId(Authentication authentication, String action, TransportRequest originalRequest) {
@@ -466,10 +485,17 @@ public class AuthorizationService {
         final Metadata metadata,
         final ActionListener<Void> listener
     ) {
+        final IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
         final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
-        securityContext.putIndicesAccessControl(result.getIndicesAccessControl());
+        securityContext.putIndicesAccessControl(indicesAccessControl);
+
+        if (indicesAccessControl.isGranted() && AuthorizationUtils.isParentAction(action)) {
+            AuthorizationContext parentContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
+            AuthorizationUtils.putParentAuthorizationContext(threadContext, parentContext);
+        }
+
         // if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
             assert (request instanceof CreateIndexRequest)
@@ -481,11 +507,7 @@ public class AuthorizationService {
                 runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             } else {
                 Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
-                final AuthorizationContext parentContext = new AuthorizationContext(
-                    requestInfo.getAction(),
-                    authzInfo,
-                    result.getIndicesAccessControl()
-                );
+                final AuthorizationContext parentContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
                 final RequestInfo aliasesRequestInfo = new RequestInfo(authentication, request, IndicesAliasesAction.NAME, parentContext);
                 authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo, ril -> {
                     resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
@@ -514,11 +536,7 @@ public class AuthorizationService {
             // if this is performing multiple actions on the index, then check each of those actions.
             assert request instanceof BulkShardRequest
                 : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
-            final AuthorizationContext authzContext = new AuthorizationContext(
-                requestInfo.getAction(),
-                authzInfo,
-                result.getIndicesAccessControl()
-            );
+            final AuthorizationContext authzContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
             authorizeBulkItems(
                 requestInfo,
                 authzContext,
@@ -796,7 +814,8 @@ public class AuthorizationService {
                     requestInfo.getAuthentication(),
                     requestInfo.getRequest(),
                     bulkItemAction,
-                    bulkAuthzContext
+                    bulkAuthzContext,
+                    requestInfo.getParentAuthorization()
                 );
                 authzEngine.authorizeIndexAction(
                     bulkItemInfo,

@@ -63,10 +63,10 @@ public class RemoteClusterAuthorizationResolver {
             LOGGER.debug("Authorization value for clusterAlias {} removed", clusterAlias);
         } else {
             final SecureString oldValue = apiKeys.put(clusterAlias, authorization);
+            final boolean notFound = Strings.isEmpty(oldValue);
             if (oldValue != null) {
                 oldValue.close();
             }
-            final boolean notFound = Strings.isEmpty(oldValue);
             LOGGER.debug("Authorization value for clusterAlias {} {}", clusterAlias, (notFound ? "added" : "updated"));
         }
     }

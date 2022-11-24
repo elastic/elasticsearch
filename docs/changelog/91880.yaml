@@ -1,6 +1,0 @@
-pr: 91880
-summary: Fix `HttpTracerTests` failure
-area: Infra/REST API
-type: bug
-issues:
- - 91877

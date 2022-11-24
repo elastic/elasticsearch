@@ -453,7 +453,7 @@ setup:
   - do:
       indices.close:
         index: .ml-anomalies-shared
-        wait_for_active_shards: index-setting
+        wait_for_active_shards: 1
 
   # With the index closed the low level ML API reports a problem
   - do:

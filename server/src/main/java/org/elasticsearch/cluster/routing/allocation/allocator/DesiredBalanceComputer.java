@@ -272,7 +272,7 @@ public class DesiredBalanceComputer {
                 final long currentTime = System.nanoTime();
                 final boolean shouldWarnByTime = nextWarningTime <= currentTime;
                 if (shouldWarnByTime) {
-                    nextWarningTime += timeWarningInterval;
+                    nextWarningTime = currentTime + timeWarningInterval;
                 }
                 logger.log(
                     i % iterationCountWarningInterval == 0 || shouldWarnByTime ? Level.INFO : Level.DEBUG,

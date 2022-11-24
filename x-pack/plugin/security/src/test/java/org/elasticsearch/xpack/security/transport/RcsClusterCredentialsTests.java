@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.junit.BeforeClass;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Set;
@@ -64,7 +65,8 @@ public class RcsClusterCredentialsTests extends ESTestCase {
     public void testRemoteClusterConstructor() {
         final String apiKeyId = randomAlphaOfLength(10);
         final String apiKeySecret = randomAlphaOfLength(44);
-        final String base64Credentials = Base64.getEncoder().encodeToString((apiKeyId + ":" + apiKeySecret).getBytes());
+        final String base64Credentials = Base64.getEncoder()
+            .encodeToString((apiKeyId + ":" + apiKeySecret).getBytes(StandardCharsets.UTF_8));
         final String schemeAndBase64Credentials = ApiKeyService.API_KEY_HEADER + base64Credentials;
         final SecureString secureSchemeAndBase64Credentials = new SecureString(schemeAndBase64Credentials.toCharArray());
         final RcsClusterCredentials rcsClusterCredentials = new RcsClusterCredentials("ApiKey", secureSchemeAndBase64Credentials);
@@ -75,7 +77,8 @@ public class RcsClusterCredentialsTests extends ESTestCase {
     public void testRemoteClusterEncodeDecode() {
         final String apiKeyId = randomAlphaOfLength(10);
         final String apiKeySecret = randomAlphaOfLength(44);
-        final String base64Credentials = Base64.getEncoder().encodeToString((apiKeyId + ":" + apiKeySecret).getBytes());
+        final String base64Credentials = Base64.getEncoder()
+            .encodeToString((apiKeyId + ":" + apiKeySecret).getBytes(StandardCharsets.UTF_8));
         final String schemeAndBase64Credentials = ApiKeyService.API_KEY_HEADER + base64Credentials;
         final SecureString secureSchemeAndBase64Credentials = new SecureString(schemeAndBase64Credentials.toCharArray());
 
@@ -183,7 +186,8 @@ public class RcsClusterCredentialsTests extends ESTestCase {
         for (final String unsupportedScheme : UNSUPPORTED_SCHEMES) {
             final String basicUsername = randomAlphaOfLength(8);
             final String basicPassword = randomAlphaOfLength(44);
-            final String base64Credentials = Base64.getEncoder().encodeToString((basicUsername + ":" + basicPassword).getBytes());
+            final String base64Credentials = Base64.getEncoder()
+                .encodeToString((basicUsername + ":" + basicPassword).getBytes(StandardCharsets.UTF_8));
             final String schemeAndBase64Credentials = unsupportedScheme + base64Credentials;
             final SecureString secureSchemeAndBase64Credentials = new SecureString(schemeAndBase64Credentials.toCharArray());
             for (final CharSequence badVal : Set.of(

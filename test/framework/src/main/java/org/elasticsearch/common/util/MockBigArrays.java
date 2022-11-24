@@ -513,6 +513,10 @@ public class MockBigArrays extends BigArrays {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            in.writeTo(out);
+        }
     }
 
     private class FloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {

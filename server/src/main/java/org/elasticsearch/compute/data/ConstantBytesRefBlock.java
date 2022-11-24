@@ -10,11 +10,11 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 
-public class ConstantStringBlock extends Block {
+public class ConstantBytesRefBlock extends Block {
 
-    private final String value;
+    private final BytesRef value;
 
-    public ConstantStringBlock(String value, int positionCount) {
+    public ConstantBytesRefBlock(BytesRef value, int positionCount) {
         super(positionCount);
         this.value = value;
     }
@@ -22,7 +22,7 @@ public class ConstantStringBlock extends Block {
     @Override
     public BytesRef getBytesRef(int position, BytesRef spare) {
         assert assertPosition(position);
-        return new BytesRef(value);
+        return value;
     }
 
     @Override
@@ -33,7 +33,7 @@ public class ConstantStringBlock extends Block {
 
     @Override
     public Block filter(int... positions) {
-        return new ConstantStringBlock(value, positions.length);
+        return new ConstantBytesRefBlock(value, positions.length);
     }
 
     @Override

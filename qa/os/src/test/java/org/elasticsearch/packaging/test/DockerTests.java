@@ -1222,6 +1222,7 @@ public class DockerTests extends PackagingTestCase {
         assertTrue(readinessProbe(9399));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91874")
     public void test600Interrupt() {
         waitForElasticsearch(installation, "elastic", PASSWORD);
         final Result containerLogs = getContainerLogs();

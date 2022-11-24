@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
+import org.elasticsearch.action.support.broadcast.ChunkedBroadCastResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
@@ -21,9 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -38,7 +36,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class IndicesStatsResponse extends BaseBroadcastResponse implements ChunkedToXContent {
+public class IndicesStatsResponse extends ChunkedBroadCastResponse {
 
     private final Map<String, ClusterHealthStatus> indexHealthMap;
 
@@ -176,7 +174,7 @@ public class IndicesStatsResponse extends BaseBroadcastResponse implements Chunk
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+    protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
         final String level = params.param("level", "indices");
         final boolean isLevelValid = "cluster".equalsIgnoreCase(level)
             || "indices".equalsIgnoreCase(level)
@@ -186,7 +184,7 @@ public class IndicesStatsResponse extends BaseBroadcastResponse implements Chunk
         }
         if ("indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level)) {
             return Iterators.concat(Iterators.single(((builder, p) -> {
-                headerAndCommonStats(builder, p);
+                commonStats(builder, p);
                 return builder.startObject(Fields.INDICES);
             })), getIndices().values().stream().<ToXContent>map(indexStats -> (builder, p) -> {
                 builder.startObject(indexStats.getIndex());
@@ -219,17 +217,15 @@ public class IndicesStatsResponse extends BaseBroadcastResponse implements Chunk
                     builder.endObject();
                 }
                 return builder.endObject();
-            }).iterator(), Iterators.single((b, p) -> b.endObject().endObject()));
+            }).iterator(), Iterators.single((b, p) -> b.endObject()));
         }
         return Iterators.single((b, p) -> {
-            headerAndCommonStats(b, p);
-            return b.endObject();
+            commonStats(b, p);
+            return b;
         });
     }
 
-    private void headerAndCommonStats(XContentBuilder builder, ToXContent.Params p) throws IOException {
-        builder.startObject();
-        RestActions.buildBroadcastShardsHeader(builder, p, this);
+    private void commonStats(XContentBuilder builder, ToXContent.Params p) throws IOException {
         builder.startObject("_all");
 
         builder.startObject("primaries");

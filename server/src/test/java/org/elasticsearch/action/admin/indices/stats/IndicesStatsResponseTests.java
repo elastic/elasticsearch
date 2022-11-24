@@ -135,7 +135,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
             iteratorClusterLevel.next().toXContent(builder, paramsClusterLevel);
             chunksSeenClusterLevel++;
         }
-        assertEquals(1, chunksSeenClusterLevel);
+        assertEquals(3, chunksSeenClusterLevel);
 
         final ToXContent.Params paramsIndexLevel = new ToXContent.MapParams(Map.of("level", "indices"));
         final var iteratorIndexLevel = indicesStatsResponse.toXContentChunked(paramsIndexLevel);
@@ -144,7 +144,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
             iteratorIndexLevel.next().toXContent(builder, paramsIndexLevel);
             chunksSeenIndexLevel++;
         }
-        assertEquals(2 + shards, chunksSeenIndexLevel);
+        assertEquals(4 + shards, chunksSeenIndexLevel);
     }
 
     private ShardRouting createShardRouting(ShardId shardId, boolean isPrimary) {

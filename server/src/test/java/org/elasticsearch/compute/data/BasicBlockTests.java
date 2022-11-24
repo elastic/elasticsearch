@@ -47,9 +47,11 @@ public class BasicBlockTests extends ESTestCase {
             assertThat((long) pos, is(block.getLong(pos)));
             assertThat((double) pos, is(block.getDouble(pos)));
 
-            assertNullValues(positionCount, nulls -> new IntArrayBlock(values, positionCount, nulls), (randomNonNullPosition, b) -> {
-                assertThat((int) randomNonNullPosition, is(b.getInt(randomNonNullPosition.intValue())));
-            });
+            assertNullValues(
+                positionCount,
+                nulls -> new IntArrayBlock(values, positionCount, nulls),
+                (randomNonNullPosition, b) -> { assertThat((int) randomNonNullPosition, is(b.getInt(randomNonNullPosition.intValue()))); }
+            );
         }
     }
 
@@ -77,9 +79,11 @@ public class BasicBlockTests extends ESTestCase {
             assertThat((long) pos, is(block.getLong(pos)));
             assertThat((double) pos, is(block.getDouble(pos)));
 
-            assertNullValues(positionCount, nulls -> new LongArrayBlock(values, positionCount, nulls), (randomNonNullPosition, b) -> {
-                assertThat((long) randomNonNullPosition, is(b.getLong(randomNonNullPosition.intValue())));
-            });
+            assertNullValues(
+                positionCount,
+                nulls -> new LongArrayBlock(values, positionCount, nulls),
+                (randomNonNullPosition, b) -> { assertThat((long) randomNonNullPosition, is(b.getLong(randomNonNullPosition.intValue()))); }
+            );
         }
     }
 
@@ -108,9 +112,13 @@ public class BasicBlockTests extends ESTestCase {
             expectThrows(UOE, () -> block.getInt(pos));
             expectThrows(UOE, () -> block.getLong(pos));
 
-            assertNullValues(positionCount, nulls -> new DoubleArrayBlock(values, positionCount, nulls), (randomNonNullPosition, b) -> {
-                assertThat((double) randomNonNullPosition, is(b.getDouble(randomNonNullPosition.intValue())));
-            });
+            assertNullValues(
+                positionCount,
+                nulls -> new DoubleArrayBlock(values, positionCount, nulls),
+                (randomNonNullPosition, b) -> {
+                    assertThat((double) randomNonNullPosition, is(b.getDouble(randomNonNullPosition.intValue())));
+                }
+            );
         }
     }
 

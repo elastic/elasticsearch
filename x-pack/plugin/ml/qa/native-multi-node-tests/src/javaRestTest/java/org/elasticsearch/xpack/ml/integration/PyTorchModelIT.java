@@ -989,7 +989,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=30s");
         request.setJsonEntity("""
             {  "docs": [{"input":"%s"}] }
             """.formatted(input));
@@ -997,7 +997,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId, String resultsField) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=30s");
         request.setJsonEntity("""
             {
               "docs": [ { "input": "%s" } ],

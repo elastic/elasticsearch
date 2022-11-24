@@ -64,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
@@ -80,10 +81,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DiskThresholdDeciderTests extends ESAllocationTestCase {
-
-    DiskThresholdDecider makeDecider(Settings settings) {
-        return new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-    }
 
     private void doTestDiskThreshold(boolean testMaxHeadroom) {
         Settings.Builder diskSettings = Settings.builder()
@@ -1493,6 +1490,30 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             shardsWithState(rn, RELOCATING),
             shardsWithState(rn, STARTED)
         );
+    }
+
+    private AllocationService createAllocationService(ClusterInfo clusterInfo, AllocationDecider... allocationDeciders) {
+        return new AllocationService(
+            new AllocationDeciders(
+                Stream.concat(Stream.of(createSameShardAllocationDecider(Settings.EMPTY)), Stream.of(allocationDeciders)).toList()
+            ),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            () -> clusterInfo,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+    }
+
+    private DiskThresholdDecider makeDecider(Settings settings) {
+        return new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    }
+
+    private DiskThresholdDecider makeDiskThresholdDecider(Settings settings) {
+        return new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    }
+
+    private SameShardAllocationDecider createSameShardAllocationDecider(Settings settings) {
+        return new SameShardAllocationDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
     /**

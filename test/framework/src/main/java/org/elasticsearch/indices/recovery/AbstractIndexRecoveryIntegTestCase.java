@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -55,6 +56,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -158,10 +160,9 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             redNodeName
         );
 
-        redTransportService.addSendBehavior(
-            blueTransportService,
-            (connection, requestId, action, request, options) -> { connection.sendRequest(requestId, action, request, options); }
-        );
+        redTransportService.addSendBehavior(blueTransportService, (connection, requestId, action, request, options) -> {
+            connection.sendRequest(requestId, action, request, options);
+        });
         Runnable connectionBreaker = () -> {
             // Always break connection from source to remote to ensure that actions are retried
             logger.info("--> closing connections from source node to target node");
@@ -172,7 +173,10 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                 redTransportService.disconnectFromNode(blueTransportService.getLocalDiscoNode());
             }
         };
-        TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(recoveryActionToBlock, connectionBreaker);
+        TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(
+            recoveryActionToBlock,
+            connectionBreaker
+        );
         redTransportService.addRequestHandlingBehavior(recoveryActionToBlock, handlingBehavior);
 
         try {
@@ -544,7 +548,10 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         private final Runnable connectionBreaker;
         private final AtomicInteger blocksRemaining;
 
-        private TransientReceiveRejected(String actionName, Runnable connectionBreaker) {
+        private TransientReceiveRejected(
+            String actionName,
+            Runnable connectionBreaker
+        ) {
             this.actionName = actionName;
             this.connectionBreaker = connectionBreaker;
             this.blocksRemaining = new AtomicInteger(randomIntBetween(1, 3));

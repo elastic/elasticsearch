@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.ssl.SslConfigurationKeys.TRUST_RESTRICTIONS_X509_FIELDS;
 import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE;
 
 /**
@@ -120,10 +121,13 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         if (trustRestrictions == null) {
             return trustConfig;
         }
-        Setting<List<String>> x509FieldsSettingTemplate = TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE.apply("");
-        return new RestrictedTrustConfig(trustRestrictions,
-            Set.copyOf(super.resolveList(x509FieldsSettingTemplate.getKey(), x509FieldsSettingTemplate.getDefault(settings))),
-            trustConfig);
+        return new RestrictedTrustConfig(
+            trustRestrictions,
+            Set.copyOf(
+                super.resolveList(TRUST_RESTRICTIONS_X509_FIELDS, TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE.apply("").getDefault(settings))
+            ),
+            trustConfig
+        );
     }
 
     public SslConfiguration load(Environment env) {

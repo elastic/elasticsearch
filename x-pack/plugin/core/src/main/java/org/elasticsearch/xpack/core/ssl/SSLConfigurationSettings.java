@@ -45,6 +45,7 @@ public class SSLConfigurationSettings {
     final Setting<String> truststoreAlgorithm;
     final Setting<Optional<String>> truststoreType;
     final Setting<Optional<String>> trustRestrictionsPath;
+    final Setting<List<String>> trustRestrictionsX509Fields;
     final Setting<List<String>> caPaths;
     final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
     final Setting<Optional<SslVerificationMode>> verificationMode;
@@ -178,7 +179,7 @@ public class SSLConfigurationSettings {
     );
 
     private static final SslSetting<List<String>> TRUST_RESTRICTIONS_X509_FIELDS = SslSetting.setting(
-        "trust_restrictions.x509.fields",
+        "trust_restrictions.x509_fields",
         TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE
     );
 
@@ -256,6 +257,7 @@ public class SSLConfigurationSettings {
         truststoreAlgorithm = TRUSTSTORE_ALGORITHM.withPrefix(prefix);
         truststoreType = TRUSTSTORE_TYPE.withPrefix(prefix);
         trustRestrictionsPath = TRUST_RESTRICTIONS_PATH.withPrefix(prefix);
+        trustRestrictionsX509Fields = TRUST_RESTRICTIONS_X509_FIELDS.withPrefix(prefix);
         caPaths = CERT_AUTH_PATH.withPrefix(prefix);
         clientAuth = CLIENT_AUTH_SETTING.withPrefix(prefix);
         verificationMode = VERIFICATION_MODE.withPrefix(prefix);
@@ -268,6 +270,7 @@ public class SSLConfigurationSettings {
             truststoreAlgorithm,
             truststoreType,
             trustRestrictionsPath,
+            trustRestrictionsX509Fields,
             caPaths,
             clientAuth,
             verificationMode

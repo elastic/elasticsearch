@@ -71,6 +71,10 @@ public class SslConfigurationKeys {
      */
     public static final String TRUSTSTORE_ALGORITHM = "truststore.algorithm";
 
+    //TODO: DOC
+    public static final String TRUST_RESTRICTIONS_PATH = "trust_restrictions.path";
+    public static final String TRUST_RESTRICTIONS_X509_FIELDS = "trust_restrictions.x509_fields";
+
     // Key Management
     // -- Keystore
     /**
@@ -145,6 +149,8 @@ public class SslConfigurationKeys {
             TRUSTSTORE_LEGACY_PASSWORD,
             TRUSTSTORE_TYPE,
             TRUSTSTORE_TYPE,
+            TRUST_RESTRICTIONS_PATH,
+            TRUST_RESTRICTIONS_X509_FIELDS,
             KEYSTORE_PATH,
             KEYSTORE_LEGACY_PASSWORD,
             KEYSTORE_LEGACY_KEY_PASSWORD,

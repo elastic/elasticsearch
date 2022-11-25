@@ -37,6 +37,7 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_DNS;
 import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_OTHER_COMMON;
 
+//TODO: UPDATE CERTIFICATES TO ALSO HAVE DNS AND RANDOMIZE THE CHECKS
 public class RestrictedTrustManagerTests extends ESTestCase {
 
     private X509ExtendedTrustManager baseTrustManager;
@@ -109,7 +110,6 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(List.of("localhost6.localdomain6"));
         final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_DNS));
         assertTrusted(trustManager, "withDns");
-
     }
 
 

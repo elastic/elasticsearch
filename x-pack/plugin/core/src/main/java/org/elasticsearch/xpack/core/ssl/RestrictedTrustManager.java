@@ -17,7 +17,9 @@ import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -29,6 +31,8 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_DNS;
+import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_OTHER_COMMON;
 
 //TODO: FIX ALL THE MESSAGES AND METHOD NAMES TO ALLOW FLEXING WITH DNS NAME
 /**
@@ -46,11 +50,14 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
 
     private final X509ExtendedTrustManager delegate;
     private final CertificateTrustRestrictions trustRestrictions;
+    private final Set<String> x509Fields;
 
-    public RestrictedTrustManager(X509ExtendedTrustManager delegate, CertificateTrustRestrictions restrictions) {
+    public RestrictedTrustManager(X509ExtendedTrustManager delegate, CertificateTrustRestrictions restrictions, Set<String> x509Fields) {
         this.delegate = delegate;
         this.trustRestrictions = restrictions;
+        this.x509Fields = x509Fields.stream().map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
         logger.debug("Configured with trust restrictions: [{}]", restrictions);
+        logger.debug("Configured with x509 fields: [{}]", String.join(",", x509Fields));
     }
 
     @Override
@@ -138,24 +145,30 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         return false;
     }
 
-    private static Set<String> readCommonNames(X509Certificate certificate) throws CertificateParsingException {
+    private Set<String> readCommonNames(X509Certificate certificate) throws CertificateParsingException {
         Collection<List<?>> sans = getSubjectAlternativeNames(certificate);
-        Set<String> dnsNames = sans.stream()
-            .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_DNS)
-            .map(pair -> pair.get(1))
-            .map(Object::toString)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
+        Set<String> names = new HashSet<>();
 
-        Set<String> otherNames = getSubjectAlternativeNames(certificate).stream()
-            .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)
-            .map(pair -> pair.get(1))
-            .map(value -> decodeDerValue((byte[]) value, certificate))
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
+        if (x509Fields.contains(SAN_DNS)) {
+            Set<String> dnsNames = sans.stream()
+                .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_DNS)
+                .map(pair -> pair.get(1))
+                .map(Object::toString)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+            names.addAll(dnsNames);
+        }
 
-        return Stream.concat(dnsNames.stream(), otherNames.stream()).collect(Collectors.toSet());
-       // return  otherNames;
+        if (x509Fields.contains(SAN_OTHER_COMMON)) {
+            Set<String> otherNames = getSubjectAlternativeNames(certificate).stream()
+                .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)
+                .map(pair -> pair.get(1))
+                .map(value -> decodeDerValue((byte[]) value, certificate))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+            names.addAll(otherNames);
+        }
+        return names;
     }
 
     /**

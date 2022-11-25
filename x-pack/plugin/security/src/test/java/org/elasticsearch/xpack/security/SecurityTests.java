@@ -340,6 +340,7 @@ public class SecurityTests extends ESTestCase {
             "truststore.password",
             "truststore.path",
             "truststore.algorithm",
+            //TODO ADD HERE !
             "keystore.key_password"
         ).forEach(suffix -> {
 

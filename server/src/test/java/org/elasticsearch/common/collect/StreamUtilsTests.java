@@ -13,7 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.stream.Stream;
 
-public class StreamUtilsTest extends ESTestCase {
+public class StreamUtilsTests extends ESTestCase {
 
     public void testConcat() {
         assertEquals(List.of(), StreamUtils.concat().toList());

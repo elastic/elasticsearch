@@ -149,7 +149,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         Collection<List<?>> sans = getSubjectAlternativeNames(certificate);
         Set<String> names = new HashSet<>();
 
-        if (x509Fields.contains(SAN_DNS)) {
+        if (x509Fields.contains(SAN_DNS.toLowerCase(Locale.ROOT))) {
             Set<String> dnsNames = sans.stream()
                 .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_DNS)
                 .map(pair -> pair.get(1))
@@ -159,7 +159,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
             names.addAll(dnsNames);
         }
 
-        if (x509Fields.contains(SAN_OTHER_COMMON)) {
+        if (x509Fields.contains(SAN_OTHER_COMMON.toLowerCase(Locale.ROOT))) {
             Set<String> otherNames = getSubjectAlternativeNames(certificate).stream()
                 .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)
                 .map(pair -> pair.get(1))

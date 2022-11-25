@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.collect.StreamUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -33,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -168,7 +168,7 @@ public class ListTasksResponse extends BaseTasksResponse {
                 return builder;
             }), getPerNodeTasks().entrySet().stream().flatMap(entry -> {
                 DiscoveryNode node = discoveryNodes.get(entry.getKey());
-                return StreamUtils.concat(Stream.of((builder, params) -> {
+                return Stream.<Stream<ToXContent>>of(Stream.of((builder, params) -> {
                     builder.startObject(entry.getKey());
                     if (node != null) {
                         // If the node is no longer part of the cluster, oh well, we'll just skip its useful information.
@@ -202,7 +202,7 @@ public class ListTasksResponse extends BaseTasksResponse {
                     builder.endObject();
                     builder.endObject();
                     return builder;
-                }));
+                })).flatMap(Function.identity());
             }).iterator(), Iterators.single((builder, params) -> {
                 builder.endObject();
                 builder.endObject();

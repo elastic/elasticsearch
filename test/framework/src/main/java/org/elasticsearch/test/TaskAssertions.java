@@ -16,6 +16,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -36,7 +37,10 @@ public class TaskAssertions {
     }
 
     public static void awaitTaskWithPrefixOnMaster(String actionPrefix) throws Exception {
-        awaitTaskWithPrefix(actionPrefix, List.of(internalCluster().getCurrentMasterNodeInstance(TransportService.class)));
+        awaitTaskWithPrefix(
+            actionPrefix,
+            Collections.singletonList(internalCluster().getCurrentMasterNodeInstance(TransportService.class))
+        );
     }
 
     private static void awaitTaskWithPrefix(String actionPrefix, Iterable<TransportService> transportServiceInstances) throws Exception {

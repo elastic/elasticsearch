@@ -179,4 +179,19 @@ public class JvmErgonomicsTests extends ESTestCase {
         );
     }
 
+    public void testTuneG1GCHeapRegionWithEmptyFinalJvmOptionsReturnsFalse() {
+        Map<String, JvmOption> finalJvmOptions = new HashMap<>();
+        assertFalse(JvmErgonomics.tuneG1GCHeapRegion(finalJvmOptions, true));
+    }
+
+    public void testTuneG1GCReservePercentWithEmptyFinalJvmOptionsReturnsZero() {
+        Map<String, JvmOption> finalJvmOptions = new HashMap<>();
+        assertEquals(JvmErgonomics.tuneG1GCReservePercent(finalJvmOptions, true), 0);
+    }
+
+    public void testTuneG1GCInitiatingHeapOccupancyPercentWithEmptyFinalJvmOptionsReturnsFalse() {
+        Map<String, JvmOption> finalJvmOptions = new HashMap<>();
+        assertFalse(JvmErgonomics.tuneG1GCInitiatingHeapOccupancyPercent(finalJvmOptions));
+    }
+
 }

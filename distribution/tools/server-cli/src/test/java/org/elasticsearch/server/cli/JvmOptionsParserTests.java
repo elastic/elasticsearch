@@ -344,4 +344,9 @@ public class JvmOptionsParserTests extends ESTestCase {
         assertThat(seenInvalidLines, equalTo(invalidLines));
     }
 
+    public void testIsCommandLineOriginWithNullOriginReturnsFalse() {
+        JvmOption jvmOption = new JvmOption("value", null);
+        assertFalse(jvmOption.isCommandLineOrigin());
+    }
+
 }

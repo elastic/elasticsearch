@@ -1,0 +1,6 @@
+pr: 93197
+summary: Add null check for G1 related options and origin field. This change avoids NPE when starting Elasticsearch on the Azul Platform Prime JDK.
+area: Infra/Settings
+type: bug
+issues:
+ - 91577

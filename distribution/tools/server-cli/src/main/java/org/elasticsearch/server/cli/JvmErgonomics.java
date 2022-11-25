@@ -66,13 +66,17 @@ final class JvmErgonomics {
     static boolean tuneG1GCHeapRegion(final Map<String, JvmOption> finalJvmOptions, final boolean tuneG1GCForSmallHeap) {
         JvmOption g1GCHeapRegion = finalJvmOptions.get("G1HeapRegionSize");
         JvmOption g1GC = finalJvmOptions.get("UseG1GC");
-        return (tuneG1GCForSmallHeap && g1GC.getMandatoryValue().equals("true") && g1GCHeapRegion.isCommandLineOrigin() == false);
+        return (tuneG1GCForSmallHeap
+            && g1GC != null
+            && g1GC.getMandatoryValue().equals("true")
+            && g1GCHeapRegion != null
+            && g1GCHeapRegion.isCommandLineOrigin() == false);
     }
 
     static int tuneG1GCReservePercent(final Map<String, JvmOption> finalJvmOptions, final boolean tuneG1GCForSmallHeap) {
         JvmOption g1GC = finalJvmOptions.get("UseG1GC");
         JvmOption g1GCReservePercent = finalJvmOptions.get("G1ReservePercent");
-        if (g1GC.getMandatoryValue().equals("true")) {
+        if (g1GC != null && g1GC.getMandatoryValue().equals("true") && g1GCReservePercent != null) {
             if (g1GCReservePercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap) {
                 return 15;
             } else if (g1GCReservePercent.isCommandLineOrigin() == false && tuneG1GCForSmallHeap == false) {
@@ -85,7 +89,10 @@ final class JvmErgonomics {
     static boolean tuneG1GCInitiatingHeapOccupancyPercent(final Map<String, JvmOption> finalJvmOptions) {
         JvmOption g1GC = finalJvmOptions.get("UseG1GC");
         JvmOption g1GCInitiatingHeapOccupancyPercent = finalJvmOptions.get("InitiatingHeapOccupancyPercent");
-        return g1GCInitiatingHeapOccupancyPercent.isCommandLineOrigin() == false && g1GC.getMandatoryValue().equals("true");
+        return g1GCInitiatingHeapOccupancyPercent != null
+            && g1GCInitiatingHeapOccupancyPercent.isCommandLineOrigin() == false
+            && g1GC != null
+            && g1GC.getMandatoryValue().equals("true");
     }
 
     private static final Pattern SYSTEM_PROPERTY = Pattern.compile("^-D(?<key>[\\w+].*?)=(?<value>.*)$");

@@ -42,7 +42,7 @@ class AuthorizationDenialMessages {
         String unauthorizedToRunAsMessage = "because "
             + userText
             + " is unauthorized to run as ["
-            + authentication.getUser().principal()
+            + authentication.getEffectiveSubject().getUser().principal()
             + "]";
 
         return actionIsUnauthorizedMessage
@@ -61,7 +61,7 @@ class AuthorizationDenialMessages {
         String userText = authenticatedUserDescription(authentication);
 
         if (authentication.isRunAs()) {
-            userText = userText + " run as [" + authentication.getUser().principal() + "]";
+            userText = userText + " run as [" + authentication.getEffectiveSubject().getUser().principal() + "]";
         }
 
         userText += rolesDescription(authentication.getEffectiveSubject(), authorizationInfo);
@@ -98,7 +98,9 @@ class AuthorizationDenialMessages {
             + authentication.getAuthenticatingSubject().getUser().principal()
             + "]";
         if (authentication.isAuthenticatedAsApiKey()) {
-            final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+            final String apiKeyId = (String) authentication.getAuthenticatingSubject()
+                .getMetadata()
+                .get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
         }

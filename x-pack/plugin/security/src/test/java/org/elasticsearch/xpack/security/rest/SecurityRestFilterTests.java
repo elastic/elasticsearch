@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -80,7 +79,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService);
-        filter = new SecurityRestFilter(Settings.EMPTY, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler, false);
     }
 
     public void testProcess() throws Exception {
@@ -143,8 +142,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessWithSecurityDisabled() throws Exception {
-        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
-        filter = new SecurityRestFilter(settings, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(false, threadContext, authcService, secondaryAuthenticator, restHandler, false);
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
@@ -152,7 +150,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessAuthenticationFailedNoTrace() throws Exception {
-        filter = new SecurityRestFilter(Settings.EMPTY, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler, false);
         testProcessAuthenticationFailed(
             randomBoolean()
                 ? authenticationError("failed authn")
@@ -268,7 +266,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             callback.onResponse(AuthenticationTestHelper.builder().realmRef(new RealmRef("test", "test", "t")).build(false));
             return Void.TYPE;
         }).when(authcService).authenticate(any(RestRequest.class), anyActionListener());
-        filter = new SecurityRestFilter(Settings.EMPTY, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(true, threadContext, authcService, secondaryAuthenticator, restHandler, false);
 
         filter.handleRequest(restRequest, channel, null);
 

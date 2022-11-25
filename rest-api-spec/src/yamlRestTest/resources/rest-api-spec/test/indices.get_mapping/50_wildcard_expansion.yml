@@ -111,6 +111,7 @@ setup:
     indices.get_mapping:
         index: test-x*
         expand_wildcards: none
+        ignore_unavailable: true
 
  - match: { '':  {} }
 ---
@@ -121,6 +122,19 @@ setup:
         index: test-x*
         expand_wildcards: none
         allow_no_indices: false
+        ignore_unavailable: true
+---
+"Get test-* with wildcard_expansion=none ignore_unavailable=false":
+  - skip:
+      version: " - 8.5.99"
+      reason: "bug fixed in 8.6"
+  - do:
+      catch: missing
+      indices.get_mapping:
+        index: test-x*
+        expand_wildcards: none
+        allow_no_indices: true
+        ignore_unavailable: false
 ---
 "Get test-* with wildcard_expansion=open,closed":
 

@@ -15,11 +15,15 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
+import org.elasticsearch.xpack.enrich.EnrichPolicyLocks.EnrichPolicyLock;
 import org.elasticsearch.xpack.enrich.action.InternalExecutePolicyAction;
+import org.elasticsearch.xpack.enrich.action.InternalExecutePolicyAction.Request;
 
 import java.util.concurrent.Semaphore;
 import java.util.function.LongSupplier;
@@ -64,28 +68,39 @@ public class EnrichPolicyExecutor {
         ExecuteEnrichPolicyAction.Request request,
         ActionListener<ExecuteEnrichPolicyAction.Response> listener
     ) {
-        tryLockingPolicy(request.getName());
+        long nowTimestamp = nowSupplier.getAsLong();
+        String enrichIndexName = EnrichPolicy.getIndexName(request.getName(), nowTimestamp);
+        Releasable policyLock = tryLockingPolicy(request.getName(), enrichIndexName);
         try {
-            client.execute(InternalExecutePolicyAction.INSTANCE, request, ActionListener.wrap(response -> {
+            Request internalRequest = new Request(request.getName(), enrichIndexName);
+            internalRequest.setWaitForCompletion(request.isWaitForCompletion());
+            internalRequest.setParentTask(request.getParentTask());
+            client.execute(InternalExecutePolicyAction.INSTANCE, internalRequest, ActionListener.wrap(response -> {
                 if (response.getStatus() != null) {
-                    releasePolicy(request.getName());
+                    policyLock.close();
                     listener.onResponse(response);
                 } else {
-                    waitAndThenRelease(request.getName(), response);
+                    assert response.getTaskId() != null : "If the execute response does not have a status it must return a task id";
+                    awaitTaskCompletionAndThenRelease(response.getTaskId(), policyLock);
                     listener.onResponse(response);
                 }
             }, e -> {
-                releasePolicy(request.getName());
+                policyLock.close();
                 listener.onFailure(e);
             }));
         } catch (Exception e) {
             // Be sure to unlock if submission failed.
-            releasePolicy(request.getName());
+            policyLock.close();
             throw e;
         }
     }
 
-    public void runPolicyLocally(ExecuteEnrichPolicyTask task, String policyName, ActionListener<ExecuteEnrichPolicyStatus> listener) {
+    public void runPolicyLocally(
+        ExecuteEnrichPolicyTask task,
+        String policyName,
+        String enrichIndexName,
+        ActionListener<ExecuteEnrichPolicyStatus> listener
+    ) {
         try {
             EnrichPolicy policy = EnrichStore.getPolicy(policyName, clusterService.state());
             if (policy == null) {
@@ -93,7 +108,7 @@ public class EnrichPolicyExecutor {
             }
 
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.SCHEDULED));
-            Runnable runnable = createPolicyRunner(policyName, policy, task, listener);
+            Runnable runnable = createPolicyRunner(policyName, policy, enrichIndexName, task, listener);
             threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
         } catch (Exception e) {
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.FAILED));
@@ -101,11 +116,11 @@ public class EnrichPolicyExecutor {
         }
     }
 
-    private void tryLockingPolicy(String policyName) {
-        policyLocks.lockPolicy(policyName);
+    private Releasable tryLockingPolicy(String policyName, String enrichIndexName) {
+        EnrichPolicyLock policyLock = policyLocks.lockPolicy(policyName, enrichIndexName);
         if (policyExecutionPermits.tryAcquire() == false) {
             // Release policy lock, and throw a different exception
-            policyLocks.releasePolicy(policyName);
+            policyLock.close();
             throw new EsRejectedExecutionException(
                 "Policy execution failed. Policy execution for ["
                     + policyName
@@ -115,26 +130,25 @@ public class EnrichPolicyExecutor {
                     + "]"
             );
         }
+        // Wrap the result so that when releasing it we also release the held execution permit.
+        return () -> {
+            try (policyLock) {
+                policyExecutionPermits.release();
+            }
+        };
     }
 
-    private void releasePolicy(String policyName) {
-        try {
-            policyExecutionPermits.release();
-        } finally {
-            policyLocks.releasePolicy(policyName);
-        }
-    }
-
-    private void waitAndThenRelease(String policyName, ExecuteEnrichPolicyAction.Response response) {
+    private void awaitTaskCompletionAndThenRelease(TaskId taskId, Releasable policyLock) {
         GetTaskRequest getTaskRequest = new GetTaskRequest();
-        getTaskRequest.setTaskId(response.getTaskId());
+        getTaskRequest.setTaskId(taskId);
         getTaskRequest.setWaitForCompletion(true);
-        client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(() -> releasePolicy(policyName)));
+        client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(policyLock::close));
     }
 
     private Runnable createPolicyRunner(
         String policyName,
         EnrichPolicy policy,
+        String enrichIndexName,
         ExecuteEnrichPolicyTask task,
         ActionListener<ExecuteEnrichPolicyStatus> listener
     ) {
@@ -146,7 +160,7 @@ public class EnrichPolicyExecutor {
             clusterService,
             client,
             indexNameExpressionResolver,
-            nowSupplier,
+            enrichIndexName,
             fetchSize,
             maxForceMergeAttempts
         );

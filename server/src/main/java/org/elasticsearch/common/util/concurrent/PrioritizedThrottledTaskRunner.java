@@ -77,7 +77,7 @@ public class PrioritizedThrottledTaskRunner<T extends Comparable<T> & Runnable> 
 
     // Each worker thread that runs a task, first needs to get a "free slot" in order to respect maxRunningTasks.
     private boolean incrementRunningTasks() {
-        int preUpdateValue = runningTasks.getAndUpdate(v -> v < maxRunningTasks ? v + 1 : v);
+        int preUpdateValue = runningTasks.getAndAccumulate(maxRunningTasks, (v, maxRunning) -> v < maxRunning ? v + 1 : v);
         assert preUpdateValue <= maxRunningTasks;
         return preUpdateValue < maxRunningTasks;
     }

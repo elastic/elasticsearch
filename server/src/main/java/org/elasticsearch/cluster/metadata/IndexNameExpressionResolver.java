@@ -51,7 +51,6 @@ import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -186,11 +185,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        if (indexExpressions == null || indexExpressions.length == 0) {
-            indexExpressions = new String[] { "*" };
-        }
-
-        final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
+        final Collection<String> expressions = resolveExpressions(context, indexExpressions);
         return expressions.stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
@@ -220,7 +215,7 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
 
-        final Collection<String> expressions = resolveExpressions(List.of(request.index()), context);
+        final Collection<String> expressions = resolveExpressions(context, request.index());
 
         if (expressions.size() == 1) {
             IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.iterator().next());
@@ -248,8 +243,11 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static Collection<String> resolveExpressions(List<String> expressions, Context context) {
-        return WildcardExpressionResolver.resolve(context, DateMathExpressionResolver.resolve(context, expressions));
+    private static Collection<String> resolveExpressions(Context context, String... expressions) {
+        return WildcardExpressionResolver.resolve(
+            context,
+            DateMathExpressionResolver.resolve(context, expressions == null ? List.of() : List.of(expressions))
+        );
     }
 
     /**
@@ -321,74 +319,21 @@ public class IndexNameExpressionResolver {
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
-        IndicesOptions options = context.getOptions();
-        if (indexExpressions == null || indexExpressions.length == 0) {
-            indexExpressions = new String[] { Metadata.ALL };
-        } else {
-            if (options.ignoreUnavailable() == false) {
-                List<String> crossClusterIndices = Arrays.stream(indexExpressions).filter(index -> index.contains(":")).toList();
-                if (crossClusterIndices.size() > 0) {
-                    throw new IllegalArgumentException(
-                        "Cross-cluster calls are not supported in this context but remote indices "
-                            + "were requested: "
-                            + crossClusterIndices
-                    );
-                }
-            }
-        }
-        // If only one index is specified then whether we fail a request if an index is missing depends on the allow_no_indices
-        // option. At some point we should change this, because there shouldn't be a reason why whether a single index
-        // or multiple indices are specified yield different behaviour.
-        final boolean failNoIndices = indexExpressions.length == 1
-            ? options.allowNoIndices() == false
-            : options.ignoreUnavailable() == false;
-        final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
+        ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), indexExpressions);
+        final Collection<String> expressions = resolveExpressions(context, indexExpressions);
 
-        if (expressions.isEmpty()) {
-            if (options.allowNoIndices() == false) {
-                IndexNotFoundException infe;
-                if (indexExpressions.length == 1) {
-                    if (indexExpressions[0].equals(Metadata.ALL)) {
-                        infe = new IndexNotFoundException("no indices exist", (String) null);
-                    } else {
-                        infe = new IndexNotFoundException((String) null);
-                    }
-                } else {
-                    infe = new IndexNotFoundException((String) null);
-                }
-                infe.setResources("index_expression", indexExpressions);
-                throw infe;
-            } else {
-                return Index.EMPTY_ARRAY;
-            }
-        }
-
-        boolean excludedDataStreams = false;
-        final Set<Index> concreteIndices = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
-        final SortedMap<String, IndexAbstraction> indicesLookup = context.state.metadata().getIndicesLookup();
+        final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
+        final Map<String, IndexAbstraction> indicesLookup = context.getState().metadata().getIndicesLookup();
         for (String expression : expressions) {
-            IndexAbstraction indexAbstraction = indicesLookup.get(expression);
+            if (context.getOptions().ignoreUnavailable() == false) {
+                ensureAliasOrIndexExists(context, expression);
+            }
+            final IndexAbstraction indexAbstraction = indicesLookup.get(expression);
             if (indexAbstraction == null) {
-                if (failNoIndices) {
-                    IndexNotFoundException infe;
-                    if (expression.equals(Metadata.ALL)) {
-                        infe = new IndexNotFoundException("no indices exist", expression);
-                    } else {
-                        infe = new IndexNotFoundException(expression);
-                    }
-                    infe.setResources("index_expression", expression);
-                    throw infe;
-                } else {
-                    continue;
-                }
+                continue;
             } else if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
-                if (failNoIndices) {
-                    throw aliasesNotSupportedException(expression);
-                } else {
-                    continue;
-                }
+                continue;
             } else if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                excludedDataStreams = true;
                 continue;
             }
 
@@ -404,15 +349,15 @@ public class IndexNameExpressionResolver {
                     );
                 }
                 if (addIndex(writeIndex, null, context)) {
-                    concreteIndices.add(writeIndex);
+                    concreteIndicesResult.add(writeIndex);
                 }
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
                 Index writeIndex = indexAbstraction.getWriteIndex();
                 if (addIndex(writeIndex, null, context)) {
-                    concreteIndices.add(writeIndex);
+                    concreteIndicesResult.add(writeIndex);
                 }
             } else {
-                if (indexAbstraction.getIndices().size() > 1 && options.allowAliasesToMultipleIndices() == false) {
+                if (indexAbstraction.getIndices().size() > 1 && context.getOptions().allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
                     for (Index indexName : indexAbstraction.getIndices()) {
@@ -429,24 +374,18 @@ public class IndexNameExpressionResolver {
                 }
 
                 for (Index index : indexAbstraction.getIndices()) {
-                    if (shouldTrackConcreteIndex(context, options, index)) {
-                        concreteIndices.add(index);
+                    if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                        concreteIndicesResult.add(index);
                     }
                 }
             }
         }
 
-        if (options.allowNoIndices() == false && concreteIndices.isEmpty()) {
-            IndexNotFoundException infe = new IndexNotFoundException((String) null);
-            infe.setResources("index_expression", indexExpressions);
-            if (excludedDataStreams) {
-                // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
-                infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
-            }
-            throw infe;
+        if (context.getOptions().allowNoIndices() == false && concreteIndicesResult.isEmpty()) {
+            throw notFoundException(indexExpressions);
         }
-        checkSystemIndexAccess(context, concreteIndices);
-        return concreteIndices.toArray(Index.EMPTY_ARRAY);
+        checkSystemIndexAccess(context, concreteIndicesResult);
+        return concreteIndicesResult.toArray(Index.EMPTY_ARRAY);
     }
 
     private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices) {
@@ -492,6 +431,52 @@ public class IndexNameExpressionResolver {
         }
         if (resolvedNetNewSystemIndices.isEmpty() == false) {
             throw SystemIndices.netNewSystemIndexAccessException(threadContext, resolvedNetNewSystemIndices);
+        }
+    }
+
+    private void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, String... indexExpressions) {
+        if (options.ignoreUnavailable() == false && indexExpressions != null) {
+            List<String> crossClusterIndices = Arrays.stream(indexExpressions).filter(index -> index.contains(":")).toList();
+            if (crossClusterIndices.size() > 0) {
+                throw new IllegalArgumentException(
+                    "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
+                );
+            }
+        }
+    }
+
+    private static IndexNotFoundException notFoundException(String... indexExpressions) {
+        final IndexNotFoundException infe;
+        if (indexExpressions == null
+            || indexExpressions.length == 0
+            || (indexExpressions.length == 1 && Metadata.ALL.equals(indexExpressions[0]))) {
+            infe = new IndexNotFoundException("no indices exist", Metadata.ALL);
+            infe.setResources("index_or_alias", Metadata.ALL);
+        } else if (indexExpressions.length == 1) {
+            infe = new IndexNotFoundException(indexExpressions[0]);
+            infe.setResources("index_or_alias", indexExpressions[0]);
+        } else {
+            infe = new IndexNotFoundException((String) null);
+            infe.setResources("index_expression", indexExpressions);
+        }
+        return infe;
+    }
+
+    @Nullable
+    private static void ensureAliasOrIndexExists(Context context, String expression) {
+        IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
+        if (indexAbstraction == null) {
+            throw notFoundException(expression);
+        }
+        // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
+        if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
+            throw aliasesNotSupportedException(expression);
+        }
+        if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
+            IndexNotFoundException infe = notFoundException(expression);
+            // Allows callers to handle IndexNotFoundException differently based on whether data streams were excluded.
+            infe.addMetadata(EXCLUDED_DATA_STREAMS_KEY, "true");
+            throw infe;
         }
     }
 
@@ -665,7 +650,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        Collection<String> resolved = resolveExpressions(Arrays.asList(expressions), context);
+        Collection<String> resolved = resolveExpressions(context, expressions);
         if (resolved instanceof Set<String>) {
             // unmodifiable without creating a new collection as it might contain many items
             return Collections.unmodifiableSet((Set<String>) resolved);
@@ -792,10 +777,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        final Collection<String> resolvedExpressions = resolveExpressions(
-            expressions != null ? Arrays.asList(expressions) : Collections.emptyList(),
-            context
-        );
+        final Collection<String> resolvedExpressions = resolveExpressions(context, expressions);
 
         // TODO: it appears that this can never be true?
         if (isAllIndices(resolvedExpressions)) {
@@ -1137,7 +1119,11 @@ public class IndexNameExpressionResolver {
         public static Collection<String> resolve(Context context, List<String> expressions) {
             Objects.requireNonNull(expressions);
             if (context.getOptions().expandWildcardExpressions() == false) {
-                return expressions;
+                if (expressions.size() == 1 && expressions.get(0).equals(Metadata.ALL)) {
+                    return List.of();
+                } else {
+                    return expressions;
+                }
             } else if (isEmptyOrTrivialWildcard(expressions)) {
                 return innerResolveAll(context);
             } else {
@@ -1198,63 +1184,54 @@ public class IndexNameExpressionResolver {
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = validateAliasOrIndex(expressions.get(i));
-                final Supplier<RuntimeException> missingExpressionException = aliasOrIndexExists(context, expression);
-                if (missingExpressionException == null) {
-                    // expression exists but skip adding it to result for optimisation purposes; they will be added later
-                    if (result != null) {
-                        result.add(expression);
+                boolean isExclusion = false;
+                if (expression.charAt(0) == '-' && wildcardSeen) {
+                    isExclusion = true;
+                    expression = expression.substring(1);
+                }
+                if (Regex.isSimpleMatchPattern(expression)) {
+                    wildcardSeen = true;
+                    Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression);
+                    Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
+                    AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
+                    if (context.getOptions().allowNoIndices() == false) {
+                        emptyWildcardExpansion.set(true);
+                        matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
                     }
-                } else {
                     if (result == null) {
                         // add all the previous expressions because they exist but were not added, as an optimisation
                         result = new HashSet<>(expressions.subList(0, i));
                     }
-                    /* An expression does not exist when:
-                       * it should be treated as exclusion because it starts with "-"
-                       * it should be treated as a wildcard (inclusion or exclusion) because it contains a "*"
-                       * it genuinely does not exist or is a datastream or an alias and the request type and options disallow it
-                     */
-                    final boolean add;
-                    if (expression.charAt(0) == '-' && wildcardSeen) {
-                        add = false;
-                        expression = expression.substring(1);
+                    if (isExclusion) {
+                        matchingOpenClosedNames.forEachOrdered(result::remove);
                     } else {
-                        add = true;
+                        matchingOpenClosedNames.forEachOrdered(result::add);
                     }
-                    if (Regex.isSimpleMatchPattern(expression) == false) {
-                        if (add) {
-                            // missing expression that is neither an exclusion nor a wildcard
-                            // this must be a name for a resource that genuinely does not exist
-                            // TODO investigate if this check can be moved outside the wildcard resolver
-                            if (context.getOptions().ignoreUnavailable() == false) {
-                                throw missingExpressionException.get();
-                            }
-                            result.add(expression);
-                        } else {
-                            result.remove(expression);
+                    if (emptyWildcardExpansion.get()) {
+                        throw notFoundException(expression);
+                    }
+                } else {
+                    if (isExclusion) {
+                        if (result == null) {
+                            // add all the previous expressions because they exist but were not added, as an optimisation
+                            result = new HashSet<>(expressions.subList(0, i));
                         }
+                        result.remove(expression);
                     } else {
-                        wildcardSeen = true;
-                        Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression);
-                        Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
-                        AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
-                        if (context.getOptions().allowNoIndices() == false) {
-                            emptyWildcardExpansion.set(true);
-                            matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
+                        // missing expression that is neither an exclusion nor a wildcard
+                        // TODO investigate if this check can be moved outside the wildcard resolver
+                        if (context.getOptions().ignoreUnavailable() == false) {
+                            ensureAliasOrIndexExists(context, expression);
                         }
-                        if (add) {
-                            matchingOpenClosedNames.forEachOrdered(result::add);
-                        } else {
-                            matchingOpenClosedNames.forEachOrdered(result::remove);
-                        }
-                        if (emptyWildcardExpansion.get()) {
-                            throw indexNotFoundException(expression);
+                        if (result != null) {
+                            // skip adding the expression as an optimization
+                            result.add(expression);
                         }
                     }
                 }
             }
             if (result == null) {
-                // optimisation that avoids allocating a new collection when all the expressions argument exist
+                // optimisation that avoids allocating a new collection when all the argument expressions are explicit names
                 return expressions;
             } else {
                 return result;
@@ -1263,7 +1240,7 @@ public class IndexNameExpressionResolver {
 
         private static String validateAliasOrIndex(String expression) {
             if (Strings.isEmpty(expression)) {
-                throw indexNotFoundException(expression);
+                throw notFoundException(expression);
             }
             // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
             // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
@@ -1273,29 +1250,6 @@ public class IndexNameExpressionResolver {
                 throw new InvalidIndexNameException(expression, "must not start with '_'.");
             }
             return expression;
-        }
-
-        @Nullable
-        private static Supplier<RuntimeException> aliasOrIndexExists(Context context, String expression) {
-            final IndicesOptions options = context.getOptions();
-            IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
-            if (indexAbstraction == null) {
-                return () -> indexNotFoundException(expression);
-            }
-            // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
-            if (indexAbstraction.getType() == Type.ALIAS && options.ignoreAliases()) {
-                return () -> aliasesNotSupportedException(expression);
-            }
-            if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                return () -> indexNotFoundException(expression);
-            }
-            return null;
-        }
-
-        private static IndexNotFoundException indexNotFoundException(String expression) {
-            IndexNotFoundException infe = new IndexNotFoundException(expression);
-            infe.setResources("index_or_alias", expression);
-            return infe;
         }
 
         private static IndexMetadata.State excludeState(IndicesOptions options) {
@@ -1479,7 +1433,7 @@ public class IndexNameExpressionResolver {
                 } else {
                     result.add(resolveExpression(expression, context::getStartTime));
                 }
-                if (Regex.isSimpleMatchPattern(expression)) {
+                if (context.getOptions().expandWildcardExpressions() && Regex.isSimpleMatchPattern(expression)) {
                     wildcardSeen = true;
                 }
             }

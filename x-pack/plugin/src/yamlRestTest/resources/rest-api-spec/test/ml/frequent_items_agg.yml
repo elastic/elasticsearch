@@ -335,6 +335,40 @@ setup:
   - match: { aggregations.weekly.buckets.2.fi.buckets.0.doc_count: 1 }
 
 ---
+"Test frequent items filter":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_items": {
+                  "minimum_set_size": 3,
+                  "minimum_support": 0.3,
+                  "fields": [
+                    {"field": "features"},
+                    {"field": "error_message"}
+                  ],
+                  "filter": {
+                    "bool": {
+                      "must_not": {
+                        "term": {"features": "pink wheels"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - length: { aggregations.fi.buckets: 1 }
+  - match: { aggregations.fi.buckets.0.doc_count: 4 }
+  - match: { aggregations.fi.buckets.0.support: 0.4 }
+  - match: { aggregations.fi.buckets.0.key.error_message: ["compressor low pressure"] }
+
+---
 "Test frequent items unsupported types":
   - do:
       catch: /Field \[geo_point\] of type \[geo_point\] is not supported for aggregation \[frequent_items\]/

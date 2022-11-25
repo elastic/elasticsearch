@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -180,7 +181,16 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MODE,
         IndexMetadata.INDEX_ROUTING_PATH,
         IndexSettings.TIME_SERIES_START_TIME,
-        IndexSettings.TIME_SERIES_END_TIME
+        IndexSettings.TIME_SERIES_END_TIME,
+
+        // Legacy index settings we must keep around for BWC from 7.x
+        EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
+        IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
+        Store.FORCE_RAM_TERM_DICT
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
@@ -223,6 +233,18 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 return true;
             default:
                 return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
+        }
+    }
+
+    @Override
+    protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {
+        Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+        // At various stages in settings verification we will perform validation without having the
+        // IndexMetadata at hand, in which case the setting version will be empty. We don't want to
+        // error out on those validations, we will check with the creation version present at index
+        // creation time, as well as on index update settings.
+        if (indexVersion.equals(Version.V_EMPTY) == false && indexVersion.major != Version.V_7_0_0.major) {
+            throw new IllegalArgumentException("unknown setting [" + setting.getKey() + "]");
         }
     }
 }

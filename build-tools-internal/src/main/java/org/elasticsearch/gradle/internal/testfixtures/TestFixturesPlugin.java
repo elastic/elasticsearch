@@ -25,6 +25,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.FileSystemOperations;
+import org.gradle.api.logging.LogLevel;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.BasePlugin;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.function.BiConsumer;
 
 import javax.inject.Inject;
@@ -117,6 +119,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
             composeExtension.getUseComposeFiles().addAll(Collections.singletonList(DOCKER_COMPOSE_YML));
             composeExtension.getRemoveContainers().set(true);
+            composeExtension.getCaptureContainersOutput()
+                .set(EnumSet.of(LogLevel.INFO, LogLevel.DEBUG).contains(project.getGradle().getStartParameter().getLogLevel()));
             composeExtension.getExecutable().set(this.providerFactory.provider(() -> {
                 String composePath = dockerSupport.get().getDockerAvailability().dockerComposePath();
                 LOGGER.debug("Docker Compose path: {}", composePath);

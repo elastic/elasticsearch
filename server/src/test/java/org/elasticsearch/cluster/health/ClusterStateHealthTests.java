@@ -140,6 +140,7 @@ public class ClusterStateHealthTests extends ESTestCase {
                 "restore master",
                 () -> ClusterState.builder(currentState)
                     .nodes(DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId()))
+                    .incrementVersion()
                     .build(),
                 ActionListener.noop()
             );

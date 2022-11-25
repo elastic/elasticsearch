@@ -107,13 +107,13 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         if (request.getBlobCount() > 3 || randomBoolean()) {
             // only use the default blob size of 10MB if writing a small number of blobs, since this is all in-memory
-            request.maxBlobSize(new ByteSizeValue(between(1, 2048)));
+            request.maxBlobSize(ByteSizeValue.ofBytes(between(1, 2048)));
             blobStore.setMaxBlobSize(request.getMaxBlobSize().getBytes());
         }
 
         if (usually()) {
             request.maxTotalDataSize(
-                new ByteSizeValue(request.getMaxBlobSize().getBytes() + request.getBlobCount() - 1 + between(0, 1 << 20))
+                ByteSizeValue.ofBytes(request.getMaxBlobSize().getBytes() + request.getBlobCount() - 1 + between(0, 1 << 20))
             );
             blobStore.setMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
         }

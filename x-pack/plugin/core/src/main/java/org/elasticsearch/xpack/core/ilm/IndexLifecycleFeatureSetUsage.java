@@ -420,10 +420,10 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             this.forceMergeMaxNumberOfSegments = in.readOptionalVInt();
             this.rolloverMaxAge = in.readOptionalTimeValue();
             this.rolloverMaxDocs = in.readOptionalVLong();
-            this.rolloverMaxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
-            this.rolloverMaxSize = in.readOptionalWriteable(ByteSizeValue::new);
+            this.rolloverMaxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            this.rolloverMaxSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.setPriorityPriority = in.readOptionalVInt();
-            this.shrinkMaxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
+            this.shrinkMaxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.shrinkNumberOfShards = in.readOptionalVInt();
             if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
                 this.rolloverMaxPrimaryShardDocs = in.readOptionalVLong();
@@ -433,8 +433,8 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
                 this.rolloverMinAge = in.readOptionalTimeValue();
                 this.rolloverMinDocs = in.readOptionalVLong();
-                this.rolloverMinPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
-                this.rolloverMinSize = in.readOptionalWriteable(ByteSizeValue::new);
+                this.rolloverMinPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
+                this.rolloverMinSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
                 this.rolloverMinPrimaryShardDocs = in.readOptionalVLong();
             } else {
                 this.rolloverMinAge = null;

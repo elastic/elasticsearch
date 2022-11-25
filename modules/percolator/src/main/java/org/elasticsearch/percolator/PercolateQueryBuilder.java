@@ -531,7 +531,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         String queryName = this.name != null ? this.name : pft.name();
         SearchExecutionContext percolateShardContext = wrap(context);
         PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
-        ;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
 
         return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());

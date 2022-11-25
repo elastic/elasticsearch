@@ -225,7 +225,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
         BytesArray source = new BytesArray("{}");
-        SearchHit hit = new SearchHit(0, "first_foo", null, null);
+        SearchHit hit = new SearchHit(0, "first_foo");
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
         hit.sourceRef(source);
@@ -240,7 +240,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         // First return a scroll response with a single hit and then with no hits
-        hit = new SearchHit(0, "second_foo", null, null);
+        hit = new SearchHit(0, "second_foo");
         hit.version(1L);
         hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
         hit.sourceRef(source);

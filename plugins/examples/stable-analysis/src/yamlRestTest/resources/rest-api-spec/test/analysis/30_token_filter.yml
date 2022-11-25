@@ -1,0 +1,28 @@
+## Smoke tests for char filters included in the analysis-common module
+
+#todo this can be expanded with parameters once settings support is added
+---
+"Stable token_filter plugin. Skip tokens starting with 1":
+  - do:
+      indices.analyze:
+        body:
+          text: 1test 2test 1test 3test
+          tokenizer: standard
+          filter:
+            - type: example_token_filter_factory
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: "2test" }
+  - match:  { tokens.1.token: "3test" }
+
+  - do:
+      indices.analyze:
+        body:
+          text: 1test 2test 1test 3test
+          explain: true
+          tokenizer: standard
+          filter:
+            - type: example_token_filter_factory
+  - match:  { detail.custom_analyzer: true }
+  - length: { detail.tokenfilters.0.tokens: 2 }
+  - match:  { detail.tokenfilters.0.tokens.0.token: "2test" }
+  - match:  { detail.tokenfilters.0.tokens.1.token: "3test" }

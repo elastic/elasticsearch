@@ -1764,7 +1764,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             .build(false)
             .runAs(new User("run as me", Strings.EMPTY_ARRAY), null);
         authentication.writeToContext(threadContext);
-        assertNotEquals(authUser, authentication.getUser());
+        assertNotEquals(authUser, authentication.getEffectiveSubject().getUser());
         assertThrowsAuthorizationExceptionRunAsDenied(
             () -> authorize(authentication, AuthenticateAction.NAME, AuthenticateRequest.INSTANCE),
             AuthenticateAction.NAME,
@@ -2879,7 +2879,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 RequestInfo requestInfo,
                 AuthorizationInfo authorizationInfo,
                 Map<String, IndexAbstraction> indicesLookup,
-                ActionListener<Set<String>> listener
+                ActionListener<AuthorizationEngine.AuthorizedIndices> listener
             ) {
                 throw new UnsupportedOperationException("not implemented");
             }

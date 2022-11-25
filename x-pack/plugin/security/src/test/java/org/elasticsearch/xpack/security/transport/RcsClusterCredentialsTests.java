@@ -194,7 +194,6 @@ public class RcsClusterCredentialsTests extends ESTestCase {
                 unsupportedScheme,
                 unsupportedScheme + "_",
                 unsupportedScheme + " ",
-                schemeAndBase64Credentials,
                 secureSchemeAndBase64Credentials
             )) {
                 final IllegalArgumentException invalidSchemeException = expectThrows(

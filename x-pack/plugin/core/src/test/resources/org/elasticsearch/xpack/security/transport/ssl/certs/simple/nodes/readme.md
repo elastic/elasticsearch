@@ -45,9 +45,6 @@ unzip /tmp/certs/ca.zip -d ./local-ca
 cp -r ./local-ca/n*/*.crt $SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca-signed
 ```
 
-
-
-
 ### Read the certificates
 
 ```bash

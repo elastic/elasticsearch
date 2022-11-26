@@ -14,8 +14,8 @@ for n in {1..8}
 do
 for c in {1..8}
 do
-echo "  - name: \"n$n.c$c\""                        >> instances.yml 
-echo "    cn:"                                      >> instances.yml 
+echo "  - name: \"n$n.c$c\""                        >> instances.yml
+echo "    cn:"                                      >> instances.yml
 echo "      - \"node$n.cluster$c.elasticsearch\""   >> instances.yml
 echo "    dns: "                                    >> instances.yml
 echo "      - \"node$n.cluster$c.elasticsearch\""   >> instances.yml
@@ -25,20 +25,20 @@ cat instances.yml
 ```
 
 ### Create the self signed certificates
+
 ```bash
 rm -rf /tmp/certs; mkdir /tmp/certs; rm -rf local-self
-bin/elasticsearch-certutil cert --pem --silent --in instances.yml --out /tmp/certs/self.zip --days 7300 --self-signed 
+bin/elasticsearch-certutil cert --pem --silent --in instances.yml --out /tmp/certs/self.zip --days 7300 --self-signed
 unzip /tmp/certs/self.zip -d ./local-self
 cp -r ./local-self/n*/*.crt $SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/self-signed
 ```
 
 ### Create the ca signed certificates
 
-
 ```bash
 
 rm -rf /tmp/certs; mkdir /tmp/certs; rm -rf local-ca
-cp $SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt . 
+cp $SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt .
 cp $SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.key .
 bin/elasticsearch-certutil cert --pem --silent --in instances.yml --out /tmp/certs/ca.zip --days 7300 --ca-key ca.key --ca-cert ca.crt
 unzip /tmp/certs/ca.zip -d ./local-ca

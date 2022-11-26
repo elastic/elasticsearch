@@ -47,9 +47,8 @@ mv ca-signed $SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearc
 ### Read the certificates
 
 ```bash
-export CERT_PATH=$SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes
 export CERT=n1.c1.crt
-openssl x509 -in $CERT_PATH/$CERT -text
-openssl asn1parse -in $CERT_PATH/$CERT
-openssl asn1parse -in $CERT_PATH/$CERT -strparse 492 # location for SAN OCTET STRING
+openssl x509 -in $CERT -text
+openssl asn1parse -in $CERT
+openssl asn1parse -in $CERT -strparse 492 # location for SAN OCTET STRING
 ```

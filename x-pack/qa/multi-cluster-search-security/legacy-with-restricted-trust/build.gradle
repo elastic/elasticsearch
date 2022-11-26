@@ -1,0 +1,87 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+configurations {
+  signedCerts
+  rootCert
+}
+
+dependencies {
+  signedCerts project(path: ':x-pack:plugin:core', configuration: 'signedCerts')
+  rootCert project(path: ':x-pack:plugin:core', configuration: 'rootCert')
+}
+
+tasks.register("copyCerts", Sync) {
+  from(configurations.signedCerts)
+  from(configurations.rootCert)
+  into "${buildDir}/certs"
+}
+
+// randomise between sniff and proxy modes
+boolean proxyMode = BuildParams.random.nextBoolean()
+
+
+//node.setting("xpack.security.transport.ssl.enabled", "true");
+//node.setting("xpack.security.transport.ssl.client_authentication", "required");
+//node.extraConfigFile("transport.keystore", tlsBasePath.resolve(transportCertificate).toFile());
+//node.extraConfigFile("transport.ca", tlsBasePath.resolve(tlsCertificateAuthority).toFile());
+//node.setting("xpack.security.transport.ssl.keystore.path", "transport.keystore");
+//node.setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca");
+
+
+
+def fulfillingCluster = testClusters.register('fulfilling-cluster') {
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'basic'
+//  setting 'xpack.security.transport.ssl.enabled', 'true'
+//  setting 'xpack.security.transport.ssl.client_authentication', 'required'
+//  extraConfigFile 'transport.keystore', //todo
+//  extraConfigFile 'transport.ca', //todo
+//  setting 'xpack.security.transport.ssl.keystore.path', 'transport.keystore'
+//  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
+
+
+
+  user username: "test_user", password: "x-pack-test-password"
+}
+
+def queryingCluster = testClusters.register('querying-cluster') {
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'cluster.remote.connections_per_cluster', "1"
+  user username: "test_user", password: "x-pack-test-password"
+
+  if (proxyMode) {
+    setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
+    setting 'cluster.remote.my_remote_cluster.proxy_address', {
+      "\"${fulfillingCluster.get().getAllTransportPortURI().get(0)}\""
+    }
+  } else {
+    setting 'cluster.remote.my_remote_cluster.seeds', {
+      fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
+    }
+  }
+}
+
+tasks.register('fulfilling-cluster', RestIntegTestTask) {
+  useCluster fulfillingCluster
+  systemProperty 'tests.rest.suite', 'fulfilling_cluster'
+}
+
+tasks.register('querying-cluster', RestIntegTestTask) {
+  dependsOn 'fulfilling-cluster'
+  useCluster queryingCluster
+  useCluster fulfillingCluster
+  systemProperty 'tests.rest.suite', 'querying_cluster'
+}
+
+// runs the fulfilling-cluster cluster tests then the querying-cluster tests
+tasks.register("integTest") {
+  dependsOn 'copyCerts'
+  dependsOn 'querying-cluster'
+}
+
+tasks.named("check").configure { dependsOn("integTest") }

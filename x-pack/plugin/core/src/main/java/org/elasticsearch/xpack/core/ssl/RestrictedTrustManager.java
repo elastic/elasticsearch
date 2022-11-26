@@ -155,7 +155,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
 
     private Set<String> readX509Certificate(X509Certificate certificate) throws CertificateParsingException {
         Collection<List<?>> sans = getSubjectAlternativeNames(certificate);
-        Set<String> names = new HashSet<>();
+        Set<String> values = new HashSet<>();
         if (x509Fields.contains(SAN_DNS.toLowerCase(Locale.ROOT))) {
             Set<String> dnsNames = sans.stream()
                 .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_DNS)
@@ -163,7 +163,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
                 .map(Object::toString)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-            names.addAll(dnsNames);
+            values.addAll(dnsNames);
         }
         if (x509Fields.contains(SAN_OTHER_COMMON.toLowerCase(Locale.ROOT))) {
             Set<String> otherNames = getSubjectAlternativeNames(certificate).stream()
@@ -172,9 +172,9 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
                 .map(value -> decodeDerValue((byte[]) value, certificate))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-            names.addAll(otherNames);
+            values.addAll(otherNames);
         }
-        return names;
+        return values;
     }
 
     /**

@@ -37,7 +37,6 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_DNS;
 import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_OTHER_COMMON;
 
-//TODO: UPDATE CERTIFICATES TO ALSO HAVE DNS AND RANDOMIZE THE CHECKS
 public class RestrictedTrustManagerTests extends ESTestCase {
 
     private X509ExtendedTrustManager baseTrustManager;
@@ -99,17 +98,26 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         numberOfNodes = scaledRandomIntBetween(2, 8);
     }
 
-    public void testTrustsExplicitCertificateNameDns() throws Exception {
+    public void testTrustsOnlyNameDns() throws Exception {
         final Path cert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt");
-
         baseTrustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(cert));
         X509Certificate[] certs = CertParsingUtils.readX509Certificates(Collections.singletonList(cert));
-
-        certificates.put("withDns", certs);
-
+        assertTrue(certs[0].getSubjectAlternativeNames().stream().filter(pair -> (Integer) pair.get(0) == 0).findAny().isEmpty());
+        certificates.put("onlyDns", certs);
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(List.of("localhost6.localdomain6"));
         final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_DNS));
-        assertTrusted(trustManager, "withDns");
+        assertTrusted(trustManager, "onlyDns");
+    }
+
+    public void testTrustsOnlyNameOther() throws Exception {
+        final Path cert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt");
+        baseTrustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(cert));
+        X509Certificate[] certs = CertParsingUtils.readX509Certificates(Collections.singletonList(cert));
+        assertTrue(certs[0].getSubjectAlternativeNames().stream().filter(pair -> (Integer) pair.get(0) == 2).findAny().isEmpty());
+        certificates.put("onlyOtherName", certs);
+        final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(List.of("node.trusted"));
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_OTHER_COMMON));
+        assertTrusted(trustManager, "onlyOtherName");
     }
 
     public void testTrustsExplicitCertificateName() throws Exception {

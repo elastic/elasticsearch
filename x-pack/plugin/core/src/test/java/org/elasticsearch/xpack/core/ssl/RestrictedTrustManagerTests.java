@@ -43,6 +43,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
     private Map<String, X509Certificate[]> certificates;
     private int numberOfClusters;
     private int numberOfNodes;
+    private List<String> fields;
 
     @Before
     public void readCertificates() throws GeneralSecurityException, IOException {
@@ -96,6 +97,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
 
         numberOfClusters = scaledRandomIntBetween(2, 8);
         numberOfNodes = scaledRandomIntBetween(2, 8);
+        fields = randomNonEmptySubsetOf(Set.of(SAN_OTHER_COMMON, SAN_DNS));
     }
 
     public void testTrustsOnlyNameDns() throws Exception {
@@ -127,7 +129,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
             trustedNames.add("node" + node + ".cluster" + trustedCluster + ".elasticsearch");
         }
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(trustedNames);
-        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_OTHER_COMMON));
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.copyOf(fields));
         assertSingleClusterIsTrusted(trustedCluster, trustManager, trustedNames);
     }
 
@@ -135,7 +137,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         final int trustedCluster = randomIntBetween(1, numberOfClusters);
         final List<String> trustedNames = Collections.singletonList("*.cluster" + trustedCluster + ".elasticsearch");
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(trustedNames);
-        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_OTHER_COMMON));
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.copyOf(fields));
         assertSingleClusterIsTrusted(trustedCluster, trustManager, trustedNames);
     }
 
@@ -143,7 +145,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         final int trustedNode = randomIntBetween(1, numberOfNodes);
         final List<String> trustedNames = Collections.singletonList("/node" + trustedNode + ".cluster[0-9].elasticsearch/");
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(trustedNames);
-        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_OTHER_COMMON));
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.copyOf(fields));
         for (int cluster = 1; cluster <= numberOfClusters; cluster++) {
             for (int node = 1; node <= numberOfNodes; node++) {
                 if (node == trustedNode) {
@@ -157,7 +159,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
 
     public void testThatDelegateTrustManagerIsRespected() throws Exception {
         final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(Collections.singletonList("*.elasticsearch"));
-        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_OTHER_COMMON));
+        final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.copyOf(fields));
         for (String cert : certificates.keySet()) {
             if (cert.endsWith("/ca")) {
                 assertTrusted(trustManager, cert);

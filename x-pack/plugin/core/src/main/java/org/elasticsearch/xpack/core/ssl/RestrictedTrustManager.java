@@ -25,7 +25,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -34,13 +33,18 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_DNS;
 import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_OTHER_COMMON;
 
-//TODO: FIX ALL THE MESSAGES AND METHOD NAMES TO ALLOW FLEXING WITH DNS NAME
 /**
  * An X509 trust manager that only trusts connections from a restricted set of predefined network entities (nodes, clients, etc).
- * The trusted entities are defined as a list of predicates on {@link CertificateTrustRestrictions} that are applied to the
- * common-names of the certificate.
- * The common-names are read as subject-alternative-names with type 'Other' and a 'cn' OID.
- * The underlying certificate validation is delegated to another TrustManager.
+ * The trusted entities are defined as a list of predicates on {@link CertificateTrustRestrictions} that built from the
+ * configured restricted trust file. The values in the restricted trust file are compared to value(s) read from the X509 certificate.
+ * If the value(s) read from the X509 certificate match values configured in restricted trust file then trust is established.
+ * If there is no match, then trust is not established and the connection should be terminated.
+ * The values read from the X509 certificate are configurable and the following are supported:
+ * <ul>
+ *     <li>subjectAltName.otherName.commonName</li>
+ *     <li>subjectAltName.dnsName</li>
+ * </ul>
+ * see also: {@link RestrictedTrustConfig}
  */
 public final class RestrictedTrustManager extends X509ExtendedTrustManager {
     private static final Logger logger = LogManager.getLogger(RestrictedTrustManager.class);
@@ -57,7 +61,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         this.trustRestrictions = restrictions;
         this.x509Fields = x509Fields.stream().map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
         logger.debug("Configured with trust restrictions: [{}]", restrictions);
-        logger.debug("Configured with x509 fields: [{}]", String.join(",", x509Fields));
+        logger.debug("Configured with x509 fields: [{}]", x509Fields);
     }
 
     @Override
@@ -106,28 +110,32 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
             throw new CertificateException("No certificate presented");
         }
         final X509Certificate certificate = chain[0];
-        Set<String> names = readCommonNames(certificate);
-        if (verifyCertificateNames(names)) {
+        Set<String> values = readX509Certificate(certificate);
+        if (verifyCertificateNames(values)) {
             logger.debug(
                 () -> format(
-                    "Trusting certificate [%s] [%s] with common-names [%s]",
+                    "Trusting certificate [%s] [%s] with fields [%s] with values [%s]",
                     certificate.getSubjectX500Principal(),
                     certificate.getSerialNumber().toString(16),
-                    names
+                    x509Fields,
+                    values
                 )
             );
         } else {
             logger.info(
-                "Rejecting certificate [{}] [{}] with common-names [{}]",
+                "Rejecting certificate [{}] [{}] for fields [{}] with values [{}]",
                 certificate.getSubjectX500Principal(),
                 certificate.getSerialNumber().toString(16),
-                names
+                x509Fields,
+                values
             );
             throw new CertificateException(
                 "Certificate for "
                     + certificate.getSubjectX500Principal()
-                    + " with common-names "
-                    + names
+                    + " with fields "
+                    + x509Fields
+                    + " with values "
+                    + values
                     + " does not match the trusted names "
                     + trustRestrictions.getTrustedNames()
             );
@@ -145,10 +153,9 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         return false;
     }
 
-    private Set<String> readCommonNames(X509Certificate certificate) throws CertificateParsingException {
+    private Set<String> readX509Certificate(X509Certificate certificate) throws CertificateParsingException {
         Collection<List<?>> sans = getSubjectAlternativeNames(certificate);
         Set<String> names = new HashSet<>();
-
         if (x509Fields.contains(SAN_DNS.toLowerCase(Locale.ROOT))) {
             Set<String> dnsNames = sans.stream()
                 .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_DNS)
@@ -158,7 +165,6 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
                 .collect(Collectors.toSet());
             names.addAll(dnsNames);
         }
-
         if (x509Fields.contains(SAN_OTHER_COMMON.toLowerCase(Locale.ROOT))) {
             Set<String> otherNames = getSubjectAlternativeNames(certificate).stream()
                 .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)

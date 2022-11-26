@@ -112,7 +112,6 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         assertTrusted(trustManager, "withDns");
     }
 
-
     public void testTrustsExplicitCertificateName() throws Exception {
         final int trustedCluster = randomIntBetween(1, numberOfClusters);
         final List<String> trustedNames = new ArrayList<>(numberOfNodes);

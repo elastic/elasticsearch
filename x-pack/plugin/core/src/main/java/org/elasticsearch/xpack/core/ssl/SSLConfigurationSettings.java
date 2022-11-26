@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -162,14 +161,16 @@ public class SSLConfigurationSettings {
         key,
         List.of("subjectAltName.otherName.commonName"),
         s -> {
-          RestrictedTrustConfig.SUPPORTED_X_509_FIELDS.stream()
+            RestrictedTrustConfig.SUPPORTED_X_509_FIELDS.stream()
                 .filter(v -> v.equalsIgnoreCase(s))
                 .findAny()
-                .ifPresentOrElse(v -> {}
-                    , () -> {
+                .ifPresentOrElse(v -> {}, () -> {
                     throw new SslConfigException(
-                        s + " is not a supported x509 field for trust restrictions. "
-                            + "Recognised values are [" + String.join(",", RestrictedTrustConfig.SUPPORTED_X_509_FIELDS) + "]"
+                        s
+                            + " is not a supported x509 field for trust restrictions. "
+                            + "Recognised values are ["
+                            + String.join(",", RestrictedTrustConfig.SUPPORTED_X_509_FIELDS)
+                            + "]"
                     );
                 });
             return s;

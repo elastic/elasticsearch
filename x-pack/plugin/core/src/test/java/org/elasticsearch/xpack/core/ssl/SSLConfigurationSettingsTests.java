@@ -97,10 +97,9 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         final Settings invalid = Settings.builder().putList("ssl.trust_restrictions.x509_fields", "foo.bar").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ssl.trustRestrictionsX509Fields.get(invalid));
         assertThat(e.getCause(), throwableWithMessage(containsString("foo.bar is not a supported x509 field for trust restrictions.")));
-        assertThat(
-            e.getCause(),
-            throwableWithMessage(containsString("Recognised values are [subjectAltName.otherName.commonName,subjectAltName.dnsName]"))
-        );
+        assertThat(e.getCause(), throwableWithMessage(containsString("Recognised values are")));
+        assertThat(e.getCause(), throwableWithMessage(containsString("subjectAltName.otherName.commonName")));
+        assertThat(e.getCause(), throwableWithMessage(containsString("subjectAltName.dnsName")));
     }
 
     public void testEmptySettingsParsesToDefaults() {

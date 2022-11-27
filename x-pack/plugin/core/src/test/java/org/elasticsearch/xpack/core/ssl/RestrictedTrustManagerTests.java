@@ -106,7 +106,10 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         X509Certificate[] certs = CertParsingUtils.readX509Certificates(Collections.singletonList(cert));
         assertTrue(certs[0].getSubjectAlternativeNames().stream().filter(pair -> (Integer) pair.get(0) == 0).findAny().isEmpty());
         certificates.put("onlyDns", certs);
-        final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(List.of("localhost6.localdomain6"));
+        List<String> validDnsNames = randomNonEmptySubsetOf(
+            List.of("localhost", "localhost.localdomain", "localhost4", "localhost4.localdomain4", "localhost6", "localhost6.localdomain6")
+        );
+        final CertificateTrustRestrictions restrictions = new CertificateTrustRestrictions(validDnsNames);
         final RestrictedTrustManager trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_DNS));
         assertTrusted(trustManager, "onlyDns");
     }

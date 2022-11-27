@@ -37,8 +37,9 @@ import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_OTHER_C
  * An X509 trust manager that only trusts connections from a restricted set of predefined network entities (nodes, clients, etc).
  * The trusted entities are defined as a list of predicates on {@link CertificateTrustRestrictions} that built from the
  * configured restricted trust file. The values in the restricted trust file are compared to value(s) read from the X509 certificate.
- * If the value(s) read from the X509 certificate match values configured in restricted trust file then trust is established.
- * If there is no match, then trust is not established and the connection should be terminated.
+ * If the value(s) read from the X509 certificate match values configured in restricted trust file then restricted trust is established.
+ * If there is no match, then restricted trust is not established and the connection should be terminated. Restricted trust should be used
+ * in conjunction with additional trust models and is intended to restrict, not provide trust.
  * The values read from the X509 certificate are configurable and the following are supported:
  * <ul>
  *     <li>subjectAltName.otherName.commonName</li>

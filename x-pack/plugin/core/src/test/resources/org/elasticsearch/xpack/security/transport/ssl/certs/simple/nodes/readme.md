@@ -31,6 +31,7 @@ rm -rf /tmp/certs; mkdir /tmp/certs; rm -rf local-self
 bin/elasticsearch-certutil cert --pem --silent --in instances.yml --out /tmp/certs/self.zip --days 7300 --self-signed
 unzip /tmp/certs/self.zip -d ./local-self
 cp -r ./local-self/n*/*.crt $SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/self-signed
+cp -r ./local-self/n*/*.key $SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/self-signed
 ```
 
 ### Create the ca signed certificates
@@ -43,6 +44,7 @@ cp $SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/se
 bin/elasticsearch-certutil cert --pem --silent --in instances.yml --out /tmp/certs/ca.zip --days 7300 --ca-key ca.key --ca-cert ca.crt
 unzip /tmp/certs/ca.zip -d ./local-ca
 cp -r ./local-ca/n*/*.crt $SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca-signed
+cp -r ./local-ca/n*/*.key $SOURCE_ROOT/x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca-signed
 ```
 
 ### Read the certificates

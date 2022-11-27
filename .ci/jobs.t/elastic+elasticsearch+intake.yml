@@ -55,6 +55,13 @@
               current-parameters: true
               git-revision: true
       - multijob:
+          name: Publish snapshot artifacts
+          projects:
+            - name: elastic+elasticsearch+%BRANCH%+dra-snapshot
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+      - multijob:
           name: Update last good commit
           projects:
             - name: elastic+elasticsearch+%BRANCH%+intake+multijob+update-last-good-commit

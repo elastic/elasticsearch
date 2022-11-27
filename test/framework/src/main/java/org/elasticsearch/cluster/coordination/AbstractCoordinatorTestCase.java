@@ -53,7 +53,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.set.Sets;
@@ -271,6 +270,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
         private final LinearizabilityChecker linearizabilityChecker = new LinearizabilityChecker();
         private final History history = new History();
+        private final CountingPageCacheRecycler countingPageCacheRecycler;
         private final Recycler<BytesRef> recycler;
         private final NodeHealthService nodeHealthService;
 
@@ -289,9 +289,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
-            this.recycler = usually()
-                ? BytesRefRecycler.NON_RECYCLING_INSTANCE
-                : new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+            this.countingPageCacheRecycler = new CountingPageCacheRecycler();
+            this.recycler = new BytesRefRecycler(countingPageCacheRecycler);
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
             assertThat(initialNodeCount, greaterThan(0));
@@ -876,6 +875,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
 
             clusterNodes.forEach(ClusterNode::close);
+
+            // Closing nodes may spawn some other background cleanup tasks that must also be run
+            runFor(DEFAULT_DELAY_VARIABILITY, "accumulate close-time tasks");
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            countingPageCacheRecycler.assertAllPagesReleased();
         }
 
         protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {

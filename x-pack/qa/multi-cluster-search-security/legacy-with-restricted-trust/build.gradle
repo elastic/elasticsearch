@@ -15,6 +15,7 @@ dependencies {
 }
 
 tasks.register("copyCerts", Sync) {
+  dependsOn configurations.signedCerts
   from(configurations.signedCerts)
   from(configurations.rootCert)
   into "${buildDir}/certs"
@@ -26,28 +27,30 @@ boolean proxyMode = BuildParams.random.nextBoolean()
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'basic'
-//  setting 'xpack.security.transport.ssl.enabled', 'true'
-//  setting 'xpack.security.transport.ssl.client_authentication', 'required'
-//  extraConfigFile 'transport.key', file("${buildDir}/certs/n1.c1.key")
-//  extraConfigFile 'transport.cert', file("${buildDir}/certs/n1.c1.crt")
-//  extraConfigFile 'transport.ca', file("${buildDir}/certs/ca.crt")
-//  setting 'xpack.security.transport.ssl.key', 'transport.key'
-//  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
-//  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.client_authentication', 'required'
+  extraConfigFile 'transport.key', file("${buildDir}/certs/n1.c1.key")
+  extraConfigFile 'transport.cert', file("${buildDir}/certs/n1.c1.crt")
+  extraConfigFile 'transport.ca', file("${buildDir}/certs/ca.crt")
+  setting 'xpack.security.transport.ssl.key', 'transport.key'
+  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
+  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   user username: "test_user", password: "x-pack-test-password"
 }
 
 def queryingCluster = testClusters.register('querying-cluster') {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'basic'
-//  setting 'xpack.security.transport.ssl.enabled', 'true'
-//  setting 'xpack.security.transport.ssl.client_authentication', 'required'
-//  extraConfigFile 'transport.key', file("${buildDir}/certs/n1.c2.key")
-//  extraConfigFile 'transport.cert', file("${buildDir}/certs/n1.c2.crt")
-//  extraConfigFile 'transport.ca', file("${buildDir}/certs/ca.crt")
-//  setting 'xpack.security.transport.ssl.key', 'transport.key'
-//  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
-//  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.client_authentication', 'required'
+  extraConfigFile 'transport.key', file("${buildDir}/certs/n1.c2.key")
+  extraConfigFile 'transport.cert', file("${buildDir}/certs/n1.c2.crt")
+  extraConfigFile 'transport.ca', file("${buildDir}/certs/ca.crt")
+  setting 'xpack.security.transport.ssl.key', 'transport.key'
+  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
+  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   setting 'cluster.remote.connections_per_cluster', "1"
   user username: "test_user", password: "x-pack-test-password"
 
@@ -64,11 +67,13 @@ def queryingCluster = testClusters.register('querying-cluster') {
 }
 
 tasks.register('fulfilling-cluster', RestIntegTestTask) {
+  dependsOn 'copyCerts'
   useCluster fulfillingCluster
   systemProperty 'tests.rest.suite', 'fulfilling_cluster'
 }
 
 tasks.register('querying-cluster', RestIntegTestTask) {
+  dependsOn 'copyCerts'
   dependsOn 'fulfilling-cluster'
   useCluster queryingCluster
   useCluster fulfillingCluster

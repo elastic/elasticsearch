@@ -32,10 +32,12 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   extraConfigFile 'transport.key', file("${buildDir}/certs/n1.c1.key")
   extraConfigFile 'transport.cert', file("${buildDir}/certs/n1.c1.crt")
   extraConfigFile 'transport.ca', file("${buildDir}/certs/ca.crt")
+  extraConfigFile 'trust.yml', file("${buildDir}/resources/test/trust.yml")
   setting 'xpack.security.transport.ssl.key', 'transport.key'
   setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
   setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+  setting 'xpack.security.transport.ssl.trust_restrictions.path', 'trust.yml'
   user username: "test_user", password: "x-pack-test-password"
 }
 
@@ -47,10 +49,13 @@ def queryingCluster = testClusters.register('querying-cluster') {
   extraConfigFile 'transport.key', file("${buildDir}/certs/n1.c2.key")
   extraConfigFile 'transport.cert', file("${buildDir}/certs/n1.c2.crt")
   extraConfigFile 'transport.ca', file("${buildDir}/certs/ca.crt")
+  extraConfigFile 'trust.yml', file("${buildDir}/resources/test/trust.yml")
   setting 'xpack.security.transport.ssl.key', 'transport.key'
   setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
   setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+  setting 'xpack.security.transport.ssl.trust_restrictions.path', 'trust.yml'
+  setting 'xpack.security.transport.ssl.trust_restrictions.x509_fields', 'subjectAltName.dnsName'
   setting 'cluster.remote.connections_per_cluster', "1"
   user username: "test_user", password: "x-pack-test-password"
 

@@ -23,8 +23,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.fleet.Fleet;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.fleet.Fleet;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.util.Arrays;

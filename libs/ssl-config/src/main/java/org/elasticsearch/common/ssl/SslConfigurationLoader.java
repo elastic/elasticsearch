@@ -273,6 +273,10 @@ public abstract class SslConfigurationLoader {
         return defaultKeyConfig;
     }
 
+    protected List<String> resolveList(String settingKey, List<String> defaultList) {
+        return resolveListSetting(settingKey, Function.identity(), defaultList);
+    }
+
     private char[] resolvePasswordSetting(String secureSettingKey, String legacySettingKey) {
         final char[] securePassword = resolveSecureSetting(secureSettingKey, null);
         final String legacyPassword = resolveSetting(legacySettingKey, Function.identity(), null);

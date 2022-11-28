@@ -25,6 +25,11 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }
 
+configurations {
+  signedCerts
+  rootCert
+}
+
 dependencies {
   compileOnly project(":server")
   api project(":libs:elasticsearch-ssl-config")
@@ -62,6 +67,8 @@ dependencies {
 
   yamlRestTestImplementation project(':x-pack:plugin:core')
 
+  signedCerts fileTree("src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca-signed")
+  rootCert files("src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt")
 }
 
 ext.expansions = [

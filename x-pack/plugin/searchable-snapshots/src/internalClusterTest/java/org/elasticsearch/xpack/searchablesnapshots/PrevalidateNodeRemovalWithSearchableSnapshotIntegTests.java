@@ -79,7 +79,7 @@ public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends Base
         assertThat(nodeResult.Id(), not(emptyString()));
         assertThat(nodeResult.externalId(), not(emptyString()));
         assertTrue(nodeResult.result().isSafe());
-        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.RED_INDICES_ARE_SEARCHABLE_SNAPSHOT));
+        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.NO_RED_SHARDS_EXCEPT_SEARCHABLE_SNAPSHOTS));
         assertThat(nodeResult.result().message(), equalTo(""));
     }
 }

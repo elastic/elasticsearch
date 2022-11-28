@@ -175,7 +175,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
         assertThat(nodeResult.name(), equalTo(node1));
         assertFalse(nodeResult.result().isSafe());
-        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.CONTAINS_RED_SHARD_COPY));
+        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.RED_SHARDS_ON_NODE));
         assertThat(nodeResult.result().message(), equalTo("node contains copies of the following red shards: [[" + indexName + "][0]]"));
     }
 
@@ -217,7 +217,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         assertThat(nodeResult.name(), equalTo(node2));
         assertFalse(nodeResult.result().isSafe());
         assertThat(nodeResult.result().message(), startsWith("failed contacting the node"));
-        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.ERROR_CONTACTING_NODE));
+        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.UNABLE_TO_VERIFY));
     }
 
     private void ensureRed(String indexName) throws Exception {

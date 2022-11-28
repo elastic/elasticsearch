@@ -198,7 +198,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                         dn.getName(),
                         dn.getId(),
                         dn.getExternalId(),
-                        new Result(true, NodesRemovalPrevalidation.Reason.RED_INDICES_ARE_SEARCHABLE_SNAPSHOT, "")
+                        new Result(true, NodesRemovalPrevalidation.Reason.NO_RED_SHARDS_EXCEPT_SEARCHABLE_SNAPSHOTS, "")
                     )
                 )
                 .toList();
@@ -253,7 +253,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             } else {
                 result = new Result(
                     false,
-                    NodesRemovalPrevalidation.Reason.CONTAINS_RED_SHARD_COPY,
+                    NodesRemovalPrevalidation.Reason.RED_SHARDS_ON_NODE,
                     Strings.format("node contains copies of the following red shards: %s", nodeResponse.getShardIds())
                 );
             }
@@ -275,7 +275,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     node.getExternalId(),
                     new Result(
                         false,
-                        NodesRemovalPrevalidation.Reason.ERROR_CONTACTING_NODE,
+                        NodesRemovalPrevalidation.Reason.UNABLE_TO_VERIFY,
                         Strings.format("failed contacting the node: %s", failedResponse.getDetailedMessage())
                     )
                 )

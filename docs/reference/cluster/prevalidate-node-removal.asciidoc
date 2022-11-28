@@ -85,10 +85,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 +
 --
     * `no_problems`: The prevalidation did not find any issues that could prevent the node from being safely removed.
-    * `no_red_shards_on_node`: The node does not contain any copies of the red shards.
-    * `red_indices_are_searchable_snapshot_based`: The node can be safely removed as all red indices are searchable snapshot indices and therefore removing a node does not risk removing the last copy of that index from the cluster.
-    * `error_contacting_node`: Contacting the node failed or timed out. More details is provided in the `message` field.
-    * `contains_red_shard_copy`: The node might contain shard copies of some the red indices. The list of the shards that might be on the node are specified in the `message` field.
+    * `no_red_shards_except_searchable_snapshots`: The node can be safely removed as all red indices are searchable snapshot indices and therefore removing a node does not risk removing the last copy of that index from the cluster.
+    * `no_red_shards_on_node`: The node does not contain any copies of the red non-searchable-snapshot index shards.
+    * `red_shards_on_node`: The node might contain shard copies of some non-searchable-snapshot red indices. The list of the shards that might be on the node are specified in the `message` field.
+    * `unable_to_verify_red_shards`: Contacting the node failed or timed out. More details is provided in the `message` field.
 --
 `message`::
     (Optional, string) Detailed information about the removal prevalidation result.
@@ -131,7 +131,7 @@ The API returns the following response:
       "external_id" : "node2-externalId",
       "result" : {
         "is_safe": false,
-        "reason": "contains_red_shard_copy",
+        "reason": "red_shards_on_node",
         "message": "node contains copies of the following red shards: [[indexName][0]]"
       }
     }

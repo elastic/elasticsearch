@@ -169,9 +169,9 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
     public enum Reason implements Writeable {
         NO_PROBLEMS("no_problems"),
         NO_RED_SHARDS_ON_NODE("no_red_shards_on_node"),
-        RED_INDICES_ARE_SEARCHABLE_SNAPSHOT("red_indices_are_searchable_snapshot_based"),
-        ERROR_CONTACTING_NODE("error_contacting_node"),
-        CONTAINS_RED_SHARD_COPY("contains_red_shard_copy");
+        NO_RED_SHARDS_EXCEPT_SEARCHABLE_SNAPSHOTS("no_red_shards_except_searchable_snapshots"),
+        RED_SHARDS_ON_NODE("red_shards_on_node"),
+        UNABLE_TO_VERIFY("unable_to_verify_red_shards");
 
         private final String reason;
 

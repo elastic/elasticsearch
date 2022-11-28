@@ -115,25 +115,27 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         if (verifyCertificateNames(values)) {
             logger.debug(
                 () -> format(
-                    "Fields %s values %s matches the trusted names %s for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
+                    "Fields %s values %s matches the trusted names %s for cert serial [0x%s] subject [%s] issuer [%s] valid [%s] [%s]",
                     x509Fields,
                     values,
                     trustRestrictions.getTrustedNames(),
                     certificate.getSerialNumber().toString(16),
                     certificate.getSubjectX500Principal(),
                     certificate.getIssuerX500Principal(),
+                    certificate.getNotBefore(),
                     certificate.getNotAfter()
                 )
             );
         } else {
             final String message = format(
-                "Fields %s values %s does not match the trusted names %s for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
+                "Fields %s values %s does not match the trusted names %s for cert serial [0x%s] subject [%s] issuer [%s] valid [%s] [%s]",
                 x509Fields,
                 values,
                 trustRestrictions.getTrustedNames(),
                 certificate.getSerialNumber().toString(16),
                 certificate.getSubjectX500Principal(),
                 certificate.getIssuerX500Principal(),
+                certificate.getNotBefore(),
                 certificate.getNotAfter()
             );
             logger.info(message);
@@ -211,12 +213,13 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
             } else {
                 logger.debug(
                     () -> format(
-                        "Unsupported seq [%s] id [%s] for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
+                        "Unsupported seq [%s] id [%s] for cert serial [0x%s] subject [%s] issuer [%s] valid [%s] [%s]",
                         seq,
                         id,
                         certificate.getSerialNumber().toString(16),
                         certificate.getSubjectX500Principal(),
                         certificate.getIssuerX500Principal(),
+                        certificate.getNotBefore(),
                         certificate.getNotAfter()
                     )
                 );
@@ -225,10 +228,11 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         } catch (IOException e) {
             logger.warn(
                 () -> format(
-                    "Failed to parse SAN otherName for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
+                    "Failed to parse SAN otherName for cert serial [0x%s] subject [%s] issuer [%s] valid [%s] [%s]",
                     certificate.getSerialNumber().toString(16),
                     certificate.getSubjectX500Principal(),
                     certificate.getIssuerX500Principal(),
+                    certificate.getNotBefore(),
                     certificate.getNotAfter()
                 )
             );
@@ -240,12 +244,13 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         final Collection<List<?>> sans = certificate.getSubjectAlternativeNames();
         logger.trace(
             () -> format(
-                "Cert serial [0x%s] subject [%s] issuer [%s] has SANs [%s] end [%s]",
+                "Read SANs [%s] for cert serial [0x%s] subject [%s] issuer [%s] valid [%s] [%s]",
+                sans,
                 certificate.getSerialNumber().toString(16),
                 certificate.getSubjectX500Principal(),
                 certificate.getIssuerX500Principal(),
-                certificate.getNotAfter(),
-                sans
+                certificate.getNotBefore(),
+                certificate.getNotAfter()
             )
         );
         return sans == null ? Collections.emptyList() : sans;

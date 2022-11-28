@@ -42,7 +42,7 @@ public class SSLConfigurationSettings {
     public final Setting<String> truststoreAlgorithm;
     public final Setting<Optional<String>> truststoreType;
     public final Setting<Optional<String>> trustRestrictionsPath;
-    final Setting<List<String>> trustRestrictionsX509Fields;
+    public final Setting<List<String>> trustRestrictionsX509Fields;
     public final Setting<List<String>> caPaths;
     public final Setting<Optional<SSLClientAuth>> clientAuth;
     public final Setting<Optional<VerificationMode>> verificationMode;

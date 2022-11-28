@@ -29,7 +29,7 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.ActionUserContext;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
@@ -74,7 +74,6 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.ActionUserConverter;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -93,7 +92,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
@@ -437,7 +435,7 @@ public class Node implements Closeable {
             HeaderWarning.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
 
-            ActionUserConverter.setActionUserResolver(getActionUserResolver(pluginsService));
+            ActionUserContext.setActionUserResolver(getActionUserResolver(pluginsService));
 
             final Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
@@ -1202,7 +1200,7 @@ public class Node implements Closeable {
         return tracerPlugins.isEmpty() ? Tracer.NOOP : tracerPlugins.get(0).getTracer(settings);
     }
 
-    private Function<ThreadContext, Optional<ActionUser>> getActionUserResolver(PluginsService pluginsService) {
+    private ActionUserContext.Resolver getActionUserResolver(PluginsService pluginsService) {
         final List<ActionUserResolverPlugin> actionUserResolverPlugins = pluginsService.filterPlugins(ActionUserResolverPlugin.class);
 
         if (actionUserResolverPlugins.size() > 1) {

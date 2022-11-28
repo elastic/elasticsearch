@@ -8,12 +8,8 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.action.support.user.ActionUser;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-
-import java.util.Optional;
-import java.util.function.Function;
+import org.elasticsearch.action.support.user.ActionUserContext;
 
 public interface ActionUserResolverPlugin {
-    Function<ThreadContext, Optional<ActionUser>> getResolver();
+    ActionUserContext.Resolver getResolver();
 }

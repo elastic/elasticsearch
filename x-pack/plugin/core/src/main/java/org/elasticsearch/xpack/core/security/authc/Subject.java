@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -34,7 +33,7 @@ import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
  * It also contains authentication level information, e.g. realm and metadata so that it can answer
  * queries in a better encapsulated way.
  */
-public class Subject implements ActionUser {
+public class Subject {
 
     public enum Type {
         USER,

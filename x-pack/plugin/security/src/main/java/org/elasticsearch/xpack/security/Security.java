@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.ActionUserContext;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -159,8 +159,8 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.SecurityActionUser;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
-import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -1735,15 +1735,10 @@ public class Security extends Plugin
     }
 
     @Override
-    public Function<ThreadContext, Optional<ActionUser>> getResolver() {
-        final AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+    public ActionUserContext.Resolver getResolver() {
         return t -> {
-            final Authentication authentication = serializer.getAuthentication(t);
-            if (authentication != null) {
-                return Optional.of(authentication.getEffectiveSubject());
-            } else {
-                return Optional.empty();
-            }
+            final Authentication authentication = securityContext.get().getAuthentication();
+            return Optional.ofNullable(authentication).map(Authentication::getEffectiveSubject).map(SecurityActionUser::new);
         };
     }
 }

@@ -332,7 +332,7 @@ class AuthenticatorChain {
      */
     void writeAuthToContext(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
         try {
-            authentication.writeToContext(context.getThreadContext());
+            authenticationSerializer.writeToContext(authentication, context.getThreadContext());
             context.getRequest().authenticationSuccess(authentication);
         } catch (Exception e) {
             logger.debug(() -> format("Failed to store authentication [%s] for request [%s]", authentication, context.getRequest()), e);

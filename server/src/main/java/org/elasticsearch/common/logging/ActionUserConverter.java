@@ -13,18 +13,14 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.user.ActionUser;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.action.support.user.ActionUserContext;
 
 import java.util.Optional;
-import java.util.function.Function;
 
 @Plugin(category = PatternConverter.CATEGORY, name = "ActionUserConverter")
 @ConverterKeys({ "action_user" })
 public final class ActionUserConverter extends LogEventPatternConverter {
-
-    private static final SetOnce<Function<ThreadContext, Optional<ActionUser>>> ACTION_USER_RESOLVER = new SetOnce<>();
 
     /**
      * Called by log4j2 to initialize this converter.
@@ -37,16 +33,12 @@ public final class ActionUserConverter extends LogEventPatternConverter {
         super("action_user", "action_user");
     }
 
-    public static void setActionUserResolver(Function<ThreadContext, Optional<ActionUser>> resolver) {
-        ACTION_USER_RESOLVER.set(resolver);
-    }
-
     private static Optional<ActionUser> getActionUser() {
-        final Function<ThreadContext, Optional<ActionUser>> resolver = ACTION_USER_RESOLVER.get();
-        if (resolver == null) {
-            return null;
-        }
-        return HeaderWarning.THREAD_CONTEXT.stream().map(resolver).filter(Optional::isPresent).map(Optional::get).findFirst();
+        return HeaderWarning.THREAD_CONTEXT.stream()
+            .map(ActionUserContext::getEffectiveUser)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .findFirst();
     }
 
     @Override

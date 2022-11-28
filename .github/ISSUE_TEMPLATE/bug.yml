@@ -12,8 +12,10 @@ body:
         and that the version of Elasticsearch has not passed [end-of-life](https://www.elastic.co/support/eol).
         If you are using an unsupported OS or an unsupported version then the issue is likely to be closed.
 
+
         For security vulnerabilities please only send reports to security@elastic.co.
         See https://www.elastic.co/community/security for more information.
+
 
         Please fill in the following details to help us reproduce the bug:
   - type: input

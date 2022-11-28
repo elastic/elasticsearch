@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.List;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -121,7 +120,10 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.truststorePassword.exists(settings), is(false));
         assertThat(ssl.truststorePath.get(settings).isPresent(), is(false));
         assertThat(ssl.trustRestrictionsPath.get(settings).isPresent(), is(false));
-        assertThat(ssl.trustRestrictionsX509Fields.get(settings), is(org.elasticsearch.core.List.of("subjectAltName.otherName.commonName")));
+        assertThat(
+            ssl.trustRestrictionsX509Fields.get(settings),
+            is(org.elasticsearch.core.List.of("subjectAltName.otherName.commonName"))
+        );
         assertThat(ssl.verificationMode.get(settings).isPresent(), is(false));
 
         assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.x509KeyPair.keystoreType, settings, null), is("jks"));

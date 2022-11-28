@@ -14,8 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
-
 /**
  * This test suite will be run twice: Once against the fulfilling cluster, then again against the querying cluster.
  */
@@ -60,10 +58,10 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
             Request searchRequest = new Request("GET", "/my_remote_cluster:test_idx/_search");
             Response response = client().performRequest(searchRequest);
             assertOK(response);
-            //TODO: fix
-//            ObjectPath responseObj = ObjectPath.createFromResponse(response);
-//            int totalHits = responseObj.evaluate("hits.total.value");
-//            assertThat(totalHits, equalTo(1));
+            // TODO: fix
+            // ObjectPath responseObj = ObjectPath.createFromResponse(response);
+            // int totalHits = responseObj.evaluate("hits.total.value");
+            // assertThat(totalHits, equalTo(1));
         }
     }
 }

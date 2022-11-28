@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_DNS;
 import static org.elasticsearch.xpack.core.ssl.RestrictedTrustConfig.SAN_OTHER_COMMON;
 

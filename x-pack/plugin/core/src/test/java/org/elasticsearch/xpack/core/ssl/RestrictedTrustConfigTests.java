@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 
@@ -73,7 +72,11 @@ public class RestrictedTrustConfigTests extends ESTestCase {
             }
         };
 
-        final RestrictedTrustConfig restrictedTrustConfig = new RestrictedTrustConfig(groupConfigPath.toString(), org.elasticsearch.core.Set.of(SAN_OTHER_COMMON), delegate);
+        final RestrictedTrustConfig restrictedTrustConfig = new RestrictedTrustConfig(
+            groupConfigPath.toString(),
+            org.elasticsearch.core.Set.of(SAN_OTHER_COMMON),
+            delegate
+        );
         List<Path> filesToMonitor = restrictedTrustConfig.filesToMonitor(environment);
         List<Path> expectedPathList = new ArrayList<>(otherFiles);
         expectedPathList.add(groupConfigPath);

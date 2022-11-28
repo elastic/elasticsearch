@@ -15,11 +15,11 @@ bin/elasticsearch-certutil
 
 | (cert ([--ca <file_path>] | [--ca-cert <file_path> --ca-key <file_path>])
 [--ca-dn <name>] [--ca-pass <password>] [--days <n>]
-[--dns <domain_name>] [--in <input_file>] [--ip <ip_addresses>] [--cn <elastic_cloud_san_othername_cn>]
-[--multiple] [--name <file_name>] [--pem] [--self-signed])
+[--dns <domain_name>] [--ip <ip_addresses>] [--cn <san_othername_cn>]
+[--in <input_file>] [--name <file_name>] [--multiple] [--pem] [--self-signed])
 
-| (csr [--dns <domain_name>] [--in <input_file>] [--ip <ip_addresses>] [--cn <elastic_cloud_san_othername_cn>]
-[--name <file_name>])
+| (csr [--dns <domain_name>] [--ip <ip_addresses>] [--cn <san_othername_cn>]
+[--in <input_file>] [--name <file_name>] [--multiple])
 
 [-E <KeyValuePair>] [--keysize <bits>] [--out <file_path>]
 [--pass <password>]
@@ -309,6 +309,8 @@ instances:
       - "192.0.2.1"
     dns: <3>
       - "node1.mydomain.com"
+    cn: <4>
+      - "node01.node.cluster1.cluster.1234567890.account"
   - name: "node2"
     ip:
       - "192.0.2.2"
@@ -319,7 +321,7 @@ instances:
       - "node4.mydomain.com"
       - "node4.internal"
   - name: "CN=node5,OU=IT,DC=mydomain,DC=com"
-    filename: "node5" <4>
+    filename: "node5" <5>
 --------------------------------------------------
 <1> The name of the instance. This can be a simple string value or can be a
 Distinguished Name (DN). This is the only required field.
@@ -328,7 +330,11 @@ Both IPv4 and IPv6 values are allowed. The values are added as Subject
 Alternative Names.
 <3> An optional array of strings that represent DNS names for this instance.
 The values are added as Subject Alternative Names.
-<4> The filename to use for this instance. This name is used as the name of the
+<3> An optional array of strings that represent SAN otherName CNs for this instance.
+The values are added as Subject Alternative Names. This is only needed for CCS/CCR
+between self-managed clusters and Elastic Cloud deployments. If all clusters
+are in Elastic Cloud, or are self-managed, then SAN otherName is not required.
+<5> The filename to use for this instance. This name is used as the name of the
 directory that contains the instance's files in the output. It is also used in
 the names of the files within the directory. This filename should not have an
 extension. Note: If the `name` provided for the instance does not represent a

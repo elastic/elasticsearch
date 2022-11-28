@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)

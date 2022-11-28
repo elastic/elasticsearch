@@ -82,8 +82,6 @@ import java.util.zip.ZipOutputStream;
 
 import javax.security.auth.x500.X500Principal;
 
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.CN_OID;
-
 /**
  * CLI tool to make generation of certificates or certificate requests easier for users
  */
@@ -1157,7 +1155,7 @@ class CertificateTool extends MultiCommand {
         }
 
         for (String cn : commonNames) {
-            generalNameList.add(CertGenUtils.createEceGeneralNameOtherName(CN_OID, cn));
+            generalNameList.add(CertGenUtils.createCommonName(cn));
         }
 
         if (generalNameList.isEmpty()) {

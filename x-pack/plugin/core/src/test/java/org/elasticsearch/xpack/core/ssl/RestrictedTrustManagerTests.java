@@ -129,13 +129,13 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         final Path cert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/restricted.trust.crt");
         baseTrustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(cert));
         X509Certificate[] certs = CertParsingUtils.readX509Certificates(Collections.singletonList(cert));
-        assertTrue(certs[0].getSubjectAlternativeNames().stream().anyMatch(pair -> (Integer) pair.get(0) == 0)); //othername
-        assertTrue(certs[0].getSubjectAlternativeNames().stream().anyMatch(pair -> (Integer) pair.get(0) == 2)); //dns
-        assertTrue(certs[0].getSubjectAlternativeNames().stream().anyMatch(pair -> (Integer) pair.get(0) == 7)); //ip
+        assertTrue(certs[0].getSubjectAlternativeNames().stream().anyMatch(pair -> (Integer) pair.get(0) == 0)); // othername
+        assertTrue(certs[0].getSubjectAlternativeNames().stream().anyMatch(pair -> (Integer) pair.get(0) == 2)); // dns
+        assertTrue(certs[0].getSubjectAlternativeNames().stream().anyMatch(pair -> (Integer) pair.get(0) == 7)); // ip
         certificates.put("varied", certs);
-        //othername/common name -> "instance03.cluster02.elasticsearch"
-        //dns -> "search.example.com"
-        //ip -> 50.100.150.200
+        // othername/common name -> "instance03.cluster02.elasticsearch"
+        // dns -> "search.example.com"
+        // ip -> 50.100.150.200
         String failureMatchDns = ".*subjectaltname\\.dnsname.*search\\.example\\.com.*does not match.*";
         String failureMatchCommon = ".*subjectaltname\\.othername\\.commonname.*instance03\\.cluster02\\.elasticsearch.*does not match.*";
 
@@ -159,9 +159,9 @@ public class RestrictedTrustManagerTests extends ESTestCase {
         trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_OTHER_COMMON));
         assertNotValid(trustManager, "varied", failureMatchCommon);
 
-       // instance03.cluster02.elasticsearch or search.example.com -> *.150.200
+        // instance03.cluster02.elasticsearch or search.example.com -> *.150.200
         restrictions = new CertificateTrustRestrictions(List.of("*.150.200"));
-        trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_DNS,SAN_OTHER_COMMON));
+        trustManager = new RestrictedTrustManager(baseTrustManager, restrictions, Set.of(SAN_DNS, SAN_OTHER_COMMON));
         assertNotValid(trustManager, "varied", failureMatchDns);
         assertNotValid(trustManager, "varied", failureMatchCommon);
     }

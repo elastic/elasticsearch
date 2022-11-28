@@ -94,7 +94,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             boolean previouslyLicensed
         ) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
-            this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, "objects_to_infer"));
+            this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, DOCS.getPreferredName()));
             this.update = ExceptionsHelper.requireNonNull(inferenceConfig, "inference_config");
             this.previouslyLicensed = previouslyLicensed;
             this.timeout = timeout;
@@ -112,7 +112,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public Request(String modelId, Map<String, Object> objectToInfer, InferenceConfigUpdate update, boolean previouslyLicensed) {
             this(
                 modelId,
-                Collections.singletonList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
+                Collections.singletonList(ExceptionsHelper.requireNonNull(objectToInfer, DOCS.getPreferredName())),
                 update,
                 TimeValue.MAX_VALUE,
                 previouslyLicensed

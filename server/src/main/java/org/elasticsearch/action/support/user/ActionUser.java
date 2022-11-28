@@ -8,10 +8,27 @@
 
 package org.elasticsearch.action.support.user;
 
+import java.util.Map;
+
 /**
  * A lightweight representation of the "user" that is executing the current action
  */
 public interface ActionUser {
 
-    String identity();
+    /**
+     * The identifier for this user
+     */
+    interface Id {
+        /**
+         * A plain string representation of this user identifier
+         */
+        String toString();
+
+        /**
+         * A Map representation of this user, suitable for turning into JSON
+         */
+        Map<String, Object> asMap();
+    }
+
+    Id identifier();
 }

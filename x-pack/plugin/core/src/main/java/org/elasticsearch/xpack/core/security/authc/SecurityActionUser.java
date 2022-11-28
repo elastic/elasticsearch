@@ -15,20 +15,7 @@ import org.elasticsearch.action.support.user.ActionUser;
 public record SecurityActionUser(Subject subject) implements ActionUser {
 
     @Override
-    public String identity() {
-        if (subject.getType() == Subject.Type.SERVICE_ACCOUNT) {
-            return subject.getUser().principal();
-        }
-        final String username = subject.getUser().principal() + "@" + subject.getRealm().getType() + "." + subject.getRealm().getName();
-        if (subject.getType() == Subject.Type.USER) {
-            return username;
-        } else if (subject.getType() == Subject.Type.API_KEY) {
-            final String apiKeyId = (String) subject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
-            return apiKeyId + ":" + username;
-        } else {
-            assert false : "Unrecognized subject type";
-            return subject.getType() + "::" + username;
-        }
+    public Id identifier() {
+        return subject.identifier();
     }
-
 }

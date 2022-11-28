@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -69,6 +70,58 @@ public class Subject {
             this.type = Type.USER;
         }
         this.metadata = metadata;
+    }
+
+    public ActionUser.Id identifier() {
+        // TODO Cleanup this implementation
+        return switch (getType()) {
+            case SERVICE_ACCOUNT -> new ActionUser.Id() {
+                @Override
+                public Map<String, Object> asMap() {
+                    return Map.ofEntries(Map.entry("type", getType()), Map.entry("username", getUser().principal()));
+                }
+
+                @Override
+                public String toString() {
+                    return getUser().principal() + " (" + type.name() + ")";
+                }
+            };
+            case USER -> new ActionUser.Id() {
+                @Override
+                public Map<String, Object> asMap() {
+                    return Map.ofEntries(
+                        Map.entry("type", getType()),
+                        Map.entry("username", getUser().principal()),
+                        Map.entry("realm", getRealm().getType() + "." + getRealm().getName())
+                    );
+                }
+
+                @Override
+                public String toString() {
+                    return getUser().principal() + " (" + type.name() + " in " + getRealm().getType() + "." + getRealm().getName() + ")";
+                }
+            };
+            case API_KEY -> new ActionUser.Id() {
+                @Override
+                public Map<String, Object> asMap() {
+                    return Map.ofEntries(
+                        Map.entry("type", getType()),
+                        Map.entry("apikey_id", getMetadata().get(AuthenticationField.API_KEY_ID_KEY)),
+                        Map.entry("username", getUser().principal())
+                    );
+                }
+
+                @Override
+                public String toString() {
+                    return getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+                        + " ("
+                        + type.name()
+                        + " created-by "
+                        + getUser().principal()
+                        + ")";
+                }
+            };
+        };
     }
 
     public User getUser() {

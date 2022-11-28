@@ -43,7 +43,7 @@ public final class ActionUserConverter extends LogEventPatternConverter {
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        getActionUser().ifPresent(user -> toAppendTo.append(user.identity()));
+        getActionUser().ifPresent(user -> toAppendTo.append(user.identifier()));
     }
 
 }

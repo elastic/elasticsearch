@@ -41,7 +41,7 @@ public class HttpTracerTests extends ESTestCase {
                     "request log",
                     httpTracerLog,
                     Level.TRACE,
-                    "\\[1]\\[idHeader]\\[GET]\\[uri] received request from \\[.*] trace.id: 4bf92f3577b34da6a3ce929d0e0e4736"
+                    "\\[\\d+]\\[idHeader]\\[GET]\\[uri] received request from \\[.*] trace.id: 4bf92f3577b34da6a3ce929d0e0e4736"
                 )
             );
             appender.addExpectation(
@@ -49,7 +49,7 @@ public class HttpTracerTests extends ESTestCase {
                     "response log",
                     httpTracerLog,
                     Level.TRACE,
-                    "\\[1]\\[idHeader]\\[ACCEPTED]\\[text/plain; charset=UTF-8]\\[length] sent response to \\[.*] success \\[true]"
+                    "\\[\\d+]\\[idHeader]\\[ACCEPTED]\\[text/plain; charset=UTF-8]\\[length] sent response to \\[.*] success \\[true]"
                 )
             );
 

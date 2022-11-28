@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,6 +30,7 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
     private final String[] names;
     private final String[] ids;
     private final String[] externalIds;
+    private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
     private PrevalidateNodeRemovalRequest(Builder builder) {
         this.names = builder.names;
@@ -41,6 +43,7 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
         names = in.readStringArray();
         ids = in.readStringArray();
         externalIds = in.readStringArray();
+        timeout = in.readTimeValue();
     }
 
     @Override
@@ -49,6 +52,7 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
         out.writeStringArray(names);
         out.writeStringArray(ids);
         out.writeStringArray(externalIds);
+        out.writeTimeValue(timeout);
     }
 
     @Override
@@ -77,6 +81,18 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
 
     public String[] getExternalIds() {
         return externalIds;
+    }
+
+    public TimeValue timeout() {
+        return timeout;
+    }
+
+    public PrevalidateNodeRemovalRequest timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        if (masterNodeTimeout == DEFAULT_MASTER_NODE_TIMEOUT) {
+            masterNodeTimeout = timeout;
+        }
+        return this;
     }
 
     @Override

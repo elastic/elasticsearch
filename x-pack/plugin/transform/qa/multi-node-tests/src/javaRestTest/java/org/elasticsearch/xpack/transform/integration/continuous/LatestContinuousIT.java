@@ -74,7 +74,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
 
         var runtimeMappings = toJson(RUNTIME_MAPPINGS);
-        String query = """
+        String query = formatted("""
             {
               "runtime_mappings" : %s,
               "aggs": {
@@ -95,7 +95,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
                 }
               }
             }
-            """.formatted(runtimeMappings, eventField, MISSING_BUCKET_KEY, timestampField);
+            """, runtimeMappings, eventField, MISSING_BUCKET_KEY, timestampField);
 
         Response searchResponseSource = search(
             CONTINUOUS_EVENTS_SOURCE_INDEX,

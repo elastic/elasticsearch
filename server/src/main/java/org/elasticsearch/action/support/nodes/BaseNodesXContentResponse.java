@@ -33,17 +33,12 @@ public abstract class BaseNodesXContentResponse<TNodeResponse extends BaseNodeRe
     }
 
     @Override
-    public final Iterator<? extends ToXContent> toXContentChunked() {
+    public final Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(Iterators.single((b, p) -> {
             b.startObject();
             RestActions.buildNodesHeader(b, p, this);
             return b.field("cluster_name", getClusterName().value());
         }), xContentChunks(), Iterators.single((ToXContent) (b, p) -> b.endObject()));
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     protected abstract Iterator<? extends ToXContent> xContentChunks();

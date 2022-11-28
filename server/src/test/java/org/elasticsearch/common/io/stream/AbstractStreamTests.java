@@ -14,7 +14,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
@@ -33,7 +35,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -75,7 +76,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final byte[] corruptBytes = new byte[] { randomFrom(set) };
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readBoolean());
-        final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
+        final String message = formatted("unexpected byte [0x%02x]", corruptBytes[0]);
         assertThat(e, hasToString(containsString(message)));
     }
 
@@ -110,7 +111,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final byte[] corruptBytes = new byte[] { randomFrom(set) };
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readOptionalBoolean());
-        final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
+        final String message = formatted("unexpected byte [0x%02x]", corruptBytes[0]);
         assertThat(e, hasToString(containsString(message)));
     }
 
@@ -239,6 +240,56 @@ public abstract class AbstractStreamTests extends ESTestCase {
         testData.writeTo(out);
 
         try (IntArray in = IntArray.readFrom(getStreamInput(out.bytes()))) {
+            assertThat(in.size(), equalTo(testData.size()));
+            for (int i = 0; i < size; i++) {
+                assertThat(in.get(i), equalTo(testData.get(i)));
+            }
+        }
+    }
+
+    public void testSmallBigDoubleArray() throws IOException {
+        assertBigDoubleArray(between(0, PageCacheRecycler.DOUBLE_PAGE_SIZE));
+    }
+
+    public void testLargeBigDoubleArray() throws IOException {
+        assertBigDoubleArray(between(PageCacheRecycler.DOUBLE_PAGE_SIZE, 10000));
+    }
+
+    private void assertBigDoubleArray(int size) throws IOException {
+        DoubleArray testData = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(size, false);
+        for (int i = 0; i < size; i++) {
+            testData.set(i, randomDouble());
+        }
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        testData.writeTo(out);
+
+        try (DoubleArray in = DoubleArray.readFrom(getStreamInput(out.bytes()))) {
+            assertThat(in.size(), equalTo(testData.size()));
+            for (int i = 0; i < size; i++) {
+                assertThat(in.get(i), equalTo(testData.get(i)));
+            }
+        }
+    }
+
+    public void testSmallBigLongArray() throws IOException {
+        assertBigLongArray(between(0, PageCacheRecycler.DOUBLE_PAGE_SIZE));
+    }
+
+    public void testLargeBigLongArray() throws IOException {
+        assertBigLongArray(between(PageCacheRecycler.DOUBLE_PAGE_SIZE, 10000));
+    }
+
+    private void assertBigLongArray(int size) throws IOException {
+        LongArray testData = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(size, false);
+        for (int i = 0; i < size; i++) {
+            testData.set(i, randomLong());
+        }
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        testData.writeTo(out);
+
+        try (LongArray in = LongArray.readFrom(getStreamInput(out.bytes()))) {
             assertThat(in.size(), equalTo(testData.size()));
             for (int i = 0; i < size; i++) {
                 assertThat(in.get(i), equalTo(testData.get(i)));

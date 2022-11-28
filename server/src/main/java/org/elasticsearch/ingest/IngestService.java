@@ -216,7 +216,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             IndexMetadata indexMetadata = null;
             // start to look for default or final pipelines via settings found in the index meta data
             if (originalRequest != null) {
-                indexMetadata = metadata.indices().get(resolveIndexName(originalRequest.index(), epochMillis));
+                indexMetadata = metadata.indices()
+                    .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
             }
             // check the alias for the index request (this is how normal index requests are modeled)
             if (indexMetadata == null && indexRequest.index() != null) {
@@ -308,15 +309,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // return whether this index request has a pipeline
         return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
-    }
-
-    private static String resolveIndexName(final String unresolvedIndexName, final long epochMillis) {
-        List<String> resolvedNames = IndexNameExpressionResolver.DateMathExpressionResolver.resolve(
-            new IndexNameExpressionResolver.ResolverContext(epochMillis),
-            List.of(unresolvedIndexName)
-        );
-        assert resolvedNames.size() == 1;
-        return resolvedNames.get(0);
     }
 
     public ClusterService getClusterService() {
@@ -769,8 +761,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
             Pipeline pipeline = holder.pipeline;
             String originalIndex = indexRequest.indices()[0];
+            long startTimeInNanos = System.nanoTime();
+            totalMetrics.preIngest();
             innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
+                long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                totalMetrics.postIngest(ingestTimeInNanos);
                 if (e != null) {
+                    totalMetrics.ingestFailed();
                     logger.debug(
                         () -> format(
                             "failed to execute pipeline [%s] for document [%s/%s]",
@@ -901,10 +898,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return;
         }
 
-        long startTimeInNanos = System.nanoTime();
-        // the pipeline specific stat holder may not exist and that is fine:
-        // (e.g. the pipeline may have been removed while we're ingesting a document
-        totalMetrics.preIngest();
         String index = indexRequest.index();
         String id = indexRequest.id();
         String routing = indexRequest.routing();
@@ -921,13 +914,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             if (listenerHasBeenCalled.getAndSet(true)) {
-                logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
+                logger.warn("A listener was unexpectedly called more than once", new RuntimeException(e));
                 assert false : "A listener was unexpectedly called more than once";
             } else {
-                long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-                totalMetrics.postIngest(ingestTimeInNanos);
                 if (e != null) {
-                    totalMetrics.ingestFailed();
                     handler.accept(e);
                 } else if (result == null) {
                     itemDroppedHandler.accept(slot);
@@ -959,7 +949,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         // processor creates a source map that is self-referencing.
                         // In that case, we catch and wrap the exception so we can
                         // include which pipeline failed.
-                        totalMetrics.ingestFailed();
                         handler.accept(
                             new IllegalArgumentException(
                                 "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",

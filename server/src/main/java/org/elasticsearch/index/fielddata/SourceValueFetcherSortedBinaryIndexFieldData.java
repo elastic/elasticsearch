@@ -111,7 +111,7 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
             values.clear();
 
-            for (Object object : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
+            for (Object object : valueFetcher.fetchValues(sourceLookup, doc, Collections.emptyList())) {
                 values.add(new BytesRef(object.toString()));
             }
 

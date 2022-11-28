@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,7 +45,7 @@ import java.util.Set;
 
 public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeAction<
     PutSnapshotLifecycleAction.Request,
-    PutSnapshotLifecycleAction.Response> {
+    AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
 
@@ -64,7 +65,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
             actionFilters,
             PutSnapshotLifecycleAction.Request::new,
             indexNameExpressionResolver,
-            PutSnapshotLifecycleAction.Response::new,
+            AcknowledgedResponse::readFrom,
             ThreadPool.Names.SAME
         );
     }
@@ -74,7 +75,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         final Task task,
         final PutSnapshotLifecycleAction.Request request,
         final ClusterState state,
-        final ActionListener<PutSnapshotLifecycleAction.Response> listener
+        final ActionListener<AcknowledgedResponse> listener
     ) {
         SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
 
@@ -90,8 +91,8 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
             "put-snapshot-lifecycle-" + request.getLifecycleId(),
             new UpdateSnapshotPolicyTask(request, listener, filteredHeaders) {
                 @Override
-                protected PutSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
-                    return new PutSnapshotLifecycleAction.Response(acknowledged);
+                protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                    return AcknowledgedResponse.of(acknowledged);
                 }
             }
         );
@@ -107,7 +108,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
 
         UpdateSnapshotPolicyTask(
             PutSnapshotLifecycleAction.Request request,
-            ActionListener<PutSnapshotLifecycleAction.Response> listener,
+            ActionListener<AcknowledgedResponse> listener,
             Map<String, String> filteredHeaders
         ) {
             super(request, listener);

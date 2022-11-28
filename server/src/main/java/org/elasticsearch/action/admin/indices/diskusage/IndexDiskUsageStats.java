@@ -136,7 +136,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final PerFieldDiskUsage total = total();
-        builder.field(STORE_SIZE, new ByteSizeValue(indexSizeInBytes));
+        builder.field(STORE_SIZE, ByteSizeValue.ofBytes(indexSizeInBytes));
         builder.field(STORE_SIZE_IN_BYTES, indexSizeInBytes);
 
         // all fields
@@ -252,30 +252,30 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             final long totalBytes = totalBytes();
-            builder.field(TOTAL, new ByteSizeValue(totalBytes));
+            builder.field(TOTAL, ByteSizeValue.ofBytes(totalBytes));
             builder.field(TOTAL_IN_BYTES, totalBytes);
 
             builder.startObject(INVERTED_INDEX);
-            builder.field(TOTAL, new ByteSizeValue(invertedIndexBytes));
+            builder.field(TOTAL, ByteSizeValue.ofBytes(invertedIndexBytes));
             builder.field(TOTAL_IN_BYTES, invertedIndexBytes);
             builder.endObject();
 
-            builder.field(STORED_FIELDS, new ByteSizeValue(storedFieldBytes));
+            builder.field(STORED_FIELDS, ByteSizeValue.ofBytes(storedFieldBytes));
             builder.field(STORED_FIELDS_IN_BYTES, storedFieldBytes);
 
-            builder.field(DOC_VALUES, new ByteSizeValue(docValuesBytes));
+            builder.field(DOC_VALUES, ByteSizeValue.ofBytes(docValuesBytes));
             builder.field(DOC_VALUES_IN_BYTES, docValuesBytes);
 
-            builder.field(POINTS, new ByteSizeValue(pointsBytes));
+            builder.field(POINTS, ByteSizeValue.ofBytes(pointsBytes));
             builder.field(POINTS_IN_BYTES, pointsBytes);
 
-            builder.field(NORMS, new ByteSizeValue(normsBytes));
+            builder.field(NORMS, ByteSizeValue.ofBytes(normsBytes));
             builder.field(NORMS_IN_BYTES, normsBytes);
 
-            builder.field(TERM_VECTORS, new ByteSizeValue(termVectorsBytes));
+            builder.field(TERM_VECTORS, ByteSizeValue.ofBytes(termVectorsBytes));
             builder.field(TERM_VECTORS_IN_BYTES, termVectorsBytes);
 
-            builder.field(KNN_VECTORS, new ByteSizeValue(knnVectorsBytes));
+            builder.field(KNN_VECTORS, ByteSizeValue.ofBytes(knnVectorsBytes));
             builder.field(KNN_VECTORS_IN_BYTES, knnVectorsBytes);
             return builder;
         }

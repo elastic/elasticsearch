@@ -46,8 +46,8 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         int maxNumSegments = instance.getMaxNumSegments();
 
         switch (between(0, 2)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> maxNumSegments += 1;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -169,9 +169,9 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
         ElasticsearchException stepException = failedStep.get();
         assertThat(stepException, notNullValue());
-        assertThat(stepException.getMessage(), is("""
+        assertThat(stepException.getMessage(), is(formatted("""
             index [%s] in policy [ilmPolicy] encountered failures [{"shard":0,"index":"%s","status":"BAD_REQUEST",\
             "reason":{"type":"illegal_argument_exception","reason":"couldn't merge"}}] on step [forcemerge]\
-            """.formatted(index.getName(), index.getName())));
+            """, index.getName(), index.getName())));
     }
 }

@@ -539,7 +539,7 @@ public class SnapshotsServiceTests extends ESTestCase {
     private static SnapshotsInProgress.ShardSnapshotStatus successfulShardStatus(String nodeId) {
         return SnapshotsInProgress.ShardSnapshotStatus.success(
             nodeId,
-            new ShardSnapshotResult(ShardGeneration.newGeneration(random()), new ByteSizeValue(1L), 1)
+            new ShardSnapshotResult(ShardGeneration.newGeneration(random()), ByteSizeValue.ofBytes(1L), 1)
         );
     }
 

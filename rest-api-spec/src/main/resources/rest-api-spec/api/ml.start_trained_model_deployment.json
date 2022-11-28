@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trained-model-deployment.html",
       "description":"Start a trained model deployment."
     },
-    "stability":"experimental",
+    "stability":"beta",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
@@ -44,6 +44,12 @@
         "description": "The number of threads used by each model allocation during inference.",
         "required": false,
         "default": 1
+      },
+      "priority": {
+        "type": "string",
+        "description": "The deployment priority.",
+        "required": false,
+        "default": "normal"
       },
       "queue_capacity":{
         "type":"int",

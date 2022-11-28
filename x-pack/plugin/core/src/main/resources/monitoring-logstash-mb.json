@@ -146,10 +146,10 @@
                               "type": "nested",
                               "properties": {
                                 "name": {
-                                    "type": "keyword"
+                                  "type": "keyword"
                                 },
                                 "value": {
-                                    "type": "long"
+                                  "type": "long"
                                 }
                               }
                             }
@@ -164,13 +164,13 @@
                             "load_average": {
                               "properties": {
                                 "5m": {
-                                  "type": "long"
+                                  "type": "half_float"
                                 },
                                 "15m": {
-                                  "type": "long"
+                                  "type": "half_float"
                                 },
                                 "1m": {
-                                  "type": "long"
+                                  "type": "half_float"
                                 }
                               }
                             }
@@ -192,6 +192,9 @@
                                       "type": "long"
                                     }
                                   }
+                                },
+                                "cfs_quota_micros": {
+                                  "type": "long"
                                 }
                               }
                             },
@@ -393,22 +396,6 @@
               "properties": {
                 "cpu": {
                   "properties": {
-                    "stat": {
-                      "properties": {
-                        "number_of_elapsed_periods": {
-                          "path": "logstash.node.stats.os.cgroup.cpu.stat.number_of_elapsed_periods",
-                          "type": "alias"
-                        },
-                        "number_of_times_throttled": {
-                          "path": "logstash.node.stats.os.cgroup.cpu.stat.number_of_times_throttled",
-                          "type": "alias"
-                        },
-                        "time_throttled_nanos": {
-                          "path": "logstash.node.stats.os.cgroup.cpu.stat.time_throttled_nanos",
-                          "type": "alias"
-                        }
-                      }
-                    },
                     "load_average": {
                       "properties": {
                         "5m": {
@@ -433,6 +420,30 @@
                       "properties": {
                         "usage_nanos": {
                           "path": "logstash.node.stats.os.cgroup.cpuacct.usage_nanos",
+                          "type": "alias"
+                        }
+                      }
+                    },
+                    "cpu": {
+                      "properties": {
+                        "stat": {
+                          "properties": {
+                            "number_of_elapsed_periods": {
+                              "path": "logstash.node.stats.os.cgroup.cpu.stat.number_of_elapsed_periods",
+                              "type": "alias"
+                            },
+                            "number_of_times_throttled": {
+                              "path": "logstash.node.stats.os.cgroup.cpu.stat.number_of_times_throttled",
+                              "type": "alias"
+                            },
+                            "time_throttled_nanos": {
+                              "path": "logstash.node.stats.os.cgroup.cpu.stat.time_throttled_nanos",
+                              "type": "alias"
+                            }
+                          }
+                        },
+                        "cfs_quota_micros": {
+                          "path": "logstash.node.stats.os.cgroup.cpu.cfs_quota_micros",
                           "type": "alias"
                         }
                       }

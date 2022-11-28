@@ -75,7 +75,7 @@ public class OperatorPrivileges {
 
         public void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext) {
             // Always mark the thread context for operator users regardless of license state which is enforced at check time
-            final User user = authentication.getUser();
+            final User user = authentication.getEffectiveSubject().getUser();
             // Let internal users pass, they are exempt from marking and checking
             // Also check run_as, it is impossible to run_as internal users, but just to be extra safe
             if (User.isInternal(user) && false == authentication.isRunAs()) {
@@ -103,7 +103,7 @@ public class OperatorPrivileges {
             if (false == shouldProcess()) {
                 return null;
             }
-            final User user = authentication.getUser();
+            final User user = authentication.getEffectiveSubject().getUser();
             // Let internal users pass (also check run_as, it is impossible to run_as internal users, but just to be extra safe)
             if (User.isInternal(user) && false == authentication.isRunAs()) {
                 return null;

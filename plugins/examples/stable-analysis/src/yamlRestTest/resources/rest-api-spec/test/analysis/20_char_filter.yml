@@ -1,0 +1,31 @@
+## Smoke tests for char filters included in the analysis-common module
+
+#todo this can be expanded with parameters once settings support is added
+---
+"Stable char_filter plugin. Replace # with 3":
+  - do:
+      indices.analyze:
+        body:
+          text: t#st
+          tokenizer: standard
+          char_filter:
+            - type: example_char_filter
+  - length: { tokens: 1 }
+  - match:  { tokens.0.token: "t3st" }
+
+  - do:
+      indices.analyze:
+        body:
+          text: t#st
+          explain: true
+          tokenizer: standard
+          char_filter:
+            - type: example_char_filter
+  - match:  { detail.custom_analyzer: true }
+  - length: { detail.charfilters.0.filtered_text: 1 }
+  - match:  { detail.charfilters.0.filtered_text.0: "t3st" }
+  - length: { detail.tokenizer.tokens: 1 }
+  - match:  { detail.tokenizer.tokens.0.token: "t3st" }
+  - match:  { detail.tokenizer.tokens.0.start_offset: 0 }
+  - match:  { detail.tokenizer.tokens.0.end_offset: 4 }
+  - match:  { detail.tokenizer.tokens.0.position: 0 }

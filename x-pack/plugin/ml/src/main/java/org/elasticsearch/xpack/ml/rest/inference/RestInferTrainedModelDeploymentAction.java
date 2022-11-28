@@ -56,12 +56,12 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String deploymentId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
+        String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
         if (restRequest.hasContent() == false) {
             throw ExceptionsHelper.badRequestException("requires body");
         }
         InferTrainedModelDeploymentAction.Request.Builder request = InferTrainedModelDeploymentAction.Request.parseRequest(
-            deploymentId,
+            modelId,
             restRequest.contentParser()
         );
 

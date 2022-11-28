@@ -193,7 +193,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         SortedMap<String, LifecyclePolicyMetadata> metas = new TreeMap<>();
         metas.put("policy", policyMetadata);
         PolicyStepsRegistry registry = new PolicyStepsRegistry(metas, null, null, REGISTRY, client, null);
-        Step.StepKey badStepKey = new Step.StepKey(step.getKey().getPhase(), step.getKey().getAction(), step.getKey().getName() + "-bad");
+        Step.StepKey badStepKey = new Step.StepKey(step.getKey().phase(), step.getKey().action(), step.getKey().name() + "-bad");
         assertNull(registry.getStep(indexMetadata, badStepKey));
         // repeat the test to make sure that nulls don't poison the registry's cache
         assertNull(registry.getStep(indexMetadata, badStepKey));
@@ -268,7 +268,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         assertThat(registeredStepsForPolicy.size(), equalTo(policySteps.size()));
         for (Step step : policySteps) {
             LifecycleExecutionState.Builder newIndexState = LifecycleExecutionState.builder();
-            newIndexState.setPhase(step.getKey().getPhase());
+            newIndexState.setPhase(step.getKey().phase());
             currentState = ClusterState.builder(currentState)
                 .metadata(
                     Metadata.builder(currentState.metadata())
@@ -430,7 +430,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
         Step shrinkStep = registeredStepsForPolicy.entrySet()
             .stream()
-            .filter(e -> e.getKey().getPhase().equals("warm") && e.getKey().getName().equals("shrink"))
+            .filter(e -> e.getKey().phase().equals("warm") && e.getKey().name().equals("shrink"))
             .findFirst()
             .get()
             .getValue();
@@ -459,7 +459,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
         shrinkStep = registeredStepsForPolicy.entrySet()
             .stream()
-            .filter(e -> e.getKey().getPhase().equals("warm") && e.getKey().getName().equals("shrink"))
+            .filter(e -> e.getKey().phase().equals("warm") && e.getKey().name().equals("shrink"))
             .findFirst()
             .get()
             .getValue();

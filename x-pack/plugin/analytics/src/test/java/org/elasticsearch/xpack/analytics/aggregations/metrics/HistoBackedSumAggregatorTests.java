@@ -110,7 +110,7 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Sum> verify) throws IOException {
-        testCase(sum("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
+        testCase(indexer, verify, new AggTestConfig(sum("_name").field(FIELD_NAME), defaultFieldType()).withQuery(query));
     }
 
     @Override

@@ -117,18 +117,6 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
     }
 
-    public void deleteTempFiles() {
-        incRef();
-        try {
-            for (String tempFileName : tempFileNames.keySet()) {
-                store.deleteQuiet(tempFileName);
-            }
-            tempFileNames.clear();
-        } finally {
-            decRef();
-        }
-    }
-
     /** Get a temporary name for the provided file name. */
     String getTempNameForFile(String origFile) {
         return tempFilePrefix + origFile;

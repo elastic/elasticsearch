@@ -12,8 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -34,6 +37,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
  * Deletes indices.
@@ -51,22 +56,25 @@ public class MetadataDeleteIndexService {
     @Inject
     public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         this.settings = settings;
-        executor = batchExecutionContext -> {
-            ClusterState state = batchExecutionContext.initialState();
-            for (ClusterStateTaskExecutor.TaskContext<DeleteIndexClusterStateUpdateRequest> taskContext : batchExecutionContext
-                .taskContexts()) {
-                try (var ignored = taskContext.captureResponseHeaders()) {
-                    state = deleteIndices(state, Sets.newHashSet(taskContext.getTask().indices()));
-                    taskContext.success(taskContext.getTask());
-                } catch (Exception e) {
-                    taskContext.onFailure(e);
+        executor = new SimpleBatchedAckListenerTaskExecutor<>() {
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                DeleteIndexClusterStateUpdateRequest task,
+                ClusterState clusterState
+            ) {
+                return Tuple.tuple(deleteIndices(clusterState, Sets.newHashSet(task.indices())), task);
+            }
+
+            @Override
+            public ClusterState afterBatchExecution(ClusterState clusterState, boolean clusterStateChanged) {
+                if (clusterStateChanged) {
+                    return allocationService.reroute(
+                        clusterState,
+                        "deleted indices",
+                        rerouteCompletionIsNotRequired() // it is not required to balance shard to report index deletion success
+                    );
                 }
-            }
-            if (state == batchExecutionContext.initialState()) {
-                return state;
-            }
-            try (var ignored = batchExecutionContext.dropHeadersContext()) {
-                return allocationService.reroute(state, "deleted indices");
+                return clusterState;
             }
         };
         taskQueue = clusterService.getTaskQueue("delete-index", Priority.URGENT, executor);

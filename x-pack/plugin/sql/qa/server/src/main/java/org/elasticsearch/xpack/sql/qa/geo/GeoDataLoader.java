@@ -59,7 +59,7 @@ public class GeoDataLoader {
             map_neatlines
             """.lines().toList();
         for (String alias : aliases) {
-            makeFilteredAlias(client, alias, index, "\"term\" : { \"ogc_type\" : \"%s\" }".formatted(alias));
+            makeFilteredAlias(client, alias, index, String.format(java.util.Locale.ROOT, "\"term\" : { \"ogc_type\" : \"%s\" }", alias));
         }
     }
 

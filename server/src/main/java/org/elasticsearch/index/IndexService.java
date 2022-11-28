@@ -300,8 +300,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     public NodeMappingStats getNodeMappingStats() {
+        if (mapperService == null) {
+            return null;
+        }
         long totalCount = mapperService().mappingLookup().getTotalFieldsCount();
-        Index index = index();
         long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
         NodeMappingStats indexNodeMappingStats = new NodeMappingStats(totalCount, totalEstimatedOverhead);
         return indexNodeMappingStats;
@@ -513,7 +515,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
                 circuitBreakerService,
-                snapshotCommitSupplier
+                snapshotCommitSupplier,
+                System::nanoTime
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

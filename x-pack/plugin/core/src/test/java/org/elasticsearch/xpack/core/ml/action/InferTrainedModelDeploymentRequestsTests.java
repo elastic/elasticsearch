@@ -34,17 +34,28 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
 
     @Override
     protected InferTrainedModelDeploymentAction.Request createTestInstance() {
-        List<Map<String, Object>> docs = randomList(
-            5,
-            () -> randomMap(1, 3, () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7)))
-        );
+        boolean createQueryStringRequest = randomBoolean();
 
-        return new InferTrainedModelDeploymentAction.Request(
-            randomAlphaOfLength(4),
-            randomBoolean() ? null : randomInferenceConfigUpdate(),
-            docs,
-            randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
-        );
+        if (createQueryStringRequest) {
+            return new InferTrainedModelDeploymentAction.Request(
+                randomAlphaOfLength(4),
+                randomBoolean() ? null : randomInferenceConfigUpdate(),
+                randomAlphaOfLength(6),
+                randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+            );
+        } else {
+            List<Map<String, Object>> docs = randomList(
+                5,
+                () -> randomMap(1, 3, () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7)))
+            );
+
+            return new InferTrainedModelDeploymentAction.Request(
+                randomAlphaOfLength(4),
+                randomBoolean() ? null : randomInferenceConfigUpdate(),
+                docs,
+                randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+            );
+        }
     }
 
     @Override

@@ -42,6 +42,7 @@ public class RestResetJobAction extends BaseRestHandler {
         ResetJobAction.Request request = new ResetJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.setDeleteUserAnnotations(restRequest.paramAsBoolean("delete_user_annotations", false));
 
         if (restRequest.paramAsBoolean("wait_for_completion", true)) {
             return channel -> client.execute(ResetJobAction.INSTANCE, request, new RestToXContentListener<>(channel));

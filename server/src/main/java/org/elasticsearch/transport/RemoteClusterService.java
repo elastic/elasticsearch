@@ -119,6 +119,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         )
     );
 
+    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_AUTHORIZATION = Setting.affixKeySetting(
+        "cluster.remote.",
+        "authorization",
+        key -> Setting.simpleString(key, v -> {}, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered)
+    );
+
     private final boolean enabled;
 
     public boolean isEnabled() {

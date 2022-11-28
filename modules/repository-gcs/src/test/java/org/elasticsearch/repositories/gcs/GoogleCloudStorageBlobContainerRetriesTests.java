@@ -203,9 +203,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 assertThat(content.isPresent(), is(true));
                 assertThat(content.get().v1(), equalTo(blobContainer.path().buildAsString() + "write_blob_max_retries"));
                 if (Objects.deepEquals(bytes, BytesReference.toBytes(content.get().v2()))) {
-                    byte[] response = """
+                    byte[] response = formatted("""
                         {"bucket":"bucket","name":"%s"}
-                        """.formatted(content.get().v1()).getBytes(UTF_8);
+                        """, content.get().v1()).getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
@@ -349,7 +349,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 if (range.equals("bytes */*")) {
                     final int receivedSoFar = bytesReceived.get();
                     if (receivedSoFar > 0) {
-                        exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=0-%d", receivedSoFar));
+                        exchange.getResponseHeaders().add("Range", formatted("bytes=0-%d", receivedSoFar));
                     }
                     exchange.getResponseHeaders().add("Content-Length", "0");
                     exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);

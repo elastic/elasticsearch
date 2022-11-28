@@ -22,12 +22,12 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleAction.Response> {
+public class PutSnapshotLifecycleAction extends ActionType<AcknowledgedResponse> {
     public static final PutSnapshotLifecycleAction INSTANCE = new PutSnapshotLifecycleAction();
     public static final String NAME = "cluster:admin/slm/put";
 
     protected PutSnapshotLifecycleAction() {
-        super(NAME, PutSnapshotLifecycleAction.Response::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -100,17 +100,6 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
         @Override
         public String toString() {
             return Strings.toString(this);
-        }
-    }
-
-    public static class Response extends AcknowledgedResponse implements ToXContentObject {
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        public Response(StreamInput streamInput) throws IOException {
-            this(streamInput.readBoolean());
         }
     }
 }

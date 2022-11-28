@@ -142,7 +142,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
@@ -244,7 +244,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
@@ -341,7 +341,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 logger,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
-                Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
                 Collections.emptyMap(),
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
@@ -447,7 +447,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 logger,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
-                Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
                 Collections.emptyMap(),
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
@@ -775,10 +775,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchRequest.source(searchSourceBuilder);
 
             // Sometimes apply the same query in the alias filter too
-            aliasFilter = new AliasFilter(randomBoolean() ? query : null, Strings.EMPTY_ARRAY);
+            aliasFilter = AliasFilter.of(randomBoolean() ? query : null, Strings.EMPTY_ARRAY);
         } else {
             // Apply the query as an alias filter
-            aliasFilter = new AliasFilter(query, Strings.EMPTY_ARRAY);
+            aliasFilter = AliasFilter.of(query, Strings.EMPTY_ARRAY);
         }
 
         Map<String, AliasFilter> aliasFilters = new HashMap<>();

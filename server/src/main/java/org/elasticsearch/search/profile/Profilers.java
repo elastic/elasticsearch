@@ -12,6 +12,7 @@ import org.elasticsearch.search.fetch.FetchProfiler;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
+import org.elasticsearch.search.profile.dfs.DfsProfiler;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -25,6 +26,7 @@ public final class Profilers {
     private final ContextIndexSearcher searcher;
     private final List<QueryProfiler> queryProfilers = new ArrayList<>();
     private final AggregationProfiler aggProfiler = new AggregationProfiler();
+    private DfsProfiler dfsProfiler;
 
     public Profilers(ContextIndexSearcher searcher) {
         this.searcher = searcher;
@@ -60,23 +62,21 @@ public final class Profilers {
     }
 
     /**
+     * Build a profiler for the dfs phase or get the existing one.
+     */
+    public DfsProfiler getDfsProfiler() {
+        if (dfsProfiler == null) {
+            dfsProfiler = new DfsProfiler(getCurrentQueryProfiler());
+        }
+
+        return dfsProfiler;
+    }
+
+    /**
      * Build a profiler for the fetch phase.
      */
     public static FetchProfiler startProfilingFetchPhase() {
         return new FetchProfiler();
-    }
-
-    /**
-     * Build the results for the dfs phase.
-     */
-    public SearchProfileDfsPhaseResult buildDfsPhaseResults() {
-        QueryProfiler queryProfiler = getCurrentQueryProfiler();
-        QueryProfileShardResult queryProfileShardResult = new QueryProfileShardResult(
-            queryProfiler.getTree(),
-            queryProfiler.getRewriteTime(),
-            queryProfiler.getCollector()
-        );
-        return new SearchProfileDfsPhaseResult(queryProfileShardResult);
     }
 
     /**

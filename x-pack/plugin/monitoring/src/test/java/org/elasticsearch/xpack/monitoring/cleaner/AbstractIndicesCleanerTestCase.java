@@ -19,7 +19,6 @@ import org.junit.Before;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 
@@ -143,9 +142,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     public void testRetentionAsGlobalSetting() throws Exception {
         final int max = 10;
         final int retention = randomIntBetween(1, max);
-        internalCluster().startNode(
-            Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), String.format(Locale.ROOT, "%dd", retention))
-        );
+        internalCluster().startNode(Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), formatted("%dd", retention)));
 
         final ZonedDateTime now = now();
         for (int i = 0; i < max; i++) {

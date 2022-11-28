@@ -25,7 +25,7 @@ import java.nio.file.Path;
 public final class TranslogConfig {
 
     public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
-    public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = new ByteSizeValue(10, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = ByteSizeValue.ofBytes(10);
     private final BigArrays bigArrays;
     private final DiskIoBufferPool diskIoBufferPool;
     private final IndexSettings indexSettings;

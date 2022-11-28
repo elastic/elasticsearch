@@ -102,7 +102,13 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public int count(LeafReaderContext context) throws IOException {
-        return subQueryWeight.count(context);
+        Timer timer = profile.getTimer(QueryTimingType.COUNT_WEIGHT);
+        timer.start();
+        try {
+            return subQueryWeight.count(context);
+        } finally {
+            timer.stop();
+        }
     }
 
     @Override

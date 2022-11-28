@@ -232,8 +232,8 @@ public class RestVectorTileAction extends BaseRestHandler {
             if (request.getGridType() == GridType.CENTROID) {
                 tileAggBuilder.subAggregation(new GeoCentroidAggregationBuilder(CENTROID_AGG_NAME).field(request.getField()));
             }
-            final List<MetricsAggregationBuilder<?, ?>> aggregations = request.getAggBuilder();
-            for (MetricsAggregationBuilder<?, ?> aggregation : aggregations) {
+            final List<MetricsAggregationBuilder<?>> aggregations = request.getAggBuilder();
+            for (MetricsAggregationBuilder<?> aggregation : aggregations) {
                 if (aggregation.getName().startsWith(INTERNAL_AGG_PREFIX)) {
                     throw new IllegalArgumentException(
                         "Invalid aggregation name ["

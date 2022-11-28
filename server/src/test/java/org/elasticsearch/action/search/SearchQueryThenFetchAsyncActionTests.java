@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -183,7 +182,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
@@ -312,7 +311,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
@@ -453,7 +452,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
@@ -595,7 +594,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,

@@ -61,7 +61,10 @@ import static org.hamcrest.Matchers.in;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -353,6 +356,27 @@ public class TaskManagerTests extends ESTestCase {
         verify(mockTracer).startTrace(any(), eq("task-" + task.getId()), eq("actionName"), anyMap());
     }
 
+    public void testRegisterWithEnabledDisabledTracing() {
+        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final TaskManager taskManager = spy(new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer));
+
+        taskManager.register("type", "action", makeTaskRequest(true, 123), false);
+        verify(taskManager, times(0)).startTrace(any(), any());
+
+        taskManager.register("type", "action", makeTaskRequest(false, 234), false);
+        verify(taskManager, times(0)).startTrace(any(), any());
+
+        clearInvocations(taskManager);
+
+        taskManager.register("type", "action", makeTaskRequest(true, 345), true);
+        verify(taskManager, times(1)).startTrace(any(), any());
+
+        clearInvocations(taskManager);
+
+        taskManager.register("type", "action", makeTaskRequest(false, 456), true);
+        verify(taskManager, times(1)).startTrace(any(), any());
+    }
+
     static class CancellableRequest extends TransportRequest {
         private final String requestId;
 
@@ -440,6 +464,37 @@ public class TaskManagerTests extends ESTestCase {
         public boolean hasReferences() {
             return true;
         }
+    }
+
+    private TaskAwareRequest makeTaskRequest(boolean cancellable, final int parentTaskNum) {
+        return new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return new TaskId("something", parentTaskNum);
+            }
+
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                if (cancellable) {
+                    return new CancellableTask(id, type, action, "request-" + id, parentTaskId, headers) {
+                        @Override
+                        public boolean shouldCancelChildrenOnCancellation() {
+                            return false;
+                        }
+
+                        @Override
+                        public String toString() {
+                            return getDescription();
+                        }
+                    };
+                }
+
+                return new Task(id, type, action, "request-" + id, parentTaskId, headers);
+            }
+        };
     }
 
 }

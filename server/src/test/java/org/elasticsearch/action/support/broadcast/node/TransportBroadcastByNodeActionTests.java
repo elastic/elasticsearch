@@ -15,8 +15,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -103,7 +103,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
     }
 
-    public static class Response extends BroadcastResponse {
+    public static class Response extends BaseBroadcastResponse {
         public Response(StreamInput in) throws IOException {
             super(in);
         }

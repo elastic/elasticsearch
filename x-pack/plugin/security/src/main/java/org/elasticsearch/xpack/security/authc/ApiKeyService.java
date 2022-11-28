@@ -23,9 +23,11 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -65,6 +67,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -300,6 +303,12 @@ public class ApiKeyService {
         Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()
+            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
+                || request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges))) {
+            throw new IllegalArgumentException("remote indices not supported for API keys");
+        }
+
         final Instant created = clock.instant();
         final Instant expiration = getApiKeyExpiration(created, request);
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
@@ -337,20 +346,14 @@ public class ApiKeyService {
                         SECURITY_ORIGIN,
                         BulkAction.INSTANCE,
                         bulkRequest,
-                        ActionListener.wrap(bulkResponse -> {
-                            assert bulkResponse.getItems().length == 1;
-                            final BulkItemResponse indexResponse = bulkResponse.getItems()[0];
-                            if (indexResponse.isFailed()) {
-                                listener.onFailure(indexResponse.getFailure().getCause());
-                            } else {
-                                assert request.getId().equals(indexResponse.getResponse().getId());
-                                assert indexResponse.getResponse().getResult() == DocWriteResponse.Result.CREATED;
-                                final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
-                                listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
-                                apiKeyAuthCache.put(request.getId(), listenableFuture);
-                                listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
-                            }
-                        }, listener::onFailure)
+                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                            assert request.getId().equals(indexResponse.getId());
+                            assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                            final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                            listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                            apiKeyAuthCache.put(request.getId(), listenableFuture);
+                            listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                        }, listener::onFailure))
                     )
                 );
             } catch (IOException e) {
@@ -377,6 +380,13 @@ public class ApiKeyService {
                 new IllegalArgumentException("authentication via API key not supported: only the owner user can update an API key")
             );
             return;
+        }
+
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()
+            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
+                || (request.getRoleDescriptors() != null
+                    && request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)))) {
+            throw new IllegalArgumentException("remote indices not supported for API keys");
         }
 
         logger.debug("Updating [{}] API keys", request.getIds().size());
@@ -524,7 +534,7 @@ public class ApiKeyService {
 
         final List<RoleDescriptor> keyRoles = request.getRoleDescriptors();
         if (keyRoles != null) {
-            logger.trace(() -> format("Building API key doc with updated role descriptors [{}]", keyRoles));
+            logger.trace(() -> format("Building API key doc with updated role descriptors [%s]", keyRoles));
             addRoleDescriptors(builder, keyRoles);
         } else {
             assert currentApiKeyDoc.roleDescriptorsBytes != null;
@@ -541,7 +551,7 @@ public class ApiKeyService {
             ) == false : "API key doc to be updated contains reserved metadata";
         final Map<String, Object> metadata = request.getMetadata();
         if (metadata != null) {
-            logger.trace(() -> format("Building API key doc with updated metadata [{}]", metadata));
+            logger.trace(() -> format("Building API key doc with updated metadata [%s]", metadata));
             builder.field("metadata_flattened", metadata);
         } else {
             builder.rawField(
@@ -1353,9 +1363,10 @@ public class ApiKeyService {
             listener.onFailure(new ElasticsearchSecurityException("No api key ids provided for invalidation"));
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            final long invalidationTime = clock.instant().toEpochMilli();
             for (String apiKeyId : apiKeyIds) {
                 UpdateRequest request = client.prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
-                    .setDoc(Collections.singletonMap("api_key_invalidated", true))
+                    .setDoc(Map.of("api_key_invalidated", true, "invalidation_time", invalidationTime))
                     .request();
                 bulkRequestBuilder.add(request);
             }
@@ -1497,7 +1508,7 @@ public class ApiKeyService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> format("unable to clear API key cache [{}]", clearApiKeyCacheRequest.cacheName()), e);
+                logger.error(() -> format("unable to clear API key cache [%s]", clearApiKeyCacheRequest.cacheName()), e);
                 listener.onFailure(new ElasticsearchException("clearing the API key cache failed; please clear the caches manually", e));
             }
         });

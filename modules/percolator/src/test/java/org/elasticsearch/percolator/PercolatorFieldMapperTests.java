@@ -112,6 +112,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+//TODO migrate tests that don't require a node to a unit test that subclasses MapperTestCase
 public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     private String fieldName;
@@ -823,7 +824,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             MapperParsingException.class,
             () -> mapperService.parseMapping("type1", new CompressedXContent(mapping))
         );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+        assertThat(e.getMessage(), containsString("field name cannot be an empty string"));
     }
 
     public void testImplicitlySetDefaultScriptLang() throws Exception {

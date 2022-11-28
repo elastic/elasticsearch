@@ -16,9 +16,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.dfs.DfsProfiler;
+import org.elasticsearch.search.profile.dfs.DfsTimingType;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -44,12 +47,18 @@ public class DfsPhase {
         try {
             collectStatistics(context);
             executeKnnVectorQuery(context);
+
+            if (context.getProfilers() != null) {
+                context.dfsResult().profileResult(context.getProfilers().getDfsProfiler().buildDfsPhaseResults());
+            }
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }
     }
 
     private void collectStatistics(SearchContext context) throws IOException {
+        final DfsProfiler profiler = context.getProfilers() == null ? null : context.getProfilers().getDfsProfiler();
+
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
         Map<Term, TermStatistics> stats = new HashMap<>();
 
@@ -59,11 +68,22 @@ public class DfsPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
-                if (ts != null) {
-                    stats.put(term, ts);
+
+                if (profiler != null) {
+                    profiler.startTimer(DfsTimingType.TERM_STATISTICS);
                 }
-                return ts;
+
+                try {
+                    TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
+                    if (ts != null) {
+                        stats.put(term, ts);
+                    }
+                    return ts;
+                } finally {
+                    if (profiler != null) {
+                        profiler.stopTimer(DfsTimingType.TERM_STATISTICS);
+                    }
+                }
             }
 
             @Override
@@ -71,18 +91,69 @@ public class DfsPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                CollectionStatistics cs = super.collectionStatistics(field);
-                if (cs != null) {
-                    fieldStatistics.put(field, cs);
+
+                if (profiler != null) {
+                    profiler.startTimer(DfsTimingType.COLLECTION_STATISTICS);
                 }
-                return cs;
+
+                try {
+                    CollectionStatistics cs = super.collectionStatistics(field);
+                    if (cs != null) {
+                        fieldStatistics.put(field, cs);
+                    }
+                    return cs;
+                } finally {
+                    if (profiler != null) {
+                        profiler.stopTimer(DfsTimingType.COLLECTION_STATISTICS);
+                    }
+                }
+            }
+
+            @Override
+            public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
+                if (profiler != null) {
+                    profiler.startTimer(DfsTimingType.CREATE_WEIGHT);
+                }
+
+                try {
+                    return super.createWeight(query, scoreMode, boost);
+                } finally {
+                    if (profiler != null) {
+                        profiler.stopTimer(DfsTimingType.CREATE_WEIGHT);
+                    }
+                }
+            }
+
+            @Override
+            public Query rewrite(Query original) throws IOException {
+                if (profiler != null) {
+                    profiler.startTimer(DfsTimingType.REWRITE);
+                }
+
+                try {
+                    return super.rewrite(original);
+                } finally {
+                    if (profiler != null) {
+                        profiler.stopTimer(DfsTimingType.REWRITE);
+                    }
+                }
             }
         };
 
-        searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
-        for (RescoreContext rescoreContext : context.rescore()) {
-            for (Query query : rescoreContext.getQueries()) {
-                searcher.createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1);
+        if (profiler != null) {
+            profiler.start();
+        }
+
+        try {
+            searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
+            for (RescoreContext rescoreContext : context.rescore()) {
+                for (Query query : rescoreContext.getQueries()) {
+                    searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE, 1);
+                }
+            }
+        } finally {
+            if (profiler != null) {
+                profiler.stop();
             }
         }
 
@@ -122,16 +193,12 @@ public class DfsPhase {
                 CollectorResult.REASON_SEARCH_TOP_HITS,
                 List.of()
             );
-            context.getProfilers().getCurrentQueryProfiler().setCollector(ipc);
+            context.getProfilers().getDfsProfiler().setCollector(ipc);
             collector = ipc;
         }
 
         context.searcher().search(query, collector);
         DfsKnnResults knnResults = new DfsKnnResults(topScoreDocCollector.topDocs().scoreDocs);
         context.dfsResult().knnResults(knnResults);
-
-        if (context.getProfilers() != null) {
-            context.dfsResult().profileResult(context.getProfilers().buildDfsPhaseResults());
-        }
     }
 }

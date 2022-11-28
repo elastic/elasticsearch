@@ -50,8 +50,8 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -125,7 +125,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
                 "["
                     + index.getName()
                     + "] lifecycle action ["
-                    + step.getKey().getAction()
+                    + step.getKey().action()
                     + "] waiting for "
                     + "[1] shards to be moved to the [data_warm] tier (tier migration preference configuration is [data_warm])"
             )

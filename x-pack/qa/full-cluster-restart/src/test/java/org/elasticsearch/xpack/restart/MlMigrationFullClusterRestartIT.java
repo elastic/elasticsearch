@@ -205,7 +205,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     private void putJob(String jobId) throws IOException {
-        String jobConfig = """
+        String jobConfig = formatted("""
             {
                 "job_id": "%s",
                 "analysis_config": {
@@ -217,7 +217,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
                     }]
                 },
                 "data_description": {}`
-            }""".formatted(jobId);
+            }""", jobId);
         Request putClosedJob = new Request("PUT", "/_xpack/ml/anomaly_detectors/" + jobId);
         putClosedJob.setJsonEntity(jobConfig);
         client().performRequest(putClosedJob);

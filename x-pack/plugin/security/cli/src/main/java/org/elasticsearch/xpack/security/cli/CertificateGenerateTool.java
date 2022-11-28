@@ -347,7 +347,7 @@ class CertificateGenerateTool extends EnvironmentAwareCommand {
                 GeneralNames sanList = getSubjectAlternativeNamesValue(
                     certificateInformation.ipAddresses,
                     certificateInformation.dnsNames,
-                    certificateInformation.commonNames
+                    certificateInformation.eceSanOtherNameCommonNames
                 );
                 PKCS10CertificationRequest csr = CertGenUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
 
@@ -446,7 +446,7 @@ class CertificateGenerateTool extends EnvironmentAwareCommand {
                     getSubjectAlternativeNamesValue(
                         certificateInformation.ipAddresses,
                         certificateInformation.dnsNames,
-                        certificateInformation.commonNames
+                        certificateInformation.eceSanOtherNameCommonNames
                     ),
                     keyPair,
                     caInfo.caCert,
@@ -681,13 +681,19 @@ class CertificateGenerateTool extends EnvironmentAwareCommand {
         final Name name;
         final List<String> ipAddresses;
         final List<String> dnsNames;
-        final List<String> commonNames;
+        final List<String> eceSanOtherNameCommonNames;
 
-        CertificateInformation(String name, String filename, List<String> ipAddresses, List<String> dnsNames, List<String> commonNames) {
+        CertificateInformation(
+            String name,
+            String filename,
+            List<String> ipAddresses,
+            List<String> dnsNames,
+            List<String> eceSanOtherNameCommonNames
+        ) {
             this.name = Name.fromUserProvidedName(name, filename);
             this.ipAddresses = ipAddresses == null ? Collections.emptyList() : ipAddresses;
             this.dnsNames = dnsNames == null ? Collections.emptyList() : dnsNames;
-            this.commonNames = commonNames == null ? Collections.emptyList() : commonNames;
+            this.eceSanOtherNameCommonNames = eceSanOtherNameCommonNames == null ? Collections.emptyList() : eceSanOtherNameCommonNames;
         }
 
         List<String> validate() {

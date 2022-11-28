@@ -156,7 +156,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
             instanceInput.put(name, instanceInfo);
             instanceInfo.put("ip", randomFrom("127.0.0.1", "::1", "192.168.1.1,::1", ""));
             instanceInfo.put("dns", randomFrom("localhost", "localhost.localdomain", "localhost,myhost", ""));
-            instanceInfo.put("cn", randomFrom("node.1.cluster.1.account.1", "node1.cluster1.intra", ""));
+            instanceInfo.put("cn", randomFrom("node01.node.cluster1.cluster.1.account", "node1.cluster1.intra", ""));
             logger.info("instance [{}] name [{}] [{}]", i, name, instanceInfo);
         }
 

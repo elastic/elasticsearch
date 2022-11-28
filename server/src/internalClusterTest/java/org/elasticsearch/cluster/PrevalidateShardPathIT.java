@@ -53,6 +53,7 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
         PrevalidateShardPathResponse resp = client().execute(TransportPrevalidateShardPathAction.TYPE, req).get();
         var nodeResponses = resp.getNodes();
         assertThat(nodeResponses.size(), equalTo(2));
+        assertThat(nodeResponses.stream().map(r -> r.getNode().getId()).collect(Collectors.toSet()), equalTo(Set.of(node1Id, node2Id)));
         assertTrue(resp.failures().isEmpty());
         for (NodePrevalidateShardPathResponse nodeResponse : nodeResponses) {
             assertThat(nodeResponse.getShardIds(), equalTo(shardIds));

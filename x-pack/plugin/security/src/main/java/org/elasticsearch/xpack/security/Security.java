@@ -1737,6 +1737,10 @@ public class Security extends Plugin
     @Override
     public ActionUserContext.Resolver getResolver() {
         return t -> {
+            if (securityContext.get() == null) {
+                // Too early in the bootstrap process
+                return Optional.empty();
+            }
             final Authentication authentication = securityContext.get().getAuthentication();
             return Optional.ofNullable(authentication).map(Authentication::getEffectiveSubject).map(SecurityActionUser::new);
         };

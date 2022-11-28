@@ -31,7 +31,7 @@ public class ActionUserContext {
     public static Optional<ActionUser> getEffectiveUser(ThreadContext threadContext) {
         Resolver r = RESOLVER.get();
         if (r == null) {
-            throw new IllegalStateException("Resolver for " + ActionUser.class + " is not set");
+            return Optional.empty();
         }
         return r.resolve(threadContext);
     }

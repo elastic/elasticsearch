@@ -54,10 +54,10 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
-import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
@@ -326,7 +326,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                         .assignedShards()
                         .stream()
                         .map(ShardRouting::currentNodeId)
-                        .collect(Collectors.toSet());
+                        .collect(toSet());
                     unassignedIterator.initialize(
                         randomValueOtherThanMany(badNodes::contains, () -> randomFrom(nodeIds)),
                         null,

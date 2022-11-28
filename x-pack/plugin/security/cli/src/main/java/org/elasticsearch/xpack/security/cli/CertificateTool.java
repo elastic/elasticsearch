@@ -641,7 +641,7 @@ class CertificateTool extends MultiCommand {
                     GeneralNames sanList = getSubjectAlternativeNamesValue(
                         certificateInformation.ipAddresses,
                         certificateInformation.dnsNames,
-                        certificateInformation.eceSanOtherNameCommonNames
+                        certificateInformation.commonNames
                     );
                     PKCS10CertificationRequest csr = CertGenUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
 
@@ -876,7 +876,7 @@ class CertificateTool extends MultiCommand {
                     getSubjectAlternativeNamesValue(
                         certificateInformation.ipAddresses,
                         certificateInformation.dnsNames,
-                        certificateInformation.eceSanOtherNameCommonNames
+                        certificateInformation.commonNames
                     ),
                     keyPair,
                     caInfo.certAndKey.cert,
@@ -889,7 +889,7 @@ class CertificateTool extends MultiCommand {
                     getSubjectAlternativeNamesValue(
                         certificateInformation.ipAddresses,
                         certificateInformation.dnsNames,
-                        certificateInformation.eceSanOtherNameCommonNames
+                        certificateInformation.commonNames
                     ),
                     keyPair,
                     null,
@@ -1178,19 +1178,13 @@ class CertificateTool extends MultiCommand {
         final Name name;
         final List<String> ipAddresses;
         final List<String> dnsNames;
-        final List<String> eceSanOtherNameCommonNames;
+        final List<String> commonNames;
 
-        CertificateInformation(
-            String name,
-            String filename,
-            List<String> ipAddresses,
-            List<String> dnsNames,
-            List<String> eceSanOtherNameCommonNames
-        ) {
+        CertificateInformation(String name, String filename, List<String> ipAddresses, List<String> dnsNames, List<String> commonNames) {
             this.name = Name.fromUserProvidedName(name, filename);
             this.ipAddresses = ipAddresses == null ? Collections.emptyList() : ipAddresses;
             this.dnsNames = dnsNames == null ? Collections.emptyList() : dnsNames;
-            this.eceSanOtherNameCommonNames = eceSanOtherNameCommonNames == null ? Collections.emptyList() : eceSanOtherNameCommonNames;
+            this.commonNames = commonNames == null ? Collections.emptyList() : commonNames;
         }
 
         List<String> validate() {

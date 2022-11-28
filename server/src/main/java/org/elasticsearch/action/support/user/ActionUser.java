@@ -13,4 +13,5 @@ package org.elasticsearch.action.support.user;
  */
 public interface ActionUser {
 
+    String identity();
 }

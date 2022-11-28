@@ -15,6 +15,8 @@ import java.util.Arrays;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -72,6 +74,32 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.supportedProtocols.get(settings), is(Arrays.asList("SSLv3", "SSLv2Hello", "SSLv2")));
     }
 
+    public void testParseTrustRestrictionsListWithPrefix() {
+        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("ssl.");
+        assertThat(ssl.trustRestrictionsX509Fields.match("ssl.trust_restrictions.x509_fields"), is(true));
+
+        // explicit configuration
+        Settings settings = Settings.builder()
+            .putList("ssl.trust_restrictions.x509_fields", "subjectAltName.otherName.commonName", "subjectAltName.dnsName")
+            .build();
+        assertThat(
+            ssl.trustRestrictionsX509Fields.get(settings),
+            is(Arrays.asList("subjectAltName.otherName.commonName", "subjectAltName.dnsName"))
+        );
+
+        // implicit configuration
+        settings = Settings.builder().build();
+        assertThat(ssl.trustRestrictionsX509Fields.get(settings), is(Arrays.asList("subjectAltName.otherName.commonName")));
+
+        // invalid configuration
+        final Settings invalid = Settings.builder().putList("ssl.trust_restrictions.x509_fields", "foo.bar").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ssl.trustRestrictionsX509Fields.get(invalid));
+        assertThat(e.getCause(), throwableWithMessage(containsString("foo.bar is not a supported x509 field for trust restrictions.")));
+        assertThat(e.getCause(), throwableWithMessage(containsString("Recognised values are")));
+        assertThat(e.getCause(), throwableWithMessage(containsString("subjectAltName.otherName.commonName")));
+        assertThat(e.getCause(), throwableWithMessage(containsString("subjectAltName.dnsName")));
+    }
+
     public void testEmptySettingsParsesToDefaults() {
         final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix();
         final Settings settings = Settings.EMPTY;
@@ -92,6 +120,10 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.truststorePassword.exists(settings), is(false));
         assertThat(ssl.truststorePath.get(settings).isPresent(), is(false));
         assertThat(ssl.trustRestrictionsPath.get(settings).isPresent(), is(false));
+        assertThat(
+            ssl.trustRestrictionsX509Fields.get(settings),
+            is(org.elasticsearch.core.List.of("subjectAltName.otherName.commonName"))
+        );
         assertThat(ssl.verificationMode.get(settings).isPresent(), is(false));
 
         assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.x509KeyPair.keystoreType, settings, null), is("jks"));

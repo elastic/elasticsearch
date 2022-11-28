@@ -77,7 +77,7 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         }
 
         @Override
-        public Iterator<? extends ToXContent> toXContentChunked() {
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             Iterator<? extends ToXContent> valuesIterator;
             if (nodes != null) {
                 valuesIterator = nodes.stream().map(node -> (ToXContent) (builder, params) -> {
@@ -147,11 +147,16 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         Iterator<? extends ToXContent> resourcesIterator = Collections.emptyIterator();
         if (affectedResources != null && affectedResources.size() > 0) {
             resourcesIterator = affectedResources.stream()
-                .flatMap(s -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(s.toXContentChunked(), Spliterator.ORDERED), false))
+                .flatMap(
+                    s -> StreamSupport.stream(
+                        Spliterators.spliteratorUnknownSize(s.toXContentChunked(outerParams), Spliterator.ORDERED),
+                        false
+                    )
+                )
                 .iterator();
         }
         return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {

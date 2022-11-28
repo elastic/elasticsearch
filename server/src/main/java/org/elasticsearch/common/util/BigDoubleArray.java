@@ -18,6 +18,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+import static org.elasticsearch.common.util.BigLongArray.writePages;
 import static org.elasticsearch.common.util.PageCacheRecycler.DOUBLE_PAGE_SIZE;
 
 /**
@@ -128,18 +129,6 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        int size = (int) this.size;
-        out.writeVInt(size * Double.BYTES);
-        int lastPageEnd = size % DOUBLE_PAGE_SIZE;
-        if (lastPageEnd == 0) {
-            for (byte[] page : pages) {
-                out.write(page);
-            }
-            return;
-        }
-        for (int i = 0; i < pages.length - 1; i++) {
-            out.write(pages[i]);
-        }
-        out.write(pages[pages.length - 1], 0, lastPageEnd * Double.BYTES);
+        writePages(out, Math.toIntExact(size), pages, Double.BYTES, DOUBLE_PAGE_SIZE);
     }
 }

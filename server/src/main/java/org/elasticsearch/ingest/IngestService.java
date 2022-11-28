@@ -955,7 +955,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         );
                         return;
                     } catch (Exception ex) {
-                        // If anything goes wrong here, we want to know, but also cannot proceed with normal execution. For example,
+                        // If anything goes wrong here, we want to know, and cannot proceed with normal execution. For example,
                         // *rarely*, a ConcurrentModificationException could be thrown if a pipeline leaks a reference to a shared mutable
                         // collection, and another indexing thread modifies the shared reference while we're trying to ensure it has
                         // no self references.

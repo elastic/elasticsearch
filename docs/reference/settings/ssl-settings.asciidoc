@@ -160,3 +160,6 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password
 (<<secure-settings,Secure>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
++{ssl-prefix}.ssl.trust_restrictions.path+::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-trust-restrictions-path]

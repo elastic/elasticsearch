@@ -142,6 +142,13 @@ Password for the truststore.
 //TBD: You cannot use this setting and `ssl.truststore.password` at the same time.
 end::ssl-truststore-secure-password[]
 
+tag::ssl-trust-restrictions-path[]
+The path for the YAML file that contains the list of patterns to authorize, in addition
+to the `ssl.verification_mode` setting. Only values from Subject Alt Name (SAN) otherName
+with type-id=commonName and values of type UTF8 String are supported. See
+https://www.elastic.co/guide/en/cloud/current/ec-trust-management.html#ec-trust-self-managed[Elastic Cloud docs]
+for more details and examples.
+
 tag::ssl-truststore-type[]
 The format of the truststore file. It must be either `jks` or `PKCS12`. If the
 file name ends in ".p12", ".pfx" or "pkcs12", the default is `PKCS12`.

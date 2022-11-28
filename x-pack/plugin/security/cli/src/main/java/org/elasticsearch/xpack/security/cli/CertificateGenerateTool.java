@@ -261,9 +261,7 @@ class CertificateGenerateTool extends EnvironmentAwareCommand {
                 }
                 String ipAddresses = terminal.readText("Enter IP Addresses for instance (comma-separated if more than one) []: ");
                 String dnsNames = terminal.readText("Enter DNS names for instance (comma-separated if more than one) []: ");
-                String commonNames = terminal.readText(
-                    "Enter Elastic Cloud SAN otherName CNs for instance (comma-separated if more than one) []: "
-                );
+                String commonNames = terminal.readText("Enter SAN otherName CNs for instance (comma-separated if more than one) []: ");
                 List<String> ipList = Arrays.asList(Strings.splitStringByCommaToArray(ipAddresses));
                 List<String> dnsList = Arrays.asList(Strings.splitStringByCommaToArray(dnsNames));
                 List<String> cnList = Arrays.asList(Strings.splitStringByCommaToArray(commonNames));

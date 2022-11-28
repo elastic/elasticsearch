@@ -115,7 +115,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         if (verifyCertificateNames(values)) {
             logger.debug(
                 () -> format(
-                    "Fields %s values %s allowed by trust_restrictions %s for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
+                    "Fields %s values %s matches the trusted names %s for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
                     x509Fields,
                     values,
                     trustRestrictions.getTrustedNames(),
@@ -127,7 +127,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
             );
         } else {
             final String message = format(
-                "Fields %s values %s rejected by trust_restrictions %s for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
+                "Fields %s values %s does not match the trusted names %s for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
                 x509Fields,
                 values,
                 trustRestrictions.getTrustedNames(),
@@ -145,7 +145,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         for (Predicate<String> trust : trustRestrictions.getTrustedNames()) {
             final Optional<String> match = names.stream().filter(trust).findFirst();
             if (match.isPresent()) {
-                logger.debug("Value [{}] allowed by trust_restrictions [{}]", match.get(), trust);
+                logger.debug("Name [{}] matches trusted pattern [{}]", match.get(), trust);
                 return true;
             }
         }
@@ -177,7 +177,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
     }
 
     /**
-     * Decodes an Elastic Cloud SAN otherName CN value. The certificate parameter is used for logging only.
+     * Decodes a SAN otherName CN value. The certificate parameter is used for logging only.
      *
      * @param value       The DER Encoded Subject Alternative Name otherName in Elastic Cloud format
      * @param certificate The certificate
@@ -206,7 +206,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
                 }
                 logger.trace("Read innermost ASN.1 Object with type code [{}]", innerObject.getType());
                 String cn = innerObject.getString();
-                logger.trace("Read Elastic Cloud SAN otherName cn value [{}] from ASN1Sequence [{}]", cn, seq);
+                logger.trace("Read SAN otherName cn value [{}] from ASN1Sequence [{}]", cn, seq);
                 return cn;
             } else {
                 logger.debug(

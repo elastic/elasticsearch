@@ -201,7 +201,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
     }
 
     private void assertNotTrusted(RestrictedTrustManager trustManager, String certAlias, List<String> trustedNames) throws Exception {
-        final String expectedError = ".* rejected by trust_restrictions \\[.*" + Pattern.quote(trustedNames.get(0)) + ".*";
+        final String expectedError = ".* does not match the trusted names \\[.*" + Pattern.quote(trustedNames.get(0)) + ".*";
         assertNotValid(trustManager, certAlias, expectedError);
     }
 

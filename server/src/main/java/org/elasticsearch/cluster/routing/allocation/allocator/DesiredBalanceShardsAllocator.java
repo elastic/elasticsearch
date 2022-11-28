@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.set.Sets;
@@ -53,13 +53,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private final ShardsAllocator delegateAllocator;
     private final ThreadPool threadPool;
-    private final ClusterService clusterService;
     private final DesiredBalanceReconcilerAction reconciler;
     private final DesiredBalanceComputer desiredBalanceComputer;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
+    private final MasterServiceTaskQueue<ReconcileDesiredBalanceTask> masterServiceTaskQueue;
     private final ReconcileDesiredBalanceExecutor executor = new ReconcileDesiredBalanceExecutor();
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
@@ -94,7 +94,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     ) {
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
-        this.clusterService = clusterService;
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool) {
@@ -132,6 +131,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
         };
         this.queue = new PendingListenersQueue(threadPool);
+        this.masterServiceTaskQueue = clusterService.getTaskQueue(
+            "reconcile-desired-balance",
+            Priority.URGENT,
+            new ReconcileDesiredBalanceExecutor()
+        );
     }
 
     @Override
@@ -195,12 +199,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     protected void submitReconcileTask(DesiredBalance desiredBalance) {
-        clusterService.submitStateUpdateTask(
-            "reconcile-desired-balance",
-            new ReconcileDesiredBalanceTask(desiredBalance),
-            ClusterStateTaskConfig.build(Priority.URGENT),
-            executor
-        );
+        masterServiceTaskQueue.submitTask("reconcile-desired-balance", new ReconcileDesiredBalanceTask(desiredBalance), null);
     }
 
     protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {

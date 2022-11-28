@@ -115,7 +115,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         if (verifyCertificateNames(values)) {
             logger.debug(
                 () -> format(
-                    "Fields [%s] values [%s] allowed by trust_restrictions [%s] for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
+                    "Fields %s values %s allowed by trust_restrictions %s for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
                     x509Fields,
                     values,
                     trustRestrictions.getTrustedNames(),
@@ -127,7 +127,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
             );
         } else {
             final String message = format(
-                "Fields [%s] values [%s] rejected by trust_restrictions [%s] for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
+                "Fields %s values %s rejected by trust_restrictions %s for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
                 x509Fields,
                 values,
                 trustRestrictions.getTrustedNames(),

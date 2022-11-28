@@ -9,8 +9,10 @@
 package org.elasticsearch.benchmark.common.util;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BigLongDoubleDoubleArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.LongDoubleDoubleArray;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -37,6 +39,8 @@ public class BigArrayAvgTuplesBenchmark {
     DoubleArray sums;
     DoubleArray compensations;
 
+    LongDoubleDoubleArray triple;
+
     static final int PAGE_SIZE = 1 << 14; // 16k
 
     static final int PAGE_ELEMENTS = PAGE_SIZE / Long.BYTES;
@@ -56,6 +60,8 @@ public class BigArrayAvgTuplesBenchmark {
         sums = bigArrays.newDoubleArray(PAGE_ELEMENTS * 250, false);
         compensations = bigArrays.newDoubleArray(PAGE_ELEMENTS * 250, false);
         fakeOffset = 0;
+
+        triple = new BigLongDoubleDoubleArray((PAGE_ELEMENTS * 250) * 3, bigArrays, false);
     }
 
     // Touches all elements of all pages in all arrays, in a ping-pong like fashion.
@@ -88,6 +94,19 @@ public class BigArrayAvgTuplesBenchmark {
                 counts.increment(offset + i, 1);
                 sums.increment(offset + i, 2);
                 compensations.increment(offset + i, 1);
+            }
+        }
+        bh.consume(counts);
+        bh.consume(sums);
+        bh.consume(compensations);
+    }
+
+    @Benchmark
+    public void testLongDoubleDoubleArray(Blackhole bh) {
+        for (int i = 0; i < PAGE_ELEMENTS; i++) {
+            for (int j = 0; j < 250; j++) {
+                int offset = j * PAGE_ELEMENTS;
+                triple.set(offset + i, 1, 2, 3);
             }
         }
         bh.consume(counts);

@@ -57,6 +57,30 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
         assertEquals(startDouble, doubleValue, 0.0d);
     }
 
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
+    public void testLongArrayGrowth() {
+        BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        final int totalLen = randomIntBetween(1, 1_000_000);
+        final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
+        LongDoubleDoubleArray array = new BigLongDoubleDoubleArray(startLen, bigArrays, randomBoolean());
+        long[] longRef = new long[totalLen];
+        double[] doubleRef0 = new double[totalLen];
+        double[] doubleRef1 = new double[totalLen];
+        for (int i = 0; i < totalLen; ++i) {
+            longRef[i] = randomLong();
+            doubleRef0[i] = randomDouble();
+            doubleRef1[i] = randomDouble();
+            array = bigArrays.grow(array, i + 1);
+            array.set(i, longRef[i], doubleRef0[i], doubleRef1[i]);
+        }
+        for (int i = 0; i < totalLen; ++i) {
+            assertEquals(longRef[i], array.getLong0(i));
+            assertEquals(doubleRef0[i], array.getDouble0(i), 0.0d);
+            assertEquals(doubleRef1[i], array.getDouble1(i), 0.0d);
+        }
+        array.close();
+    }
+
     /** Tests the estimated ram byte used. For now, always 16K increments, even for small sizes  */
     public void testRamBytesUsed() {
         BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;

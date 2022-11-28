@@ -8,16 +8,19 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.ArrayUtil;
+
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 public final class BigLongDoubleDoubleArray extends AbstractBigArray implements LongDoubleDoubleArray {
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
     public static final int ELEMENT_SHIFT = 5;
-    public static final int ELEMENT_SIZE_IN_BYTES = 1 << 5;
+    public static final int ELEMENT_SIZE_IN_BYTES = 1 << 5;   // 32 (8 + 8 + 8 = 24bytes + 8 pad = 32 byte)
     public static final int ELEMENTS_PER_PAGE = PAGE_SIZE_IN_BYTES / ELEMENT_SIZE_IN_BYTES;
 
     private static final BigLongDoubleDoubleArray ESTIMATOR = new BigLongDoubleDoubleArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
@@ -79,8 +82,20 @@ public final class BigLongDoubleDoubleArray extends AbstractBigArray implements 
         return ELEMENT_SIZE_IN_BYTES;
     }
 
+    /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
     @Override
     public void resize(long newSize) {
-        throw new UnsupportedOperationException("not yet implemented"); // TODO: implement
+        final int numPages = numPages(newSize);
+        if (numPages > pages.length) {
+            pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, ELEMENT_SIZE_IN_BYTES));
+        }
+        for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
+            pages[i] = newBytePage(i);
+        }
+        for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
+            pages[i] = null;
+            releasePage(i);
+        }
+        this.size = newSize;
     }
 }

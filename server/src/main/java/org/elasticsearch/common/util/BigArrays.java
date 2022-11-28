@@ -702,6 +702,27 @@ public class BigArrays {
         return resize(array, newSize);
     }
 
+    /** Resize the array to the exact provided size. */
+    public LongDoubleDoubleArray resize(LongDoubleDoubleArray array, long size) {
+        if (array instanceof LongDoubleDoubleArray) {
+            return resizeInPlace((BigLongDoubleDoubleArray) array, size);
+        } else {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    public LongDoubleDoubleArray grow(LongDoubleDoubleArray array, long minSize) {
+        if (minSize <= array.size()) {
+            return array;
+        }
+        final long newSize = overSize(
+            minSize,
+            PageCacheRecycler.LONG_DOUBLE_DOUBLE_PAGE_SIZE,
+            BigLongDoubleDoubleArray.ELEMENT_SIZE_IN_BYTES
+        );
+        return resize(array, newSize);
+    }
+
     /**
      * Allocate a new {@link DoubleArray}.
      * @param size          the initial length of the array

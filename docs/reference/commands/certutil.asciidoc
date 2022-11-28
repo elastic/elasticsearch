@@ -178,6 +178,9 @@ parameter is only applicable to the `cert` parameter.
 `--ca-pass <password>`:: Specifies the password for an existing CA private key
 or the generated CA private key. This parameter is only applicable to the `cert` parameter
 
+`--cn <otherName>`:: Specifies a comma-separated list of otherName CN values. This
+parameter cannot be used with the `ca` or `http` parameters.
+
 `--days <n>`:: Specifies an integer value that represents the number of days the
 generated certificates are valid. The default value is `1095`. This parameter
 cannot be used with the `csr` or `http` parameters.

@@ -30,11 +30,9 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Strings;
@@ -44,13 +42,14 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.DoubleSummaryStatistics;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -58,6 +57,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
@@ -85,8 +85,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
         final var shardSizesByIndex = new HashMap<String, Long>();
         final var tiers = new String[] { DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD };
-        final var tierSizes = Arrays.stream(tiers).collect(Collectors.toMap(Function.identity(), s -> 0L));
-        final var tierWriteLoads = Arrays.stream(tiers).collect(Collectors.toMap(Function.identity(), s -> 0.0));
+        final var tierSizes = Arrays.stream(tiers).collect(toMap(Function.identity(), s -> 0L));
+        final var tierWriteLoads = Arrays.stream(tiers).collect(toMap(Function.identity(), s -> 0.0));
         final var maxSizeVariance = ByteSizeValue.ofMb(20).getBytes();
 
         final var metadataBuilder = Metadata.builder();
@@ -337,132 +337,42 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
         final var clusterState = applyStartedShardsUntilNoChange(startedReplicas, allocationService);
 
-        try (var bos = new BytesStreamOutput(); var results = XContentFactory.jsonBuilder(bos)) {
-            results.prettyPrint();
+        final var sizeMetricPerTier = Arrays.stream(tiers).collect(toMap(tier -> tier.substring(5, 6), tier -> new TierMetrics()));
 
-            results.startObject();
-            results.startArray("nodes");
+        for (final var routingNode : clusterState.getRoutingNodes()
+            .stream()
+            .sorted(Comparator.comparing(shardRoutings -> shardRoutings.nodeId().substring(7)))
+            .toList()) {
 
-            class SizeMetric {
-                int count;
+            long diskUsageBytes = 0L;
+            double totalWriteLoad = 0.0;
 
-                long totalSizeBytes;
-                long maxSizeBytes;
-
-                int totalShardCount;
-                int maxShardCount;
-
-                double totalWriteLoad;
-                double maxWriteLoad;
-
-                void addNode(long sizeBytes, int shardCount, double writeLoad) {
-                    count += 1;
-                    totalSizeBytes += sizeBytes;
-                    maxSizeBytes = Math.max(maxSizeBytes, sizeBytes);
-                    totalShardCount += shardCount;
-                    maxShardCount = Math.max(maxShardCount, shardCount);
-                    totalWriteLoad += writeLoad;
-                    maxWriteLoad = Math.max(maxWriteLoad, writeLoad);
-                }
+            for (ShardRouting shardRouting : routingNode) {
+                diskUsageBytes += shardSizesByIndex.get(shardRouting.index().getName());
+                totalWriteLoad += TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(clusterState.metadata().index(shardRouting.index()))
+                    .orElseThrow(() -> new AssertionError("missing write load"));
             }
 
-            final var sizeMetricPerTier = Arrays.stream(tiers).collect(Collectors.toMap(s -> s.substring(5, 6), s -> new SizeMetric()));
-
-            for (final var routingNode : clusterState.getRoutingNodes()
-                .stream()
-                .sorted(Comparator.comparing(shardRoutings -> shardRoutings.nodeId().substring(7)))
-                .toList()) {
-
-                int shards = 0;
-                long totalBytes = 0L;
-                double totalWriteLoad = 0.0;
-
-                for (ShardRouting shardRouting : routingNode) {
-                    shards += 1;
-                    totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
-                    totalWriteLoad += TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(clusterState.metadata().index(shardRouting.index()))
-                        .orElseThrow(() -> new AssertionError("missing write load"));
-                }
-
-                results.startObject();
-                results.field("node", routingNode.nodeId());
-                results.field("shards", shards);
-                bytesField(results, "total_data", totalBytes);
-                results.field("total_write_load", totalWriteLoad);
-                results.endObject();
-
-                sizeMetricPerTier.get(routingNode.nodeId().substring(5, 6)).addNode(totalBytes, routingNode.size(), totalWriteLoad);
-            }
-
-            results.endArray(); // nodes
-
-            results.startArray("tiers");
-
-            for (final var tier : tiers) {
-                final var tierAbbr = tier.substring(5, 6);
-                final var nodeSizeBytes = nodeSizeBytesByTier.get(tier);
-                final var sizeMetric = sizeMetricPerTier.get(tierAbbr);
-                assert sizeMetric.count > 0;
-
-                final var totalShardCount = sizeMetric.totalShardCount;
-                final var meanShardCount = totalShardCount * 1.0 / sizeMetric.count;
-                final var maxShardCount = sizeMetric.maxShardCount;
-                final var overageShardCount = maxShardCount - meanShardCount;
-                final var overageShardCountRatio = new RatioValue(Math.ceil((1000.0 * overageShardCount) / meanShardCount) / 10.0);
-
-                final var meanSizeBytes = sizeMetric.totalSizeBytes / sizeMetric.count;
-                final var maxSizeBytes = sizeMetric.maxSizeBytes;
-                final var overageBytes = maxSizeBytes - meanSizeBytes;
-                final var overageBytesRatio = new RatioValue(Math.ceil((1000.0 * overageBytes) / meanSizeBytes) / 10.0);
-                final var meanWriteLoad = sizeMetric.totalWriteLoad / sizeMetric.count;
-                final var maxWriteLoad = sizeMetric.maxWriteLoad;
-                final var overageWriteLoad = maxWriteLoad - meanWriteLoad;
-                final var overageWriteLoadRatio = new RatioValue(Math.ceil((1000.0 * overageWriteLoad) / meanWriteLoad) / 10.0);
-                assert overageBytes >= 0;
-
-                results.startObject();
-
-                results.field("tier", tier);
-                results.field("nodes", nodeCountByTier.get(tier));
-
-                results.startObject("shard_count");
-                results.field("total", totalShardCount);
-                results.field("mean", meanShardCount);
-                results.field("max", maxShardCount);
-                results.field("overage", overageShardCount);
-                results.field("overage_percent", overageShardCountRatio.formatNoTrailingZerosPercent());
-                results.endObject(); // shard_count
-
-                results.startObject("data_per_node");
-                bytesField(results, "capacity", nodeSizeBytes);
-                bytesField(results, "mean", meanSizeBytes);
-                bytesField(results, "max", maxSizeBytes);
-                bytesField(results, "overage", overageBytes);
-                results.field("overage_percent", overageBytesRatio.formatNoTrailingZerosPercent());
-                results.endObject(); // data_per_node
-
-                results.startObject("write_load_per_node");
-                results.field("indexing_threads", indexingThreadsByTier.get(tier));
-                results.field("mean", meanWriteLoad);
-                results.field("max", maxWriteLoad);
-                results.field("overage", overageWriteLoad);
-                results.field("overage_percent", overageWriteLoadRatio.formatNoTrailingZerosPercent());
-                results.endObject(); // write_load_per_node
-
-                results.endObject();
-            }
-
-            results.endArray(); // tiers
-
-            results.endObject();
-            results.flush();
-            logger.debug("\n\n{}\n\n", bos.bytes().utf8ToString());
+            sizeMetricPerTier.get(routingNode.nodeId().substring(5, 6)).addNode(routingNode.size(), totalWriteLoad, diskUsageBytes);
         }
-    }
 
-    private void bytesField(XContentBuilder results, String fieldName, long bytes) throws IOException {
-        results.field(fieldName, ByteSizeValue.ofBytes(bytes));
-        results.field(fieldName + "_in_bytes", bytes);
+        for (final var tier : tiers) {
+            final var tierAbbr = tier.substring(5, 6);
+            final var sizeMetric = sizeMetricPerTier.get(tierAbbr);
+
+            var shardCountSummary = new MetricSummary<>(sizeMetric.shardCount);
+            var writeLoadSummary = new MetricSummary<>(sizeMetric.writeLoad);
+            var diskUsageSummary = new MetricSummary<>(sizeMetric.diskUsage);
+
+            logger.info(
+                "Tier {}, nodes {}, shards {}, write load {}, disk {}",
+                tier,
+                sizeMetric.count,
+                shardCountSummary,
+                diskUsageSummary,
+                diskUsageSummary
+            );
+        }
     }
 
     private Map.Entry<MockAllocationService, ShardsAllocator> createNewAllocationService(
@@ -552,5 +462,104 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             return new ClusterInfo(diskSpaceUsage, diskSpaceUsage, shardSizes, Map.of(), dataPath, Map.of());
         }
 
+    }
+
+    private static class MetricSummary<T extends Number> {
+        final List<T> data;
+        final DoubleSummaryStatistics summary;
+
+        MetricSummary(List<T> data) {
+            this.data = data;
+            this.summary = data.stream().mapToDouble(Number::doubleValue).summaryStatistics();
+        }
+
+        double getCount() {
+            return summary.getCount();
+        }
+
+        double getSum() {
+            return summary.getSum();
+        }
+
+        double getMin() {
+            return summary.getMin();
+        }
+
+        double getMax() {
+            return summary.getMax();
+        }
+
+        double getOverage() {
+            return getMax() - getAvg();
+        }
+
+        double getAvg() {
+            return getSum() / getCount();
+        }
+
+        double getAvgDeviation() {
+            double total = 0.0;
+            double avg = getAvg();
+            for (T d : data) {
+                total += Math.abs(avg - d.doubleValue());
+            }
+
+            return total / getCount();
+        }
+
+        double getStdDeviation() {
+            double total = 0.0;
+            double avg = getAvg();
+            for (T d : data) {
+                total += Math.pow(avg - d.doubleValue(), 2);
+            }
+            return Math.sqrt(total / getCount());
+        }
+
+        double getNormalizedAvgDeviation() {
+            double total = 0.0;
+            double avg = getAvg();
+            for (T d : data) {
+                total += Math.abs((avg - d.doubleValue()) / avg);
+            }
+            return total / getCount();
+        }
+
+        double getNormalizedStdDeviation() {
+            double total = 0.0;
+            double avg = getAvg();
+            for (T d : data) {
+                total += Math.pow((avg - d.doubleValue()) / avg, 2);
+            }
+            return Math.sqrt(total / getCount());
+        }
+
+        @Override
+        public String toString() {
+            return "{size=" + data.size() + ", min=" + getMin() + ", max=" + getMax() +
+            // ", overage=" + getOverage() +
+                ", avg=" + getAvg() +
+                // ", avg deviation=" + getAvgDeviation() +
+                // ", std deviation=" + getStdDeviation() +
+                ", normalized avg deviation="
+                + getNormalizedAvgDeviation()
+                + ", normalized std deviation="
+                + getNormalizedStdDeviation()
+                + "}";
+        }
+    }
+
+    private static class TierMetrics {
+        int count;
+        final List<Integer> shardCount = new ArrayList<>();
+        final List<Double> writeLoad = new ArrayList<>();
+        final List<Long> diskUsage = new ArrayList<>();
+
+        void addNode(int shardCount, double writeLoad, long diskUsage) {
+            this.count++;
+            this.shardCount.add(shardCount);
+            this.writeLoad.add(writeLoad);
+            this.diskUsage.add(diskUsage);
+        }
     }
 }

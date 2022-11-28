@@ -12,6 +12,8 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
@@ -22,7 +24,7 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.profiler.utils.MapExtractor;
+import org.elasticsearch.xcontent.ObjectPath;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -34,19 +36,22 @@ import java.util.Set;
 public class TransportGetProfilingAction extends HandledTransportAction<GetProfilingRequest, GetProfilingResponse> {
     private final NodeClient nodeClient;
     private final ThreadContext threadContext;
+    private final TransportService transportService;
 
     @Inject
     public TransportGetProfilingAction(TransportService transportService, ActionFilters actionFilters, NodeClient nodeClient) {
         super(GetProfilingAction.NAME, transportService, actionFilters, GetProfilingRequest::new);
         this.nodeClient = nodeClient;
+        this.transportService = transportService;
         this.threadContext = transportService.getThreadPool().getThreadContext();
     }
 
     @Override
     protected void doExecute(Task submitTask, GetProfilingRequest request, ActionListener<GetProfilingResponse> submitListener) {
         try (var ignored = threadContext.newTraceContext()) {
+            Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
             EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
-            this.nodeClient.prepareSearch(mediumDownsampled.getName())
+            client.prepareSearch(mediumDownsampled.getName())
                 .setSize(0)
                 .setQuery(request.getQuery())
                 .setTrackTotalHits(true)
@@ -55,7 +60,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     public void onResponse(SearchResponse searchResponse) {
                         long sampleCount = searchResponse.getHits().getTotalHits().value;
                         EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
-                        searchEventGroupByStackTrace(request, resampledIndex, submitListener);
+                        searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
                     }
 
                     @Override
@@ -67,12 +72,13 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     }
 
     private void searchEventGroupByStackTrace(
+        Client client,
         GetProfilingRequest request,
         EventsIndex eventsIndex,
         ActionListener<GetProfilingResponse> submitListener
     ) {
         GetProfilingResponseBuilder responseBuilder = new GetProfilingResponseBuilder();
-        this.nodeClient.prepareSearch(eventsIndex.getName())
+        client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setQuery(request.getQuery())
             .addAggregation(
@@ -86,7 +92,6 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"))
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
-            .setPreFilterShardSize(1)
             .execute(new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
@@ -104,7 +109,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     }
                     if (stackTraceEvents.isEmpty() == false) {
                         responseBuilder.setStackTraceEvents(stackTraceEvents);
-                        retrieveStackTraces(responseBuilder, submitListener);
+                        retrieveStackTraces(client, responseBuilder, submitListener);
                     } else {
                         submitListener.onResponse(responseBuilder.build());
                     }
@@ -117,8 +122,12 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             });
     }
 
-    private void retrieveStackTraces(GetProfilingResponseBuilder responseBuilder, ActionListener<GetProfilingResponse> submitListener) {
-        this.nodeClient.prepareMultiGet()
+    private void retrieveStackTraces(
+        Client client,
+        GetProfilingResponseBuilder responseBuilder,
+        ActionListener<GetProfilingResponse> submitListener
+    ) {
+        client.prepareMultiGet()
             .addIds("profiling-stacktraces", responseBuilder.getStackTraceEvents().keySet())
             .setRealtime(true)
             .execute(new ActionListener<>() {
@@ -140,7 +149,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     }
                     responseBuilder.setStackTraces(stackTracePerId);
                     responseBuilder.setTotalFrames(totalFrames);
-                    retrieveStackTraceDetails(responseBuilder, stackFrameIds, executableIds, submitListener);
+                    retrieveStackTraceDetails(client, responseBuilder, stackFrameIds, executableIds, submitListener);
                 }
 
                 @Override
@@ -151,6 +160,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     }
 
     private void retrieveStackTraceDetails(
+        Client client,
         GetProfilingResponseBuilder responseBuilder,
         Set<String> stackFrameIds,
         Set<String> executableIds,
@@ -162,40 +172,33 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         if (stackFrameIds.isEmpty()) {
             handler.onStackFramesResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
+            client.prepareMultiGet().addIds("profiling-stackframes", stackFrameIds).setRealtime(true).execute(new ActionListener<>() {
+                @Override
+                public void onResponse(MultiGetResponse multiGetItemResponses) {
+                    handler.onStackFramesResponse(multiGetItemResponses);
+                }
 
-            this.nodeClient.prepareMultiGet()
-                .addIds("profiling-stackframes", stackFrameIds)
-                .setRealtime(true)
-                .execute(new ActionListener<>() {
-                    @Override
-                    public void onResponse(MultiGetResponse multiGetItemResponses) {
-                        handler.onStackFramesResponse(multiGetItemResponses);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        submitListener.onFailure(e);
-                    }
-                });
+                @Override
+                public void onFailure(Exception e) {
+                    submitListener.onFailure(e);
+                }
+            });
         }
         // no data dependency - we can do this concurrently
         if (executableIds.isEmpty()) {
             handler.onExecutableDetailsResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
-            this.nodeClient.prepareMultiGet()
-                .addIds("profiling-executables", executableIds)
-                .setRealtime(true)
-                .execute(new ActionListener<>() {
-                    @Override
-                    public void onResponse(MultiGetResponse multiGetItemResponses) {
-                        handler.onExecutableDetailsResponse(multiGetItemResponses);
-                    }
+            client.prepareMultiGet().addIds("profiling-executables", executableIds).setRealtime(true).execute(new ActionListener<>() {
+                @Override
+                public void onResponse(MultiGetResponse multiGetItemResponses) {
+                    handler.onExecutableDetailsResponse(multiGetItemResponses);
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        submitListener.onFailure(e);
-                    }
-                });
+                @Override
+                public void onFailure(Exception e) {
+                    submitListener.onFailure(e);
+                }
+            });
         }
     }
 
@@ -276,10 +279,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             Map<String, String> executables = new HashMap<>();
             for (MultiGetItemResponse executable : multiGetItemResponses) {
                 if (executable.isFailed() == false && executable.getResponse().isExists()) {
-                    executables.put(
-                        executable.getId(),
-                        MapExtractor.read(executable.getResponse().getSource(), "Executable", "file", "name")
-                    );
+                    executables.put(executable.getId(), ObjectPath.eval("Executable.file.name", executable.getResponse().getSource()));
                 }
             }
             // publish to object state only when completely done, otherwise mayFinish() could run twice

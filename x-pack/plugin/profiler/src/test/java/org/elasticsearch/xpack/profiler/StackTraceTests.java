@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.profiler;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -96,5 +97,19 @@ public class StackTraceTests extends ESTestCase {
         stackTrace.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
         assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);
+    }
+
+    public void testEquality() {
+        StackTrace stackTrace = new StackTrace(
+            new int[] { 1027822 },
+            new String[] { "AAAAAAAAAAUAAAAAAAAB3g" },
+            new String[] { "AAAAAAAAAAUAAAAAAAAB3gAAAAAAD67u" },
+            new int[] { 2 }
+        );
+
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            stackTrace,
+            (o -> new StackTrace(o.addressOrLines.clone(), o.fileIds.clone(), o.frameIds.clone(), o.typeIds.clone()))
+        );
     }
 }

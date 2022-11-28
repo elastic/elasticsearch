@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.profiler;
 
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.profiler.utils.MapExtractor;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-final class StackTrace implements ToXContent {
+final class StackTrace implements ToXContentObject {
     int[] addressOrLines;
     String[] fileIds;
     String[] frameIds;
@@ -164,8 +164,8 @@ final class StackTrace implements ToXContent {
     }
 
     public static StackTrace fromSource(Map<String, Object> source) {
-        String inputFrameIDs = MapExtractor.read(source, "Stacktrace", "frame", "ids");
-        String inputFrameTypes = MapExtractor.read(source, "Stacktrace", "frame", "types");
+        String inputFrameIDs = ObjectPath.eval("Stacktrace.frame.ids", source);
+        String inputFrameTypes = ObjectPath.eval("Stacktrace.frame.types", source);
         int countsFrameIDs = inputFrameIDs.length() / BASE64_FRAME_ID_LENGTH;
 
         String[] fileIDs = new String[countsFrameIDs];

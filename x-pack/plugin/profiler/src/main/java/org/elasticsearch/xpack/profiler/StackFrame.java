@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.profiler;
 
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.profiler.utils.MapExtractor;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-final class StackFrame implements ToXContent {
+final class StackFrame implements ToXContentObject {
     String fileName;
     String functionName;
     Integer functionOffset;
@@ -32,11 +32,11 @@ final class StackFrame implements ToXContent {
 
     public static StackFrame fromSource(Map<String, Object> source) {
         return new StackFrame(
-            MapExtractor.read(source, "Stackframe", "file", "name"),
-            MapExtractor.read(source, "Stackframe", "function", "name"),
-            MapExtractor.read(source, "Stackframe", "function", "offset"),
-            MapExtractor.read(source, "Stackframe", "line", "number"),
-            MapExtractor.read(source, "Stackframe", "source", "type")
+            ObjectPath.eval("Stackframe.file.name", source),
+            ObjectPath.eval("Stackframe.function.name", source),
+            ObjectPath.eval("Stackframe.function.offset", source),
+            ObjectPath.eval("Stackframe.line.number", source),
+            ObjectPath.eval("Stackframe.source.type", source)
         );
     }
 

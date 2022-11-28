@@ -217,7 +217,7 @@ class CertificateTool extends MultiCommand {
         OptionSpec<String> nameSpec;
         OptionSpec<String> dnsNamesSpec;
         OptionSpec<String> ipAddressesSpec;
-        OptionSpec<String> eceSanOtherNameCommonNamesSpec;
+        OptionSpec<String> commonNamesSpec;
 
         OptionSpec<String> inputFileSpec;
 
@@ -270,7 +270,7 @@ class CertificateTool extends MultiCommand {
             nameSpec = parser.accepts("name", "name of the generated certificate").availableUnless(multipleNodesSpec).withRequiredArg();
             dnsNamesSpec = parser.accepts("dns", "comma separated DNS names").availableUnless(multipleNodesSpec).withRequiredArg();
             ipAddressesSpec = parser.accepts("ip", "comma separated IP addresses").availableUnless(multipleNodesSpec).withRequiredArg();
-            eceSanOtherNameCommonNamesSpec = parser.accepts("cn", "comma separated SAN otherName CNs")
+            commonNamesSpec = parser.accepts("cn", "comma separated SAN otherName CNs")
                 .availableUnless(multipleNodesSpec)
                 .withRequiredArg();
         }
@@ -431,7 +431,7 @@ class CertificateTool extends MultiCommand {
                 final Function<String, Stream<? extends String>> splitByComma = v -> Arrays.stream(Strings.splitStringByCommaToArray(v));
                 final List<String> dns = dnsNamesSpec.values(options).stream().flatMap(splitByComma).collect(Collectors.toList());
                 final List<String> ip = ipAddressesSpec.values(options).stream().flatMap(splitByComma).collect(Collectors.toList());
-                final List<String> cn = eceSanOtherNameCommonNamesSpec.values(options).stream().flatMap(splitByComma).toList();
+                final List<String> cn = commonNamesSpec.values(options).stream().flatMap(splitByComma).toList();
 
                 final String name = getCertificateName(options);
                 final String fileName;

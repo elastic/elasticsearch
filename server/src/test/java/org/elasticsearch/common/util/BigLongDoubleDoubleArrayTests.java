@@ -8,13 +8,16 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 public class BigLongDoubleDoubleArrayTests extends ESTestCase {
 
+    private final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+
     /** Basic test with trivial small input. If this fails, then all is lost! */
     public void testTrivial() {
-        BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         LongDoubleDoubleArray array = new BigLongDoubleDoubleArray(3, bigArrays, false);
 
         array.set(0, 1, 2, 3);
@@ -36,7 +39,6 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
 
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
     public void testSetGet() {
-        BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         final int size = randomIntBetween(1, 1_000_000);
         final long startLong = randomIntBetween(1, 1000);
         final double startDouble = randomIntBetween(1, 1000);
@@ -57,9 +59,8 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
         assertEquals(startDouble, doubleValue, 0.0d);
     }
 
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
-    public void testLongArrayGrowth() {
-        BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
+    public void testLongDoubleDoubleArrayGrowth() {
         final int totalLen = randomIntBetween(1, 1_000_000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
         LongDoubleDoubleArray array = new BigLongDoubleDoubleArray(startLen, bigArrays, randomBoolean());

@@ -47,6 +47,8 @@ types:
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>>
 ** <<version-synthetic-source,`version`>>
+** <<match_only_text-synthetic-source,`match_only_text`>>
+** <<constant_keyword-synthetic-source,`constant_keyword`>>
 
 Runtime fields cannot, at this stage, use synthetic `_source`.
 

@@ -944,11 +944,21 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     try {
                         boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
                         indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
-                    } catch (Exception ex) {
+                    } catch (IllegalArgumentException ex) {
                         // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
-                        // Rarely, a ConcurrentModificationException can be thrown if a pipeline leaks a reference to a shared mutable
+                        // In that case, we catch and wrap the exception, so we can include which pipeline failed.
+                        handler.accept(
+                            new IllegalArgumentException(
+                                "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
+                                ex
+                            )
+                        );
+                        return;
+                    } catch (Exception ex) {
+                        // If anything goes wrong here, we want to know, but also cannot proceed with normal execution. For example,
+                        // *rarely*, a ConcurrentModificationException could be thrown if a pipeline leaks a reference to a shared mutable
                         // collection, and another indexing thread modifies the shared reference while we're trying to ensure it has
-                        // no self references. If anything goes wrong here, we want to know, but also cannot proceed with normal execution.
+                        // no self references.
                         handler.accept(
                             new RuntimeException(
                                 "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",

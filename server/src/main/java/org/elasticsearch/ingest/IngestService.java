@@ -944,11 +944,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     try {
                         boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
                         indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
-                    } catch (IllegalArgumentException ex) {
-                        // An IllegalArgumentException can be thrown when an ingest
-                        // processor creates a source map that is self-referencing.
-                        // In that case, we catch and wrap the exception so we can
-                        // include which pipeline failed.
+                    } catch (Exception ex) {
+                        // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
+                        // Rarely, a ConcurrentModificationException can be thrown if a pipeline leaks a reference to a shared mutable
+                        // collection, and another indexing thread modifies the shared reference while we're trying to ensure it has
+                        // no self references. If anything goes wrong here, we want to know, but also cannot proceed with normal execution.
                         handler.accept(
                             new IllegalArgumentException(
                                 "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",

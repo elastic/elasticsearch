@@ -37,11 +37,13 @@ Indices APIs::
 * Trigger index settings providers when updating component templates {es-pull}91615[#91615] (issue: {es-issue}91592[#91592])
 
 Infra/Core::
+* Add `trace.id` to request trace logs {es-pull}91772[#91772] (issue: {es-issue}88174[#88174])
 * Datastream unavailable exception metadata {es-pull}91461[#91461]
 * Fix `BytesRefArray` on append empty `BytesRef` {es-pull}91364[#91364]
 * Fix index expression options for requests with a single name or pattern {es-pull}91231[#91231]
 * Index expression exclusions never trigger "not found" {es-pull}90902[#90902]
 * Update error states from inside the main state executor {es-pull}90346[#90346] (issue: {es-issue}90337[#90337])
+* `DoPrivileged` in `ElasticsearchEncaughtExceptionHandler` and check modify thread {es-pull}91704[#91704] (issue: {es-issue}91650[#91650])
 
 Infra/Scripting::
 * Fix compile with hex literals ending with d/f {es-pull}91501[#91501] (issue: {es-issue}88614[#88614])
@@ -52,6 +54,8 @@ Ingest Node::
 
 Machine Learning::
 * Copy more settings when creating DF analytics destination index {es-pull}91546[#91546] (issue: {es-issue}89795[#89795])
+* ML stats failures should not stop the usage API working {es-pull}91917[#91917] (issue: {es-issue}91893[#91893])
+* Skip remote clusters when performing up front privileges validation for datafeeds {es-pull}91895[#91895] (issue: {es-issue}87832[#87832])
 * Support fields with commas in data frame analytics `analyzed_fields` {es-pull}91710[#91710] (issue: {es-issue}72541[#72541])
 
 Mapping::
@@ -103,6 +107,9 @@ Allocation::
 * Store write load in the `IndexMetadata` during data streams rollovers {es-pull}91019[#91019]
 * `DesiredBalance:` expose it via _internal/desired_balance {es-pull}91038[#91038] (issue: {es-issue}90583[#90583])
 
+Authorization::
+* [Fleet] Added logs-elastic_agent* read privileges to `kibana_system` {es-pull}91701[#91701]
+
 CRUD::
 * Keep track of average shard write load {es-pull}90768[#90768] (issue: {es-issue}90102[#90102])
 
@@ -146,6 +153,7 @@ Machine Learning::
 * Alias timestamp to @timestamp in anomaly detection results index {es-pull}90812[#90812]
 * Allow `model_aliases` to be used with Pytorch trained models {es-pull}91296[#91296]
 * Allow overriding timestamp field to null in file structure finder {es-pull}90764[#90764]
+* Audit a message every day the datafeed has seen no data {es-pull}91774[#91774]
 * Low priority trained model deployments {es-pull}91234[#91234] (issue: {es-issue}91024[#91024])
 * Provide additional information about anomaly score factors {es-pull}90675[#90675]
 

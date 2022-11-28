@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
-
 import static org.hamcrest.Matchers.equalTo;
 
 /**

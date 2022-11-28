@@ -179,7 +179,7 @@ public class SSLConfigurationSettings {
         Property.Filtered
     );
 
-    private static final SslSetting<List<String>> TRUST_RESTRICTIONS_X509_FIELDS = SslSetting.setting(
+    public static final SslSetting<List<String>> TRUST_RESTRICTIONS_X509_FIELDS = SslSetting.setting(
         "trust_restrictions.x509_fields",
         TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE
     );

@@ -71,16 +71,6 @@ public class SslConfigurationKeys {
      */
     public static final String TRUSTSTORE_ALGORITHM = "truststore.algorithm";
 
-    /**
-     * The path to the file that defines the restricted trust.
-     */
-    public static final String TRUST_RESTRICTIONS_PATH = "trust_restrictions.path";
-
-    /**
-     * The fields from the X509 certificate used for restricted trust.
-     */
-    public static final String TRUST_RESTRICTIONS_X509_FIELDS = "trust_restrictions.x509_fields";
-
     // Key Management
     // -- Keystore
     /**
@@ -155,8 +145,6 @@ public class SslConfigurationKeys {
             TRUSTSTORE_LEGACY_PASSWORD,
             TRUSTSTORE_TYPE,
             TRUSTSTORE_TYPE,
-            TRUST_RESTRICTIONS_PATH,
-            TRUST_RESTRICTIONS_X509_FIELDS,
             KEYSTORE_PATH,
             KEYSTORE_LEGACY_PASSWORD,
             KEYSTORE_LEGACY_KEY_PASSWORD,

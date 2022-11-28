@@ -33,12 +33,12 @@ public final class RestrictedTrustConfig extends TrustConfig {
     private static final String RESTRICTIONS_KEY_SUBJECT_NAME = "trust.subject_name";
     public static final String SAN_OTHER_COMMON = "subjectAltName.otherName.commonName";
     public static final String SAN_DNS = "subjectAltName.dnsName";
-    static final Set<String> SUPPORTED_X_509_FIELDS = Set.of(SAN_OTHER_COMMON, SAN_DNS);
+    static final Set<String> SUPPORTED_X_509_FIELDS = org.elasticsearch.core.Set.of(SAN_OTHER_COMMON, SAN_DNS);
     private final String groupConfigPath;
     private final TrustConfig delegate;
     private final Set<String> configuredX509Fields;
 
-    RestrictedTrustConfig(String groupConfigPath, Set<String> configuredX509Fields, SslTrustConfig delegate) {
+    RestrictedTrustConfig(String groupConfigPath, Set<String> configuredX509Fields, TrustConfig delegate) {
         this.configuredX509Fields = configuredX509Fields;
         this.groupConfigPath = Objects.requireNonNull(groupConfigPath);
         this.delegate = Objects.requireNonNull(delegate);

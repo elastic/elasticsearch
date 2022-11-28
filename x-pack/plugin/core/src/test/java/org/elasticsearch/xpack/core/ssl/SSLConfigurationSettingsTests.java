@@ -76,7 +76,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
     }
 
     public void testParseTrustRestrictionsListWithPrefix() {
-        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("ssl.", true);
+        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("ssl.");
         assertThat(ssl.trustRestrictionsX509Fields.match("ssl.trust_restrictions.x509_fields"), is(true));
 
         // explicit configuration
@@ -121,7 +121,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.truststorePassword.exists(settings), is(false));
         assertThat(ssl.truststorePath.get(settings).isPresent(), is(false));
         assertThat(ssl.trustRestrictionsPath.get(settings).isPresent(), is(false));
-        assertThat(ssl.trustRestrictionsX509Fields.get(settings), is(List.of("subjectAltName.otherName.commonName")));
+        assertThat(ssl.trustRestrictionsX509Fields.get(settings), is(org.elasticsearch.core.List.of("subjectAltName.otherName.commonName")));
         assertThat(ssl.verificationMode.get(settings).isPresent(), is(false));
 
         assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.x509KeyPair.keystoreType, settings, null), is("jks"));

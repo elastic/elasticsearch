@@ -254,51 +254,41 @@ public class SSLConfigurationSettings {
     public static final Function<String, Setting.AffixSetting<Optional<String>>> TRUST_STORE_TYPE_REALM = realmType -> Setting
         .affixKeySetting("xpack.security.authc.realms." + realmType + ".", "ssl.truststore.type", TRUST_STORE_TYPE_TEMPLATE);
 
-    private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_PATH_TEMPLATE = key -> new Setting<>(
+    private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_TEMPLATE = key -> new Setting<>(
         key,
         s -> null,
         Optional::ofNullable,
         Property.NodeScope,
         Property.Filtered
     );
-  public static final Setting<Optional<String>> TRUST_RESTRICTIONS_PROFILES = Setting.affixKeySetting(
+    public static final Setting<Optional<String>> TRUST_RESTRICTIONS_PROFILES = Setting.affixKeySetting(
         "transport.profiles.",
         "xpack.security.ssl.trust_restrictions",
         TRUST_RESTRICTIONS_TEMPLATE
     );
 
-//TODO: REWORK THIS FOR THE ELDER MODEL
+    public static final Function<String, Setting.AffixSetting<Optional<String>>> TRUST_RESTRICTIONS_REALM = realmType -> Setting
+        .affixKeySetting("xpack.security.authc.realms." + realmType + ".", "ssl.trust_restrictions", TRUST_RESTRICTIONS_TEMPLATE);
 
-/**
     public static final Function<String, Setting<List<String>>> TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE = key -> Setting.listSetting(
         key,
-        List.of("subjectAltName.otherName.commonName"),
+        org.elasticsearch.core.List.of("subjectAltName.otherName.commonName"),
         s -> {
-            RestrictedTrustConfig.SUPPORTED_X_509_FIELDS.stream()
-                .filter(v -> v.equalsIgnoreCase(s))
-                .findAny()
-                .ifPresentOrElse(v -> {}, () -> {
-                    throw new SslConfigException(
-                        s
-                            + " is not a supported x509 field for trust restrictions. "
-                            + "Recognised values are ["
-                            + String.join(",", RestrictedTrustConfig.SUPPORTED_X_509_FIELDS)
-                            + "]"
-                    );
-                });
+            Optional<String> value = RestrictedTrustConfig.SUPPORTED_X_509_FIELDS.stream().filter(v -> v.equalsIgnoreCase(s)).findAny();
+            if (value.isPresent() == false) {
+                throw new SslConfigException(
+                    s
+                        + " is not a supported x509 field for trust restrictions. "
+                        + "Recognised values are ["
+                        + String.join(",", RestrictedTrustConfig.SUPPORTED_X_509_FIELDS)
+                        + "]"
+                );
+            }
             return s;
         },
         Property.NodeScope,
         Property.Filtered
     );
-
-    public static final SslSetting<List<String>> TRUST_RESTRICTIONS_X509_FIELDS = SslSetting.setting(
-        "trust_restrictions.x509_fields",
-        TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE
-    );
-	**/
-    public static final Function<String, Setting.AffixSetting<Optional<String>>> TRUST_RESTRICTIONS_REALM = realmType -> Setting
-        .affixKeySetting("xpack.security.authc.realms." + realmType + ".", "ssl.trust_restrictions", TRUST_RESTRICTIONS_TEMPLATE);
 
     public static final Setting<SecureString> LEGACY_KEY_PASSWORD_PROFILES = Setting.affixKeySetting(
         "transport.profiles.",
@@ -404,8 +394,7 @@ public class SSLConfigurationSettings {
         truststoreAlgorithm = TRUST_STORE_ALGORITHM_TEMPLATE.apply(prefix + "truststore.algorithm");
         truststoreType = TRUST_STORE_TYPE_TEMPLATE.apply(prefix + "truststore.type");
         trustRestrictionsPath = TRUST_RESTRICTIONS_TEMPLATE.apply(prefix + "trust_restrictions.path");
-		//todo: FIX THIS
-        //trustRestrictionsX509Fields = TRUST_RESTRICTIONS_X509_FIELDS.withPrefix(prefix);
+        trustRestrictionsX509Fields = TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE.apply(prefix + "trust_restrictions.x509_fields");
         caPaths = CAPATH_SETTING_TEMPLATE.apply(prefix + "certificate_authorities");
         clientAuth = CLIENT_AUTH_SETTING_TEMPLATE.apply(prefix + "client_authentication");
         verificationMode = VERIFICATION_MODE_SETTING_TEMPLATE.apply(prefix + "verification_mode");
@@ -481,8 +470,6 @@ public class SSLConfigurationSettings {
             KEY_STORE_TYPE_PROFILES,
             TRUST_STORE_TYPE_PROFILES,
             TRUST_RESTRICTIONS_PROFILES,
-			//todo
-            //TRUST_RESTRICTIONS_X509_FIELDS,
             KEY_PATH_PROFILES,
             LEGACY_KEY_PASSWORD_PROFILES,
             KEY_PASSWORD_PROFILES,

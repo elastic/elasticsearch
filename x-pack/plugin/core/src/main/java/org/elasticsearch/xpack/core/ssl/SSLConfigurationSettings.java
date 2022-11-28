@@ -159,7 +159,7 @@ public class SSLConfigurationSettings {
 
     public static final Function<String, Setting<List<String>>> TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE = key -> Setting.listSetting(
         key,
-        List.of("subjectAltName.otherName.commonName"),
+        List.of(RestrictedTrustConfig.SAN_OTHER_COMMON),
         s -> {
             RestrictedTrustConfig.SUPPORTED_X_509_FIELDS.stream()
                 .filter(v -> v.equalsIgnoreCase(s))

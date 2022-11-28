@@ -58,6 +58,7 @@ public class RemoteClusterSecuritySmokeIT extends ESRestTestCase {
             Request searchRequest = new Request("GET", "/my_remote_cluster:test_idx/_search");
             Response response = client().performRequest(searchRequest);
             assertOK(response);
+            fail("fixme");
             // TODO: fix
             // ObjectPath responseObj = ObjectPath.createFromResponse(response);
             // int totalHits = responseObj.evaluate("hits.total.value");

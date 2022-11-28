@@ -424,6 +424,7 @@ be able to cope with `max_failures` node failures at once at most, then the
 right number of replicas for you is
 `max(max_failures, ceil(num_nodes / num_primaries) - 1)`.
 
+[discrete]
 === Tune your queries with the Search Profiler
 
 The {ref}/search-profile.html[Profile API] provides detailed information about
@@ -438,6 +439,7 @@ Because the Profile API itself adds significant overhead to the query,
 this information is best used to understand the relative cost of the various
 query components. It does not provide a reliable measure of actual processing time.
 
+[discrete]
 [[faster-phrase-queries]]
 === Faster phrase queries with `index_phrases`
 
@@ -446,6 +448,7 @@ indexes 2-shingles and is automatically leveraged by query parsers to run phrase
 queries that don't have a slop. If your use-case involves running lots of phrase
 queries, this can speed up queries significantly.
 
+[discrete]
 [[faster-prefix-queries]]
 === Faster prefix queries with `index_prefixes`
 
@@ -454,6 +457,7 @@ indexes prefixes of all terms and is automatically leveraged by query parsers to
 run prefix queries. If your use-case involves running lots of prefix queries,
 this can speed up queries significantly.
 
+[discrete]
 [[faster-filtering-with-constant-keyword]]
 === Use `constant_keyword` to speed up filtering
 

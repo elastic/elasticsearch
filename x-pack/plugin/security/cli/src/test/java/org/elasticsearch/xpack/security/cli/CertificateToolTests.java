@@ -298,7 +298,8 @@ public class CertificateToolTests extends ESTestCase {
             PKCS10CertificationRequest request = readCertificateRequest(csr);
             assertEquals(certInfo.name.x500Principal.getName(), request.getSubject().toString());
             Attribute[] extensionsReq = request.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
-            if (certInfo.ipAddresses.size() > 0 || certInfo.dnsNames.size() > 0 || certInfo.eceSanOtherNameCommonNames.size() > 0) {
+            final int sanCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size() + certInfo.eceSanOtherNameCommonNames.size();
+            if (sanCount > 0) {
                 assertEquals(1, extensionsReq.length);
                 Extensions extensions = Extensions.getInstance(extensionsReq[0].getAttributeValues()[0]);
                 GeneralNames subjAltNames = GeneralNames.fromExtensions(extensions, Extension.subjectAlternativeName);

@@ -415,8 +415,8 @@ public class CertGenUtils {
      * The type-id is the object-id value {@link #CN_OID cn}, and the value has an explicit tag of '0' and a DER encoded UTF8 string.
      * The Elastic Cloud format is <strong>non-standard</strong>, so other X.509/TLS implementations won't support it (e.g. OpenSSL).
      */
-    public static GeneralName createCommonName(String value) {
-        final ASN1Encodable[] sequence = { new ASN1ObjectIdentifier(CN_OID), new DERTaggedObject(true, 0, new DERUTF8String(value)) };
+    public static GeneralName createCommonName(String cn) {
+        final ASN1Encodable[] sequence = { new ASN1ObjectIdentifier(CN_OID), new DERTaggedObject(true, 0, new DERUTF8String(cn)) };
         return new GeneralName(GeneralName.otherName, new DERSequence(sequence));
     }
 

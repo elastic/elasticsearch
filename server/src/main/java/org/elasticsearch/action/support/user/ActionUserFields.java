@@ -8,6 +8,9 @@
 
 package org.elasticsearch.action.support.user;
 
+/**
+ * Fields/constants associated with the {@link org.elasticsearch.action.support.user.ActionUser interface}
+ */
 public class ActionUserFields {
 
     /**

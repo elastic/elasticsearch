@@ -142,6 +142,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support.single.instance;
     exports org.elasticsearch.action.support.single.shard;
     exports org.elasticsearch.action.support.tasks;
+    exports org.elasticsearch.action.support.user;
     exports org.elasticsearch.action.termvectors;
     exports org.elasticsearch.action.update;
     exports org.elasticsearch.bootstrap;

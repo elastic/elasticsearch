@@ -31,21 +31,17 @@ public final class ActionUserConverter extends LogEventPatternConverter {
         super("action_user", "action_user");
     }
 
-    public static ActionUser getActionUser() {
+    private static Optional<ActionUser> getActionUser() {
         return HeaderWarning.THREAD_CONTEXT.stream()
             .map(ActionUser::getEffectiveUser)
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .findFirst()
-            .orElse(null);
+            .findFirst();
     }
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        final ActionUser simpleUser = getActionUser();
-        if (simpleUser != null) {
-            toAppendTo.append(ActionUser.class.getName());
-        }
+        getActionUser().ifPresent(user -> toAppendTo.append(user.toString()));
     }
 
 }

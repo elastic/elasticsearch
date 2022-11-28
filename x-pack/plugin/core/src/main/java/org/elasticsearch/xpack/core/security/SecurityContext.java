@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.core.security;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -17,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.SecurityActionUser;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -29,6 +32,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -75,10 +79,31 @@ public class SecurityContext {
     @Nullable
     public Authentication getAuthentication() {
         try {
-            return authenticationSerializer.readFromContext(threadContext);
+            Authentication authentication = authenticationSerializer.readFromContext(threadContext);
+            assertActionUserMatchesAuthentication(authentication);
+            return authentication;
         } catch (IOException e) {
             logger.error("failed to read authentication", e);
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private void assertActionUserMatchesAuthentication(Authentication authentication) {
+        if (Assertions.ENABLED == false) {
+            return;
+        }
+
+        Optional<ActionUser> optActionUser = ActionUser.getEffectiveUser(threadContext);
+        if (authentication != null) {
+            assert optActionUser.isPresent() : "Authentication [" + authentication + "] exists, but not action user exists";
+            optActionUser.ifPresent(actionUser -> {
+                assert actionUser instanceof SecurityActionUser : "Action user is incorrect type: " + actionUser.getClass();
+                SecurityActionUser secUser = (SecurityActionUser) actionUser;
+                assert authentication.getEffectiveSubject() == secUser.subject()
+                    : "Effective user mismatch expected [" + authentication.getEffectiveSubject() + "] but was [" + secUser.subject() + "]";
+            });
+        } else {
+            assert optActionUser.isEmpty() : "No authentication registered, but action user [" + optActionUser.get() + "] exist";
         }
     }
 
@@ -226,6 +251,7 @@ public class SecurityContext {
     private void setAuthentication(Authentication authentication) {
         try {
             authentication.writeToContext(threadContext);
+            assertActionUserMatchesAuthentication(authentication);
         } catch (IOException e) {
             throw new AssertionError("how can we have a IOException with a user we set", e);
         }

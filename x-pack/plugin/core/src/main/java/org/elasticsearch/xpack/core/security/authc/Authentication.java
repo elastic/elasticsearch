@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.user.ActionUserFields;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -433,6 +434,7 @@ public final class Authentication implements ToXContentObject {
      */
     public void writeToContext(ThreadContext ctx) throws IOException, IllegalArgumentException {
         new AuthenticationContextSerializer().writeToContext(this, ctx);
+        ctx.putTransient(ActionUserFields.TRANSIENT_HEADER, new SecurityActionUser(getEffectiveSubject()));
     }
 
     public String encode() throws IOException {

@@ -120,7 +120,10 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
         }
     }
 
-    // The prevalidation result of a node
+    /**
+     *  The prevalidation result of a node.
+     * @param reason is nullable only for BWC between 8.6 and 8.7. In a fully-upgraded 8.7, it should always be non-null.
+     */
     public record Result(boolean isSafe, @Nullable Reason reason, String message) implements ToXContentObject, Writeable {
 
         private static final ParseField IS_SAFE_FIELD = new ParseField("is_safe");

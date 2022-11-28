@@ -950,7 +950,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         // collection, and another indexing thread modifies the shared reference while we're trying to ensure it has
                         // no self references. If anything goes wrong here, we want to know, but also cannot proceed with normal execution.
                         handler.accept(
-                            new IllegalArgumentException(
+                            new RuntimeException(
                                 "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
                                 ex
                             )

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -248,7 +249,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         @Override
         public void onFailure(Exception e) {
             assert MasterService.isPublishFailureException(e) : e;
-            onNoLongerMaster();
+            if (e.getCause() != null && e.getCause()instanceof EsRejectedExecutionException esRejectedExecutionException) {
+                assert esRejectedExecutionException.isExecutorShutdown();
+                // TODO now what? onNoLongerMaster() asserts it's on the master thread but we could be anywhere here
+            } else {
+                onNoLongerMaster();
+            }
         }
 
         @Override

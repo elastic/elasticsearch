@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
+import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -43,6 +44,7 @@ public class SSLConfigurationSettings {
     final Setting<String> truststoreAlgorithm;
     final Setting<Optional<String>> truststoreType;
     final Setting<Optional<String>> trustRestrictionsPath;
+    final Setting<List<String>> trustRestrictionsX509Fields;
     final Setting<List<String>> caPaths;
     final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
     final Setting<Optional<SslVerificationMode>> verificationMode;
@@ -143,16 +145,43 @@ public class SSLConfigurationSettings {
         TRUST_STORE_TYPE_TEMPLATE
     );
 
-    private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_TEMPLATE = key -> new Setting<>(
+    private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_PATH_TEMPLATE = key -> new Setting<>(
         key,
         s -> null,
         Optional::ofNullable,
         Property.NodeScope,
         Property.Filtered
     );
-    private static final SslSetting<Optional<String>> TRUST_RESTRICTIONS = SslSetting.setting(
+    private static final SslSetting<Optional<String>> TRUST_RESTRICTIONS_PATH = SslSetting.setting(
         "trust_restrictions.path",
-        TRUST_RESTRICTIONS_TEMPLATE
+        TRUST_RESTRICTIONS_PATH_TEMPLATE
+    );
+
+    public static final Function<String, Setting<List<String>>> TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE = key -> Setting.listSetting(
+        key,
+        List.of("subjectAltName.otherName.commonName"),
+        s -> {
+            RestrictedTrustConfig.SUPPORTED_X_509_FIELDS.stream()
+                .filter(v -> v.equalsIgnoreCase(s))
+                .findAny()
+                .ifPresentOrElse(v -> {}, () -> {
+                    throw new SslConfigException(
+                        s
+                            + " is not a supported x509 field for trust restrictions. "
+                            + "Recognised values are ["
+                            + String.join(",", RestrictedTrustConfig.SUPPORTED_X_509_FIELDS)
+                            + "]"
+                    );
+                });
+            return s;
+        },
+        Property.NodeScope,
+        Property.Filtered
+    );
+
+    public static final SslSetting<List<String>> TRUST_RESTRICTIONS_X509_FIELDS = SslSetting.setting(
+        "trust_restrictions.x509_fields",
+        TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE
     );
 
     private static final SslSetting<SecureString> LEGACY_KEY_PASSWORD = SslSetting.setting(
@@ -228,7 +257,8 @@ public class SSLConfigurationSettings {
         truststorePassword = TRUSTSTORE_PASSWORD.withPrefix(prefix);
         truststoreAlgorithm = TRUSTSTORE_ALGORITHM.withPrefix(prefix);
         truststoreType = TRUSTSTORE_TYPE.withPrefix(prefix);
-        trustRestrictionsPath = TRUST_RESTRICTIONS.withPrefix(prefix);
+        trustRestrictionsPath = TRUST_RESTRICTIONS_PATH.withPrefix(prefix);
+        trustRestrictionsX509Fields = TRUST_RESTRICTIONS_X509_FIELDS.withPrefix(prefix);
         caPaths = CERT_AUTH_PATH.withPrefix(prefix);
         clientAuth = CLIENT_AUTH_SETTING.withPrefix(prefix);
         verificationMode = VERIFICATION_MODE.withPrefix(prefix);
@@ -241,6 +271,7 @@ public class SSLConfigurationSettings {
             truststoreAlgorithm,
             truststoreType,
             trustRestrictionsPath,
+            trustRestrictionsX509Fields,
             caPaths,
             clientAuth,
             verificationMode
@@ -304,7 +335,8 @@ public class SSLConfigurationSettings {
             TRUSTSTORE_ALGORITHM,
             KEY_STORE_TYPE,
             TRUSTSTORE_TYPE,
-            TRUST_RESTRICTIONS,
+            TRUST_RESTRICTIONS_PATH,
+            TRUST_RESTRICTIONS_X509_FIELDS,
             KEY_PATH,
             LEGACY_KEY_PASSWORD,
             KEY_PASSWORD,

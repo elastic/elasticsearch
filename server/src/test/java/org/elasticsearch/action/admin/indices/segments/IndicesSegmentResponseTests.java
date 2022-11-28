@@ -74,6 +74,6 @@ public class IndicesSegmentResponseTests extends ESTestCase {
             iterator.next();
             chunks++;
         }
-        assertEquals(indices + 2, chunks);
+        assertEquals(indices + 4, chunks);
     }
 }

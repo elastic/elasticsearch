@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.fleet;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -18,6 +19,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,6 +30,15 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         "x_pack_rest_user",
         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
     );
+
+    RequestOptions consumeSystemIndicesWarningsOptions = RequestOptions.DEFAULT.toBuilder()
+    .setWarningsHandler(
+        warnings -> List.of(
+            "this request accesses system indices: [.fleet-artifacts-7], but "
+                + "in a future major version, direct access to system indices will be prevented by default"
+        ).equals(warnings) == false
+    )
+    .build();
 
     @Override
     protected Settings restClientSettings() {
@@ -90,6 +101,7 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
 
     public void testCreationOfFleetFileData() throws Exception {
         Request request = new Request("PUT", ".fleet-agent-file-data-00001");
+        request.setOptions(consumeSystemIndicesWarningsOptions); // The result includes system indices, so we warn
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
@@ -101,6 +113,7 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
 
     public void testCreationOfFleetArtifacts() throws Exception {
         Request request = new Request("PUT", ".fleet-artifacts");
+        request.setOptions(consumeSystemIndicesWarningsOptions); // The result includes system indices, so we warn
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 

@@ -68,7 +68,7 @@ import javax.security.auth.x500.X500Principal;
  */
 public class CertGenUtils {
 
-    private static final String CN_OID = "2.5.4.3";
+    public static final String CN_OID = "2.5.4.3";
 
     private static final int SERIAL_BIT_LENGTH = 20 * 8;
     private static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
@@ -411,14 +411,12 @@ public class CertGenUtils {
     }
 
     /**
-     * Creates an X.509 {@link GeneralName} for use as a <em>Common Name</em> in the certificate's <em>Subject Alternative Names</em>
-     * extension. A <em>common name</em> is a name with a tag of {@link GeneralName#otherName OTHER}, with an object-id that references
-     * the {@link #CN_OID cn} attribute, an explicit tag of '0', and a DER encoded UTF8 string for the name.
-     * This usage of using the {@code cn} OID as a <em>Subject Alternative Name</em> is <strong>non-standard</strong> and will not be
-     * recognised by other X.509/TLS implementations.
+     * Create a PKIX {@link GeneralName#otherName OTHER} in ECE/ESS format (i.e. ESS or ECE) for <em>Subject Alternative Names</em>.
+     * The type-id is the object-id value {@link #CN_OID cn}, and the value has an explicit tag of '0' and a DER encoded UTF8 string.
+     * The Elastic Cloud format is <strong>non-standard</strong>, so other X.509/TLS implementations won't support it (e.g. OpenSSL).
      */
-    public static GeneralName createCommonName(String cn) {
-        final ASN1Encodable[] sequence = { new ASN1ObjectIdentifier(CN_OID), new DERTaggedObject(true, 0, new DERUTF8String(cn)) };
+    public static GeneralName createEceGeneralNameOtherName(final String typeId, String value) {
+        final ASN1Encodable[] sequence = { new ASN1ObjectIdentifier(typeId), new DERTaggedObject(true, 0, new DERUTF8String(value)) };
         return new GeneralName(GeneralName.otherName, new DERSequence(sequence));
     }
 

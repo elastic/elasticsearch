@@ -70,6 +70,8 @@ import java.util.zip.ZipOutputStream;
 
 import javax.security.auth.x500.X500Principal;
 
+import static org.elasticsearch.xpack.security.cli.CertGenUtils.CN_OID;
+
 /**
  * CLI tool to make generation of certificates or certificate requests easier for users
  *
@@ -261,11 +263,14 @@ class CertificateGenerateTool extends EnvironmentAwareCommand {
                 }
                 String ipAddresses = terminal.readText("Enter IP Addresses for instance (comma-separated if more than one) []: ");
                 String dnsNames = terminal.readText("Enter DNS names for instance (comma-separated if more than one) []: ");
+                String commonNames = terminal.readText(
+                    "Enter Elastic Cloud SAN otherName CNs for instance (comma-separated if more than one) []: "
+                );
                 List<String> ipList = Arrays.asList(Strings.splitStringByCommaToArray(ipAddresses));
                 List<String> dnsList = Arrays.asList(Strings.splitStringByCommaToArray(dnsNames));
-                List<String> commonNames = null;
+                List<String> cnList = Arrays.asList(Strings.splitStringByCommaToArray(commonNames));
 
-                CertificateInformation information = new CertificateInformation(name, filename, ipList, dnsList, commonNames);
+                CertificateInformation information = new CertificateInformation(name, filename, ipList, dnsList, cnList);
                 List<String> validationErrors = information.validate();
                 if (validationErrors.isEmpty()) {
                     if (map.containsKey(name)) {
@@ -663,7 +668,7 @@ class CertificateGenerateTool extends EnvironmentAwareCommand {
         }
 
         for (String cn : commonNames) {
-            generalNameList.add(CertGenUtils.createCommonName(cn));
+            generalNameList.add(CertGenUtils.createEceGeneralNameOtherName(CN_OID, cn));
         }
 
         if (generalNameList.isEmpty()) {

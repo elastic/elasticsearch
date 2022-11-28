@@ -115,31 +115,29 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         if (verifyCertificateNames(values)) {
             logger.debug(
                 () -> format(
-                    "Trusting certificate [%s] [%s] with fields [%s] with values [%s]",
-                    certificate.getSubjectX500Principal(),
-                    certificate.getSerialNumber().toString(16),
+                    "Fields [%s] values [%s] allowed by trust_restrictions [%s] for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
                     x509Fields,
-                    values
+                    values,
+                    trustRestrictions.getTrustedNames(),
+                    certificate.getSerialNumber().toString(16),
+                    certificate.getSubjectX500Principal(),
+                    certificate.getIssuerX500Principal(),
+                    certificate.getNotAfter()
                 )
             );
         } else {
-            logger.info(
-                "Rejecting certificate [{}] [{}] for fields [{}] with values [{}]",
-                certificate.getSubjectX500Principal(),
-                certificate.getSerialNumber().toString(16),
+            final String message = format(
+                "Fields [%s] values [%s] rejected by trust_restrictions [%s] for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
                 x509Fields,
-                values
+                values,
+                trustRestrictions.getTrustedNames(),
+                certificate.getSerialNumber().toString(16),
+                certificate.getSubjectX500Principal(),
+                certificate.getIssuerX500Principal(),
+                certificate.getNotAfter()
             );
-            throw new CertificateException(
-                "Certificate for "
-                    + certificate.getSubjectX500Principal()
-                    + " with fields "
-                    + x509Fields
-                    + " with values "
-                    + values
-                    + " does not match the trusted names "
-                    + trustRestrictions.getTrustedNames()
-            );
+            logger.info(message);
+            throw new CertificateException(message);
         }
     }
 
@@ -147,7 +145,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         for (Predicate<String> trust : trustRestrictions.getTrustedNames()) {
             final Optional<String> match = names.stream().filter(trust).findFirst();
             if (match.isPresent()) {
-                logger.debug("Name [{}] matches trusted pattern [{}]", match.get(), trust);
+                logger.debug("Value [{}] allowed by trust_restrictions [{}]", match.get(), trust);
                 return true;
             }
         }
@@ -167,7 +165,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
             values.addAll(dnsNames);
         }
         if (x509Fields.contains(SAN_OTHER_COMMON.toLowerCase(Locale.ROOT))) {
-            Set<String> otherNames = getSubjectAlternativeNames(certificate).stream()
+            Set<String> otherNames = sans.stream()
                 .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)
                 .map(pair -> pair.get(1))
                 .map(value -> decodeDerValue((byte[]) value, certificate))
@@ -179,11 +177,11 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
     }
 
     /**
-     * Decodes the otherName CN from the certificate
+     * Decodes an Elastic Cloud SAN otherName CN value. The certificate parameter is used for logging only.
      *
-     * @param value       The DER Encoded Subject Alternative Name
+     * @param value       The DER Encoded Subject Alternative Name otherName in Elastic Cloud format
      * @param certificate The certificate
-     * @return the CN or null if it could not be parsed
+     * @return the Elastic Cloud SAN otherName CN value or null if it could not be parsed
      */
     private static String decodeDerValue(byte[] value, X509Certificate certificate) {
         try {
@@ -208,26 +206,48 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
                 }
                 logger.trace("Read innermost ASN.1 Object with type code [{}]", innerObject.getType());
                 String cn = innerObject.getString();
-                logger.trace("Read cn [{}] from ASN1Sequence [{}]", cn, seq);
+                logger.trace("Read Elastic Cloud SAN otherName cn value [{}] from ASN1Sequence [{}]", cn, seq);
                 return cn;
             } else {
                 logger.debug(
-                    "Certificate [{}] has 'otherName' [{}] with unsupported object-id [{}]",
-                    certificate.getSubjectX500Principal(),
-                    seq,
-                    id
+                    () -> format(
+                        "Unsupported seq [%s] id [%s] for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
+                        seq,
+                        id,
+                        certificate.getSerialNumber().toString(16),
+                        certificate.getSubjectX500Principal(),
+                        certificate.getIssuerX500Principal(),
+                        certificate.getNotAfter()
+                    )
                 );
                 return null;
             }
         } catch (IOException e) {
-            logger.warn("Failed to read 'otherName' from certificate [{}]", certificate.getSubjectX500Principal());
+            logger.warn(
+                () -> format(
+                    "Failed to parse SAN otherName for cert serial [0x%s] subject [%s] issuer [%s] end [%s]",
+                    certificate.getSerialNumber().toString(16),
+                    certificate.getSubjectX500Principal(),
+                    certificate.getIssuerX500Principal(),
+                    certificate.getNotAfter()
+                )
+            );
             return null;
         }
     }
 
     private static Collection<List<?>> getSubjectAlternativeNames(X509Certificate certificate) throws CertificateParsingException {
         final Collection<List<?>> sans = certificate.getSubjectAlternativeNames();
-        logger.trace("Certificate [{}] has subject alternative names [{}]", certificate.getSubjectX500Principal(), sans);
+        logger.trace(
+            () -> format(
+                "Cert serial [0x%s] subject [%s] issuer [%s] has SANs [%s] end [%s]",
+                certificate.getSerialNumber().toString(16),
+                certificate.getSubjectX500Principal(),
+                certificate.getIssuerX500Principal(),
+                certificate.getNotAfter(),
+                sans
+            )
+        );
         return sans == null ? Collections.emptyList() : sans;
     }
 }

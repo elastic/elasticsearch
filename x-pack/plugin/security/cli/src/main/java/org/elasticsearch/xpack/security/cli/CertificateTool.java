@@ -82,6 +82,8 @@ import java.util.zip.ZipOutputStream;
 
 import javax.security.auth.x500.X500Principal;
 
+import static org.elasticsearch.xpack.security.cli.CertGenUtils.CN_OID;
+
 /**
  * CLI tool to make generation of certificates or certificate requests easier for users
  */
@@ -215,6 +217,7 @@ class CertificateTool extends MultiCommand {
         OptionSpec<String> nameSpec;
         OptionSpec<String> dnsNamesSpec;
         OptionSpec<String> ipAddressesSpec;
+        OptionSpec<String> eceSanOtherNameCommonNamesSpec;
 
         OptionSpec<String> inputFileSpec;
 
@@ -267,6 +270,9 @@ class CertificateTool extends MultiCommand {
             nameSpec = parser.accepts("name", "name of the generated certificate").availableUnless(multipleNodesSpec).withRequiredArg();
             dnsNamesSpec = parser.accepts("dns", "comma separated DNS names").availableUnless(multipleNodesSpec).withRequiredArg();
             ipAddressesSpec = parser.accepts("ip", "comma separated IP addresses").availableUnless(multipleNodesSpec).withRequiredArg();
+            eceSanOtherNameCommonNamesSpec = parser.accepts("cn", "comma separated SAN otherName CNs")
+                .availableUnless(multipleNodesSpec)
+                .withRequiredArg();
         }
 
         final void acceptInputFile() {
@@ -425,7 +431,8 @@ class CertificateTool extends MultiCommand {
                 final Function<String, Stream<? extends String>> splitByComma = v -> Arrays.stream(Strings.splitStringByCommaToArray(v));
                 final List<String> dns = dnsNamesSpec.values(options).stream().flatMap(splitByComma).collect(Collectors.toList());
                 final List<String> ip = ipAddressesSpec.values(options).stream().flatMap(splitByComma).collect(Collectors.toList());
-                final List<String> cn = null;
+                final List<String> cn = eceSanOtherNameCommonNamesSpec.values(options).stream().flatMap(splitByComma).toList();
+
                 final String name = getCertificateName(options);
                 final String fileName;
                 if (Name.isValidFilename(name)) {
@@ -457,11 +464,14 @@ class CertificateTool extends MultiCommand {
                     String filename = requestFileName(terminal, name);
                     String ipAddresses = terminal.readText("Enter IP Addresses for instance (comma-separated if more than one) []: ");
                     String dnsNames = terminal.readText("Enter DNS names for instance (comma-separated if more than one) []: ");
+                    String commonNames = terminal.readText(
+                        "Enter Elastic Cloud SAN otherName CNs for instance (comma-separated if more than one) []: "
+                    );
                     List<String> ipList = Arrays.asList(Strings.splitStringByCommaToArray(ipAddresses));
                     List<String> dnsList = Arrays.asList(Strings.splitStringByCommaToArray(dnsNames));
-                    List<String> commonNames = null;
+                    List<String> cnList = Arrays.asList(Strings.splitStringByCommaToArray(commonNames));
 
-                    CertificateInformation information = new CertificateInformation(name, filename, ipList, dnsList, commonNames);
+                    CertificateInformation information = new CertificateInformation(name, filename, ipList, dnsList, cnList);
                     List<String> validationErrors = information.validate();
                     if (validationErrors.isEmpty()) {
                         if (map.containsKey(name)) {
@@ -631,7 +641,7 @@ class CertificateTool extends MultiCommand {
                     GeneralNames sanList = getSubjectAlternativeNamesValue(
                         certificateInformation.ipAddresses,
                         certificateInformation.dnsNames,
-                        certificateInformation.commonNames
+                        certificateInformation.eceSanOtherNameCommonNames
                     );
                     PKCS10CertificationRequest csr = CertGenUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
 
@@ -866,7 +876,7 @@ class CertificateTool extends MultiCommand {
                     getSubjectAlternativeNamesValue(
                         certificateInformation.ipAddresses,
                         certificateInformation.dnsNames,
-                        certificateInformation.commonNames
+                        certificateInformation.eceSanOtherNameCommonNames
                     ),
                     keyPair,
                     caInfo.certAndKey.cert,
@@ -879,7 +889,7 @@ class CertificateTool extends MultiCommand {
                     getSubjectAlternativeNamesValue(
                         certificateInformation.ipAddresses,
                         certificateInformation.dnsNames,
-                        certificateInformation.commonNames
+                        certificateInformation.eceSanOtherNameCommonNames
                     ),
                     keyPair,
                     null,
@@ -1147,7 +1157,7 @@ class CertificateTool extends MultiCommand {
         }
 
         for (String cn : commonNames) {
-            generalNameList.add(CertGenUtils.createCommonName(cn));
+            generalNameList.add(CertGenUtils.createEceGeneralNameOtherName(CN_OID, cn));
         }
 
         if (generalNameList.isEmpty()) {
@@ -1168,13 +1178,19 @@ class CertificateTool extends MultiCommand {
         final Name name;
         final List<String> ipAddresses;
         final List<String> dnsNames;
-        final List<String> commonNames;
+        final List<String> eceSanOtherNameCommonNames;
 
-        CertificateInformation(String name, String filename, List<String> ipAddresses, List<String> dnsNames, List<String> commonNames) {
+        CertificateInformation(
+            String name,
+            String filename,
+            List<String> ipAddresses,
+            List<String> dnsNames,
+            List<String> eceSanOtherNameCommonNames
+        ) {
             this.name = Name.fromUserProvidedName(name, filename);
             this.ipAddresses = ipAddresses == null ? Collections.emptyList() : ipAddresses;
             this.dnsNames = dnsNames == null ? Collections.emptyList() : dnsNames;
-            this.commonNames = commonNames == null ? Collections.emptyList() : commonNames;
+            this.eceSanOtherNameCommonNames = eceSanOtherNameCommonNames == null ? Collections.emptyList() : eceSanOtherNameCommonNames;
         }
 
         List<String> validate() {

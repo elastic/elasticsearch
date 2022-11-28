@@ -180,6 +180,7 @@ public class CertificateToolTests extends ESTestCase {
             instanceInput.put(name, instanceInfo);
             instanceInfo.put("ip", randomFrom("127.0.0.1", "::1", "192.168.1.1,::1", ""));
             instanceInfo.put("dns", randomFrom("localhost", "localhost.localdomain", "localhost,myhost", ""));
+            instanceInfo.put("cn", randomFrom("node.1.cluster.1.account.1", "node1.cluster1.intra", ""));
             logger.info("instance [{}] name [{}] [{}]", i, name, instanceInfo);
         }
 
@@ -190,6 +191,7 @@ public class CertificateToolTests extends ESTestCase {
             terminal.addTextInput("");
             terminal.addTextInput(entry.getValue().get("ip"));
             terminal.addTextInput(entry.getValue().get("dns"));
+            terminal.addTextInput(entry.getValue().get("cn"));
             count++;
             if (count == numberOfInstances) {
                 terminal.addTextInput("n");
@@ -207,8 +209,10 @@ public class CertificateToolTests extends ESTestCase {
             assertNotNull("did not find map for " + name, instanceInfo);
             List<String> expectedIps = Arrays.asList(Strings.commaDelimitedListToStringArray(instanceInfo.get("ip")));
             List<String> expectedDns = Arrays.asList(Strings.commaDelimitedListToStringArray(instanceInfo.get("dns")));
+            List<String> expectedCns = Arrays.asList(Strings.commaDelimitedListToStringArray(instanceInfo.get("cn")));
             assertEquals(expectedIps, certInfo.ipAddresses);
             assertEquals(expectedDns, certInfo.dnsNames);
+            assertEquals(expectedCns, certInfo.eceSanOtherNameCommonNames);
             instanceInput.remove(name);
         }
         assertEquals(0, instanceInput.size());
@@ -227,25 +231,25 @@ public class CertificateToolTests extends ESTestCase {
         CertificateInformation certInfo = certInfosMap.get("node1");
         assertEquals(Collections.singletonList("127.0.0.1"), certInfo.ipAddresses);
         assertEquals(Collections.singletonList("localhost"), certInfo.dnsNames);
-        assertEquals(Collections.emptyList(), certInfo.commonNames);
+        assertEquals(Collections.emptyList(), certInfo.eceSanOtherNameCommonNames);
         assertEquals("node1", certInfo.name.filename);
 
         certInfo = certInfosMap.get("node2");
         assertEquals(Collections.singletonList("::1"), certInfo.ipAddresses);
         assertEquals(Collections.emptyList(), certInfo.dnsNames);
-        assertEquals(Collections.singletonList("node2.elasticsearch"), certInfo.commonNames);
+        assertEquals(Collections.singletonList("node2.elasticsearch"), certInfo.eceSanOtherNameCommonNames);
         assertEquals("node2", certInfo.name.filename);
 
         certInfo = certInfosMap.get("node3");
         assertEquals(Collections.emptyList(), certInfo.ipAddresses);
         assertEquals(Collections.emptyList(), certInfo.dnsNames);
-        assertEquals(Collections.emptyList(), certInfo.commonNames);
+        assertEquals(Collections.emptyList(), certInfo.eceSanOtherNameCommonNames);
         assertEquals("node3", certInfo.name.filename);
 
         certInfo = certInfosMap.get("CN=different value");
         assertEquals(Collections.emptyList(), certInfo.ipAddresses);
         assertEquals(Collections.singletonList("node4.mydomain.com"), certInfo.dnsNames);
-        assertEquals(Collections.emptyList(), certInfo.commonNames);
+        assertEquals(Collections.emptyList(), certInfo.eceSanOtherNameCommonNames);
         assertEquals("different file", certInfo.name.filename);
     }
 
@@ -294,7 +298,7 @@ public class CertificateToolTests extends ESTestCase {
             PKCS10CertificationRequest request = readCertificateRequest(csr);
             assertEquals(certInfo.name.x500Principal.getName(), request.getSubject().toString());
             Attribute[] extensionsReq = request.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
-            if (certInfo.ipAddresses.size() > 0 || certInfo.dnsNames.size() > 0) {
+            if (certInfo.ipAddresses.size() > 0 || certInfo.dnsNames.size() > 0 || certInfo.eceSanOtherNameCommonNames.size() > 0) {
                 assertEquals(1, extensionsReq.length);
                 Extensions extensions = Extensions.getInstance(extensionsReq[0].getAttributeValues()[0]);
                 GeneralNames subjAltNames = GeneralNames.fromExtensions(extensions, Extension.subjectAlternativeName);
@@ -366,7 +370,7 @@ public class CertificateToolTests extends ESTestCase {
                     assertEquals(certificate.getSubjectX500Principal(), certificate.getIssuerX500Principal());
                     assertEquals(-1, certificate.getBasicConstraints());
                 }
-                final int sanCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size() + certInfo.commonNames.size();
+                final int sanCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size() + certInfo.eceSanOtherNameCommonNames.size();
                 if (sanCount == 0) {
                     assertNull(certificate.getSubjectAlternativeNames());
                 } else {
@@ -645,6 +649,15 @@ public class CertificateToolTests extends ESTestCase {
         final String node2Ip = "200.182." + randomIntBetween(1, 250) + "." + randomIntBetween(1, 250);
         final String node3Ip = "200.183." + randomIntBetween(1, 250) + "." + randomIntBetween(1, 250);
 
+        final String node1Dns = "node01.cluster1.es.internal.corp.net";
+        final String node2Dns = "node02.cluster1.es.internal.corp.net";
+        final String node3Dns = "node03.cluster1.es.internal.corp.net";
+
+        final int accountId = randomIntBetween(1, 999999);
+        final String node1Cn = "node01.node.cluster1.cluster." + accountId + ".account";
+        final String node2Cn = "node02.node.cluster1.cluster." + accountId + ".account";
+        final String node3Cn = "node03.node.cluster1.cluster." + accountId + ".account";
+
         final String caPassword = generateCA(caFile, terminal, env);
 
         final GenerateCertificateCommand gen1Command = new PathAwareGenerateCertificateCommand(caFile, node1File);
@@ -663,9 +676,11 @@ public class CertificateToolTests extends ESTestCase {
                 "-days",
                 String.valueOf(days),
                 "-dns",
-                "node01.cluster1.es.internal.corp.net",
+                node1Dns,
                 "-ip",
                 node1Ip,
+                "-cn",
+                node1Cn,
                 "-name",
                 "node01"
             );
@@ -690,9 +705,11 @@ public class CertificateToolTests extends ESTestCase {
                 "-days",
                 String.valueOf(days),
                 "-dns",
-                "node02.cluster1.es.internal.corp.net",
+                node2Dns,
                 "-ip",
                 node2Ip,
+                "-cn",
+                node2Cn,
                 "-name",
                 "node02"
             );
@@ -711,9 +728,11 @@ public class CertificateToolTests extends ESTestCase {
             "-days",
             String.valueOf(days),
             "-dns",
-            "node03.cluster2.es.internal.corp.net",
+            node3Dns,
             "-ip",
-            node3Ip
+            node3Ip,
+            "-cn",
+            node3Cn
         );
         gen3Args.add("-self-signed");
         final GenerateCertificateCommand gen3Command = new PathAwareGenerateCertificateCommand(null, node3File);
@@ -736,27 +755,50 @@ public class CertificateToolTests extends ESTestCase {
 
         final Certificate node1Cert = node1KeyStore.getCertificate("node01");
         assertThat(node1Cert, instanceOf(X509Certificate.class));
-        assertSubjAltNames(node1Cert, node1Ip, "node01.cluster1.es.internal.corp.net");
+        assertSubjAltNames(
+            node1Cert,
+            Collections.singletonList(node1Ip),
+            Collections.singletonList(node1Dns),
+            Collections.singletonList(node1Cn)
+        );
         assertThat(getDurationInDays((X509Certificate) node1Cert), equalTo(days));
         final Key node1Key = node1KeyStore.getKey("node01", node1Password.toCharArray());
         assertThat(getKeySize(node1Key), equalTo(node1KeySize));
+        final Certificate[] certificateChain1 = node1KeyStore.getCertificateChain("node01");
+        final X509Certificate node1x509Certificate = (X509Certificate) certificateChain1[0];
+        assertEquals(2, certificateChain1.length); // CA-signed
+        assertNotEquals(node1x509Certificate.getSubjectX500Principal(), node1x509Certificate.getIssuerX500Principal());
 
         final Certificate node2Cert = node2KeyStore.getCertificate("node02");
         assertThat(node2Cert, instanceOf(X509Certificate.class));
-        assertSubjAltNames(node2Cert, node2Ip, "node02.cluster1.es.internal.corp.net");
+        assertSubjAltNames(
+            node2Cert,
+            Collections.singletonList(node2Ip),
+            Collections.singletonList(node2Dns),
+            Collections.singletonList(node2Cn)
+        );
         assertThat(getDurationInDays((X509Certificate) node2Cert), equalTo(days));
         final Key node2Key = node2KeyStore.getKey("node02", node2Password.toCharArray());
         assertThat(getKeySize(node2Key), equalTo(node2KeySize));
+        final Certificate[] certificateChain2 = node2KeyStore.getCertificateChain("node02");
+        final X509Certificate node2x509Certificate = (X509Certificate) certificateChain2[0];
+        assertEquals(2, certificateChain2.length); // CA-signed
+        assertNotEquals(node2x509Certificate.getSubjectX500Principal(), node2x509Certificate.getIssuerX500Principal());
 
         final Certificate node3Cert = node3KeyStore.getCertificate(CertificateTool.DEFAULT_CERT_NAME);
         assertThat(node3Cert, instanceOf(X509Certificate.class));
-        assertSubjAltNames(node3Cert, node3Ip, "node03.cluster2.es.internal.corp.net");
+        assertSubjAltNames(
+            node3Cert,
+            Collections.singletonList(node3Ip),
+            Collections.singletonList(node3Dns),
+            Collections.singletonList(node3Cn)
+        );
         assertThat(getDurationInDays((X509Certificate) node3Cert), equalTo(days));
         final Key node3Key = node3KeyStore.getKey(CertificateTool.DEFAULT_CERT_NAME, node3Password.toCharArray());
         assertThat(getKeySize(node3Key), equalTo(node3KeySize));
-        final Certificate[] certificateChain = node3KeyStore.getCertificateChain(CertificateTool.DEFAULT_CERT_NAME);
-        final X509Certificate node3x509Certificate = (X509Certificate) certificateChain[0];
-        assertEquals(1, certificateChain.length);
+        final Certificate[] certificateChain3 = node3KeyStore.getCertificateChain(CertificateTool.DEFAULT_CERT_NAME);
+        final X509Certificate node3x509Certificate = (X509Certificate) certificateChain3[0];
+        assertEquals(1, certificateChain3.length); // self-signed
         assertEquals(node3x509Certificate.getSubjectX500Principal(), node3x509Certificate.getIssuerX500Principal());
     }
 
@@ -901,16 +943,11 @@ public class CertificateToolTests extends ESTestCase {
         return (int) ChronoUnit.DAYS.between(cert.getNotBefore().toInstant(), cert.getNotAfter().toInstant());
     }
 
-    private void assertSubjAltNames(Certificate certificate, String ip, String dns) throws Exception {
+    private void assertSubjAltNames(Certificate certificate, List<String> ipList, List<String> dnsList, List<String> cnList)
+        throws Exception {
         final X509CertificateHolder holder = new X509CertificateHolder(certificate.getEncoded());
         final GeneralNames names = GeneralNames.fromExtensions(holder.getExtensions(), Extension.subjectAlternativeName);
-        final CertificateInformation certInfo = new CertificateInformation(
-            "n",
-            "n",
-            Collections.singletonList(ip),
-            Collections.singletonList(dns),
-            Collections.emptyList()
-        );
+        final CertificateInformation certInfo = new CertificateInformation("n", "n", ipList, dnsList, cnList);
         assertSubjAltNames(names, certInfo);
     }
 
@@ -951,10 +988,11 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     private void assertSubjAltNames(GeneralNames subjAltNames, CertificateInformation certInfo) throws Exception {
-        final int expectedCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size() + certInfo.commonNames.size();
+        final int expectedCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size() + certInfo.eceSanOtherNameCommonNames.size();
         assertEquals(expectedCount, subjAltNames.getNames().length);
         Collections.sort(certInfo.dnsNames);
         Collections.sort(certInfo.ipAddresses);
+        Collections.sort(certInfo.eceSanOtherNameCommonNames);
         for (GeneralName generalName : subjAltNames.getNames()) {
             if (generalName.getTagNo() == GeneralName.dNSName) {
                 String dns = ((ASN1String) generalName.getName()).getString();
@@ -971,7 +1009,7 @@ public class CertificateToolTests extends ESTestCase {
                 assertThat(seq.getObjectAt(1), instanceOf(ASN1TaggedObject.class));
                 ASN1TaggedObject tagged = (ASN1TaggedObject) seq.getObjectAt(1);
                 assertThat(tagged.getObject(), instanceOf(ASN1String.class));
-                assertThat(tagged.getObject().toString(), is(in(certInfo.commonNames)));
+                assertThat(tagged.getObject().toString(), is(in(certInfo.eceSanOtherNameCommonNames)));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }

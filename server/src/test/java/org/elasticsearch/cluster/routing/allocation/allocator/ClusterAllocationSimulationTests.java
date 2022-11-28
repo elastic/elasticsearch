@@ -43,7 +43,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -54,6 +53,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -81,7 +81,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
      * size of the cluster somewhat) and by running it in CI we can at least be sure that the balancer doesn't throw anything unexpected and
      * does eventually converge in these situations.
      */
-    public void testBalanceQuality() throws IOException {
+    public void testBalanceQuality() {
 
         final var shardSizesByIndex = new HashMap<String, Long>();
         final var tiers = new String[] { DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD };
@@ -207,6 +207,12 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(routingTableBuilder)
             .build();
+
+        logger.info(
+            "Simulating a cluster with {} nodes and {} shards",
+            unassignedClusterState.nodes().size(),
+            unassignedClusterState.metadata().getTotalNumberOfShards()
+        );
 
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
@@ -356,6 +362,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             sizeMetricPerTier.get(routingNode.nodeId().substring(5, 6)).addNode(routingNode.size(), totalWriteLoad, diskUsageBytes);
         }
 
+        var totalNormalizedDeviation = 0.0;
+
         for (final var tier : tiers) {
             final var tierAbbr = tier.substring(5, 6);
             final var sizeMetric = sizeMetricPerTier.get(tierAbbr);
@@ -369,10 +377,23 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 tier,
                 sizeMetric.count,
                 shardCountSummary,
-                diskUsageSummary,
+                writeLoadSummary,
+                diskUsageSummary
+            );
+
+            totalNormalizedDeviation += combine(
+                MetricSummary::getNormalizedStdDeviation,
+                shardCountSummary,
+                writeLoadSummary,
                 diskUsageSummary
             );
         }
+
+        logger.info("Total normalized deviation {}", totalNormalizedDeviation);
+    }
+
+    private static double combine(ToDoubleFunction<MetricSummary<?>> metric, MetricSummary<?>... summary) {
+        return Arrays.stream(summary).mapToDouble(metric).sum();
     }
 
     private Map.Entry<MockAllocationService, ShardsAllocator> createNewAllocationService(
@@ -519,6 +540,10 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         double getNormalizedAvgDeviation() {
             double total = 0.0;
             double avg = getAvg();
+            if (avg == 0.0) {
+                return 0.0;
+            }
+
             for (T d : data) {
                 total += Math.abs((avg - d.doubleValue()) / avg);
             }
@@ -528,6 +553,10 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         double getNormalizedStdDeviation() {
             double total = 0.0;
             double avg = getAvg();
+            if (avg == 0.0) {
+                return 0.0;
+            }
+
             for (T d : data) {
                 total += Math.pow((avg - d.doubleValue()) / avg, 2);
             }
@@ -541,11 +570,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 ", avg=" + getAvg() +
                 // ", avg deviation=" + getAvgDeviation() +
                 // ", std deviation=" + getStdDeviation() +
-                ", normalized avg deviation="
-                + getNormalizedAvgDeviation()
-                + ", normalized std deviation="
-                + getNormalizedStdDeviation()
-                + "}";
+                // ", normalized avg deviation=" + getNormalizedAvgDeviation() +
+                ", normalized std deviation=" + getNormalizedStdDeviation() + "}";
         }
     }
 

@@ -1593,7 +1593,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
-            return builder.build();
+            return builder.build(true);
         }
     }
 
@@ -1660,7 +1660,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
-        return builder.build();
+        return builder.build(true);
     }
 
     /**
@@ -2016,6 +2016,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public IndexMetadata build() {
+            return build(false);
+        }
+
+        // package private for testing
+        IndexMetadata build(boolean repair) {
             /*
              * We expect that the metadata has been properly built to set the number of shards and the number of replicas, and do not rely
              * on the default values here. Those must have been set upstream.
@@ -2144,7 +2149,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             var aliasesMap = aliases.build();
             for (AliasMetadata alias : aliasesMap.values()) {
                 if (alias.alias().equals(index)) {
-                    if (indexCreatedVersion.equals(Version.V_8_5_0)) {
+                    if (repair && indexCreatedVersion.equals(Version.V_8_5_0)) {
                         var updatedBuilder = ImmutableOpenMap.builder(aliasesMap);
                         final var brokenAlias = updatedBuilder.remove(index);
                         final var fixedAlias = AliasMetadata.newAliasMetadata(brokenAlias, index + "-alias-corrupted-by-8-5");
@@ -2476,7 +2481,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
             assert indexCreatedVersion(builder.settings).before(Version.V_7_2_0) || aliasesVersion
                 : "aliases version should be present for indices created on or after 7.2.0";
-            return builder.build();
+            return builder.build(true);
         }
 
         /**
@@ -2587,7 +2592,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.putMapping(MappingMetadata.EMPTY_MAPPINGS); // just make sure it's not empty so that _source can be read
             }
 
-            IndexMetadata indexMetadata = builder.build();
+            IndexMetadata indexMetadata = builder.build(true);
             assert indexMetadata.getCreationVersion().isLegacyIndexVersion();
             assert indexMetadata.getCompatibilityVersion().isLegacyIndexVersion();
             return indexMetadata;

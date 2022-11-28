@@ -505,7 +505,7 @@ public class IndexMetadataTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putAlias(AliasMetadata.builder("index").build())
-                .build()
+                .build(randomBoolean())
         );
         assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
     }
@@ -516,7 +516,7 @@ public class IndexMetadataTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("index").build())
-            .build();
+            .build(true);
         assertThat(indexMetadata.getAliases(), hasKey("index-alias-corrupted-by-8-5"));
     }
 

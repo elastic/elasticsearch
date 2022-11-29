@@ -9,7 +9,6 @@
 package org.elasticsearch.benchmark.common.util;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BigLongDoubleDoubleArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongDoubleDoubleArray;
@@ -61,7 +60,7 @@ public class BigArrayAvgTuplesBenchmark {
         compensations = bigArrays.newDoubleArray(PAGE_ELEMENTS * 250, false);
         fakeOffset = 0;
 
-        triple = new BigLongDoubleDoubleArray((PAGE_ELEMENTS * 250) * 3, bigArrays, false);
+        triple = bigArrays.newLongDoubleDoubleArray((PAGE_ELEMENTS * 250) * 3, false);
     }
 
     // Touches all elements of all pages in all arrays, in a ping-pong like fashion.
@@ -70,30 +69,11 @@ public class BigArrayAvgTuplesBenchmark {
     @Benchmark
     public void testReal(Blackhole bh) {
         for (int i = 0; i < PAGE_ELEMENTS; i++) {
-            for (int j = 0; j < 250; j++) {
+            for (int j = 0; j < 1000; j++) {
                 int offset = j * PAGE_ELEMENTS;
                 counts.increment(offset + i, 1);
                 sums.increment(offset + i, 2);
                 compensations.increment(offset + i, 3);
-            }
-        }
-        bh.consume(counts);
-        bh.consume(sums);
-        bh.consume(compensations);
-    }
-
-    // Similar shape and form of code as testReal, but "fakes" it by just NOT increasing the offset
-    // on each iteration. The affect of this is that only the first page of each of the bigArrays is
-    // ever touched. This is not functional equivalent, but maybe good enough for rough comparizion
-    // to testReal?
-    @Benchmark
-    public void testFake(Blackhole bh) {
-        for (int i = 0; i < PAGE_ELEMENTS; i++) {
-            for (int j = 0; j < 250; j++) {
-                int offset = fakeOffset * PAGE_ELEMENTS;
-                counts.increment(offset + i, 1);
-                sums.increment(offset + i, 2);
-                compensations.increment(offset + i, 1);
             }
         }
         bh.consume(counts);

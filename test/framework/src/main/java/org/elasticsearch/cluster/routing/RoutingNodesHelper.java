@@ -31,19 +31,19 @@ public final class RoutingNodesHelper {
         return shards;
     }
 
-    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, String index, ShardRoutingState... state) {
+    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, String index, ShardRoutingState... states) {
         List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : routingNodes) {
-            shards.addAll(routingNode.shardsWithState(index, state));
-        }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
+        for (ShardRoutingState state : states) {
+            if (state == ShardRoutingState.UNASSIGNED) {
                 for (ShardRouting unassignedShard : routingNodes.unassigned()) {
                     if (unassignedShard.index().getName().equals(index)) {
                         shards.add(unassignedShard);
                     }
                 }
-                break;
+            } else {
+                for (RoutingNode routingNode : routingNodes) {
+                    shards.addAll(routingNode.shardsWithState(index, state));
+                }
             }
         }
         return shards;

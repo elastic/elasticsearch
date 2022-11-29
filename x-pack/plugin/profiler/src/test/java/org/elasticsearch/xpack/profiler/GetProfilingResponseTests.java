@@ -7,15 +7,13 @@
 
 package org.elasticsearch.xpack.profiler;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class GetProfilingResponseTests extends ESTestCase {
+public class GetProfilingResponseTests extends AbstractWireSerializingTestCase<GetProfilingResponse> {
     private <T> T randomNullable(Supplier<T> v) {
         return randomBoolean() ? v.get() : null;
     }
@@ -24,7 +22,8 @@ public class GetProfilingResponseTests extends ESTestCase {
         return randomBoolean() ? v : null;
     }
 
-    public void testSerialization() throws IOException {
+    @Override
+    protected GetProfilingResponse createTestInstance() {
         int totalFrames = randomIntBetween(1, 100);
 
         Map<String, StackTrace> stackTraces = randomNullable(
@@ -53,17 +52,11 @@ public class GetProfilingResponseTests extends ESTestCase {
         Map<String, String> executables = randomNullable(Map.of("QCCDqjSg3bMK1C4YRK6Tiw", "libc.so.6"));
         Map<String, Integer> stackTraceEvents = randomNullable(Map.of(randomAlphaOfLength(12), randomIntBetween(1, 200)));
 
-        GetProfilingResponse request = new GetProfilingResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames);
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            request.writeTo(out);
-            try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
-                GetProfilingResponse deserialized = new GetProfilingResponse(in);
-                assertEquals(stackTraces, deserialized.getStackTraces());
-                assertEquals(stackFrames, deserialized.getStackFrames());
-                assertEquals(executables, deserialized.getExecutables());
-                assertEquals(stackTraceEvents, deserialized.getStackTraceEvents());
-                assertEquals(totalFrames, deserialized.getTotalFrames());
-            }
-        }
+        return new GetProfilingResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames);
+    }
+
+    @Override
+    protected Writeable.Reader<GetProfilingResponse> instanceReader() {
+        return GetProfilingResponse::new;
     }
 }

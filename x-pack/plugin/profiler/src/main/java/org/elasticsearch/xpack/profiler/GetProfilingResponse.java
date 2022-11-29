@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -195,5 +196,27 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        GetProfilingResponse response = (GetProfilingResponse) o;
+        return totalFrames == response.totalFrames
+            && Objects.equals(stackTraces, response.stackTraces)
+            && Objects.equals(stackFrames, response.stackFrames)
+            && Objects.equals(executables, response.executables)
+            && Objects.equals(stackTraceEvents, response.stackTraceEvents)
+            && Objects.equals(error, response.error);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, error);
     }
 }

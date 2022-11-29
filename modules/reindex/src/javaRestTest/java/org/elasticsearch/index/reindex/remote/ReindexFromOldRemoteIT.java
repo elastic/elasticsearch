@@ -35,21 +35,19 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
         boolean success = false;
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
             try {
-                Request createIndex = new Request("PUT", "/test");
-                createIndex.setJsonEntity("{\"settings\":{\"number_of_shards\": 1}}");
+                var createIndex = new Request("PUT", "/test").setJsonEntity("{\"settings\":{\"number_of_shards\": 1}}");
                 oldEs.performRequest(createIndex);
 
                 for (int i = 0; i < DOCS; i++) {
-                    Request doc = new Request("PUT", "/test/doc/testdoc" + i);
-                    doc.addParameter("refresh", "true");
-                    doc.setJsonEntity("{\"test\":\"test\"}");
+                    var doc = new Request("PUT", "/test/doc/testdoc" + i).addParameter("refresh", "true")
+                        .setJsonEntity("{\"test\":\"test\"}");
                     oldEs.performRequest(doc);
                 }
 
-                Request reindex = new Request("POST", "/_reindex");
+                String body;
                 if (randomBoolean()) {
                     // Reindex using the external version_type
-                    reindex.setJsonEntity(String.format(java.util.Locale.ROOT, """
+                    body = String.format(java.util.Locale.ROOT, """
                         {
                           "source":{
                             "index": "test",
@@ -62,10 +60,10 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                             "index": "test",
                             "version_type": "external"
                           }
-                        }""", oldEsPort));
+                        }""", oldEsPort);
                 } else {
                     // Reindex using the default internal version_type
-                    reindex.setJsonEntity(String.format(java.util.Locale.ROOT, """
+                    body = String.format(java.util.Locale.ROOT, """
                         {
                           "source":{
                             "index": "test",
@@ -77,10 +75,11 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                           "dest": {
                             "index": "test"
                           }
-                        }""", oldEsPort));
+                        }""", oldEsPort);
                 }
-                reindex.addParameter("refresh", "true");
-                reindex.addParameter("pretty", "true");
+                var reindex = new Request("POST", "/_reindex").setJsonEntity(body)
+                    .addParameter("refresh", "true")
+                    .addParameter("pretty", "true");
                 if (requestsPerSecond != null) {
                     reindex.addParameter("requests_per_second", requestsPerSecond);
                 }

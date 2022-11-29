@@ -37,8 +37,7 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
     }
 
     public void testThatErrorTraceParamReturns400() throws IOException {
-        Request request = new Request("DELETE", "/");
-        request.addParameter("error_trace", "true");
+        var request = new Request("DELETE", "/").addParameter("error_trace", "true");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
 
         Response response = e.getResponse();

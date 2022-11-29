@@ -45,9 +45,7 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
 
     @Override
     public void testSelectColumnFromEmptyIndex() throws Exception {
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("{}");
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test").setJsonEntity("{}"));
 
         assertFoundOneProblem(command("SELECT abc FROM test"));
         assertEquals("line 1:8: Unknown column [abc]" + END, readLine());

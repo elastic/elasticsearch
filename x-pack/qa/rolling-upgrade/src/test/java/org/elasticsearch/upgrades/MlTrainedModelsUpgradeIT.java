@@ -68,10 +68,10 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                 testInfer(oldModels);
             }
             case MIXED, UPGRADED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureHealth(
+                    ".ml-inference-*,.ml-config*",
+                    (request -> request.addParameter("wait_for_status", "yellow").addParameter("timeout", "70s"))
+                );
                 List<String> modelIds = getTrainedModels();
                 // Test that stats are serializable and can be gathered
                 getTrainedModelStats();
@@ -104,8 +104,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
 
     void testInfer(List<String> modelIds) throws Exception {
         for (String modelId : modelIds) {
-            Request simulate = new Request("POST", "/_ingest/pipeline/" + modelId + "/_simulate");
-            simulate.setJsonEntity(
+            var simulate = new Request("POST", "/_ingest/pipeline/" + modelId + "/_simulate").setJsonEntity(
                 String.format(
                     Locale.ROOT,
                     """
@@ -192,9 +191,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     void putAndStartDFAAndWaitForFinish(String config, String id) throws Exception {
-        Request putRequest = new Request("PUT", "_ml/data_frame/analytics/" + id);
-        putRequest.setJsonEntity(config);
-        client().performRequest(putRequest);
+        client().performRequest(new Request("PUT", "_ml/data_frame/analytics/" + id).setJsonEntity(config));
         client().performRequest(new Request("POST", "_ml/data_frame/analytics/" + id + "/_start"));
         assertBusy(() -> {
             Map<String, Object> state = ((List<Map<String, Object>>) entityAsMap(
@@ -263,8 +260,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                 )
             );
         }
-        Request bulkRequest = new Request("POST", sourceIndex + "/_bulk?refresh=true");
-        bulkRequest.setJsonEntity(String.join("\n", bulkRequests) + "\n");
+        var bulkRequest = new Request("POST", sourceIndex + "/_bulk?refresh=true").setJsonEntity(String.join("\n", bulkRequests) + "\n");
         client().performRequest(bulkRequest);
     }
 

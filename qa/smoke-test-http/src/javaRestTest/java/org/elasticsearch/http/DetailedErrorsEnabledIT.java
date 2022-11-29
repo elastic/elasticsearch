@@ -31,9 +31,7 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
     public void testThatErrorTraceCanBeEnabled() throws IOException {
 
         try {
-            Request request = new Request("DELETE", "/");
-            request.addParameter("error_trace", "true");
-            getRestClient().performRequest(request);
+            getRestClient().performRequest(new Request("DELETE", "/").addParameter("error_trace", "true"));
             fail("request should have failed");
         } catch (ResponseException e) {
             Response response = e.getResponse();

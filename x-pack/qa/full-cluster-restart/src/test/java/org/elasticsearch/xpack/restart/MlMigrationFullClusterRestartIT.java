@@ -61,8 +61,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     private void createTestIndex() throws IOException {
-        Request createTestIndex = new Request("PUT", "/airline-data");
-        createTestIndex.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/airline-data").setJsonEntity("""
             {
               "mappings": {
                 "doc": {
@@ -79,8 +78,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
                   }
                 }
               }
-            }""");
-        client().performRequest(createTestIndex);
+            }"""));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36816")
@@ -100,8 +98,9 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         DatafeedConfig.Builder stoppedDfBuilder = new DatafeedConfig.Builder(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_CLOSED_JOB_ID);
         stoppedDfBuilder.setIndices(Collections.singletonList("airline-data"));
 
-        Request putStoppedDatafeed = new Request("PUT", "/_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_ID);
-        putStoppedDatafeed.setJsonEntity(Strings.toString(stoppedDfBuilder.build()));
+        Request putStoppedDatafeed = new Request("PUT", "/_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_ID).setJsonEntity(
+            Strings.toString(stoppedDfBuilder.build())
+        );
         client().performRequest(putStoppedDatafeed);
 
         // open job and started datafeed
@@ -113,8 +112,9 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         dfBuilder.setIndices(Collections.singletonList("airline-data"));
         addAggregations(dfBuilder);
 
-        Request putDatafeed = new Request("PUT", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID);
-        putDatafeed.setJsonEntity(Strings.toString(dfBuilder.build()));
+        Request putDatafeed = new Request("PUT", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID).setJsonEntity(
+            Strings.toString(dfBuilder.build())
+        );
         client().performRequest(putDatafeed);
 
         Request startDatafeed = new Request("POST", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID + "/_start");
@@ -218,8 +218,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
                 },
                 "data_description": {}`
             }""", jobId);
-        Request putClosedJob = new Request("PUT", "/_xpack/ml/anomaly_detectors/" + jobId);
-        putClosedJob.setJsonEntity(jobConfig);
+        Request putClosedJob = new Request("PUT", "/_xpack/ml/anomaly_detectors/" + jobId).setJsonEntity(jobConfig);
         client().performRequest(putClosedJob);
     }
 }

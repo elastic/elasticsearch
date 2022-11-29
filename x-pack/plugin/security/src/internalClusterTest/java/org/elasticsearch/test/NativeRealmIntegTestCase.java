@@ -83,18 +83,16 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
 
     public void setupReservedPasswords(RestClient restClient) throws IOException {
         logger.info("setting up reserved passwords for test");
-        {
-            Request request = new Request("PUT", "/_security/user/elastic/_password");
-            request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD));
-            request.setOptions(options);
-            restClient.performRequest(request);
-        }
+        restClient.performRequest(
+            new Request("PUT", "/_security/user/elastic/_password").setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD))
+            ).setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}")
+        );
 
-        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-        optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, reservedPassword));
-        RequestOptions options = optionsBuilder.build();
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, reservedPassword))
+            .build();
         final List<String> usernames = Arrays.asList(
             KibanaUser.NAME,
             KibanaSystemUser.NAME,
@@ -104,10 +102,11 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
             RemoteMonitoringUser.NAME
         );
         for (String username : usernames) {
-            Request request = new Request("PUT", "/_security/user/" + username + "/_password");
-            request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");
-            request.setOptions(options);
-            restClient.performRequest(request);
+            restClient.performRequest(
+                new Request("PUT", "/_security/user/" + username + "/_password").setJsonEntity(
+                    "{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}"
+                ).setOptions(options)
+            );
         }
         logger.info("setting up reserved passwords finished");
     }

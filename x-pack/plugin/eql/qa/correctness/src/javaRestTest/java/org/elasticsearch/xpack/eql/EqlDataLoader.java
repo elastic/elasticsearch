@@ -72,8 +72,7 @@ public class EqlDataLoader {
     static void restoreSnapshot(RestClient client, Properties cfg) throws IOException {
         int status = client.performRequest(new Request("HEAD", "/" + cfg.getProperty("index_name"))).getStatusLine().getStatusCode();
         if (status == 404) {
-            Request createRepo = new Request("PUT", "/_snapshot/" + cfg.getProperty("gcs_repo_name"));
-            createRepo.setJsonEntity(
+            var createRepo = new Request("PUT", "/_snapshot/" + cfg.getProperty("gcs_repo_name")).setJsonEntity(
                 Strings.toString(
                     new PutRepositoryRequest().type("gcs")
                         .settings(
@@ -87,11 +86,10 @@ public class EqlDataLoader {
             );
             client.performRequest(createRepo);
 
-            Request restoreRequest = new Request(
+            var restoreRequest = new Request(
                 "POST",
                 "/_snapshot/" + cfg.getProperty("gcs_repo_name") + "/" + cfg.getProperty("gcs_snapshot_name") + "/_restore"
-            );
-            restoreRequest.addParameter("wait_for_completion", "true");
+            ).addParameter("wait_for_completion", "true");
             ObjectPath restore = ObjectPath.createFromResponse(client.performRequest(restoreRequest));
             assertEquals(
                 "Unable to restore snapshot: "

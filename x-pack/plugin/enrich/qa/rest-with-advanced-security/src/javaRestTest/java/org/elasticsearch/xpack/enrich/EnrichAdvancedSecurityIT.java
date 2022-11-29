@@ -38,8 +38,9 @@ public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
         setupSourceIndexAndPolicy(sourceIndexName);
 
         // Add another doc that doesn't match the DLS filter
-        Request sourceDocIndexReq = new Request("PUT", "/" + sourceIndexName + "/_doc/example.com");
-        sourceDocIndexReq.setJsonEntity("{\"host\": \"example.com\",\"globalRank\": 42,\"tldRank\": 7,\"tld\": \"com\"}");
+        var sourceDocIndexReq = new Request("PUT", "/" + sourceIndexName + "/_doc/example.com").setJsonEntity(
+            "{\"host\": \"example.com\",\"globalRank\": 42,\"tldRank\": 7,\"tld\": \"com\"}"
+        );
         assertOK(adminClient().performRequest(sourceDocIndexReq));
         Request refreshRequest = new Request("POST", "/" + sourceIndexName + "/_refresh");
         assertOK(adminClient().performRequest(refreshRequest));
@@ -49,8 +50,7 @@ public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
         assertOK(client().performRequest(executePolicyRequest));
 
         // Create pipeline
-        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/my_pipeline");
-        putPipelineRequest.setJsonEntity("""
+        var putPipelineRequest = new Request("PUT", "/_ingest/pipeline/my_pipeline").setJsonEntity("""
             {
               "processors": [
                 {
@@ -67,9 +67,8 @@ public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
         // Verify that the pipeline works as expected for the source doc included in the DLS filter
         {
             // Index document using pipeline with enrich processor:
-            Request indexRequest = new Request("PUT", "/my-index/_doc/1");
-            indexRequest.addParameter("pipeline", "my_pipeline");
-            indexRequest.setJsonEntity("{\"host\": \"elastic.co\"}");
+            var indexRequest = new Request("PUT", "/my-index/_doc/1").addParameter("pipeline", "my_pipeline")
+                .setJsonEntity("{\"host\": \"elastic.co\"}");
             assertOK(client().performRequest(indexRequest));
 
             // Check if document has been enriched
@@ -86,9 +85,8 @@ public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
         // Verify that we don't leak the source doc that isn't included in the DLS filter
         {
             // Index document using pipeline with enrich processor:
-            Request indexRequest = new Request("PUT", "/my-index/_doc/2");
-            indexRequest.addParameter("pipeline", "my_pipeline");
-            indexRequest.setJsonEntity("{\"host\": \"example.com\"}");
+            var indexRequest = new Request("PUT", "/my-index/_doc/2").addParameter("pipeline", "my_pipeline")
+                .setJsonEntity("{\"host\": \"example.com\"}");
             assertOK(client().performRequest(indexRequest));
 
             // Check if document has been enriched
@@ -127,9 +125,8 @@ public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
         assertOK(client().performRequest(putPipelineRequest));
 
         // Index document using pipeline with enrich processor:
-        Request indexRequest = new Request("PUT", "/my-index/_doc/1");
-        indexRequest.addParameter("pipeline", "my_pipeline");
-        indexRequest.setJsonEntity("{\"host\": \"elastic.co\"}");
+        var indexRequest = new Request("PUT", "/my-index/_doc/1").addParameter("pipeline", "my_pipeline")
+            .setJsonEntity("{\"host\": \"elastic.co\"}");
         assertOK(client().performRequest(indexRequest));
 
         // Check if document has been enriched
@@ -150,13 +147,11 @@ public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
         // Create source index:
         createSourceIndex(sourceIndexName);
         // Create the policy:
-        Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity(generatePolicySource(sourceIndexName));
+        var putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy").setJsonEntity(generatePolicySource(sourceIndexName));
         assertOK(adminClient().performRequest(putPolicyRequest));
 
         // Add entry to source index and then refresh:
-        Request indexRequest = new Request("PUT", "/" + sourceIndexName + "/_doc/elastic.co");
-        indexRequest.setJsonEntity("""
+        var indexRequest = new Request("PUT", "/" + sourceIndexName + "/_doc/elastic.co").setJsonEntity("""
             {
               "host": "elastic.co",
               "globalRank": 25,

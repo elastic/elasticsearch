@@ -67,28 +67,27 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
     public void testSnapshotUpgrader() throws Exception {
-        Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
-        adjustLoggingLevels.setJsonEntity("""
+        var adjustLoggingLevels = new Request("PUT", "/_cluster/settings").setJsonEntity("""
             {"persistent": {"logger.org.elasticsearch.xpack.ml": "trace"}}""");
         client().performRequest(adjustLoggingLevels);
         switch (CLUSTER_TYPE) {
             case OLD -> createJobAndSnapshots();
             case MIXED -> {
                 assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
-                ensureHealth((request -> {
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "yellow");
-                }));
+                ensureHealth(
+                    (request -> request.addParameter("timeout", "70s")
+                        .addParameter("wait_for_nodes", "3")
+                        .addParameter("wait_for_status", "yellow"))
+                );
                 testSnapshotUpgradeFailsOnMixedCluster();
             }
             case UPGRADED -> {
                 assumeTrue("We should only test if old cluster is before new cluster", UPGRADE_FROM_VERSION.before(Version.CURRENT));
-                ensureHealth((request -> {
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "yellow");
-                }));
+                ensureHealth(
+                    (request -> request.addParameter("timeout", "70s")
+                        .addParameter("wait_for_nodes", "3")
+                        .addParameter("wait_for_status", "yellow"))
+                );
                 testSnapshotUpgrade();
                 waitForPendingUpgraderTasks();
             }
@@ -238,7 +237,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     private Response buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {
         boolean isCategorization = randomBoolean();
         String jobConfig;
-
         if (isCategorization) {
             jobConfig = """
                 {
@@ -262,9 +260,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                     }
                 }""";
         }
-        Request request = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
-        request.setJsonEntity(jobConfig);
-        return client().performRequest(request);
+        return client().performRequest(new Request("PUT", "/_ml/anomaly_detectors/" + jobId).setJsonEntity(jobConfig));
     }
 
     private static List<String> generateData(
@@ -324,11 +320,10 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 ) == false;
         }).build();
 
-        Request postDataRequest = new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_data");
         // Post data is deprecated, so expect a deprecation warning
-        postDataRequest.setOptions(postDataOptions);
-        postDataRequest.setJsonEntity(data);
-        return client().performRequest(postDataRequest);
+        return client().performRequest(
+            new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_data").setOptions(postDataOptions).setJsonEntity(data)
+        );
     }
 
     protected void flushJob(String jobId) throws IOException {

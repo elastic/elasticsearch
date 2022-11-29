@@ -250,17 +250,16 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private static void ensureSnapshotRestoreWorks(String repoName, String name, int shards, String index) throws IOException {
         wipeAllIndices();
-        Request restoreReq = new Request("POST", "/_snapshot/" + repoName + "/" + name + "/_restore");
-        restoreReq.setJsonEntity("{\"indices\": \"" + index + "\"}");
-        restoreReq.addParameter("wait_for_completion", "true");
+        var restoreReq = new Request("POST", "/_snapshot/" + repoName + "/" + name + "/_restore").setJsonEntity(
+            "{\"indices\": \"" + index + "\"}"
+        ).addParameter("wait_for_completion", "true");
         ObjectPath restoreResp = ObjectPath.createFromResponse(client().performRequest(restoreReq));
         assertThat(restoreResp.evaluate("snapshot.shards.failed"), equalTo(0));
         assertThat(restoreResp.evaluate("snapshot.shards.successful"), equalTo(shards));
     }
 
     private static void createRepository(String repoName, boolean readOnly, boolean verify) throws IOException {
-        Request repoReq = new Request("PUT", "/_snapshot/" + repoName);
-        repoReq.setJsonEntity(
+        var repoReq = new Request("PUT", "/_snapshot/" + repoName).setJsonEntity(
             Strings.toString(
                 new PutRepositoryRequest().type("fs")
                     .verify(verify)
@@ -271,16 +270,14 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     private static void createSnapshot(String repoName, String name, String index) throws IOException {
-        final Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + name);
-        createSnapshotRequest.addParameter("wait_for_completion", "true");
-        createSnapshotRequest.setJsonEntity("{ \"indices\" : \"" + index + "\"}");
+        var createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + name).addParameter("wait_for_completion", "true")
+            .setJsonEntity("{ \"indices\" : \"" + index + "\"}");
         final Response response = client().performRequest(createSnapshotRequest);
         assertThat(response.getStatusLine().getStatusCode(), is(HttpURLConnection.HTTP_OK));
     }
 
     private void createIndex(String name, int shards) throws IOException {
-        final Request putIndexRequest = new Request("PUT", "/" + name);
-        putIndexRequest.setJsonEntity(formatted("""
+        final Request putIndexRequest = new Request("PUT", "/" + name).setJsonEntity(formatted("""
             {
                 "settings" : {
                     "index" : {

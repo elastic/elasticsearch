@@ -72,8 +72,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84283")
     public void testTransformRollingUpgrade() throws Exception {
-        Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
-        adjustLoggingLevels.setJsonEntity("""
+        var adjustLoggingLevels = new Request("PUT", "/_cluster/settings").setJsonEntity("""
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "trace",
@@ -82,9 +81,8 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
               }
             }""");
         client().performRequest(adjustLoggingLevels);
-        Request waitForYellow = new Request("GET", "/_cluster/health");
-        waitForYellow.addParameter("wait_for_nodes", "3");
-        waitForYellow.addParameter("wait_for_status", "yellow");
+        var waitForYellow = new Request("GET", "/_cluster/health").addParameter("wait_for_nodes", "3")
+            .addParameter("wait_for_status", "yellow");
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 client().performRequest(waitForYellow);
@@ -295,9 +293,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void putTransform(String id, String config) throws IOException {
-        final Request createDataframeTransformRequest = new Request("PUT", getTransformEndpoint() + id);
-        createDataframeTransformRequest.setJsonEntity(config);
-        Response response = client().performRequest(createDataframeTransformRequest);
+        Response response = client().performRequest(new Request("PUT", getTransformEndpoint() + id).setJsonEntity(config));
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
@@ -360,8 +356,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             }
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT", indexName);
-            req.setEntity(entity);
+            var req = new Request("PUT", indexName).setEntity(entity);
             assertThat(client().performRequest(req).getStatusLine().getStatusCode(), equalTo(200));
         }
     }
@@ -380,9 +375,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             }
         }
         bulk.append("\r\n");
-        final Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.setJsonEntity(bulk.toString());
+        var bulkRequest = new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString());
         entityAsMap(client().performRequest(bulkRequest));
     }
 }

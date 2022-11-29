@@ -82,12 +82,12 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     private void logAudits() throws Exception {
         logger.info("writing audit messages to the log");
-        Request searchRequest = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search?ignore_unavailable=true");
-        searchRequest.setJsonEntity("""
-            {
-              "size": 100,
-              "sort": [ { "timestamp": { "order": "asc" } } ]
-            }""");
+        var searchRequest = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search?ignore_unavailable=true")
+            .setJsonEntity("""
+                {
+                  "size": 100,
+                  "sort": [ { "timestamp": { "order": "asc" } } ]
+                }""");
 
         assertBusy(() -> {
             try {
@@ -226,17 +226,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             throw new IllegalArgumentException("transform [" + id + "] is already registered");
         }
 
-        Request put = new Request("PUT", TRANSFORM_ENDPOINT + id);
-        put.setJsonEntity(config);
-        put.setOptions(options);
-        assertOK(client().performRequest(put));
+        assertOK(client().performRequest(new Request("PUT", TRANSFORM_ENDPOINT + id).setJsonEntity(config).setOptions(options)));
     }
 
     protected Map<String, Object> previewTransform(String transformConfig, RequestOptions options) throws IOException {
-        var request = new Request("POST", TRANSFORM_ENDPOINT + "_preview");
-        request.setJsonEntity(transformConfig);
-        request.setOptions(options);
-        return entityAsMap(client().performRequest(request));
+        return entityAsMap(
+            client().performRequest(new Request("POST", TRANSFORM_ENDPOINT + "_preview").setJsonEntity(transformConfig).setOptions(options))
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -395,9 +391,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void updateConfig(String id, String update) throws Exception {
-        Request updateRequest = new Request("POST", "_transform/" + id + "/_update");
-        updateRequest.setJsonEntity(update);
-        assertOK(client().performRequest(updateRequest));
+        assertOK(client().performRequest(new Request("POST", "_transform/" + id + "/_update").setJsonEntity(update)));
     }
 
     protected void createReviewsIndex(
@@ -450,9 +444,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             builder.endObject();
 
             final StringEntity indexMappings = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT", indexName);
-            req.setEntity(indexMappings);
-            req.setOptions(RequestOptions.DEFAULT);
+            var req = new Request("PUT", indexName).setEntity(indexMappings).setOptions(RequestOptions.DEFAULT);
             assertOK(client().performRequest(req));
         }
 
@@ -488,12 +480,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void doBulk(String bulkDocuments, boolean refresh) throws IOException {
-        Request bulkRequest = new Request("POST", "/_bulk");
+        var bulkRequest = new Request("POST", "/_bulk").setJsonEntity(bulkDocuments).setOptions(RequestOptions.DEFAULT);
         if (refresh) {
             bulkRequest.addParameter("refresh", "true");
         }
-        bulkRequest.setJsonEntity(bulkDocuments);
-        bulkRequest.setOptions(RequestOptions.DEFAULT);
         Response bulkResponse = client().performRequest(bulkRequest);
         assertOK(bulkResponse);
         var bulkMap = entityAsMap(bulkResponse);

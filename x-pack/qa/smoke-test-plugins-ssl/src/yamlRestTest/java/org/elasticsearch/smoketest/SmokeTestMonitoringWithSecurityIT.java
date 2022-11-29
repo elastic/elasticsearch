@@ -169,12 +169,13 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         });
 
         // Waits for indices to be ready
-        ensureHealth(MONITORING_PATTERN, (request) -> {
-            request.addParameter("wait_for_status", "yellow");
-            request.addParameter("wait_for_events", "languid");
-            request.addParameter("wait_for_no_relocating_shards", "true");
-            request.addParameter("wait_for_no_initializing_shards", "true");
-        });
+        ensureHealth(
+            MONITORING_PATTERN,
+            (request) -> request.addParameter("wait_for_status", "yellow")
+                .addParameter("wait_for_events", "languid")
+                .addParameter("wait_for_no_relocating_shards", "true")
+                .addParameter("wait_for_no_initializing_shards", "true")
+        );
 
         // Checks that the HTTP exporter has successfully exported some data
         final Request searchRequest = new Request("POST", "/" + MONITORING_PATTERN + "/_search");

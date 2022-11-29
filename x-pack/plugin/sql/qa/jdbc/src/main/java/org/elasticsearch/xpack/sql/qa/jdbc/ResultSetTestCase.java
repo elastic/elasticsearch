@@ -2307,7 +2307,6 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     protected static void createIndexWithMapping(String index) throws IOException {
-        Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
         {
@@ -2321,21 +2320,17 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             createIndex.endObject();
         }
         createIndex.endObject().endObject();
-        request.setJsonEntity(Strings.toString(createIndex));
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/" + index).setJsonEntity(Strings.toString(createIndex)));
     }
 
     protected static void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
-        Request request = new Request("PUT", "/" + index + "/_mapping");
         XContentBuilder updateMapping = JsonXContent.contentBuilder().startObject();
         updateMapping.startObject("properties");
         {
             body.accept(updateMapping);
         }
         updateMapping.endObject().endObject();
-
-        request.setJsonEntity(Strings.toString(updateMapping));
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/" + index + "/_mapping").setJsonEntity(Strings.toString(updateMapping)));
     }
 
     private void createTestDataForMultiValueTests() throws IOException {

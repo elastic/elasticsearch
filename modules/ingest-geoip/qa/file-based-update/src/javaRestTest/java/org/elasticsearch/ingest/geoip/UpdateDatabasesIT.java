@@ -37,10 +37,10 @@ public class UpdateDatabasesIT extends ESRestTestCase {
               },
               "docs": [ { "_index": "index", "_id": "id", "_source": { "ip": "89.160.20.128" } } ]
             }""";
-        Request simulatePipelineRequest = new Request("POST", "/_ingest/pipeline/_simulate");
-        simulatePipelineRequest.setJsonEntity(body);
         {
-            Map<String, Object> response = entityAsMap(client().performRequest(simulatePipelineRequest));
+            Map<String, Object> response = entityAsMap(
+                client().performRequest(new Request("POST", "/_ingest/pipeline/_simulate").setJsonEntity(body))
+            );
             assertThat(ObjectPath.eval("docs.0.doc._source.tags.0", response), equalTo("_geoip_database_unavailable_GeoLite2-City.mmdb"));
         }
 
@@ -68,7 +68,9 @@ public class UpdateDatabasesIT extends ESRestTestCase {
             });
         }
 
-        Map<String, Object> response = entityAsMap(client().performRequest(simulatePipelineRequest));
+        Map<String, Object> response = entityAsMap(
+            client().performRequest(new Request("POST", "/_ingest/pipeline/_simulate").setJsonEntity(body))
+        );
         assertThat(ObjectPath.eval("docs.0.doc._source.geoip.city_name", response), equalTo("Linköping"));
     }
 

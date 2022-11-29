@@ -25,8 +25,7 @@ public class SetSecurityUserProcessorWithSecurityDisabledIT extends ESRestTestCa
         final String pipeline = "pipeline-" + getTestName();
         final String index = "index-" + getTestName();
         {
-            final Request putPipeline = new Request("PUT", "/_ingest/pipeline/" + pipeline);
-            putPipeline.setJsonEntity(formatted("""
+            var putPipeline = new Request("PUT", "/_ingest/pipeline/" + pipeline).setJsonEntity(formatted("""
                 {
                   "description": "Test pipeline (%s)",
                   "processors": [ { "set_security_user": { "field": "user" } } ]
@@ -36,8 +35,7 @@ public class SetSecurityUserProcessorWithSecurityDisabledIT extends ESRestTestCa
         }
 
         {
-            final Request ingest = new Request("PUT", "/" + index + "/_doc/1?pipeline=" + pipeline);
-            ingest.setJsonEntity("{\"field\":\"value\"}");
+            var ingest = new Request("PUT", "/" + index + "/_doc/1?pipeline=" + pipeline).setJsonEntity("{\"field\":\"value\"}");
             final ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(ingest));
             final Response response = ex.getResponse();
             assertThat(

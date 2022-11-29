@@ -202,15 +202,6 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         String authorizedUser = randomFrom("user1", "user2");
         final String pitId = openPointInTime(new String[] { "index-" + authorizedUser }, authorizedUser);
         try {
-            final Request request = new Request("POST", "/_async_search");
-            setRunAsHeader(request, authorizedUser);
-            request.addParameter("wait_for_completion_timeout", "true");
-            request.addParameter("keep_on_completion", "true");
-            if (randomBoolean()) {
-                request.addParameter("index", "index-" + authorizedUser);
-            } else {
-                request.addParameter("index", "*");
-            }
             final XContentBuilder requestBody = JsonXContent.contentBuilder()
                 .startObject()
                 .startObject("pit")
@@ -218,7 +209,11 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
                 .field("keep_alive", "1m")
                 .endObject()
                 .endObject();
-            request.setJsonEntity(Strings.toString(requestBody));
+            var request = new Request("POST", "/_async_search").setOptions(runAsUserHeader(authorizedUser))
+                .addParameter("wait_for_completion_timeout", "true")
+                .addParameter("keep_on_completion", "true")
+                .addParameter("index", randomBoolean() ? "index-" + authorizedUser : "*")
+                .setJsonEntity(Strings.toString(requestBody));
             final ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
@@ -310,62 +305,47 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             document.field((String) fields[i], fields[i + 1]);
         }
         document.endObject();
-        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
-        request.setJsonEntity(Strings.toString(document));
+        var request = new Request("POST", "/" + index + "/_doc/" + id).setJsonEntity(Strings.toString(document));
         assertOK(client().performRequest(request));
     }
 
     static Response get(String index, String id, String user) throws IOException {
-        final Request request = new Request("GET", "/" + index + "/_doc/" + id);
-        setRunAsHeader(request, user);
-        return client().performRequest(request);
+        return client().performRequest(new Request("GET", "/" + index + "/_doc/" + id).setOptions(runAsUserHeader(user)));
     }
 
     static Response submitAsyncSearch(String indexName, String query, TimeValue waitForCompletion, String user) throws IOException {
-        final Request request = new Request("POST", indexName + "/_async_search");
-        setRunAsHeader(request, user);
-        request.addParameter("q", query);
-        request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
-        // we do the cleanup explicitly
-        request.addParameter("keep_on_completion", "true");
+        var request = new Request("POST", indexName + "/_async_search").setOptions(runAsUserHeader(user))
+            .addParameter("q", query)
+            .addParameter("wait_for_completion_timeout", waitForCompletion.toString())  // we do the cleanup explicitly
+            .addParameter("keep_on_completion", "true");
         return client().performRequest(request);
     }
 
     static Response getAsyncSearch(String id, String user) throws IOException {
-        final Request request = new Request("GET", "/_async_search/" + id);
-        setRunAsHeader(request, user);
-        request.addParameter("wait_for_completion_timeout", "0ms");
+        var request = new Request("GET", "/_async_search/" + id).setOptions(runAsUserHeader(user))
+            .addParameter("wait_for_completion_timeout", "0ms");
         return client().performRequest(request);
     }
 
     static Response deleteAsyncSearch(String id, String user) throws IOException {
-        final Request request = new Request("DELETE", "/_async_search/" + id);
-        setRunAsHeader(request, user);
+        var request = new Request("DELETE", "/_async_search/" + id).setOptions(runAsUserHeader(user));
         return client().performRequest(request);
     }
 
-    static void setRunAsHeader(Request request, String user) {
-        final RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-        builder.addHeader(RUN_AS_USER_HEADER, user);
-        request.setOptions(builder);
+    static RequestOptions runAsUserHeader(String user) {
+        return RequestOptions.DEFAULT.toBuilder().addHeader(RUN_AS_USER_HEADER, user).build();
     }
 
     private String openPointInTime(String[] indexNames, String user) throws IOException {
-        final Request request = new Request("POST", "/_pit");
-        request.addParameter("index", String.join(",", indexNames));
-        setRunAsHeader(request, user);
-        request.addParameter("keep_alive", between(1, 5) + "m");
+        var request = new Request("POST", "/_pit").setOptions(runAsUserHeader(user))
+            .addParameter("index", String.join(",", indexNames))
+            .addParameter("keep_alive", between(1, 5) + "m");
         final Response response = client().performRequest(request);
         assertOK(response);
         return (String) responseAsMap(response).get("id");
     }
 
     static Response submitAsyncSearchWithPIT(String pit, String query, TimeValue waitForCompletion, String user) throws IOException {
-        final Request request = new Request("POST", "/_async_search");
-        setRunAsHeader(request, user);
-        request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
-        request.addParameter("q", query);
-        request.addParameter("keep_on_completion", "true");
         final XContentBuilder requestBody = JsonXContent.contentBuilder()
             .startObject()
             .startObject("pit")
@@ -373,15 +353,17 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             .field("keep_alive", "1m")
             .endObject()
             .endObject();
-        request.setJsonEntity(Strings.toString(requestBody));
+        var request = new Request("POST", "/_async_search").setOptions(runAsUserHeader(user))
+            .addParameter("wait_for_completion_timeout", waitForCompletion.toString())
+            .addParameter("q", query)
+            .addParameter("keep_on_completion", "true")
+            .setJsonEntity(Strings.toString(requestBody));
         return client().performRequest(request);
     }
 
     private void closePointInTime(String pitId, String user) throws IOException {
-        final Request request = new Request("DELETE", "/_pit");
-        setRunAsHeader(request, user);
         final XContentBuilder requestBody = JsonXContent.contentBuilder().startObject().field("id", pitId).endObject();
-        request.setJsonEntity(Strings.toString(requestBody));
+        var request = new Request("DELETE", "/_pit").setOptions(runAsUserHeader(user)).setJsonEntity(Strings.toString(requestBody));
         assertOK(client().performRequest(request));
     }
 }

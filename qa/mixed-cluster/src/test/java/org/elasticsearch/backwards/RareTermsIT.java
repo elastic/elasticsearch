@@ -27,7 +27,6 @@ public class RareTermsIT extends ESRestTestCase {
     private static final String index = "idx";
 
     private int indexDocs(int numDocs, int id) throws Exception {
-        final Request request = new Request("POST", "/_bulk");
         final StringBuilder builder = new StringBuilder();
         for (int i = 0; i < numDocs; ++i) {
             builder.append(formatted("""
@@ -35,8 +34,7 @@ public class RareTermsIT extends ESRestTestCase {
                 {"str_value" : "s%s"}
                 """, index, id++, i));
         }
-        request.setJsonEntity(builder.toString());
-        assertOK(client().performRequest(request));
+        assertOK(client().performRequest(new Request("POST", "/_bulk").setJsonEntity(builder.toString())));
         return id;
     }
 
@@ -61,8 +59,7 @@ public class RareTermsIT extends ESRestTestCase {
     }
 
     private void assertNumRareTerms(int maxDocs, int rareTerms) throws IOException {
-        final Request request = new Request("POST", index + "/_search");
-        request.setJsonEntity(formatted("""
+        var request = new Request("POST", index + "/_search").setJsonEntity(formatted("""
             {
               "aggs": {
                 "rareTerms": {

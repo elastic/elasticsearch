@@ -39,8 +39,7 @@ public class CustomRoleMappingRealmIT extends ESRestTestCase {
     @Before
     public void setupRoleMapping() throws Exception {
         expectedRole = randomAlphaOfLengthBetween(4, 16);
-        Request request = new Request("PUT", "/_security/role_mapping/test");
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "/_security/role_mapping/test").setJsonEntity(formatted("""
             {
               "enabled": true,
               "roles": [ "%s" ],

@@ -33,8 +33,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
     public void testHiddenDataStream() throws IOException {
         // Create a template
-        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden");
-        putComposableIndexTemplateRequest.setJsonEntity("""
+        var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden").setJsonEntity("""
             {
               "index_patterns": [ "hidden" ],
               "data_stream": {
@@ -43,9 +42,9 @@ public class DataStreamsRestIT extends ESRestTestCase {
             }""");
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
-        Request createDocRequest = new Request("POST", "/hidden/_doc?refresh=true");
-        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
-
+        var createDocRequest = new Request("POST", "/hidden/_doc?refresh=true").setJsonEntity(
+            "{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }"
+        );
         assertOK(client().performRequest(createDocRequest));
 
         Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=hidden");
@@ -69,12 +68,14 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
     public void testHiddenDataStreamImplicitHiddenSearch() throws IOException {
         // Create a template
-        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden");
-        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\": [\".hidden\"], \"data_stream\": {\"hidden\": true}}");
+        var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden").setJsonEntity(
+            "{\"index_patterns\": [\".hidden\"], \"data_stream\": {\"hidden\": true}}"
+        );
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
-        Request createDocRequest = new Request("POST", "/.hidden/_doc?refresh=true");
-        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
+        var createDocRequest = new Request("POST", "/.hidden/_doc?refresh=true").setJsonEntity(
+            "{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }"
+        );
 
         assertOK(client().performRequest(createDocRequest));
 

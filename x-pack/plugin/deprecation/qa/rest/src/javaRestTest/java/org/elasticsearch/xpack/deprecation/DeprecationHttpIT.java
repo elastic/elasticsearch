@@ -136,10 +136,9 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 .endObject()
                 .endObject();
 
-            final Request request = new Request("PUT", "_cluster/settings");
-            ///
-            request.setJsonEntity(Strings.toString(builder));
-            final Response response = client().performRequest(request);
+            final Response response = client().performRequest(
+                new Request("PUT", "_cluster/settings").setJsonEntity(Strings.toString(builder))
+            );
 
             final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
             final List<Matcher<String>> headerMatchers = new ArrayList<>(2);
@@ -191,9 +190,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             .endObject()
             .endObject();
 
-        final Request request = new Request("PUT", "_cluster/settings");
-        request.setJsonEntity(Strings.toString(builder));
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "_cluster/settings").setJsonEntity(Strings.toString(builder)));
     }
 
     /**
@@ -213,9 +210,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             int randomDocCount = randomIntBetween(1, 2);
 
             for (int j = 0; j < randomDocCount; j++) {
-                final Request request = new Request("PUT", indices[i] + "/" + j);
-                request.setJsonEntity("{ \"field\": " + j + " }");
-                assertOK(client().performRequest(request));
+                assertOK(client().performRequest(new Request("PUT", indices[i] + "/" + j).setJsonEntity("{ \"field\": " + j + " }")));
             }
         }
 
@@ -224,8 +219,9 @@ public class DeprecationHttpIT extends ESRestTestCase {
         client().performRequest(new Request("POST", commaSeparatedIndices + "/_refresh"));
 
         // trigger all index deprecations
-        Request request = new Request("GET", "/" + commaSeparatedIndices + "/_search");
-        request.setJsonEntity("{ \"query\": { \"bool\": { \"filter\": [ { \"deprecated\": {} } ] } } }");
+        var request = new Request("GET", "/" + commaSeparatedIndices + "/_search").setJsonEntity(
+            "{ \"query\": { \"bool\": { \"filter\": [ { \"deprecated\": {} } ] } } }"
+        );
         Response response = client().performRequest(request);
         assertOK(response);
 
@@ -278,8 +274,9 @@ public class DeprecationHttpIT extends ESRestTestCase {
         Collections.shuffle(settings, random());
 
         // trigger all deprecations
-        Request request = new Request("GET", "/_test_cluster/deprecated_settings");
-        request.setEntity(buildSettingsRequest(settings, useDeprecatedField ? "deprecated_settings" : "settings"));
+        var request = new Request("GET", "/_test_cluster/deprecated_settings").setEntity(
+            buildSettingsRequest(settings, useDeprecatedField ? "deprecated_settings" : "settings")
+        );
         String xOpaqueId = "XOpaqueId-doTestDeprecationWarningsAppearInHeaders" + randomInt();
         final RequestOptions options = request.getOptions().toBuilder().addHeader("X-Opaque-Id", xOpaqueId).build();
         request.setOptions(options);
@@ -383,16 +380,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     // triggers two deprecations - endpoint and setting
     private Request deprecatedRequest(String method, String xOpaqueId) throws IOException {
-        final Request getRequest = new Request(method, "/_test_cluster/deprecated_settings");
-        final RequestOptions options = getRequest.getOptions().toBuilder().addHeader("X-Opaque-Id", xOpaqueId).build();
-        getRequest.setOptions(options);
-        getRequest.setEntity(
+        return new Request(method, "/_test_cluster/deprecated_settings").setEntity(
             buildSettingsRequest(
                 Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1),
                 "deprecated_settings"
             )
-        );
-        return getRequest;
+        ).setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-Opaque-Id", xOpaqueId).build());
     }
 
     /**
@@ -458,19 +451,15 @@ public class DeprecationHttpIT extends ESRestTestCase {
      * Check that a deprecation message with CRITICAL level can be recorded to an index
      */
     public void testDeprecationCriticalWarnMessagesCanBeIndexed() throws Exception {
-
-        final Request request = new Request("GET", "/_test_cluster/only_deprecated_setting");
-        final RequestOptions options = request.getOptions()
-            .toBuilder()
+        final RequestOptions options = RequestOptions.DEFAULT.toBuilder()
             .addHeader("X-Opaque-Id", "xOpaqueId-testDeprecationCriticalWarnMessagesCanBeIndexed")
             .build();
-        request.setOptions(options);
-        request.setEntity(
+        var request = new Request("GET", "/_test_cluster/only_deprecated_setting").setEntity(
             buildSettingsRequest(
                 Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE3),
                 "deprecation_critical"
             )
-        );
+        ).setOptions(options);
         assertOK(client().performRequest(request));
 
         assertBusy(() -> {
@@ -510,19 +499,15 @@ public class DeprecationHttpIT extends ESRestTestCase {
      * Check that deprecation messages with WARN level can be recorded to an index
      */
     public void testDeprecationWarnMessagesCanBeIndexed() throws Exception {
-
-        final Request request = new Request("GET", "/_test_cluster/deprecated_settings");
-        final RequestOptions options = request.getOptions()
-            .toBuilder()
+        final RequestOptions options = RequestOptions.DEFAULT.toBuilder()
             .addHeader("X-Opaque-Id", "xOpaqueId-testDeprecationWarnMessagesCanBeIndexed")
             .build();
-        request.setOptions(options);
-        request.setEntity(
+        var request = new Request("GET", "/_test_cluster/deprecated_settings").setEntity(
             buildSettingsRequest(
                 Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1),
                 "deprecation_warning"
             )
-        );
+        ).setOptions(options);
         assertOK(client().performRequest(request));
 
         assertBusy(() -> {
@@ -580,21 +565,17 @@ public class DeprecationHttpIT extends ESRestTestCase {
      * Check that log messages about REST API compatibility are recorded to an index
      */
     public void testCompatibleMessagesCanBeIndexed() throws Exception {
-
-        final Request compatibleRequest = new Request("GET", "/_test_cluster/compat_only");
-        final RequestOptions compatibleOptions = compatibleRequest.getOptions()
-            .toBuilder()
+        final RequestOptions compatibleOptions = RequestOptions.DEFAULT.toBuilder()
             .addHeader("X-Opaque-Id", "xOpaqueId-testCompatibleMessagesCanBeIndexed")
             .addHeader("Accept", "application/vnd.elasticsearch+json;compatible-with=" + RestApiVersion.minimumSupported().major)
             .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + RestApiVersion.minimumSupported().major)
             .build();
-        compatibleRequest.setOptions(compatibleOptions);
-        compatibleRequest.setEntity(
+        var compatibleRequest = new Request("GET", "/_test_cluster/compat_only").setEntity(
             buildSettingsRequest(
                 Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1),
                 "deprecated_settings"
             )
-        );
+        ).setOptions(compatibleOptions);
         Response deprecatedApiResponse = client().performRequest(compatibleRequest);
         assertOK(deprecatedApiResponse);
 
@@ -702,9 +683,11 @@ public class DeprecationHttpIT extends ESRestTestCase {
     }
 
     private void configureWriteDeprecationLogsToIndex(Boolean value) throws IOException {
-        final Request request = new Request("PUT", "_cluster/settings");
-        request.setJsonEntity("{ \"persistent\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
-        final Response response = client().performRequest(request);
+        final Response response = client().performRequest(
+            new Request("PUT", "_cluster/settings").setJsonEntity(
+                "{ \"persistent\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }"
+            )
+        );
         assertOK(response);
     }
 

@@ -36,8 +36,7 @@ public class PointInTimeIT extends HttpSmokeTestCase {
         }
         // Without index
         {
-            Request request = new Request("POST", "_pit");
-            request.addParameter("keep_alive", "1m");
+            var request = new Request("POST", "_pit").addParameter("keep_alive", "1m");
             ResponseException error = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
             assertThat(error.getMessage(), containsString("Validation Failed: 1: [index] is not specified;"));
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));

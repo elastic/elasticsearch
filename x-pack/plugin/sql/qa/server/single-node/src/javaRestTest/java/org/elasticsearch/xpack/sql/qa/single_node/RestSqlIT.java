@@ -77,12 +77,9 @@ public class RestSqlIT extends RestSqlTestCase {
 
     public void testIncorrectAcceptHeader() throws IOException {
         index("{\"foo\":1}");
-        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Accept", "application/fff");
-        request.setOptions(options);
-        StringEntity stringEntity = new StringEntity(query("select * from test").toString(), ContentType.APPLICATION_JSON);
-        request.setEntity(stringEntity);
+        var request = new Request("POST", SQL_QUERY_REST_ENDPOINT).setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Accept", "application/fff")
+        ).setEntity(new StringEntity(query("select * from test").toString(), ContentType.APPLICATION_JSON));
         expectBadRequest(
             () -> toMap(client().performRequest(request), "plain"),
             containsString("Invalid request content type: Accept=[application/fff]")

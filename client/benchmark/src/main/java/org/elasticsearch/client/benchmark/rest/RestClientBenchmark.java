@@ -67,8 +67,7 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
                 bulkRequestBody.append(bulkItem);
                 bulkRequestBody.append("\n");
             }
-            Request request = new Request("POST", "/geonames/type/_noop_bulk");
-            request.setJsonEntity(bulkRequestBody.toString());
+            var request = new Request("POST", "/geonames/type/_noop_bulk").setJsonEntity(bulkRequestBody.toString());
             try {
                 Response response = client.performRequest(request);
                 return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
@@ -89,8 +88,7 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
 
         @Override
         public boolean search(String source) {
-            Request request = new Request("GET", endpoint);
-            request.setJsonEntity(source);
+            var request = new Request("GET", endpoint).setJsonEntity(source);
             try {
                 Response response = client.performRequest(request);
                 return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;

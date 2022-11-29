@@ -163,10 +163,9 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
             }
             builder.endObject();
 
-            Request request = new Request(HttpGet.METHOD_NAME, "_cluster/allocation/explain");
-            request.setJsonEntity(Strings.toString(builder));
-
-            Response response = client().performRequest(request);
+            Response response = client().performRequest(
+                new Request(HttpGet.METHOD_NAME, "_cluster/allocation/explain").setJsonEntity(Strings.toString(builder))
+            );
             Map<String, Object> responseMap = responseAsMap(response);
             primaryNodeId = extractValue(responseMap, "current_node.id");
         }
@@ -198,9 +197,9 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
             }
             builder.endObject();
 
-            Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/reroute?pretty");
-            request.setJsonEntity(Strings.toString(builder));
-            Response response = client().performRequest(request);
+            Response response = client().performRequest(
+                new Request(HttpPost.METHOD_NAME, "/_cluster/reroute?pretty").setJsonEntity(Strings.toString(builder))
+            );
             logger.info("--> Relocated primary to an older version {}", EntityUtils.toString(response.getEntity()));
             assertOK(response);
         }
@@ -224,8 +223,9 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
     }
 
     private static Map<String, Object> search(String index, QueryBuilder query) throws IOException {
-        final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search");
-        request.setJsonEntity(new SearchSourceBuilder().trackTotalHits(true).query(query).toString());
+        var request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search").setJsonEntity(
+            new SearchSourceBuilder().trackTotalHits(true).query(query).toString()
+        );
 
         final Response response = client().performRequest(request);
         assertOK(response);
@@ -242,9 +242,8 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
             bulkBody.append("{\"field\":").append(i).append(",\"text\":\"Some text ").append(i).append("\"}\n");
         }
 
-        final Request documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk");
-        documents.addParameter("refresh", "true");
-        documents.setJsonEntity(bulkBody.toString());
+        var documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk").addParameter("refresh", "true")
+            .setJsonEntity(bulkBody.toString());
         assertOK(client().performRequest(documents));
     }
 

@@ -51,9 +51,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
 
         // create a template that defines a field "rating" with a type "float" which will clash later with
         // output field "rating.avg" in the pivot config
-        final Request createIndexTemplateRequest = new Request("PUT", "_template/special_pivot_template");
-
-        String template = """
+        var createIndexTemplateRequest = new Request("PUT", "_template/special_pivot_template").setJsonEntity("""
             {
               "index_patterns": [ "special_pivot_template*" ],
               "mappings": {
@@ -63,10 +61,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""";
-
-        createIndexTemplateRequest.setJsonEntity(template);
-        createIndexTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
+            }""").setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         Map<String, Object> createIndexTemplateResponse = entityAsMap(client().performRequest(createIndexTemplateRequest));
         assertThat(createIndexTemplateResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
@@ -137,10 +132,9 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
                     .endObject();
             }
             builder.endObject();
-            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT", indexName);
-            req.setEntity(entity);
-            client().performRequest(req);
+            client().performRequest(
+                new Request("PUT", indexName).setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON))
+            );
         }
 
         final StringBuilder bulk = new StringBuilder();
@@ -167,9 +161,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
             {"host":"host-3"}
 
             """, indexName));
-        final Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.setJsonEntity(bulk.toString());
+        var bulkRequest = new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
 
         final Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
@@ -400,8 +392,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
                 "max_page_search_size": %s
               }
             }""", sourceIndex, transformIndex, maxPageSearchSize);
-        Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
-        createTransformRequest.setJsonEntity(config);
+        var createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId).setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         startAndWaitForTransform(transformId, transformIndex);

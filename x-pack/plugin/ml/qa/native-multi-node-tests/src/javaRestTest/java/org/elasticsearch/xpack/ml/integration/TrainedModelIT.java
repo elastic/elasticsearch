@@ -226,8 +226,9 @@ public class TrainedModelIT extends ESRestTestCase {
         String importedModelId = "regression_model_to_import";
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.map(modelDefinition);
-            Request model = new Request("PUT", "_ml/trained_models/" + importedModelId);
-            model.setJsonEntity(XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON));
+            var model = new Request("PUT", "_ml/trained_models/" + importedModelId).setJsonEntity(
+                XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON)
+            );
             assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
         }
         getModel = client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "trained_models/regression*"));
@@ -326,8 +327,7 @@ public class TrainedModelIT extends ESRestTestCase {
                     }
             """;
 
-        Request model = new Request("PUT", "_ml/trained_models/" + modelId);
-        model.setJsonEntity(modelConfig);
+        var model = new Request("PUT", "_ml/trained_models/" + modelId).setJsonEntity(modelConfig);
         assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
     }
 
@@ -351,21 +351,18 @@ public class TrainedModelIT extends ESRestTestCase {
     }
 
     private void putPyTorchModel(String modelId) throws IOException {
-        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/_ml/trained_models/" + modelId).setJsonEntity("""
             {
               "description": "simple model for testing",
               "model_type": "pytorch",
               "inference_config": {
                 "pass_through": {}
               }
-            }""");
-        client().performRequest(request);
+            }"""));
     }
 
     private void putModelDefinitionPart(String modelId, int totalSize, int numParts, int partNumber) throws IOException {
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/" + partNumber);
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/" + partNumber).setJsonEntity(formatted("""
             {
               "total_definition_length": %s,
               "definition": "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZW==",

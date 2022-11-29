@@ -32,14 +32,12 @@ public class EnrichSecurityIT extends CommonEnrichRestTestCase {
     public void testInsufficientPermissionsOnNonExistentIndex() throws Exception {
         // This test is here because it requires a valid user that has permission to execute policy PUTs but should fail if the user
         // does not have access to read the backing indices used to enrich the data.
-        Request request = new Request("PUT", "/some-other-index");
-        request.setJsonEntity(formatted("""
+        Request request = new Request("PUT", "/some-other-index").setJsonEntity(formatted("""
             {
              "mappings" : {%s}
             }""", createSourceIndexMapping()));
         adminClient().performRequest(request);
-        Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity(generatePolicySource("some-other-index"));
+        var putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy").setJsonEntity(generatePolicySource("some-other-index"));
         ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));
         assertThat(
             exc.getMessage(),

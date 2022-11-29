@@ -38,10 +38,8 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     public void testSearchWithoutIndexCreatedIsAllowed() throws Exception {
-        Request request = new Request("GET", ".fleet-agents/_search");
-        request.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
-        request.addParameter("ignore_unavailable", Boolean.TRUE.toString());
-
+        var request = new Request("GET", ".fleet-agents/_search").setJsonEntity("{ \"query\": { \"match_all\": {} } }")
+            .addParameter("ignore_unavailable", Boolean.TRUE.toString());
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 
@@ -158,8 +156,9 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     public void testCreationOfFleetActionsResults() throws Exception {
-        Request request = new Request("POST", "/.fleet-actions-results/_doc");
-        request.setJsonEntity("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"agent_id\": \"my-agent\" }");
+        var request = new Request("POST", "/.fleet-actions-results/_doc").setJsonEntity(
+            "{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"agent_id\": \"my-agent\" }"
+        );
         Response response = client().performRequest(request);
         assertEquals(201, response.getStatusLine().getStatusCode());
     }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -23,13 +22,11 @@ public class SecurityUtils {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    static void setRunAsHeader(Request request, String user) {
-        final RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-        builder.addHeader(RUN_AS_USER_HEADER, user);
-        request.setOptions(builder);
+    static RequestOptions runAsUserHeader(String user) {
+        return RequestOptions.DEFAULT.toBuilder().addHeader(RUN_AS_USER_HEADER, user).build();
     }
 
-    static void setUserRole(Request request) {
-        setRunAsHeader(request, "user1");
+    static RequestOptions userRole() {
+        return runAsUserHeader("user1");
     }
 }

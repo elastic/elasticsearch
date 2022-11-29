@@ -137,8 +137,10 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
     }
 
     private int getSnapshotSizeForIndex(String indexName) throws Exception {
-        Request request = new Request(HttpGet.METHOD_NAME, "/_snapshot/" + REPOSITORY_NAME + "/" + SNAPSHOT_NAME);
-        request.addParameter("index_details", "true");
+        var request = new Request(HttpGet.METHOD_NAME, "/_snapshot/" + REPOSITORY_NAME + "/" + SNAPSHOT_NAME).addParameter(
+            "index_details",
+            "true"
+        );
         Response response = client().performRequest(request);
         assertOK(response);
         Map<String, Object> snapshotsResponse = responseAsMap(response);
@@ -154,9 +156,10 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
     }
 
     private static void forceMerge(String index, boolean onlyExpungeDeletes, boolean flush) throws IOException {
-        final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_forcemerge");
-        request.addParameter("only_expunge_deletes", Boolean.toString(onlyExpungeDeletes));
-        request.addParameter("flush", Boolean.toString(flush));
+        var request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_forcemerge").addParameter(
+            "only_expunge_deletes",
+            Boolean.toString(onlyExpungeDeletes)
+        ).addParameter("flush", Boolean.toString(flush));
         assertOK(client().performRequest(request));
     }
 
@@ -167,15 +170,15 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
             bulkBody.append("{\"field\":").append(i).append(",\"text\":\"Some text ").append(i).append("\"}\n");
         }
 
-        final Request documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk");
-        documents.addParameter("refresh", Boolean.TRUE.toString());
-        documents.setJsonEntity(bulkBody.toString());
+        var documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk").addParameter("refresh", Boolean.TRUE.toString())
+            .setJsonEntity(bulkBody.toString());
         assertOK(client().performRequest(documents));
     }
 
     private static Map<String, Object> search(String index, QueryBuilder query) throws IOException {
-        final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search");
-        request.setJsonEntity(new SearchSourceBuilder().trackTotalHits(true).query(query).toString());
+        var request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search").setJsonEntity(
+            new SearchSourceBuilder().trackTotalHits(true).query(query).toString()
+        );
 
         final Response response = client().performRequest(request);
         assertOK(response);

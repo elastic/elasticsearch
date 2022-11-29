@@ -43,8 +43,7 @@ public class IndexingIT extends ESRestTestCase {
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
-            Request request = new Request("PUT", index + "/_doc/" + id);
-            request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\"}");
+            var request = new Request("PUT", index + "/_doc/" + id).setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\"}");
             assertOK(client().performRequest(request));
         }
         return numDocs;
@@ -238,8 +237,7 @@ public class IndexingIT extends ESRestTestCase {
         logger.info("cluster discovered: {}", nodes.toString());
 
         // Create the repository before taking the snapshot.
-        Request request = new Request("PUT", "/_snapshot/repo");
-        request.setJsonEntity(
+        var request = new Request("PUT", "/_snapshot/repo").setJsonEntity(
             Strings.toString(
                 JsonXContent.contentBuilder()
                     .startObject()
@@ -267,20 +265,20 @@ public class IndexingIT extends ESRestTestCase {
         indexDocs(index, 0, between(50, 100));
         ensureGreen(index);
         assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
-
-        request = new Request("PUT", "/_snapshot/repo/bwc-snapshot");
-        request.addParameter("wait_for_completion", "true");
-        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
-        assertOK(client().performRequest(request));
+        assertOK(
+            client().performRequest(
+                new Request("PUT", "/_snapshot/repo/bwc-snapshot").addParameter("wait_for_completion", "true")
+                    .setJsonEntity("{\"indices\": \"" + index + "\"}")
+            )
+        );
 
         // Allocating shards on all nodes, taking snapshots should happen on all nodes.
         updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
         ensureGreen(index);
         assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
 
-        request = new Request("PUT", "/_snapshot/repo/mixed-snapshot");
-        request.addParameter("wait_for_completion", "true");
-        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
+        request = new Request("PUT", "/_snapshot/repo/mixed-snapshot").addParameter("wait_for_completion", "true")
+            .setJsonEntity("{\"indices\": \"" + index + "\"}");
     }
 
     public void testSyncedFlushTransition() throws Exception {
@@ -338,7 +336,6 @@ public class IndexingIT extends ESRestTestCase {
                 nodes.getNewNodes().stream().map(Node::publishAddress).toArray(HttpHost[]::new)
             )
         ) {
-            Request request = new Request("POST", index + "/_flush/synced");
             final String v7MediaType = XContentType.VND_JSON.toParsedMediaType()
                 .responseContentTypeHeader(
                     Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(RestApiVersion.minimumSupported().major))
@@ -346,7 +343,7 @@ public class IndexingIT extends ESRestTestCase {
             List<String> warningMsg = List.of(
                 "Synced flush is deprecated and will be removed in 8.0." + " Use flush at /_flush or /{index}/_flush instead."
             );
-            request.setOptions(
+            var request = new Request("POST", index + "/_flush/synced").setOptions(
                 RequestOptions.DEFAULT.toBuilder()
                     .setWarningsHandler(warnings -> warnings.equals(warningMsg) == false)
                     .addHeader("Accept", v7MediaType)
@@ -419,8 +416,7 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
-        Request request = new Request("GET", index + "/_count");
-        request.addParameter("preference", preference);
+        var request = new Request("GET", index + "/_count").addParameter("preference", preference);
         final Response response = client().performRequest(request);
         assertOK(response);
         final int actualCount = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("count").toString());
@@ -428,9 +424,7 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     private void assertVersion(final String index, final int docId, final String preference, final int expectedVersion) throws IOException {
-        Request request = new Request("GET", index + "/_doc/" + docId);
-        request.addParameter("preference", preference);
-
+        var request = new Request("GET", index + "/_doc/" + docId).addParameter("preference", preference);
         final Response response = client().performRequest(request);
         assertOK(response);
         final int actualVersion = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("_version").toString());
@@ -468,8 +462,7 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     private List<Shard> buildShards(String index, Nodes nodes, RestClient client) throws IOException {
-        Request request = new Request("GET", index + "/_stats");
-        request.addParameter("level", "shards");
+        var request = new Request("GET", index + "/_stats").addParameter("level", "shards");
         Response response = client.performRequest(request);
         List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
         ArrayList<Shard> shards = new ArrayList<>();

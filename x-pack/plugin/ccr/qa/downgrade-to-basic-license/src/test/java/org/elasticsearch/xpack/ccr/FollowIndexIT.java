@@ -40,8 +40,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         }
 
         {
-            Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-            request.setJsonEntity("""
+            var request = new Request("PUT", "/_ccr/auto_follow/test_pattern").setJsonEntity("""
                 {"leader_index_patterns": ["logs-*"], "remote_cluster": "leader_cluster"}""");
             assertOK(client().performRequest(request));
         }
@@ -58,8 +57,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
         String index2 = "logs-20190102";
         try (RestClient leaderClient = buildLeaderClient()) {
-            Request request = new Request("POST", "/_license/start_basic");
-            request.addParameter("acknowledge", "true");
+            var request = new Request("POST", "/_license/start_basic").addParameter("acknowledge", "true");
             Map<?, ?> response = toMap(leaderClient.performRequest(request));
             assertThat(response.get("basic_was_started"), is(true));
             assertThat(response.get("acknowledged"), is(true));
@@ -124,8 +122,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
     }
 
     private void createNewIndexAndIndexDocs(RestClient client, String index) throws IOException {
-        Request request = new Request("PUT", "/" + index);
-        request.setJsonEntity("""
+        var request = new Request("PUT", "/" + index).setJsonEntity("""
             {"mappings": {"properties": {"field": {"type": "keyword"}}}}""");
         assertOK(client.performRequest(request));
 

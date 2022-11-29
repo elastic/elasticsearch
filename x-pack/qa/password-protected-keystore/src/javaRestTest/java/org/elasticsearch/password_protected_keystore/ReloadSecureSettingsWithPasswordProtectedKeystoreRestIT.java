@@ -29,9 +29,11 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
 
     @SuppressWarnings("unchecked")
     public void testReloadSecureSettingsWithCorrectPassword() throws Exception {
-        final Request request = new Request("POST", "_nodes/reload_secure_settings");
-        request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
-        final Response response = client().performRequest(request);
+        final Response response = client().performRequest(
+            new Request("POST", "_nodes/reload_secure_settings").setJsonEntity(
+                "{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}"
+            )
+        );
         final Map<String, Object> map = entityAsMap(response);
         assertThat(ObjectPath.eval("cluster_name", map), equalTo("javaRestTest"));
         assertThat(map.get("nodes"), instanceOf(Map.class));
@@ -46,9 +48,11 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
 
     @SuppressWarnings("unchecked")
     public void testReloadSecureSettingsWithIncorrectPassword() throws Exception {
-        final Request request = new Request("POST", "_nodes/reload_secure_settings");
-        request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + randomAlphaOfLength(7) + "\"}");
-        final Response response = client().performRequest(request);
+        final Response response = client().performRequest(
+            new Request("POST", "_nodes/reload_secure_settings").setJsonEntity(
+                "{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + randomAlphaOfLength(7) + "\"}"
+            )
+        );
         final Map<String, Object> map = entityAsMap(response);
         assertThat(ObjectPath.eval("cluster_name", map), equalTo("javaRestTest"));
         assertThat(map.get("nodes"), instanceOf(Map.class));

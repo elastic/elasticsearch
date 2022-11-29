@@ -77,9 +77,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
 
         // create a new role
         final String roleName = "extra_role";
-        final Request createRoleRequest = new Request("PUT", "/_security/role/" + roleName);
-        createRoleRequest.addParameter("refresh", "wait_for");
-        createRoleRequest.setJsonEntity("""
+        var createRoleRequest = new Request("PUT", "/_security/role/" + roleName).addParameter("refresh", "wait_for").setJsonEntity("""
             {
               "indices": [
                 {
@@ -99,11 +97,9 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         performSuperuserRequest(createUserRequest);
 
         // test user posts a document
-        final Request postTestDocument1 = new Request("POST", "/test_index/_doc");
-        postTestDocument1.setJsonEntity("""
+        performTestUserRequest(new Request("POST", "/test_index/_doc").setJsonEntity("""
             {"message": "before snapshot"}
-            """);
-        performTestUserRequest(postTestDocument1);
+            """));
 
         // snapshot state
         final String snapshotName = "security-state";
@@ -116,15 +112,18 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         waitForSnapshotToFinish(repositoryName, snapshotName);
 
         // modify user's roles
-        final Request modifyUserRequest = new Request("PUT", "/_security/user/" + LOCAL_TEST_USER_NAME);
-        modifyUserRequest.addParameter("refresh", "wait_for");
-        modifyUserRequest.setJsonEntity("{\"roles\": [] }");
-        performSuperuserRequest(modifyUserRequest);
+        performSuperuserRequest(
+            new Request("PUT", "/_security/user/" + LOCAL_TEST_USER_NAME).addParameter("refresh", "wait_for")
+                .setJsonEntity("{\"roles\": [] }")
+        );
 
         // new user has lost privileges and can't post a document
-        final Request postDocumentRequest2 = new Request("POST", "/test_index/_doc");
-        postDocumentRequest2.setJsonEntity("{\"message\": \"between snapshot and restore\"}");
-        ResponseException exception = expectThrows(ResponseException.class, () -> performTestUserRequest(postDocumentRequest2));
+        ResponseException exception = expectThrows(
+            ResponseException.class,
+            () -> performTestUserRequest(
+                new Request("POST", "/test_index/_doc").setJsonEntity("{\"message\": \"between snapshot and restore\"}")
+            )
+        );
 
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(
@@ -144,9 +143,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
             .get();
 
         // user has privileges again
-        final Request postDocumentRequest3 = new Request("POST", "/test_index/_doc");
-        postDocumentRequest3.setJsonEntity("{\"message\": \"after restore\"}");
-        performTestUserRequest(postDocumentRequest3);
+        performTestUserRequest(new Request("POST", "/test_index/_doc").setJsonEntity("{\"message\": \"after restore\"}"));
     }
 
     private Response performSuperuserRequest(Request request) throws Exception {

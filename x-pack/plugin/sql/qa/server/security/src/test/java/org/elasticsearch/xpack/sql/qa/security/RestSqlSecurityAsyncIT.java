@@ -130,53 +130,46 @@ public class RestSqlSecurityAsyncIT extends ESRestTestCase {
             document.field((String) fields[i], fields[i + 1]);
         }
         document.endObject();
-        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
-        request.setJsonEntity(Strings.toString(document));
-        assertOK(client().performRequest(request));
+        assertOK(client().performRequest(new Request("POST", "/" + index + "/_doc/" + id).setJsonEntity(Strings.toString(document))));
     }
 
     static Response get(String index, String id, String user) throws IOException {
-        final Request request = new Request("GET", "/" + index + "/_doc/" + id);
-        setRunAsHeader(request, user);
-        return client().performRequest(request);
+        return client().performRequest(new Request("GET", "/" + index + "/_doc/" + id).setOptions(runAsHeader(user)));
     }
 
     static Response submitAsyncSqlSearch(String query, TimeValue waitForCompletion, String user) throws IOException {
-        final Request request = new Request("POST", "/_sql");
-        setRunAsHeader(request, user);
-        request.setJsonEntity(
-            Strings.toString(
-                JsonXContent.contentBuilder()
-                    .startObject()
-                    .field("query", query)
-                    .field("wait_for_completion_timeout", waitForCompletion.toString())
-                    // we do the cleanup explicitly
-                    .field("keep_on_completion", "true")
-                    .endObject()
-            )
+        return client().performRequest(
+            new Request("POST", "/_sql").setOptions(runAsHeader(user))
+                .setJsonEntity(
+                    Strings.toString(
+                        JsonXContent.contentBuilder()
+                            .startObject()
+                            .field("query", query)
+                            .field("wait_for_completion_timeout", waitForCompletion.toString())
+                            // we do the cleanup explicitly
+                            .field("keep_on_completion", "true")
+                            .endObject()
+                    )
+                )
         );
-        return client().performRequest(request);
     }
 
     static Response getAsyncSqlSearch(String id, String user) throws IOException {
-        final Request request = new Request("GET", "/_sql/async/" + id);
-        setRunAsHeader(request, user);
-        request.addParameter("wait_for_completion_timeout", "0ms");
-        request.addParameter("format", "json");
-        return client().performRequest(request);
+        return client().performRequest(
+            new Request("GET", "/_sql/async/" + id).setOptions(runAsHeader(user))
+                .addParameter("wait_for_completion_timeout", "0ms")
+                .addParameter("format", "json")
+        );
     }
 
     static Response getAsyncSqlStatus(String id, String user) throws IOException {
-        final Request request = new Request("GET", "/_sql/async/status/" + id);
-        setRunAsHeader(request, user);
-        request.addParameter("format", "json");
-        return client().performRequest(request);
+        return client().performRequest(
+            new Request("GET", "/_sql/async/status/" + id).setOptions(runAsHeader(user)).addParameter("format", "json")
+        );
     }
 
     static Response deleteAsyncSqlSearch(String id, String user) throws IOException {
-        final Request request = new Request("DELETE", "/_sql/async/delete/" + id);
-        setRunAsHeader(request, user);
-        return client().performRequest(request);
+        return client().performRequest(new Request("DELETE", "/_sql/async/delete/" + id).setOptions(runAsHeader(user)));
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {
@@ -190,9 +183,7 @@ public class RestSqlSecurityAsyncIT extends ESRestTestCase {
     /**
      * Use <code>es-security-runas-user</code> to become a less privileged user.
      */
-    static void setRunAsHeader(Request request, String user) {
-        final RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-        builder.addHeader(RUN_AS_USER_HEADER, user);
-        request.setOptions(builder);
+    static RequestOptions runAsHeader(String user) {
+        return RequestOptions.DEFAULT.toBuilder().addHeader(RUN_AS_USER_HEADER, user).build();
     }
 }

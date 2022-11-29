@@ -107,7 +107,6 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
-            Request createIndex = new Request("PUT", "/" + indexName);
             int numberOfShards = randomIntBetween(1, 3);
 
             boolean multiTypes = oldVersion.before(Version.V_7_0_0);
@@ -131,72 +130,76 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
             }
             settingsBuilder.endObject().endObject().endObject();
 
-            createIndex.setJsonEntity(Strings.toString(settingsBuilder));
+            var createIndex = new Request("PUT", "/" + indexName).setJsonEntity(Strings.toString(settingsBuilder));
             assertOK(oldEs.performRequest(createIndex));
 
-            Request doc1 = new Request("PUT", "/" + indexName + "/" + "doc" + "/" + "1");
-            doc1.addParameter("refresh", "true");
-            XContentBuilder bodyDoc1 = XContentFactory.jsonBuilder()
-                .startObject()
-                .field("byte", 1)
-                .field("double", 1.0)
-                .field("float", 1.0)
-                .field("half_float", 1.0)
-                .field("integer", 1)
-                .field("long", 1)
-                .field("short", 1)
-                .field("date", "2017/01/01")
-                .field("keyword", "key1")
-                .field("boolean", false)
-                .field("ip", "192.168.0.1")
-                .array("geo_point", 13.5, 34.89)
-                .endObject();
-            doc1.setJsonEntity(Strings.toString(bodyDoc1));
+            var doc1 = new Request("PUT", "/" + indexName + "/" + "doc" + "/" + "1").addParameter("refresh", "true")
+                .setJsonEntity(
+                    Strings.toString(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .field("byte", 1)
+                            .field("double", 1.0)
+                            .field("float", 1.0)
+                            .field("half_float", 1.0)
+                            .field("integer", 1)
+                            .field("long", 1)
+                            .field("short", 1)
+                            .field("date", "2017/01/01")
+                            .field("keyword", "key1")
+                            .field("boolean", false)
+                            .field("ip", "192.168.0.1")
+                            .array("geo_point", 13.5, 34.89)
+                            .endObject()
+                    )
+                );
             assertOK(oldEs.performRequest(doc1));
 
-            Request doc2 = new Request("PUT", "/" + indexName + "/" + "doc" + "/" + "2");
-            doc2.addParameter("refresh", "true");
-            XContentBuilder bodyDoc2 = XContentFactory.jsonBuilder()
-                .startObject()
-                .field("byte", 2)
-                .field("double", 2.0)
-                .field("float", 2.0)
-                .field("half_float", 2.0)
-                .field("integer", 2)
-                .field("long", 2)
-                .field("short", 2)
-                .field("date", "2017/01/02")
-                .field("keyword", "key2")
-                .field("boolean", true)
-                .field("ip", "192.168.0.2")
-                .array("geo_point", -63.24, 31.0)
-                .endObject();
-            doc2.setJsonEntity(Strings.toString(bodyDoc2));
+            var doc2 = new Request("PUT", "/" + indexName + "/" + "doc" + "/" + "2").addParameter("refresh", "true")
+                .setJsonEntity(
+                    Strings.toString(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .field("byte", 2)
+                            .field("double", 2.0)
+                            .field("float", 2.0)
+                            .field("half_float", 2.0)
+                            .field("integer", 2)
+                            .field("long", 2)
+                            .field("short", 2)
+                            .field("date", "2017/01/02")
+                            .field("keyword", "key2")
+                            .field("boolean", true)
+                            .field("ip", "192.168.0.2")
+                            .array("geo_point", -63.24, 31.0)
+                            .endObject()
+                    )
+                );
             assertOK(oldEs.performRequest(doc2));
 
             // register repo on old ES and take snapshot
-            Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
-            createRepoRequest.setJsonEntity(formatted("""
+            var createRepoRequest = new Request("PUT", "/_snapshot/" + repoName).setJsonEntity(formatted("""
                 {"type":"fs","settings":{"location":"%s"}}
                 """, repoLocation));
             assertOK(oldEs.performRequest(createRepoRequest));
 
-            Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);
-            createSnapshotRequest.addParameter("wait_for_completion", "true");
-            createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
+            var createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName).addParameter(
+                "wait_for_completion",
+                "true"
+            ).setJsonEntity("{\"indices\":\"" + indexName + "\"}");
             assertOK(oldEs.performRequest(createSnapshotRequest));
         }
 
         // register repo on new ES and restore snapshot
-        Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);
-        createRepoRequest2.setJsonEntity(formatted("""
+        var createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName).setJsonEntity(formatted("""
             {"type":"fs","settings":{"location":"%s"}}
             """, repoLocation));
         assertOK(client().performRequest(createRepoRequest2));
 
-        final Request createRestoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");
-        createRestoreRequest.addParameter("wait_for_completion", "true");
-        createRestoreRequest.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
+        var createRestoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore").addParameter(
+            "wait_for_completion",
+            "true"
+        ).setJsonEntity("{\"indices\":\"" + indexName + "\"}");
         assertOK(client().performRequest(createRestoreRequest));
     }
 }

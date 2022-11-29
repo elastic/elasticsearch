@@ -35,23 +35,19 @@ public class CreatedLocationHeaderIT extends ESRestTestCase {
     }
 
     public void testUpsert() throws IOException {
-        Request request = new Request("POST", "test/_update/1");
-        request.setJsonEntity("""
+        var request = new Request("POST", "test/_update/1").setJsonEntity("""
             {"doc": {"test": "test"},"doc_as_upsert": true}
             """);
         locationTestCase(client().performRequest(request));
     }
 
     private void locationTestCase(String method, String url) throws IOException {
-        final Request request = new Request(method, url);
-        request.setJsonEntity("{\"test\": \"test\"}");
+        var request = new Request(method, url).setJsonEntity("{\"test\": \"test\"}");
         locationTestCase(client().performRequest(request));
         // we have to delete the index otherwise the second indexing request will route to the single shard and not produce a 201
         final Response response = client().performRequest(new Request("DELETE", "test"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        final Request withRouting = new Request(method, url);
-        withRouting.addParameter("routing", "cat");
-        withRouting.setJsonEntity("{\"test\": \"test\"}");
+        var withRouting = new Request(method, url).addParameter("routing", "cat").setJsonEntity("{\"test\": \"test\"}");
         locationTestCase(client().performRequest(withRouting));
     }
 

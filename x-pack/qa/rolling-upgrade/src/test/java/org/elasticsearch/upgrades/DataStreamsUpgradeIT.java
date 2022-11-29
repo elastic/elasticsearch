@@ -26,7 +26,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     public void testDataStreams() throws IOException {
         assumeTrue("no data streams in versions before " + Version.V_7_9_0, UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_9_0));
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            String requestBody = """
+            Request request = new Request("PUT", "/_index_template/1").setJsonEntity("""
                 {
                   "index_patterns": [ "logs-*" ],
                   "template": {
@@ -39,9 +39,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                     }
                   },
                   "data_stream": {}
-                }""";
-            Request request = new Request("PUT", "/_index_template/1");
-            request.setJsonEntity(requestBody);
+                }""");
             useIgnoreMultipleMatchingTemplatesWarningsHandler(request);
             client().performRequest(request);
 
@@ -52,20 +50,18 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                     {"@timestamp":"2020-12-12","test":"value%s"}
                     """, i));
             }
-            Request bulk = new Request("POST", "/_bulk");
-            bulk.addParameter("refresh", "true");
-            bulk.addParameter("filter_path", "errors");
-            bulk.setJsonEntity(b.toString());
-            Response response = client().performRequest(bulk);
+            Response response = client().performRequest(
+                new Request("POST", "/_bulk").addParameter("refresh", "true")
+                    .addParameter("filter_path", "errors")
+                    .setJsonEntity(b.toString())
+            );
             assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             long nowMillis = System.currentTimeMillis();
             Request rolloverRequest = new Request("POST", "/logs-foobar/_rollover");
             client().performRequest(rolloverRequest);
 
-            Request index = new Request("POST", "/logs-foobar/_doc");
-            index.addParameter("refresh", "true");
-            index.addParameter("filter_path", "_index");
+            var index = new Request("POST", "/logs-foobar/_doc").addParameter("refresh", "true").addParameter("filter_path", "_index");
             if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
                 // include legacy name and date-named indices with today +/-1 in case of clock skew
                 var expectedIndices = List.of(
@@ -111,7 +107,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     public void testDataStreamValidationDoesNotBreakUpgrade() throws Exception {
         assumeTrue("Bug started to occur from version: " + Version.V_7_10_2, UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_10_2));
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            String requestBody = """
+            var request = new Request("PUT", "/_index_template/1").setJsonEntity("""
                 {
                   "index_patterns": [ "logs-*" ],
                   "template": {
@@ -124,9 +120,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                     }
                   },
                   "data_stream": {}
-                }""";
-            Request request = new Request("PUT", "/_index_template/1");
-            request.setJsonEntity(requestBody);
+                }""");
             useIgnoreMultipleMatchingTemplatesWarningsHandler(request);
             client().performRequest(request);
 
@@ -137,29 +131,28 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 {"@timestamp":"2020-12-12","test":"value0"}
                 """;
 
-            Request bulk = new Request("POST", "/_bulk");
-            bulk.addParameter("refresh", "true");
-            bulk.addParameter("filter_path", "errors");
-            bulk.setJsonEntity(b);
-            Response response = client().performRequest(bulk);
+            Response response = client().performRequest(
+                new Request("POST", "/_bulk").addParameter("refresh", "true").addParameter("filter_path", "errors").setJsonEntity(b)
+            );
             assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 
             Request rolloverRequest = new Request("POST", "/logs-barbaz-2021.01.13/_rollover");
             client().performRequest(rolloverRequest);
         } else {
             if (CLUSTER_TYPE == ClusterType.MIXED) {
-                ensureHealth((request -> {
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "yellow");
-                }));
+                ensureHealth(
+                    (request -> request.addParameter("timeout", "70s")
+                        .addParameter("wait_for_nodes", "3")
+                        .addParameter("wait_for_status", "yellow"))
+                );
             } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-                ensureHealth("logs-barbaz", (request -> {
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "green");
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("level", "shards");
-                }));
+                ensureHealth(
+                    "logs-barbaz",
+                    (request -> request.addParameter("wait_for_nodes", "3")
+                        .addParameter("wait_for_status", "green")
+                        .addParameter("timeout", "70s")
+                        .addParameter("level", "shards"))
+                );
             }
             assertCount("logs-barbaz", 1);
             assertCount("logs-barbaz-2021.01.13", 1);

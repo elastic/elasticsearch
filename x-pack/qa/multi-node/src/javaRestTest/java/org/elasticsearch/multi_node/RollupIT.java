@@ -73,9 +73,7 @@ public class RollupIT extends ESRestTestCase {
             }
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT", "rollup-docs");
-            req.setEntity(entity);
-            client().performRequest(req);
+            client().performRequest(new Request("PUT", "rollup-docs").setEntity(entity));
         }
 
         // index documents for the rollup job

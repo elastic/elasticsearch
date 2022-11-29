@@ -43,8 +43,7 @@ public class PermissionsIT extends ESRestTestCase {
     }
 
     public void testDLS() throws IOException {
-        Request createIndex = new Request("PUT", "/dls");
-        createIndex.setJsonEntity("""
+        assertOK(adminClient().performRequest(new Request("PUT", "/dls").setJsonEntity("""
             {
                 "mappings" : {
                     "runtime" : {
@@ -58,33 +57,23 @@ public class PermissionsIT extends ESRestTestCase {
                     }
                 }
             }
-            """);
-        assertOK(adminClient().performRequest(createIndex));
+            """)));
 
-        Request indexDoc1 = new Request("PUT", "/dls/_doc/1");
-        indexDoc1.setJsonEntity("""
+        assertOK(adminClient().performRequest(new Request("PUT", "/dls/_doc/1").setJsonEntity("""
             {
                 "date" : "2009-11-15T14:12:12"
             }
-            """);
-        assertOK(adminClient().performRequest(indexDoc1));
-
-        Request indexDoc2 = new Request("PUT", "/dls/_doc/2");
-        indexDoc2.setJsonEntity("""
+            """)));
+        assertOK(adminClient().performRequest(new Request("PUT", "/dls/_doc/2").setJsonEntity("""
             {
                 "date" : "2016-11-15T14:12:12"
             }
-            """);
-        assertOK(adminClient().performRequest(indexDoc2));
-
-        Request indexDoc3 = new Request("PUT", "/dls/_doc/3");
-        indexDoc3.addParameter("refresh", "true");
-        indexDoc3.setJsonEntity("""
+            """)));
+        assertOK(adminClient().performRequest(new Request("PUT", "/dls/_doc/3").addParameter("refresh", "true").setJsonEntity("""
             {
                 "date" : "2018-11-15T14:12:12"
             }
-            """);
-        assertOK(adminClient().performRequest(indexDoc3));
+            """)));
 
         Request searchRequest = new Request(HttpPost.METHOD_NAME, "dls/_search");
         {
@@ -98,8 +87,7 @@ public class PermissionsIT extends ESRestTestCase {
     }
 
     public void testFLSProtectsData() throws IOException {
-        Request createIndex = new Request("PUT", "/fls");
-        createIndex.setJsonEntity("""
+        assertOK(adminClient().performRequest(new Request("PUT", "/fls").setJsonEntity("""
             {
                 "mappings" : {
                     "runtime" : {
@@ -113,33 +101,22 @@ public class PermissionsIT extends ESRestTestCase {
                     }
                 }
             }
-            """);
-        assertOK(adminClient().performRequest(createIndex));
-
-        Request indexDoc1 = new Request("PUT", "/fls/_doc/1");
-        indexDoc1.setJsonEntity("""
+            """)));
+        assertOK(adminClient().performRequest(new Request("PUT", "/fls/_doc/1").setJsonEntity("""
             {
                 "hidden" : "should not be read"
             }
-            """);
-        assertOK(adminClient().performRequest(indexDoc1));
-
-        Request indexDoc2 = new Request("PUT", "/fls/_doc/2");
-        indexDoc2.setJsonEntity("""
+            """)));
+        assertOK(adminClient().performRequest(new Request("PUT", "/fls/_doc/2").setJsonEntity("""
             {
                 "hidden" : "should not be read"
             }
-            """);
-        assertOK(adminClient().performRequest(indexDoc2));
-
-        Request indexDoc3 = new Request("PUT", "/fls/_doc/3");
-        indexDoc3.addParameter("refresh", "true");
-        indexDoc3.setJsonEntity("""
+            """)));
+        assertOK(adminClient().performRequest(new Request("PUT", "/fls/_doc/3").addParameter("refresh", "true").setJsonEntity("""
             {
                 "hidden" : "should not be read"
             }
-            """);
-        assertOK(adminClient().performRequest(indexDoc3));
+            """)));
 
         Request searchRequest = new Request(HttpPost.METHOD_NAME, "fls/_search");
         searchRequest.setJsonEntity("""
@@ -170,8 +147,7 @@ public class PermissionsIT extends ESRestTestCase {
     }
 
     public void testFLSOnRuntimeField() throws IOException {
-        Request createIndex = new Request("PUT", "/fls");
-        createIndex.setJsonEntity("""
+        assertOK(adminClient().performRequest(new Request("PUT", "/fls").setJsonEntity("""
             {
                 "mappings" : {
                     "runtime" : {
@@ -185,33 +161,23 @@ public class PermissionsIT extends ESRestTestCase {
                     }
                 }
             }
-            """);
-        assertOK(adminClient().performRequest(createIndex));
+            """)));
 
-        Request indexDoc1 = new Request("PUT", "/fls/_doc/1");
-        indexDoc1.setJsonEntity("""
+        assertOK(adminClient().performRequest(new Request("PUT", "/fls/_doc/1").setJsonEntity("""
             {
                 "date" : "2009-11-15T14:12:12"
             }
-            """);
-        assertOK(adminClient().performRequest(indexDoc1));
-
-        Request indexDoc2 = new Request("PUT", "/fls/_doc/2");
-        indexDoc2.setJsonEntity("""
+            """)));
+        assertOK(adminClient().performRequest(new Request("PUT", "/fls/_doc/2").setJsonEntity("""
             {
                 "date" : "2016-11-15T14:12:12"
             }
-            """);
-        assertOK(adminClient().performRequest(indexDoc2));
-
-        Request indexDoc3 = new Request("PUT", "/fls/_doc/3");
-        indexDoc3.addParameter("refresh", "true");
-        indexDoc3.setJsonEntity("""
+            """)));
+        assertOK(adminClient().performRequest(new Request("PUT", "/fls/_doc/3").addParameter("refresh", "true").setJsonEntity("""
             {
                 "date" : "2018-11-15T14:12:12"
             }
-            """);
-        assertOK(adminClient().performRequest(indexDoc3));
+            """)));
 
         // There is no FLS directly on runtime fields
         Request searchRequest = new Request(HttpPost.METHOD_NAME, "fls/_search");
@@ -252,8 +218,7 @@ public class PermissionsIT extends ESRestTestCase {
     }
 
     public void testPainlessExecuteWithIndexRequiresReadPrivileges() throws IOException {
-        Request createIndex = new Request("PUT", "/fls");
-        createIndex.setJsonEntity("""
+        assertOK(adminClient().performRequest(new Request("PUT", "/fls").setJsonEntity("""
             {
                 "mappings" : {
                     "properties" : {
@@ -261,11 +226,9 @@ public class PermissionsIT extends ESRestTestCase {
                     }
                 }
             }
-            """);
-        assertOK(adminClient().performRequest(createIndex));
+            """)));
 
-        Request painlessExecute = new Request("POST", "/_scripts/painless/_execute");
-        painlessExecute.setJsonEntity("""
+        Response response = client().performRequest(new Request("POST", "/_scripts/painless/_execute").setJsonEntity("""
             {
               "script": {
                 "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));"
@@ -278,15 +241,13 @@ public class PermissionsIT extends ESRestTestCase {
                 }
               }
             }
-            """);
-        Response response = client().performRequest(painlessExecute);
+            """));
         assertOK(response);
         assertThat(EntityUtils.toString(response.getEntity()), containsString("Thursday"));
     }
 
     public void testPainlessExecuteWithoutIndexRequiresClusterPrivileges() {
-        Request painlessExecute = new Request("POST", "/_scripts/painless/_execute");
-        painlessExecute.setJsonEntity("""
+        var painlessExecute = new Request("POST", "/_scripts/painless/_execute").setJsonEntity("""
             {
               "script": {
                 "source": "params.count / params.total",

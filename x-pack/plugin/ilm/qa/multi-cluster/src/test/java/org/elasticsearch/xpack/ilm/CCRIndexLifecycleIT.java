@@ -120,8 +120,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             ensureGreen(indexName);
 
             // Create the repository before taking the snapshot.
-            Request request = new Request("PUT", "/_snapshot/repo");
-            request.setJsonEntity(
+            var request = new Request("PUT", "/_snapshot/repo").setJsonEntity(
                 Strings.toString(
                     JsonXContent.contentBuilder()
                         .startObject()
@@ -144,10 +143,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
                 // start snapshot
                 String snapName = "snapshot-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-                request = new Request("PUT", "/_snapshot/repo/" + snapName);
-                request.addParameter("wait_for_completion", "false");
-                request.setJsonEntity("{\"indices\": \"" + indexName + "\"}");
-                assertOK(client().performRequest(request));
+                var snapRequest = new Request("PUT", "/_snapshot/repo/" + snapName).addParameter("wait_for_completion", "false")
+                    .setJsonEntity("{\"indices\": \"" + indexName + "\"}");
+                assertOK(client().performRequest(snapRequest));
 
                 // add policy and expect it to trigger unfollow immediately (while snapshot in progress)
                 logger.info("--> starting unfollow");
@@ -184,14 +182,13 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         if ("leader".equals(targetCluster)) {
             // Create a policy on the leader
             putILMPolicy(policyName, null, 1, null);
-            Request templateRequest = new Request("PUT", "/_index_template/my_template");
             Settings indexSettings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName)
                 .put("index.lifecycle.rollover_alias", alias)
                 .build();
-            templateRequest.setJsonEntity(
+            var templateRequest = new Request("PUT", "/_index_template/my_template").setJsonEntity(
                 "{\"index_patterns\":  [\"mymetrics-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
             );
             assertOK(client().performRequest(templateRequest));
@@ -200,8 +197,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             putILMPolicy(policyName, null, 1, null);
 
             // Set up an auto-follow pattern
-            Request createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/my_auto_follow_pattern");
-            createAutoFollowRequest.setJsonEntity("""
+            var createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/my_auto_follow_pattern").setJsonEntity("""
                 {
                   "leader_index_patterns": [ "mymetrics-*" ],
                   "remote_cluster": "leader_cluster",
@@ -211,8 +207,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
             try (RestClient leaderClient = buildLeaderClient()) {
                 // Create an index on the leader using the template set up above
-                Request createIndexRequest = new Request("PUT", "/" + indexName);
-                createIndexRequest.setJsonEntity(formatted("""
+                var createIndexRequest = new Request("PUT", "/" + indexName).setJsonEntity(formatted("""
                     {
                       "mappings": {
                         "properties": {
@@ -229,10 +224,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     }""", alias));
                 assertOK(leaderClient.performRequest(createIndexRequest));
                 // Check that the new index is created
-                Request checkIndexRequest = new Request("GET", "/_cluster/health/" + indexName);
-                checkIndexRequest.addParameter("wait_for_status", "green");
-                checkIndexRequest.addParameter("timeout", "70s");
-                checkIndexRequest.addParameter("level", "shards");
+                var checkIndexRequest = new Request("GET", "/_cluster/health/" + indexName).addParameter("wait_for_status", "green")
+                    .addParameter("timeout", "70s")
+                    .addParameter("level", "shards");
                 assertOK(leaderClient.performRequest(checkIndexRequest));
 
                 // Check that it got replicated to the follower
@@ -425,12 +419,11 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 ensureGreen(indexName);
 
                 // Now we can set up the leader to use the policy
-                Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
                 final StringEntity changePolicyEntity = new StringEntity(
                     "{ \"index.lifecycle.name\": \"" + policyName + "\" }",
                     ContentType.APPLICATION_JSON
                 );
-                changePolicyRequest.setEntity(changePolicyEntity);
+                var changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings").setEntity(changePolicyEntity);
                 assertOK(leaderClient.performRequest(changePolicyRequest));
 
                 assertBusy(() -> {
@@ -553,8 +546,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
     private void configureRemoteClusters(String name, String leaderRemoteClusterSeed) throws IOException {
         logger.info("Configuring leader remote cluster [{}]", leaderRemoteClusterSeed);
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(
+        var request = new Request("PUT", "/_cluster/settings").setJsonEntity(
             "{\"persistent\": {\"cluster.remote."
                 + name
                 + ".seeds\": "
@@ -565,7 +557,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     }
 
     private static void putILMPolicy(String name, String maxSize, Integer maxDocs, TimeValue maxAge) throws IOException {
-        final Request request = new Request("PUT", "_ilm/policy/" + name);
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         {
@@ -628,7 +619,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             builder.endObject();
         }
         builder.endObject();
-        request.setJsonEntity(Strings.toString(builder));
+        var request = new Request("PUT", "_ilm/policy/" + name).setJsonEntity(Strings.toString(builder));
         assertOK(client().performRequest(request));
     }
 
@@ -674,8 +665,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
         builder.endObject();
 
-        final Request request = new Request("PUT", "_ilm/policy/" + policyName);
-        request.setJsonEntity(Strings.toString(builder));
+        var request = new Request("PUT", "_ilm/policy/" + policyName).setJsonEntity(Strings.toString(builder));
         assertOK(client.performRequest(request));
     }
 
@@ -704,8 +694,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
         builder.endObject();
 
-        final Request request = new Request("PUT", "_ilm/policy/" + policyName);
-        request.setJsonEntity(Strings.toString(builder));
+        var request = new Request("PUT", "_ilm/policy/" + policyName).setJsonEntity(Strings.toString(builder));
         assertOK(client.performRequest(request));
     }
 
@@ -739,9 +728,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     }
 
     private static void updateIndexSettings(RestClient client, String index, Settings settings) throws IOException {
-        final Request request = new Request("PUT", "/" + index + "/_settings");
-        request.setJsonEntity(Strings.toString(settings));
-        assertOK(client.performRequest(request));
+        assertOK(client.performRequest(new Request("PUT", "/" + index + "/_settings").setJsonEntity(Strings.toString(settings))));
     }
 
     private static Object getIndexSetting(RestClient client, String index, String setting) throws IOException {
@@ -783,19 +770,15 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "_ilm/policy/" + policyName);
-        request.setEntity(entity);
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "_ilm/policy/" + policyName).setEntity(entity));
     }
 
     public static void updatePolicy(String indexName, String policy) throws IOException {
-
-        Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
         final StringEntity changePolicyEntity = new StringEntity(
             "{ \"index.lifecycle.name\": \"" + policy + "\" }",
             ContentType.APPLICATION_JSON
         );
-        changePolicyRequest.setEntity(changePolicyEntity);
+        var changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings").setEntity(changePolicyEntity);
         assertOK(client().performRequest(changePolicyRequest));
     }
 

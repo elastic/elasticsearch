@@ -34,9 +34,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends WatcherYa
     @Before
     public void beforeTest() throws Exception {
         // create one document in this index, so we can test in the YAML tests, that the index cannot be accessed
-        Request request = new Request("PUT", "/index_not_allowed_to_read/_doc/1");
-        request.setJsonEntity("{\"foo\":\"bar\"}");
-        adminClient().performRequest(request);
+        adminClient().performRequest(new Request("PUT", "/index_not_allowed_to_read/_doc/1").setJsonEntity("{\"foo\":\"bar\"}"));
     }
 
     @Override

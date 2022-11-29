@@ -41,9 +41,7 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testSelectColumnFromEmptyIndex() throws IOException, SQLException {
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("{}");
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test").setJsonEntity("{}"));
 
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT abc FROM test").executeQuery());

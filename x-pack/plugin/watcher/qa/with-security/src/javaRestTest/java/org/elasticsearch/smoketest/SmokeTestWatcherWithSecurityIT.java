@@ -38,18 +38,14 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
 
     @Before
     public void beforeTest() throws Exception {
-        Request deleteRequest = new Request("DELETE", "/my_test_index");
-        deleteRequest.addParameter("ignore_unavailable", "true");
-        adminClient().performRequest(deleteRequest);
+        adminClient().performRequest(new Request("DELETE", "/my_test_index").addParameter("ignore_unavailable", "true"));
 
-        Request createAllowedDoc = new Request("PUT", "/my_test_index/_doc/1");
-        createAllowedDoc.setJsonEntity("{ \"value\" : \"15\" }");
-        createAllowedDoc.addParameter("refresh", "true");
+        var createAllowedDoc = new Request("PUT", "/my_test_index/_doc/1").setJsonEntity("{ \"value\" : \"15\" }")
+            .addParameter("refresh", "true");
         adminClient().performRequest(createAllowedDoc);
 
         // create one document in this index, so we can test that the index cannot be accessed
-        Request createNotAllowedDoc = new Request("PUT", "/index_not_allowed_to_read/_doc/1");
-        createNotAllowedDoc.setJsonEntity("{\"foo\":\"bar\"}");
+        var createNotAllowedDoc = new Request("PUT", "/index_not_allowed_to_read/_doc/1").setJsonEntity("{\"foo\":\"bar\"}");
         adminClient().performRequest(createNotAllowedDoc);
     }
 
@@ -297,9 +293,9 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
     }
 
     private void indexWatch(String watchId, XContentBuilder builder) throws Exception {
-        Request request = new Request("PUT", "/_watcher/watch/" + watchId);
-        request.setJsonEntity(Strings.toString(builder));
-        Response response = client().performRequest(request);
+        Response response = client().performRequest(
+            new Request("PUT", "/_watcher/watch/" + watchId).setJsonEntity(Strings.toString(builder))
+        );
         Map<String, Object> responseMap = entityAsMap(response);
         assertThat(responseMap, hasEntry("_id", watchId));
         assertThat(responseMap, hasEntry("created", true));
@@ -345,9 +341,8 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
                         .endArray();
                     builder.endObject();
 
-                    Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
-                    searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-                    searchRequest.setJsonEntity(Strings.toString(builder));
+                    var searchRequest = new Request("POST", "/.watcher-history-*/_search").addParameter(TOTAL_HITS_AS_INT_PARAM, "true")
+                        .setJsonEntity(Strings.toString(builder));
                     Response response = client().performRequest(searchRequest);
                     ObjectPath objectPath = ObjectPath.createFromResponse(response);
                     int totalHits = objectPath.evaluate("hits.total");

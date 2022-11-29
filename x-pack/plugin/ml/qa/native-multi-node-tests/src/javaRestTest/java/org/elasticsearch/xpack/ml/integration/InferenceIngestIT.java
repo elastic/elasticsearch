@@ -59,12 +59,10 @@ public class InferenceIngestIT extends ESRestTestCase {
 
     @Before
     public void setup() throws Exception {
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        client().performRequest(new Request("PUT", "_cluster/settings").setJsonEntity("""
             {"persistent" : {
                     "logger.org.elasticsearch.xpack.ml.inference" : "TRACE"
-                }}""");
-        client().performRequest(loggingSettings);
+                }}"""));
         client().performRequest(new Request("GET", "/_cluster/health?wait_for_status=green&timeout=30s"));
     }
 
@@ -76,12 +74,10 @@ public class InferenceIngestIT extends ESRestTestCase {
     @After
     public void cleanUpData() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        client().performRequest(new Request("PUT", "_cluster/settings").setJsonEntity("""
             {"persistent" : {
                     "logger.org.elasticsearch.xpack.ml.inference" : null
-                }}""");
-        client().performRequest(loggingSettings);
+                }}"""));
     }
 
     public void testPathologicalPipelineCreationAndDeletion() throws Exception {
@@ -210,8 +206,7 @@ public class InferenceIngestIT extends ESRestTestCase {
                       "col4": 10
                     }}]
                 }""";
-            Request request = new Request("POST", "_ingest/pipeline/simple_regression_pipeline/_simulate");
-            request.setJsonEntity(source);
+            var request = new Request("POST", "_ingest/pipeline/simple_regression_pipeline/_simulate").setJsonEntity(source);
             Response response = client().performRequest(request);
             String responseString = EntityUtils.toString(response.getEntity());
             assertThat(responseString, containsString("\"model_id\":\"test_regression_2\""));
@@ -502,9 +497,7 @@ public class InferenceIngestIT extends ESRestTestCase {
     }
 
     static Request simulateRequest(String jsonEntity) {
-        Request request = new Request("POST", "_ingest/pipeline/_simulate?error_trace=true");
-        request.setJsonEntity(jsonEntity);
-        return request;
+        return new Request("POST", "_ingest/pipeline/_simulate?error_trace=true").setJsonEntity(jsonEntity);
     }
 
     private static Request indexRequest(String index, String pipeline, Map<String, Object> doc) throws IOException {
@@ -518,24 +511,18 @@ public class InferenceIngestIT extends ESRestTestCase {
     }
 
     private static Request indexRequest(String index, String pipeline, String doc) {
-        Request request = new Request("POST", index + "/_doc?pipeline=" + pipeline);
-        request.setJsonEntity(doc);
-        return request;
+        return new Request("POST", index + "/_doc?pipeline=" + pipeline).setJsonEntity(doc);
     }
 
     static Request putPipeline(String pipelineId, String pipelineDefinition) {
-        Request request = new Request("PUT", "_ingest/pipeline/" + pipelineId);
-        request.setJsonEntity(pipelineDefinition);
-        return request;
+        return new Request("PUT", "_ingest/pipeline/" + pipelineId).setJsonEntity(pipelineDefinition);
     }
 
     private static Request searchRequest(String index, QueryBuilder queryBuilder) throws IOException {
         BytesReference reference = XContentHelper.toXContent(queryBuilder, XContentType.JSON, false);
         String queryJson = XContentHelper.convertToJson(reference, false, XContentType.JSON);
         String json = "{\"query\": " + queryJson + "}";
-        Request request = new Request("GET", index + "/_search?track_total_hits=true");
-        request.setJsonEntity(json);
-        return request;
+        return new Request("GET", index + "/_search?track_total_hits=true").setJsonEntity(json);
     }
 
     private Map<String, Object> generateSourceDoc() {
@@ -735,9 +722,7 @@ public class InferenceIngestIT extends ESRestTestCase {
     }
 
     private void putModel(String modelId, String modelConfiguration) throws IOException {
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId);
-        request.setJsonEntity(modelConfiguration);
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "_ml/trained_models/" + modelId).setJsonEntity(modelConfiguration));
     }
 
     private void putModelAlias(String modelAlias, String newModel) throws IOException {

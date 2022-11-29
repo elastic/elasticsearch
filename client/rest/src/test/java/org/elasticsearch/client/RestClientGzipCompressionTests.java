@@ -129,8 +129,7 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
         RestClient restClient = createClient(false);
 
         // Send non-compressed request, expect non-compressed response
-        Request request = new Request("POST", "/");
-        request.setEntity(new StringEntity("plain request, plain response", ContentType.TEXT_PLAIN));
+        Request request = new Request("POST", "/").setEntity(new StringEntity("plain request, plain response", ContentType.TEXT_PLAIN));
 
         Response response = restClient.performRequest(request);
 
@@ -145,9 +144,8 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
         RestClient restClient = createClient(false);
 
         // Send non-compressed request, expect compressed response
-        Request request = new Request("POST", "/");
-        request.setEntity(new StringEntity("plain request, gzip response", ContentType.TEXT_PLAIN));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Accept-Encoding", "gzip").build());
+        Request request = new Request("POST", "/").setEntity(new StringEntity("plain request, gzip response", ContentType.TEXT_PLAIN))
+            .setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Accept-Encoding", "gzip").build());
 
         Response response = restClient.performRequest(request);
 
@@ -162,9 +160,8 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
         RestClient restClient = createClient(false);
 
         // Send non-compressed request, expect compressed response
-        Request request = new Request("POST", "/");
-        request.setEntity(new StringEntity("plain request, gzip response", ContentType.TEXT_PLAIN));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Accept-Encoding", "gzip").build());
+        Request request = new Request("POST", "/").setEntity(new StringEntity("plain request, gzip response", ContentType.TEXT_PLAIN))
+            .setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Accept-Encoding", "gzip").build());
 
         FutureResponse futureResponse = new FutureResponse();
         restClient.performRequestAsync(request, futureResponse);
@@ -179,8 +176,7 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
     public void testCompressingClientSync() throws Exception {
         RestClient restClient = createClient(true);
 
-        Request request = new Request("POST", "/");
-        request.setEntity(new StringEntity("compressing client", ContentType.TEXT_PLAIN));
+        Request request = new Request("POST", "/").setEntity(new StringEntity("compressing client", ContentType.TEXT_PLAIN));
 
         Response response = restClient.performRequest(request);
 
@@ -196,8 +192,7 @@ public class RestClientGzipCompressionTests extends RestClientTestCase {
             .setCompressionEnabled(true)
             .build();
 
-        Request request = new Request("POST", "/");
-        request.setEntity(new StringEntity("compressing client", ContentType.TEXT_PLAIN));
+        Request request = new Request("POST", "/").setEntity(new StringEntity("compressing client", ContentType.TEXT_PLAIN));
 
         FutureResponse futureResponse = new FutureResponse();
         restClient.performRequestAsync(request, futureResponse);

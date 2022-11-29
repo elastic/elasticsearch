@@ -247,9 +247,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                     }
                 });
             }
-            request.setOptions(options);
-            request.setEntity(entity);
-            return toMap(client().performRequest(request), mode);
+            return toMap(client().performRequest(request.setOptions(options).setEntity(entity)), mode);
         }
 
         private static void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {

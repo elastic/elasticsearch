@@ -106,8 +106,7 @@ public class EqlSearchIT extends ESRestTestCase {
      */
     public void testMultiValueFields() throws Exception {
         final String bulkEntries = readResource(EqlSearchIT.class.getResourceAsStream("/eql_data.json"));
-        Request bulkRequst = new Request("POST", index + "/_bulk?refresh");
-        bulkRequst.setJsonEntity(bulkEntries);
+        var bulkRequst = new Request("POST", index + "/_bulk?refresh").setJsonEntity(bulkEntries);
         assertOK(client().performRequest(bulkRequst));
 
         // build a set of functions names to check if all functions are tested with multi-value fields
@@ -290,8 +289,9 @@ public class EqlSearchIT extends ESRestTestCase {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._source.@timestamp,hits.events._source.event_type,hits.events._source.sequence";
 
-            Request request = new Request("POST", index + "/_eql/search?" + filterPath);
-            request.setJsonEntity("{\"query\":\"" + event + " where true\",\"size\":15}");
+            var request = new Request("POST", index + "/_eql/search?" + filterPath).setJsonEntity(
+                "{\"query\":\"" + event + " where true\",\"size\":15}"
+            );
             assertBusy(() -> { assertResponse(expectedResponse, runEql(client, request)); });
         }
     }
@@ -309,8 +309,9 @@ public class EqlSearchIT extends ESRestTestCase {
                 + "[failure where true] by correlation_failure1, correlation_failure2";
             String filter = "{\"range\":{\"@timestamp\":{\"gte\":\"1970-05-01\"}}}";
 
-            Request request = new Request("POST", index + "/_eql/search?" + filterPath);
-            request.setJsonEntity("{\"query\":\"" + query + "\",\"filter\":" + filter + "}");
+            var request = new Request("POST", index + "/_eql/search?" + filterPath).setJsonEntity(
+                "{\"query\":\"" + query + "\",\"filter\":" + filter + "}"
+            );
             assertBusy(() -> { assertResponse(expectedResponse, runEql(client, request)); });
         }
     }
@@ -340,8 +341,7 @@ public class EqlSearchIT extends ESRestTestCase {
                 sourceEvents.add(singletonMap("_source", eventSource));
             }
         }
-        Request request = new Request("PUT", index + "/_bulk?refresh");
-        request.setJsonEntity(builder.toString());
+        var request = new Request("PUT", index + "/_bulk?refresh").setJsonEntity(builder.toString());
         assertOK(client().performRequest(request));
         if (sourceEvents.isEmpty()) {
             return emptyMap();
@@ -403,8 +403,7 @@ public class EqlSearchIT extends ESRestTestCase {
         sequence.put("events", events);
 
         final String bulkEntries = readResource(EqlSearchIT.class.getResourceAsStream("/eql_data.json"));
-        Request request = new Request("POST", index + "/_bulk?refresh");
-        request.setJsonEntity(bulkEntries);
+        var request = new Request("POST", index + "/_bulk?refresh").setJsonEntity(bulkEntries);
         assertOK(client().performRequest(request));
 
         return expectedResponse;
@@ -423,8 +422,7 @@ public class EqlSearchIT extends ESRestTestCase {
         for (int id : ids) {
             eventIds.add(String.valueOf(id));
         }
-        request.setJsonEntity("{\"query\":\"" + query + "\"}");
-        assertResponse(query, eventIds, runEql(client, request));
+        assertResponse(query, eventIds, runEql(client, request.setJsonEntity("{\"query\":\"" + query + "\"}")));
         testedFunctions.add(functionName);
     }
 

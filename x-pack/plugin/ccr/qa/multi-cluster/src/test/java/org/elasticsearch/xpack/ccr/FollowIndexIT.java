@@ -200,8 +200,9 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             createSnapshot(repository, snapshot, true);
             deleteIndex(indexName);
 
-            final Request mountRequest = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + '/' + snapshot + "/_mount");
-            mountRequest.setJsonEntity("{\"index\": \"" + indexName + "\",\"renamed_index\": \"" + mountedIndex + "\"}");
+            var mountRequest = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + '/' + snapshot + "/_mount").setJsonEntity(
+                "{\"index\": \"" + indexName + "\",\"renamed_index\": \"" + mountedIndex + "\"}"
+            );
             final Response mountResponse = client().performRequest(mountRequest);
             assertThat(
                 "Failed to mount snapshot [" + snapshot + "] from repository [" + repository + "]: " + mountResponse,

@@ -28,8 +28,9 @@ public class InferenceProcessorIT extends InferenceTestCase {
 
     @Before
     public void enableLogging() throws IOException {
-        Request setTrace = new Request("PUT", "_cluster/settings");
-        setTrace.setJsonEntity("{\"persistent\": {\"logger.org.elasticsearch.xpack.ml.inference\": \"TRACE\"}}");
+        var setTrace = new Request("PUT", "_cluster/settings").setJsonEntity(
+            "{\"persistent\": {\"logger.org.elasticsearch.xpack.ml.inference\": \"TRACE\"}}"
+        );
         assertThat(client().performRequest(setTrace).getStatusLine().getStatusCode(), equalTo(200));
     }
 
@@ -274,9 +275,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
     }
 
     private void infer(String pipelineId) throws IOException {
-        Request putDoc = new Request("POST", "any_index/_doc?pipeline=" + pipelineId);
-        putDoc.setJsonEntity("{\"field1\": 1, \"field2\": 2}");
-
+        var putDoc = new Request("POST", "any_index/_doc?pipeline=" + pipelineId).setJsonEntity("{\"field1\": 1, \"field2\": 2}");
         Response response = client().performRequest(putDoc);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
     }

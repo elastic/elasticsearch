@@ -37,8 +37,7 @@ public class VectorTileCCSIT extends ESRestTestCase {
         final Request createRequest = new Request(HttpPut.METHOD_NAME, indexName);
         Response response = client.performRequest(createRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
-        final Request mappingRequest = new Request(HttpPut.METHOD_NAME, indexName + "/_mapping");
-        mappingRequest.setJsonEntity("""
+        var mappingRequest = new Request(HttpPut.METHOD_NAME, indexName + "/_mapping").setJsonEntity("""
             {
               "properties": {
                 "location": {
@@ -49,8 +48,7 @@ public class VectorTileCCSIT extends ESRestTestCase {
         response = client.performRequest(mappingRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
 
-        final Request putRequest = new Request(HttpPost.METHOD_NAME, indexName + "/_doc");
-        putRequest.setJsonEntity("{\"location\": \"POINT(0 0)\"}");
+        var putRequest = new Request(HttpPost.METHOD_NAME, indexName + "/_doc").setJsonEntity("{\"location\": \"POINT(0 0)\"}");
 
         // just add the shape geometry n times
         final int numGeometries = randomIntBetween(1, 10);

@@ -382,15 +382,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         StringEntity entity = new StringEntity(body, ContentType.APPLICATION_JSON);
         for (String method : Arrays.asList("DELETE", "GET", "PATCH", "POST", "PUT")) {
             for (int okStatusCode : getOkStatusCodes()) {
-                Request request = new Request(method, "/" + okStatusCode);
-                request.setEntity(entity);
+                Request request = new Request(method, "/" + okStatusCode).setEntity(entity);
                 Response response = restClient.performRequest(request);
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(okStatusCode));
                 assertThat(EntityUtils.toString(response.getEntity()), equalTo(body));
             }
             for (int errorStatusCode : getAllErrorStatusCodes()) {
-                Request request = new Request(method, "/" + errorStatusCode);
-                request.setEntity(entity);
+                Request request = new Request(method, "/" + errorStatusCode).setEntity(entity);
                 try {
                     restClient.performRequest(request);
                     fail("request should have failed");
@@ -403,8 +401,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             }
         }
         for (String method : Arrays.asList("HEAD", "OPTIONS", "TRACE")) {
-            Request request = new Request(method, "/" + randomStatusCode(getRandom()));
-            request.setEntity(entity);
+            Request request = new Request(method, "/" + randomStatusCode(getRandom())).setEntity(entity);
             try {
                 performRequestSyncOrAsync(restClient, request);
                 fail("request should have failed");

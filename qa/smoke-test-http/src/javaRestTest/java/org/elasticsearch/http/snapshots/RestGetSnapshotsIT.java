@@ -336,26 +336,25 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     }
 
     private List<SnapshotInfo> allAfterStartTimeAscending(long timestamp) throws IOException {
-        final Request request = baseGetSnapshotsRequest("*");
-        request.addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString());
-        request.addParameter("from_sort_value", String.valueOf(timestamp));
+        var request = baseGetSnapshotsRequest("*").addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString())
+            .addParameter("from_sort_value", String.valueOf(timestamp));
         final Response response = getRestClient().performRequest(request);
         return readSnapshotInfos(response).getSnapshots();
     }
 
     private List<SnapshotInfo> allBeforeStartTimeDescending(long timestamp) throws IOException {
-        final Request request = baseGetSnapshotsRequest("*");
-        request.addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString());
-        request.addParameter("from_sort_value", String.valueOf(timestamp));
-        request.addParameter("order", SortOrder.DESC.toString());
+        var request = baseGetSnapshotsRequest("*").addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString())
+            .addParameter("from_sort_value", String.valueOf(timestamp))
+            .addParameter("order", SortOrder.DESC.toString());
         final Response response = getRestClient().performRequest(request);
         return readSnapshotInfos(response).getSnapshots();
     }
 
     private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) throws IOException {
-        final Request requestWithPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*");
-        requestWithPolicy.addParameter("slm_policy_filter", Strings.arrayToCommaDelimitedString(policies));
-        requestWithPolicy.addParameter("sort", GetSnapshotsRequest.SortBy.NAME.toString());
+        var requestWithPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*").addParameter(
+            "slm_policy_filter",
+            Strings.arrayToCommaDelimitedString(policies)
+        ).addParameter("sort", GetSnapshotsRequest.SortBy.NAME.toString());
         return readSnapshotInfos(getRestClient().performRequest(requestWithPolicy)).getSnapshots();
     }
 
@@ -457,8 +456,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         SortOrder order,
         boolean includeIndices
     ) throws IOException {
-        final Request request = baseGetSnapshotsRequest(repoName);
-        request.addParameter("sort", sortBy.toString());
+        var request = baseGetSnapshotsRequest(repoName).addParameter("sort", sortBy.toString());
         if (size != GetSnapshotsRequest.NO_LIMIT || randomBoolean()) {
             request.addParameter("size", String.valueOf(size));
         }
@@ -489,8 +487,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         SortOrder order,
         boolean includeIndices
     ) throws IOException {
-        final Request request = baseGetSnapshotsRequest(repoName);
-        request.addParameter("sort", sortBy.toString());
+        var request = baseGetSnapshotsRequest(repoName).addParameter("sort", sortBy.toString());
         if (size != GetSnapshotsRequest.NO_LIMIT || randomBoolean()) {
             request.addParameter("size", String.valueOf(size));
         }

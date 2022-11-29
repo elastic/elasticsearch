@@ -101,8 +101,7 @@ public class ProfileIT extends ESRestTestCase {
     public void testProfileHasPrivileges() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String profileUid = (String) activateProfileMap.get("uid");
-        final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
-        profileHasPrivilegesRequest.setJsonEntity(formatted("""
+        var profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges").setJsonEntity(formatted("""
             {
               "uids": ["some_missing_profile", "%s"],
               "privileges": {
@@ -153,15 +152,14 @@ public class ProfileIT extends ESRestTestCase {
         // Create the profile documents
         for (String uid : uids) {
             final String source = String.format(Locale.ROOT, SAMPLE_PROFILE_DOCUMENT_TEMPLATE, uid, uid, Instant.now().toEpochMilli());
-            final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
-            indexRequest.setJsonEntity(source);
-            indexRequest.addParameter("refresh", "wait_for");
-            indexRequest.setOptions(
-                expectWarnings(
-                    "this request accesses system indices: [.security-profile-8], but in a future major version, "
-                        + "direct access to system indices will be prevented by default"
-                )
-            );
+            var indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid).setJsonEntity(source)
+                .addParameter("refresh", "wait_for")
+                .setOptions(
+                    expectWarnings(
+                        "this request accesses system indices: [.security-profile-8], but in a future major version, "
+                            + "direct access to system indices will be prevented by default"
+                    )
+                );
             assertOK(adminClient().performRequest(indexRequest));
         }
 
@@ -216,8 +214,7 @@ public class ProfileIT extends ESRestTestCase {
     public void testUpdateProfileData() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String uid = (String) activateProfileMap.get("uid");
-        final Request updateProfileRequest1 = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
-        updateProfileRequest1.setJsonEntity("""
+        var updateProfileRequest1 = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data").setJsonEntity("""
             {
               "labels": {
                 "app1": { "tags": [ "prod", "east" ] }
@@ -236,13 +233,13 @@ public class ProfileIT extends ESRestTestCase {
     public void testSuggestProfile() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String uid = (String) activateProfileMap.get("uid");
-        final Request suggestProfilesRequest1 = new Request(randomFrom("GET", "POST"), "_security/profile/_suggest");
-        suggestProfilesRequest1.setJsonEntity("""
-            {
-              "name": "rac",
-              "size": 10
-            }""");
-        final Response suggestProfilesResponse1 = adminClient().performRequest(suggestProfilesRequest1);
+        final Response suggestProfilesResponse1 = adminClient().performRequest(
+            new Request(randomFrom("GET", "POST"), "_security/profile/_suggest").setJsonEntity("""
+                {
+                  "name": "rac",
+                  "size": 10
+                }""")
+        );
         assertOK(suggestProfilesResponse1);
         final Map<String, Object> suggestProfileResponseMap1 = responseAsMap(suggestProfilesResponse1);
         assertThat(suggestProfileResponseMap1, hasKey("took"));
@@ -260,7 +257,6 @@ public class ProfileIT extends ESRestTestCase {
     public void testSuggestProfileWithHint() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String uid = (String) activateProfileMap.get("uid");
-        final Request suggestProfilesRequest1 = new Request(randomFrom("GET", "POST"), "_security/profile/_suggest");
         final String payload;
         switch (randomIntBetween(0, 2)) {
             case 0 -> {
@@ -298,8 +294,9 @@ public class ProfileIT extends ESRestTestCase {
                     }""", "not-" + uid, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
             }
         }
-        suggestProfilesRequest1.setJsonEntity(payload);
-        final Response suggestProfilesResponse1 = adminClient().performRequest(suggestProfilesRequest1);
+        final Response suggestProfilesResponse1 = adminClient().performRequest(
+            new Request(randomFrom("GET", "POST"), "_security/profile/_suggest").setJsonEntity(payload)
+        );
         final Map<String, Object> suggestProfileResponseMap1 = responseAsMap(suggestProfilesResponse1);
         @SuppressWarnings("unchecked")
         final List<Map<String, Object>> users = (List<Map<String, Object>>) suggestProfileResponseMap1.get("profiles");
@@ -318,9 +315,8 @@ public class ProfileIT extends ESRestTestCase {
     }
 
     public void testSettingsOutputIncludeDomain() throws IOException {
-        final Request getSettingsRequest = new Request("GET", "_cluster/settings");
-        getSettingsRequest.addParameter("include_defaults", "true");
-        getSettingsRequest.addParameter("filter_path", "**.security.authc.domains");
+        var getSettingsRequest = new Request("GET", "_cluster/settings").addParameter("include_defaults", "true")
+            .addParameter("filter_path", "**.security.authc.domains");
         final Response getSettingsResponse = adminClient().performRequest(getSettingsRequest);
         assertOK(getSettingsResponse);
         final XContentTestUtils.JsonMapView settingsView = XContentTestUtils.createJsonMapView(
@@ -348,15 +344,14 @@ public class ProfileIT extends ESRestTestCase {
             uid,
             Instant.now().minus(31, ChronoUnit.DAYS).toEpochMilli()
         );
-        final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
-        indexRequest.setJsonEntity(source);
-        indexRequest.addParameter("refresh", "wait_for");
-        indexRequest.setOptions(
-            expectWarnings(
-                "this request accesses system indices: [.security-profile-8], but in a future major version, "
-                    + "direct access to system indices will be prevented by default"
-            )
-        );
+        final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid).setJsonEntity(source)
+            .addParameter("refresh", "wait_for")
+            .setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.security-profile-8], but in a future major version, "
+                        + "direct access to system indices will be prevented by default"
+                )
+            );
         assertOK(adminClient().performRequest(indexRequest));
 
         // Profile 2 is disabled
@@ -366,9 +361,9 @@ public class ProfileIT extends ESRestTestCase {
         // Profile 3 is enabled and recently activated
         doActivateProfile("test-admin", "x-pack-test-password");
 
-        final Request xpackUsageRequest = new Request("GET", "_xpack/usage");
-        xpackUsageRequest.addParameter("filter_path", "security");
-        final Response xpackUsageResponse = adminClient().performRequest(xpackUsageRequest);
+        final Response xpackUsageResponse = adminClient().performRequest(
+            new Request("GET", "_xpack/usage").addParameter("filter_path", "security")
+        );
         assertOK(xpackUsageResponse);
         final XContentTestUtils.JsonMapView xpackUsageView = XContentTestUtils.createJsonMapView(
             xpackUsageResponse.getEntity().getContent()
@@ -387,8 +382,7 @@ public class ProfileIT extends ESRestTestCase {
     }
 
     public void testActivateGracePeriodIsPerNode() throws IOException {
-        final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
-        activateProfileRequest.setJsonEntity("""
+        var activateProfileRequest = new Request("POST", "_security/profile/_activate").setJsonEntity("""
             {
               "grant_type": "password",
               "username": "rac-user",
@@ -438,13 +432,16 @@ public class ProfileIT extends ESRestTestCase {
 
     public void testGetUsersWithProfileUid() throws IOException {
         final String username = randomAlphaOfLengthBetween(3, 8);
-        final Request putUserRequest = new Request("PUT", "_security/user/" + username);
-        putUserRequest.setJsonEntity("{\"password\":\"x-pack-test-password\",\"roles\":[\"superuser\"]}");
+        var putUserRequest = new Request("PUT", "_security/user/" + username).setJsonEntity(
+            "{\"password\":\"x-pack-test-password\",\"roles\":[\"superuser\"]}"
+        );
         assertOK(adminClient().performRequest(putUserRequest));
         final Map<String, Object> profile = doActivateProfile(username, "x-pack-test-password");
 
-        final Request getUserRequest = new Request("GET", "_security/user" + (randomBoolean() ? "/" + username : ""));
-        getUserRequest.addParameter("with_profile_uid", "true");
+        var getUserRequest = new Request("GET", "_security/user" + (randomBoolean() ? "/" + username : "")).addParameter(
+            "with_profile_uid",
+            "true"
+        );
         final Response getUserResponse = adminClient().performRequest(getUserRequest);
         assertOK(getUserResponse);
 
@@ -462,8 +459,7 @@ public class ProfileIT extends ESRestTestCase {
     }
 
     private Map<String, Object> doActivateProfile(String username, String password) throws IOException {
-        final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
-        activateProfileRequest.setJsonEntity(String.format(Locale.ROOT, """
+        var activateProfileRequest = new Request("POST", "_security/profile/_activate").setJsonEntity(String.format(Locale.ROOT, """
             {
               "grant_type": "password",
               "username": "%s",

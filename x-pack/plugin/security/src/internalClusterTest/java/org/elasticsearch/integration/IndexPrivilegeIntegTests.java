@@ -155,10 +155,10 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
     public void insertBaseDocumentsAsAdmin() throws Exception {
         // indices: a,b,c,abc
         for (String index : new String[] { "a", "b", "c", "abc" }) {
-            Request request = new Request("PUT", "/" + index + "/_doc/1");
-            request.setJsonEntity(jsonDoc);
-            request.addParameter("refresh", "true");
-            assertAccessIsAllowed("admin", request);
+            assertAccessIsAllowed(
+                "admin",
+                new Request("PUT", "/" + index + "/_doc/1").setJsonEntity(jsonDoc).addParameter("refresh", "true")
+            );
         }
     }
 

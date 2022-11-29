@@ -92,8 +92,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         List<SearchBlockPlugin> plugins = initBlockFactory(true, true);
         String id = randomAlphaOfLength(10);
 
-        Request request = new Request("GET", "/test/_eql/search");
-        request.setJsonEntity(
+        var request = new Request("GET", "/test/_eql/search").setJsonEntity(
             Strings.toString(
                 JsonXContent.contentBuilder()
                     .startObject()
@@ -101,8 +100,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
                     .field("event_category_field", "event_type")
                     .endObject()
             )
-        );
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
+        ).setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
         logger.trace("Preparing search");
 
         final PlainActionFuture<Response> future = PlainActionFuture.newFuture();

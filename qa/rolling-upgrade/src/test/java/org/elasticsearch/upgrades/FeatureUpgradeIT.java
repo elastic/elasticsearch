@@ -30,21 +30,17 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // setup - put something in the tasks index
             // create index
-            Request createTestIndex = new Request("PUT", "/feature_test_index_old");
-            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
-            client().performRequest(createTestIndex);
+            client().performRequest(
+                new Request("PUT", "/feature_test_index_old").setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}")
+            );
 
-            Request bulk = new Request("POST", "/_bulk");
-            bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("""
+            client().performRequest(new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity("""
                 {"index": {"_index": "feature_test_index_old"}}
                 {"f1": "v1", "f2": "v2"}
-                """);
-            client().performRequest(bulk);
+                """));
 
             // start a async reindex job
-            Request reindex = new Request("POST", "/_reindex");
-            reindex.setJsonEntity("""
+            var reindex = new Request("POST", "/_reindex").setJsonEntity("""
                 {
                   "source":{
                     "index":"feature_test_index_old"
@@ -52,23 +48,19 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
                   "dest":{
                     "index":"feature_test_index_reindex"
                   }
-                }""");
-            reindex.addParameter("wait_for_completion", "false");
+                }""").addParameter("wait_for_completion", "false");
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");
 
             // wait for task
-            Request getTask = new Request("GET", "/_tasks/" + taskId);
-            getTask.addParameter("wait_for_completion", "true");
+            var getTask = new Request("GET", "/_tasks/" + taskId).addParameter("wait_for_completion", "true");
             client().performRequest(getTask);
 
             // make sure .tasks index exists
-            Request getTasksIndex = new Request("GET", "/.tasks");
-            getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
+            var getTasksIndex = new Request("GET", "/.tasks").setOptions(expectVersionSpecificWarnings(v -> {
                 v.current(systemIndexWarning);
                 v.compatible(systemIndexWarning);
-            }));
-            getTasksIndex.addParameter("allow_no_indices", "false");
+            })).addParameter("allow_no_indices", "false");
 
             assertBusy(() -> {
                 try {

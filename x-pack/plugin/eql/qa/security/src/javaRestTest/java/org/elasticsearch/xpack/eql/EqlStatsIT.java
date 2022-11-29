@@ -27,7 +27,6 @@ public class EqlStatsIT extends EqlUsageRestTestCase {
 
     @Override
     protected void runRequest(Request request) throws IOException {
-        SecurityUtils.setRunAsHeader(request, "test-admin");
-        super.runRequest(request);
+        super.runRequest(request.setOptions(SecurityUtils.runAsUserHeader("test-admin")));
     }
 }

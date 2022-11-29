@@ -49,12 +49,10 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
             }
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request(
+            var req = new Request(
                 "PUT",
                 TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TransformConfig.documentId(fakeTransformName)
-            );
-            req.setOptions(expectWarningOptions);
-            req.setEntity(entity);
+            ).setOptions(expectWarningOptions).setEntity(entity);
             client().performRequest(req);
         }
 

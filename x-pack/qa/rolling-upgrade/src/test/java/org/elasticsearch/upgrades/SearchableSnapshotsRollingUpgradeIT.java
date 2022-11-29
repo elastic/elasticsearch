@@ -311,17 +311,13 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             deleteIndex(index);
 
             if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_13_0)) {
-                final Request request = new Request(
-                    "GET",
-                    "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference"
-                );
-                request.setOptions(
-                    expectWarnings(
-                        "this request accesses system indices: [.snapshot-blob-cache], but in a future major "
-                            + "version, direct access to system indices will be prevented by default"
-                    )
-                );
-                request.addParameter("flat_settings", "true");
+                var request = new Request("GET", "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference")
+                    .setOptions(
+                        expectWarnings(
+                            "this request accesses system indices: [.snapshot-blob-cache], but in a future major "
+                                + "version, direct access to system indices will be prevented by default"
+                        )
+                    ).addParameter("flat_settings", "true");
 
                 final Map<String, ?> snapshotBlobCacheSettings = entityAsMap(adminClient().performRequest(request));
                 assertThat(snapshotBlobCacheSettings, notNullValue());
@@ -353,26 +349,26 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             builder.append("{\"create\":{\"_index\":\"").append(indexName).append("\"}}\n");
             builder.append("{\"value\":").append(i).append("}\n");
         }
-        final Request bulk = new Request(HttpPost.METHOD_NAME, "/_bulk");
-        bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity(builder.toString());
+        var bulk = new Request(HttpPost.METHOD_NAME, "/_bulk").addParameter("refresh", "true").setJsonEntity(builder.toString());
         final Response response = client().performRequest(bulk);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         assertFalse((Boolean) XContentMapValues.extractValue("errors", responseAsMap(response)));
     }
 
     private static void createSnapshot(String repositoryName, String snapshotName, String indexName) throws IOException {
-        final Request request = new Request(HttpPut.METHOD_NAME, "/_snapshot/" + repositoryName + '/' + snapshotName);
-        request.addParameter("wait_for_completion", "true");
-        request.setJsonEntity("{ \"indices\" : \"" + indexName + "\", \"include_global_state\": false}");
-        final Response response = client().performRequest(request);
+        final Response response = client().performRequest(
+            new Request(HttpPut.METHOD_NAME, "/_snapshot/" + repositoryName + '/' + snapshotName).addParameter(
+                "wait_for_completion",
+                "true"
+            ).setJsonEntity("{ \"indices\" : \"" + indexName + "\", \"include_global_state\": false}")
+        );
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     private static void waitForNodes(int numberOfNodes) throws IOException {
-        final Request request = new Request(HttpGet.METHOD_NAME, "/_cluster/health");
-        request.addParameter("wait_for_nodes", String.valueOf(numberOfNodes));
-        final Response response = client().performRequest(request);
+        final Response response = client().performRequest(
+            new Request(HttpGet.METHOD_NAME, "/_cluster/health").addParameter("wait_for_nodes", String.valueOf(numberOfNodes))
+        );
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 

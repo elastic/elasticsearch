@@ -124,13 +124,11 @@ public class InferenceIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testInferLangIdent() throws Exception {
-        Request inferRequest = new Request("POST", "_ml/trained_models/lang_ident_model_1/_infer");
-        inferRequest.setJsonEntity("""
+        Response response = client().performRequest(new Request("POST", "_ml/trained_models/lang_ident_model_1/_infer").setJsonEntity("""
             {
               "docs": [{"text": "this is some plain text."}]
             }
-            """);
-        Response response = client().performRequest(inferRequest);
+            """));
         Map<String, Object> responseMap = responseAsMap(response);
         List<String> predictions = (List<String>) XContentMapValues.extractValue("inference_results.predicted_value", responseMap);
         assertThat(predictions.get(0), equalTo("en"));
@@ -320,9 +318,7 @@ public class InferenceIT extends ESRestTestCase {
         }""", InferenceDefinitionTests.getClassificationDefinition(false));
 
     private void putModel(String modelId, String modelConfiguration) throws IOException {
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId);
-        request.setJsonEntity(modelConfiguration);
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "_ml/trained_models/" + modelId).setJsonEntity(modelConfiguration));
     }
 
 }

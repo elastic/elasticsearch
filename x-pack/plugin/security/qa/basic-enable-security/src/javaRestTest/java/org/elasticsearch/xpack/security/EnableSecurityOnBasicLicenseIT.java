@@ -154,25 +154,23 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     }
 
     private void checkAllowedWrite(String indexName) throws IOException {
-        final Request request = new Request("POST", "/" + indexName + "/_doc");
-        request.setJsonEntity("{ \"key\" : \"value\" }");
-        Response response = client().performRequest(request);
+        Response response = client().performRequest(
+            new Request("POST", "/" + indexName + "/_doc").setJsonEntity("{ \"key\" : \"value\" }")
+        );
         final Map<String, Object> result = entityAsMap(response);
         assertThat(ObjectPath.evaluate(result, "_index"), equalTo(indexName));
         assertThat(ObjectPath.evaluate(result, "result"), equalTo("created"));
     }
 
     private void checkDeniedWrite(String indexName) {
-        final Request request = new Request("POST", "/" + indexName + "/_doc");
-        request.setJsonEntity("{ \"key\" : \"value\" }");
+        var request = new Request("POST", "/" + indexName + "/_doc").setJsonEntity("{ \"key\" : \"value\" }");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(e.getMessage(), containsString("unauthorized for user [security_test_user]"));
     }
 
     private void checkIndexCount(String indexName, int expectedCount) throws IOException {
-        final Request request = new Request("POST", "/" + indexName + "/_refresh");
-        adminClient().performRequest(request);
+        adminClient().performRequest(new Request("POST", "/" + indexName + "/_refresh"));
 
         final Map<String, Object> result = getAsMap("/" + indexName + "/_count");
         assertThat(ObjectPath.evaluate(result, "count"), equalTo(expectedCount));

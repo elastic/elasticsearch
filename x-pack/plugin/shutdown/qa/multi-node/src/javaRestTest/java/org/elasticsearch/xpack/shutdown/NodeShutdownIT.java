@@ -159,8 +159,9 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
         String newReason = "this reason is different";
 
         // Put a shutdown request
-        Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
-        putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + newReason + "\"}");
+        var putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown").setJsonEntity(
+            "{\"type\":  \"" + type + "\", \"reason\":  \"" + newReason + "\"}"
+        );
         assertOK(client().performRequest(putShutdown));
 
         // Ensure we can read it back and it has the new reason
@@ -196,8 +197,9 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
         String newType = toType;
 
         // Put a shutdown request
-        Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
-        putShutdown.setJsonEntity("{\"type\":  \"" + newType + "\", \"reason\":  \"" + newReason + "\"}");
+        var putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown").setJsonEntity(
+            "{\"type\":  \"" + newType + "\", \"reason\":  \"" + newReason + "\"}"
+        );
         assertOK(client().performRequest(putShutdown));
 
         // Ensure we can read it back and it has the new reason
@@ -222,8 +224,9 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
 
         // Create an index with enough replicas to ensure one would normally be allocated to each node
         final String indexName = "test-idx";
-        Request createIndexRequest = new Request("PUT", indexName);
-        createIndexRequest.setJsonEntity("{\"settings\":  {\"number_of_shards\": 1, \"number_of_replicas\": 3}}");
+        var createIndexRequest = new Request("PUT", indexName).setJsonEntity(
+            "{\"settings\":  {\"number_of_shards\": 1, \"number_of_replicas\": 3}}"
+        );
         assertOK(client().performRequest(createIndexRequest));
 
         // Watch to ensure no shards gets allocated to the node that's shutting down
@@ -231,8 +234,9 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
 
         // Now that we know all shards of the test index are assigned except one,
         // make sure it's unassigned because of the allocation decider.
-        Request allocationExplainRequest = new Request("GET", "_cluster/allocation/explain");
-        allocationExplainRequest.setJsonEntity("{\"index\": \"" + indexName + "\", \"shard\":  0, \"primary\":  false}");
+        var allocationExplainRequest = new Request("GET", "_cluster/allocation/explain").setJsonEntity(
+            "{\"index\": \"" + indexName + "\", \"shard\":  0, \"primary\":  false}"
+        );
         Map<String, Object> allocationExplainMap = entityAsMap(client().performRequest(allocationExplainRequest));
         List<Map<String, Object>> decisions = (List<Map<String, Object>>) allocationExplainMap.get("node_allocation_decisions");
         assertThat(decisions, notNullValue());
@@ -267,16 +271,16 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
         String nodeIdToShutdown = getRandomNodeId();
 
         final String indexName = "test-idx";
-        Request createIndexRequest = new Request("PUT", indexName);
-        createIndexRequest.setJsonEntity("{\"settings\":  {\"number_of_shards\": 4, \"number_of_replicas\": 0}}");
+        var createIndexRequest = new Request("PUT", indexName).setJsonEntity(
+            "{\"settings\":  {\"number_of_shards\": 4, \"number_of_replicas\": 0}}"
+        );
         assertOK(client().performRequest(createIndexRequest));
 
         ensureGreen(indexName);
 
         // Check to ensure there's a shard on the node we want to shut down
-        Request checkShardsRequest = new Request("GET", "_cat/shards/" + indexName);
-        checkShardsRequest.addParameter("format", "json");
-        checkShardsRequest.addParameter("h", "index,shard,prirep,id,state");
+        var checkShardsRequest = new Request("GET", "_cat/shards/" + indexName).addParameter("format", "json")
+            .addParameter("h", "index,shard,prirep,id,state");
 
         // Double check that there's actually a shard on the node we want to shut down
         {
@@ -320,8 +324,9 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
 
         // Create an index with enough replicas to ensure one would normally be allocated to each node
         final String indexName = "test-idx";
-        Request createIndexRequest = new Request("PUT", indexName);
-        createIndexRequest.setJsonEntity("{\"settings\":  {\"number_of_shards\": 1, \"number_of_replicas\": 3}}");
+        var createIndexRequest = new Request("PUT", indexName).setJsonEntity(
+            "{\"settings\":  {\"number_of_shards\": 1, \"number_of_replicas\": 3}}"
+        );
         assertOK(client().performRequest(createIndexRequest));
 
         // Watch to ensure no shards gets allocated to the node that's shutting down
@@ -343,8 +348,7 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
 
         // Create an index, pin the allocation to the node we're about to shut down
         final String indexName = "test-idx";
-        Request createIndexRequest = new Request("PUT", indexName);
-        createIndexRequest.setJsonEntity(formatted("""
+        Request createIndexRequest = new Request("PUT", indexName).setJsonEntity(formatted("""
             {
               "settings": {
                 "number_of_shards": %s,
@@ -374,8 +378,9 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
         }
 
         // Now update the allocation requirements to unblock shard relocation
-        Request updateSettingsRequest = new Request("PUT", indexName + "/_settings");
-        updateSettingsRequest.setJsonEntity("{\"index.routing.allocation.require._id\": null}");
+        var updateSettingsRequest = new Request("PUT", indexName + "/_settings").setJsonEntity(
+            "{\"index.routing.allocation.require._id\": null}"
+        );
         assertOK(client().performRequest(updateSettingsRequest));
 
         assertBusy(() -> {
@@ -407,9 +412,8 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
 
     @SuppressWarnings("unchecked")
     private void assertUnassignedShard(String nodeIdToShutdown, String indexName) throws Exception {
-        Request checkShardsRequest = new Request("GET", "_cat/shards/" + indexName);
-        checkShardsRequest.addParameter("format", "json");
-        checkShardsRequest.addParameter("h", "index,shard,prirep,id,state");
+        var checkShardsRequest = new Request("GET", "_cat/shards/" + indexName).addParameter("format", "json")
+            .addParameter("h", "index,shard,prirep,id,state");
 
         assertBusy(() -> {
             List<Object> shardsResponse = entityAsList(client().performRequest(checkShardsRequest));
@@ -443,9 +447,7 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
         throws IOException {
         String reason = this.getTestName();
 
-        // Put a shutdown request
-        Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
-
+        String jsonEntity;
         try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
             putBody.startObject();
             {
@@ -463,7 +465,7 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
                 }
             }
             putBody.endObject();
-            putShutdown.setJsonEntity(Strings.toString(putBody));
+            jsonEntity = Strings.toString(putBody);
         }
 
         if (type.equalsIgnoreCase("restart") && allocationDelay != null) {
@@ -476,7 +478,7 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
                     putBody.field("allocation_delay", allocationDelay);
                 }
                 putBody.endObject();
-                putShutdown.setJsonEntity(Strings.toString(putBody));
+                jsonEntity = Strings.toString(putBody);
             }
         } else {
             assertNull("allocation delay parameter is only valid for RESTART-type shutdowns", allocationDelay);
@@ -495,10 +497,11 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
                     }
                 }
                 putBody.endObject();
-                putShutdown.setJsonEntity(Strings.toString(putBody));
+                jsonEntity = Strings.toString(putBody);
             }
         }
-        assertOK(client().performRequest(putShutdown));
+        // Put a shutdown request
+        assertOK(client().performRequest(new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown").setJsonEntity(jsonEntity)));
     }
 
     @SuppressWarnings("unchecked")

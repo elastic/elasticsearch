@@ -155,9 +155,8 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
                     .field("size", 100000)
                     .endObject();
 
-                Request request = new Request("POST", "/" + CFG.getProperty("index_name") + "/_eql/search");
-                request.setOptions(COMMON_REQUEST_OPTIONS);
-                request.setJsonEntity(Strings.toString(builder));
+                var request = new Request("POST", "/" + CFG.getProperty("index_name") + "/_eql/search").setOptions(COMMON_REQUEST_OPTIONS)
+                    .setJsonEntity(Strings.toString(builder));
 
                 ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
 
@@ -179,9 +178,8 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
             .field("result_position", CFG.getProperty("result_position"))
             .endObject();
 
-        Request request = new Request("POST", "/" + CFG.getProperty("index_name") + "/_eql/search");
-        request.setOptions(RequestOptions.DEFAULT);
-        request.setJsonEntity(Strings.toString(builder));
+        var request = new Request("POST", "/" + CFG.getProperty("index_name") + "/_eql/search").setOptions(RequestOptions.DEFAULT)
+            .setJsonEntity(Strings.toString(builder));
 
         ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
 

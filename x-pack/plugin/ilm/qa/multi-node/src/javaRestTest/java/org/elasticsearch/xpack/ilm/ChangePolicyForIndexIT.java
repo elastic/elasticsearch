@@ -110,15 +110,11 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         XContentBuilder builder1 = jsonBuilder();
         lifecyclePolicy1.toXContent(builder1, null);
         final StringEntity entity1 = new StringEntity("{ \"policy\":" + Strings.toString(builder1) + "}", ContentType.APPLICATION_JSON);
-        Request request1 = new Request("PUT", "_ilm/policy/" + "policy_1");
-        request1.setEntity(entity1);
-        assertOK(client().performRequest(request1));
+        assertOK(client().performRequest(new Request("PUT", "_ilm/policy/" + "policy_1").setEntity(entity1)));
         XContentBuilder builder2 = jsonBuilder();
         lifecyclePolicy2.toXContent(builder2, null);
         final StringEntity entity2 = new StringEntity("{ \"policy\":" + Strings.toString(builder2) + "}", ContentType.APPLICATION_JSON);
-        Request request2 = new Request("PUT", "_ilm/policy/" + "policy_2");
-        request2.setEntity(entity2);
-        assertOK(client().performRequest(request2));
+        assertOK(client().performRequest(new Request("PUT", "_ilm/policy/" + "policy_2").setEntity(entity2)));
 
         // create the test-index index and set the policy to policy_1
         Settings settings = Settings.builder()
@@ -128,8 +124,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
             .put(LifecycleSettings.LIFECYCLE_NAME, "policy_1")
             .build();
-        Request createIndexRequest = new Request("PUT", "/" + indexName);
-        createIndexRequest.setJsonEntity(formatted("""
+        var createIndexRequest = new Request("PUT", "/" + indexName).setJsonEntity(formatted("""
             {
               "settings": %s,
               "aliases": {
@@ -146,13 +141,11 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         assertBusy(() -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME)));
 
         // Change the policy to policy_2
-        Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
         final StringEntity changePolicyEntity = new StringEntity(
             "{ \"index.lifecycle.name\": \"policy_2\" }",
             ContentType.APPLICATION_JSON
         );
-        changePolicyRequest.setEntity(changePolicyEntity);
-        assertOK(client().performRequest(changePolicyRequest));
+        assertOK(client().performRequest(new Request("PUT", "/" + indexName + "/_settings").setEntity(changePolicyEntity)));
 
         // Check the index is still on the attempt rollover step
         assertBusy(() -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME)));
@@ -161,8 +154,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         XContentBuilder document = jsonBuilder().startObject();
         document.field("foo", "bar");
         document.endObject();
-        final Request request = new Request("POST", "/" + indexName + "/_doc/1?refresh");
-        request.setJsonEntity(Strings.toString(document));
+        var request = new Request("POST", "/" + indexName + "/_doc/1?refresh").setJsonEntity(Strings.toString(document));
         assertOK(client().performRequest(request));
 
         // Check the index goes to the warm phase and completes

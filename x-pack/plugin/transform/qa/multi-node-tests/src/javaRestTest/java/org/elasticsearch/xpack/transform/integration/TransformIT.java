@@ -65,15 +65,13 @@ public class TransformIT extends TransformRestTestCase {
 
     @Before
     public void setClusterSettings() throws IOException {
-        Request settingsRequest = new Request("PUT", "/_cluster/settings");
-        settingsRequest.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/_cluster/settings").setJsonEntity("""
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
                 "logger.org.elasticsearch.xpack.transform": "debug"
               }
-            }""");
-        client().performRequest(settingsRequest);
+            }"""));
     }
 
     @After
@@ -216,8 +214,9 @@ public class TransformIT extends TransformRestTestCase {
             .endObject()
             .endArray()
             .endObject();
-        Request putPipeline = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
-        putPipeline.setEntity(new StringEntity(Strings.toString(pipelineBuilder), ContentType.APPLICATION_JSON));
+        var putPipeline = new Request("PUT", "/_ingest/pipeline/" + pipelineId).setEntity(
+            new StringEntity(Strings.toString(pipelineBuilder), ContentType.APPLICATION_JSON)
+        );
         assertOK(client().performRequest(putPipeline));
 
         String update = formatted("""
@@ -241,9 +240,7 @@ public class TransformIT extends TransformRestTestCase {
         int numDocsAfterCp2 = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(config.getId()));
         assertThat(numDocsAfterCp2, greaterThan(docsIndexed));
 
-        Request searchRequest = new Request("GET", dest + "/_search");
-        searchRequest.addParameter("track_total_hits", "true");
-        searchRequest.setJsonEntity("""
+        var searchRequest = new Request("GET", dest + "/_search").addParameter("track_total_hits", "true").setJsonEntity("""
             {
                 "query": {
                     "term": {

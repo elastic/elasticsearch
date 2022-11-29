@@ -14,8 +14,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 public class EnrichSecurityFailureIT extends ESRestTestCase {
 
     @Override
@@ -31,8 +29,9 @@ public class EnrichSecurityFailureIT extends ESRestTestCase {
     }
 
     public void testFailure() throws Exception {
-        Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity(CommonEnrichRestTestCase.generatePolicySource("my-source-index"));
+        var putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy").setJsonEntity(
+            CommonEnrichRestTestCase.generatePolicySource("my-source-index")
+        );
         ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));
         assertTrue(exc.getMessage().contains("action [cluster:admin/xpack/enrich/put] is unauthorized for user [test_enrich_no_privs]"));
     }

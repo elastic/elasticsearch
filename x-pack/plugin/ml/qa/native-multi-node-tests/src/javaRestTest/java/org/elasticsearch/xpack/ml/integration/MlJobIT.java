@@ -263,16 +263,20 @@ public class MlJobIT extends ESRestTestCase {
 
         { // create jobId1 docs
             String id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId1, "1234", 300);
-            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id);
-            createResultRequest.setJsonEntity(String.format(Locale.ROOT, """
-                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId1, "1234", 1));
-            client().performRequest(createResultRequest);
+            client().performRequest(
+                new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id).setJsonEntity(
+                    String.format(Locale.ROOT, """
+                        {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId1, "1234", 1)
+                )
+            );
 
             id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId1, "1236", 300);
-            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id);
-            createResultRequest.setJsonEntity(String.format(Locale.ROOT, """
-                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId1, "1236", 1));
-            client().performRequest(createResultRequest);
+            client().performRequest(
+                new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_doc/" + id).setJsonEntity(
+                    String.format(Locale.ROOT, """
+                        {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId1, "1236", 1)
+                )
+            );
 
             refreshAllIndices();
 
@@ -289,16 +293,20 @@ public class MlJobIT extends ESRestTestCase {
         }
         { // create jobId2 docs
             String id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId2, "1234", 300);
-            Request createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id);
-            createResultRequest.setJsonEntity(String.format(Locale.ROOT, """
-                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId2, "1234", 1));
-            client().performRequest(createResultRequest);
+            client().performRequest(
+                new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id).setJsonEntity(
+                    String.format(Locale.ROOT, """
+                        {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId2, "1234", 1)
+                )
+            );
 
             id = String.format(Locale.ROOT, "%s_bucket_%s_%s", jobId2, "1236", 300);
-            createResultRequest = new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id);
-            createResultRequest.setJsonEntity(String.format(Locale.ROOT, """
-                {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId2, "1236", 1));
-            client().performRequest(createResultRequest);
+            client().performRequest(
+                new Request("PUT", AnomalyDetectorsIndex.jobResultsAliasedName(jobId2) + "/_doc/" + id).setJsonEntity(
+                    String.format(Locale.ROOT, """
+                        {"job_id":"%s", "timestamp": "%s", "result_type":"bucket", "bucket_span": "%s"}""", jobId2, "1236", 1)
+                )
+            );
 
             refreshAllIndices();
 
@@ -366,11 +374,10 @@ public class MlJobIT extends ESRestTestCase {
         putJob(jobId1, String.format(Locale.ROOT, jobTemplate, byFieldName1));
 
         // Check the index mapping contains the first by_field_name
-        Request getResultsMappingRequest = new Request(
+        var getResultsMappingRequest = new Request(
             "GET",
             AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "/_mapping"
-        );
-        getResultsMappingRequest.addParameter("pretty", null);
+        ).addParameter("pretty", null);
         String resultsMappingAfterJob1 = EntityUtils.toString(client().performRequest(getResultsMappingRequest).getEntity());
         assertThat(resultsMappingAfterJob1, containsString(byFieldName1));
         assertThat(resultsMappingAfterJob1, not(containsString(byFieldName2)));
@@ -399,11 +406,8 @@ public class MlJobIT extends ESRestTestCase {
         putJob(jobId1, String.format(Locale.ROOT, jobTemplate, byFieldName1));
 
         // Check the index mapping contains the first by_field_name
-        Request getResultsMappingRequest = new Request(
-            "GET",
-            AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-shared-index/_mapping"
-        );
-        getResultsMappingRequest.addParameter("pretty", null);
+        var getResultsMappingRequest = new Request("GET", AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-shared-index/_mapping")
+            .addParameter("pretty", null);
         String resultsMappingAfterJob1 = EntityUtils.toString(client().performRequest(getResultsMappingRequest).getEntity());
         assertThat(resultsMappingAfterJob1, containsString(byFieldName1));
         assertThat(resultsMappingAfterJob1, not(containsString(byFieldName2)));
@@ -457,8 +461,7 @@ public class MlJobIT extends ESRestTestCase {
         String jobId = "open-job-with-persistent-task-assignment-disabled";
         createFarequoteJob(jobId);
 
-        Request disablePersistentTaskAssignmentRequest = new Request("PUT", "_cluster/settings");
-        disablePersistentTaskAssignmentRequest.setJsonEntity("""
+        var disablePersistentTaskAssignmentRequest = new Request("PUT", "_cluster/settings").setJsonEntity("""
             {
               "persistent": {
                 "cluster.persistent_tasks.allocation.enable": "none"
@@ -480,8 +483,7 @@ public class MlJobIT extends ESRestTestCase {
         } finally {
             // Try to revert the cluster setting change even if the test fails,
             // because otherwise this setting will cause many other tests to fail
-            Request enablePersistentTaskAssignmentRequest = new Request("PUT", "_cluster/settings");
-            enablePersistentTaskAssignmentRequest.setJsonEntity("""
+            var enablePersistentTaskAssignmentRequest = new Request("PUT", "_cluster/settings").setJsonEntity("""
                 {
                   "persistent": {
                     "cluster.persistent_tasks.allocation.enable": "all"
@@ -528,17 +530,21 @@ public class MlJobIT extends ESRestTestCase {
 
         openJob(jobId);
 
-        Request postDataRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
         // Post data is deprecated, so expect a deprecation warning
-        postDataRequest.setOptions(POST_DATA);
         // Bucket span is 1h (3600s). So, posting data within the same hour should not result in out of order data
-        postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"responsetime\":100, \"time\":\"2019-07-01 00:00:00Z\" }");
-        client().performRequest(postDataRequest);
-        postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"responsetime\":100, \"time\":\"2019-07-01 00:30:00Z\" }");
-        client().performRequest(postDataRequest);
+        client().performRequest(
+            new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data").setOptions(POST_DATA)
+                .setJsonEntity("{ \"airline\":\"LOT\", \"responsetime\":100, \"time\":\"2019-07-01 00:00:00Z\" }")
+        );
+        client().performRequest(
+            new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data").setOptions(POST_DATA)
+                .setJsonEntity("{ \"airline\":\"LOT\", \"responsetime\":100, \"time\":\"2019-07-01 00:30:00Z\" }")
+        );
         // out of order, but in the same time bucket
-        postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"responsetime\":100, \"time\":\"2019-07-01 00:10:00Z\" }");
-        client().performRequest(postDataRequest);
+        client().performRequest(
+            new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data").setOptions(POST_DATA)
+                .setJsonEntity("{ \"airline\":\"LOT\", \"responsetime\":100, \"time\":\"2019-07-01 00:10:00Z\" }")
+        );
 
         Response flushResponse = client().performRequest(
             new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush")
@@ -570,15 +576,15 @@ public class MlJobIT extends ESRestTestCase {
 
         openJob(jobId);
 
-        Request postDataRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
         // Post data is deprecated, so expect a deprecation warning
-        postDataRequest.setOptions(POST_DATA);
-        postDataRequest.setJsonEntity("""
-            { "airline":"LOT", "response_time":100, "time":"2019-07-01 00:00:00Z" }""");
-        client().performRequest(postDataRequest);
-        postDataRequest.setJsonEntity("""
-            { "airline":"LOT", "response_time":100, "time":"2019-07-01 02:00:00Z" }""");
-        client().performRequest(postDataRequest);
+        client().performRequest(
+            new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data").setOptions(POST_DATA).setJsonEntity("""
+                { "airline":"LOT", "response_time":100, "time":"2019-07-01 00:00:00Z" }""")
+        );
+        client().performRequest(
+            new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data").setOptions(POST_DATA).setJsonEntity("""
+                { "airline":"LOT", "response_time":100, "time":"2019-07-01 02:00:00Z" }""")
+        );
 
         Response flushResponse = client().performRequest(
             new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush")
@@ -780,21 +786,13 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(indicesBeforeDelete, containsString(indexName + "-002"));
 
         // Add some documents to each index to make sure the DBQ clears them out
-        Request createDoc0 = new Request("PUT", indexName + "/_doc/" + 123);
-        createDoc0.setJsonEntity(String.format(Locale.ROOT, """
+        var createDoc0 = new Request("PUT", indexName + "/_doc/" + 123).setJsonEntity(String.format(Locale.ROOT, """
             {"job_id":"%s", "timestamp": "%s", "bucket_span":%d, "result_type":"record"}""", jobId, 123, 1));
         client().performRequest(createDoc0);
-        Request createDoc1 = new Request("PUT", indexName + "-001/_doc/" + 123);
-        createDoc1.setEntity(createDoc0.getEntity());
-        client().performRequest(createDoc1);
-        Request createDoc2 = new Request("PUT", indexName + "-002/_doc/" + 123);
-        createDoc2.setEntity(createDoc0.getEntity());
-        client().performRequest(createDoc2);
-
+        client().performRequest(new Request("PUT", indexName + "-001/_doc/" + 123).setEntity(createDoc0.getEntity()));
+        client().performRequest(new Request("PUT", indexName + "-002/_doc/" + 123).setEntity(createDoc0.getEntity()));
         // Also index a few through the alias for the first job
-        Request createDoc3 = new Request("PUT", indexName + "/_doc/" + 456);
-        createDoc3.setEntity(createDoc0.getEntity());
-        client().performRequest(createDoc3);
+        client().performRequest(new Request("PUT", indexName + "/_doc/" + 456).setEntity(createDoc0.getEntity()));
 
         refreshAllIndices();
 
@@ -996,9 +994,9 @@ public class MlJobIT extends ESRestTestCase {
     }
 
     private Response putJob(String jobId, String jsonBody) throws IOException {
-        Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        request.setJsonEntity(jsonBody);
-        return client().performRequest(request);
+        return client().performRequest(
+            new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity(jsonBody)
+        );
     }
 
     @After

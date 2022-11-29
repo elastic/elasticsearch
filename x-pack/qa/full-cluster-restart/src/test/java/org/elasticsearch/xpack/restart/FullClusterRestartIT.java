@@ -87,9 +87,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         String doc = "{\"test\": \"test\"}";
 
         if (isRunningAgainstOldCluster()) {
-            Request createDoc = new Request("PUT", docLocation);
-            createDoc.addParameter("refresh", "true");
-            createDoc.setJsonEntity(doc);
+            var createDoc = new Request("PUT", docLocation).addParameter("refresh", "true").setJsonEntity(doc);
             client().performRequest(createDoc);
         }
 
@@ -139,19 +137,17 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
-            Request createBwcWatch = new Request("PUT", "/_watcher/watch/bwc_watch");
-            createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
-            client().performRequest(createBwcWatch);
+            client().performRequest(new Request("PUT", "/_watcher/watch/bwc_watch").setJsonEntity(loadWatch("simple-watch.json")));
 
             logger.info("Adding a watch with \"fun\" throttle periods on old cluster");
-            Request createBwcThrottlePeriod = new Request("PUT", "/_watcher/watch/bwc_throttle_period");
-            createBwcThrottlePeriod.setJsonEntity(loadWatch("throttle-period-watch.json"));
-            client().performRequest(createBwcThrottlePeriod);
+            client().performRequest(
+                new Request("PUT", "/_watcher/watch/bwc_throttle_period").setJsonEntity(loadWatch("throttle-period-watch.json"))
+            );
 
             logger.info("Adding a watch with \"fun\" read timeout on old cluster");
-            Request createFunnyTimeout = new Request("PUT", "/_watcher/watch/bwc_funny_timeout");
-            createFunnyTimeout.setJsonEntity(loadWatch("funny-timeout-watch.json"));
-            client().performRequest(createFunnyTimeout);
+            client().performRequest(
+                new Request("PUT", "/_watcher/watch/bwc_funny_timeout").setJsonEntity(loadWatch("funny-timeout-watch.json"))
+            );
 
             logger.info("Waiting for watch results index to fill up...");
             try {
@@ -162,8 +158,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     logger.info("cluster_state_response=\n{}", rsp);
                 }
                 {
-                    Request request = new Request("GET", "/_watcher/stats/_all");
-                    request.addParameter("emit_stacktraces", "true");
+                    var request = new Request("GET", "/_watcher/stats/_all").addParameter("emit_stacktraces", "true");
                     String rsp = toStr(client().performRequest(request));
                     logger.info("watcher_stats_response=\n{}", rsp);
                 }
@@ -212,8 +207,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         final Request getWatchStatusRequest = new Request("GET", "/_watcher/watch/watch_with_api_key");
 
         if (isRunningAgainstOldCluster()) {
-            final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
-            createApiKeyRequest.setJsonEntity("""
+            var createApiKeyRequest = new Request("PUT", "/_security/api_key").setJsonEntity("""
                 {
                    "name": "key-1",
                    "role_descriptors": {
@@ -231,13 +225,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final Response response = client().performRequest(createApiKeyRequest);
             final Map<String, Object> createApiKeyResponse = entityAsMap(response);
 
-            Request createWatchWithApiKeyRequest = new Request("PUT", "/_watcher/watch/watch_with_api_key");
-            createWatchWithApiKeyRequest.setJsonEntity(loadWatch("logging-watch.json"));
             final byte[] keyBytes = (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(
                 StandardCharsets.UTF_8
             );
             final String authHeader = "ApiKey " + Base64.getEncoder().encodeToString(keyBytes);
-            createWatchWithApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+            var createWatchWithApiKeyRequest = new Request("PUT", "/_watcher/watch/watch_with_api_key").setJsonEntity(
+                loadWatch("logging-watch.json")
+            ).setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
             client().performRequest(createWatchWithApiKeyRequest);
 
             assertBusy(() -> {
@@ -295,9 +289,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertOK(createServiceTokenResponse);
             @SuppressWarnings("unchecked")
             final String serviceToken = ((Map<String, String>) responseAsMap(createServiceTokenResponse).get("token")).get("value");
-            final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
-            createApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + serviceToken));
-            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\"}");
+            var createApiKeyRequest = new Request("PUT", "/_security/api_key").setOptions(
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + serviceToken)
+            ).setJsonEntity("{\"name\":\"key-1\"}");
             final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
             final Map<String, Object> createApiKeyResponseMap = entityAsMap(createApiKeyResponse);
             final String authHeader = "ApiKey "
@@ -306,8 +300,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         (createApiKeyResponseMap.get("id") + ":" + createApiKeyResponseMap.get("api_key")).getBytes(StandardCharsets.UTF_8)
                     );
 
-            final Request indexRequest = new Request("PUT", "/api_keys/_doc/key-1");
-            indexRequest.setJsonEntity("{\"auth_header\":\"" + authHeader + "\"}");
+            var indexRequest = new Request("PUT", "/api_keys/_doc/key-1").setJsonEntity("{\"auth_header\":\"" + authHeader + "\"}");
             assertOK(client().performRequest(indexRequest));
         } else {
             final Request getRequest = new Request("GET", "/api_keys/_doc/key-1");
@@ -331,8 +324,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     public void testApiKeySuperuser() throws IOException {
         if (isRunningAgainstOldCluster()) {
-            final Request createUserRequest = new Request("PUT", "/_security/user/api_key_super_creator");
-            createUserRequest.setJsonEntity("""
+            var createUserRequest = new Request("PUT", "/_security/user/api_key_super_creator").setJsonEntity("""
                 {
                    "password" : "l0ng-r4nd0m-p@ssw0rd",
                    "roles" : [ "superuser", "monitoring_user" ]
@@ -340,8 +332,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createUserRequest);
 
             // Create API key
-            final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
-            createApiKeyRequest.setOptions(
+            var createApiKeyRequest = new Request("PUT", "/_security/api_key").setOptions(
                 RequestOptions.DEFAULT.toBuilder()
                     .addHeader(
                         "Authorization",
@@ -350,38 +341,34 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                             new SecureString("l0ng-r4nd0m-p@ssw0rd".toCharArray())
                         )
                     )
-            );
-            if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
-                createApiKeyRequest.setJsonEntity("""
-                    {
-                       "name": "super_legacy_key"
-                    }""");
-            } else {
-                createApiKeyRequest.setJsonEntity("""
-                    {
-                       "name": "super_legacy_key",
-                       "role_descriptors": {
-                         "super": {
-                           "cluster": [ "all" ],
-                           "indices": [
-                             {
-                               "names": [ "*" ],
-                               "privileges": [ "all" ],
-                               "allow_restricted_indices": true
-                             }
-                           ]
+            ).setJsonEntity(getOldClusterVersion().onOrAfter(Version.V_7_3_0) ? """
+                {
+                   "name": "super_legacy_key"
+                }""" : """
+                {
+                   "name": "super_legacy_key",
+                   "role_descriptors": {
+                     "super": {
+                       "cluster": [ "all" ],
+                       "indices": [
+                         {
+                           "names": [ "*" ],
+                           "privileges": [ "all" ],
+                           "allow_restricted_indices": true
                          }
-                       }
-                    }""");
-            }
+                       ]
+                     }
+                   }
+                }""");
             final Map<String, Object> createApiKeyResponse = entityAsMap(client().performRequest(createApiKeyRequest));
             final byte[] keyBytes = (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(
                 StandardCharsets.UTF_8
             );
             final String apiKeyAuthHeader = "ApiKey " + Base64.getEncoder().encodeToString(keyBytes);
             // Save the API key info across restart
-            final Request saveApiKeyRequest = new Request("PUT", "/api_keys/_doc/super_legacy_key");
-            saveApiKeyRequest.setJsonEntity("{\"auth_header\":\"" + apiKeyAuthHeader + "\"}");
+            var saveApiKeyRequest = new Request("PUT", "/api_keys/_doc/super_legacy_key").setJsonEntity(
+                "{\"auth_header\":\"" + apiKeyAuthHeader + "\"}"
+            );
             assertOK(client().performRequest(saveApiKeyRequest));
 
             if (getOldClusterVersion().before(Version.V_8_0_0)) {
@@ -453,9 +440,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
             bulk.append("\r\n");
 
-            final Request bulkRequest = new Request("POST", "/_bulk");
-            bulkRequest.setJsonEntity(bulk.toString());
-            client().performRequest(bulkRequest);
+            client().performRequest(new Request("POST", "/_bulk").setJsonEntity(bulk.toString()));
 
             // create the rollup job
             final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
@@ -499,10 +484,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         } else {
 
-            final Request clusterHealthRequest = new Request("GET", "/_cluster/health");
-            clusterHealthRequest.addParameter("wait_for_status", "yellow");
-            clusterHealthRequest.addParameter("wait_for_no_relocating_shards", "true");
-            clusterHealthRequest.addParameter("wait_for_no_initializing_shards", "true");
+            var clusterHealthRequest = new Request("GET", "/_cluster/health").addParameter("wait_for_status", "yellow")
+                .addParameter("wait_for_no_relocating_shards", "true")
+                .addParameter("wait_for_no_initializing_shards", "true");
             Map<String, Object> clusterHealthResponse = entityAsMap(client().performRequest(clusterHealthRequest));
             assertThat(clusterHealthResponse.get("timed_out"), equalTo(Boolean.FALSE));
 
@@ -515,8 +499,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (isRunningAgainstOldCluster()) {
 
             // create the source index
-            final Request createIndexRequest = new Request("PUT", "customers");
-            createIndexRequest.setJsonEntity("""
+            var createIndexRequest = new Request("PUT", "customers").setJsonEntity("""
                 {
                   "mappings": {
                     "properties": {
@@ -537,9 +520,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             String endpoint = getOldClusterVersion().onOrAfter(Version.V_7_5_0)
                 ? "_transform/transform-full-cluster-restart-test"
                 : "_data_frame/transforms/transform-full-cluster-restart-test";
-            final Request createTransformRequest = new Request("PUT", endpoint);
-
-            createTransformRequest.setJsonEntity("""
+            var createTransformRequest = new Request("PUT", endpoint).setJsonEntity("""
                 {
                   "source": {
                     "index": "customers"
@@ -744,19 +725,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     private void waitForYellow(String indexName) throws IOException {
-        Request request = new Request("GET", "/_cluster/health/" + indexName);
-        request.addParameter("wait_for_status", "yellow");
-        request.addParameter("timeout", "30s");
-        request.addParameter("wait_for_no_relocating_shards", "true");
-        request.addParameter("wait_for_no_initializing_shards", "true");
+        var request = new Request("GET", "/_cluster/health/" + indexName).addParameter("wait_for_status", "yellow")
+            .addParameter("timeout", "30s")
+            .addParameter("wait_for_no_relocating_shards", "true")
+            .addParameter("wait_for_no_initializing_shards", "true");
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response.get("timed_out"), equalTo(Boolean.FALSE));
     }
 
     private void waitForHits(String indexName, int expectedHits) throws Exception {
-        Request request = new Request("GET", "/" + indexName + "/_search");
-        request.addParameter("ignore_unavailable", "true");
-        request.addParameter("size", "0");
+        var request = new Request("GET", "/" + indexName + "/_search").addParameter("ignore_unavailable", "true").addParameter("size", "0");
         assertBusy(() -> {
             try {
                 Map<String, Object> response = entityAsMap(client().performRequest(request));
@@ -825,8 +803,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void createRole(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_role" : "postupgrade_role";
-        Request request = new Request("PUT", "/_security/role/" + id);
-        request.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/_security/role/" + id).setJsonEntity("""
             {
               "run_as": [ "abc" ],
               "cluster": [ "monitor" ],
@@ -840,8 +817,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                   "query": "{\\"match\\": {\\"category\\": \\"click\\"}}"
                 }
               ]
-            }""");
-        client().performRequest(request);
+            }"""));
     }
 
     private void assertUserInfo(final boolean oldCluster) throws Exception {
@@ -875,9 +851,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
 
         // check that the rollup job is started using the Tasks API
-        final Request taskRequest = new Request("GET", "_tasks");
-        taskRequest.addParameter("detailed", "true");
-        taskRequest.addParameter("actions", "xpack/rollup/*");
+        var taskRequest = new Request("GET", "_tasks").addParameter("detailed", "true").addParameter("actions", "xpack/rollup/*");
         Map<String, Object> taskResponse = entityAsMap(client().performRequest(taskRequest));
         Map<?, ?> taskResponseNodes = (Map<?, ?>) taskResponse.get("nodes");
         Map<?, ?> taskResponseNode = (Map<?, ?>) taskResponseNodes.values().iterator().next();
@@ -992,8 +966,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
               "index_patterns": "%s",
               "data_stream": {}
             }""", indexPattern), ContentType.APPLICATION_JSON);
-        Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
-        createIndexTemplateRequest.setEntity(templateJSON);
-        client.performRequest(createIndexTemplateRequest);
+        client.performRequest(new Request("PUT", "_index_template/" + templateName).setEntity(templateJSON));
     }
 }

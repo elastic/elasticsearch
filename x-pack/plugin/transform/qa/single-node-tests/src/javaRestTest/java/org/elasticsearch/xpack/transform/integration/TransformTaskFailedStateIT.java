@@ -36,9 +36,8 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         // Make sure we never retry on failure to speed up the test
         // Set logging level to trace
         // see: https://github.com/elastic/elasticsearch/issues/45562
-        Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
         // reduces bulk failure spam
-        addFailureRetrySetting.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/_cluster/settings").setJsonEntity("""
             {
               "persistent": {
                 "xpack.transform.num_transform_failure_retries": "0",
@@ -46,8 +45,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
                 "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "trace",
                 "logger.org.elasticsearch.xpack.transform": "trace"
               }
-            }""");
-        client().performRequest(addFailureRetrySetting);
+            }"""));
     }
 
     @After
@@ -148,8 +146,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
             }
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT", indexName);
-            req.setEntity(entity);
+            var req = new Request("PUT", indexName).setEntity(entity);
             client().performRequest(req);
         }
     }

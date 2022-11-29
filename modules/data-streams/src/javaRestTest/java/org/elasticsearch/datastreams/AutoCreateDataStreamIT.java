@@ -73,9 +73,9 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
             .endObject()
             .endObject();
 
-        final Request settingsRequest = new Request("PUT", "_cluster/settings");
-        settingsRequest.setJsonEntity(Strings.toString(builder));
-        final Response settingsResponse = client().performRequest(settingsRequest);
+        final Response settingsResponse = client().performRequest(
+            new Request("PUT", "_cluster/settings").setJsonEntity(Strings.toString(builder))
+        );
         assertOK(settingsResponse);
     }
 
@@ -92,15 +92,16 @@ public class AutoCreateDataStreamIT extends ESRestTestCase {
         }
         b.endObject();
 
-        final Request createTemplateRequest = new Request("PUT", "_index_template/recipe_template");
-        createTemplateRequest.setJsonEntity(Strings.toString(b));
-        final Response createTemplateResponse = client().performRequest(createTemplateRequest);
+        final Response createTemplateResponse = client().performRequest(
+            new Request("PUT", "_index_template/recipe_template").setJsonEntity(Strings.toString(b))
+        );
         assertOK(createTemplateResponse);
     }
 
     private Response indexDocument() throws IOException {
-        final Request indexDocumentRequest = new Request("POST", "recipe_kr/_doc");
-        indexDocumentRequest.setJsonEntity("{ \"@timestamp\": \"" + Instant.now() + "\", \"name\": \"Kimchi\" }");
+        var indexDocumentRequest = new Request("POST", "recipe_kr/_doc").setJsonEntity(
+            "{ \"@timestamp\": \"" + Instant.now() + "\", \"name\": \"Kimchi\" }"
+        );
         return client().performRequest(indexDocumentRequest);
     }
 }

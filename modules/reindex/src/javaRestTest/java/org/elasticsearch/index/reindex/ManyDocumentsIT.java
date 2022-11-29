@@ -33,15 +33,11 @@ public class ManyDocumentsIT extends ESRestTestCase {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
-        Request request = new Request("POST", "/test/_bulk");
-        request.addParameter("refresh", "true");
-        request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
+        client().performRequest(new Request("POST", "/test/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString()));
     }
 
     public void testReindex() throws IOException {
-        Request request = new Request("POST", "/_reindex");
-        request.setJsonEntity("""
+        Map<String, Object> response = entityAsMap(client().performRequest(new Request("POST", "/_reindex").setJsonEntity("""
             {
               "source":{
                 "index":"test"
@@ -49,8 +45,7 @@ public class ManyDocumentsIT extends ESRestTestCase {
               "dest":{
                 "index":"des"
               }
-            }""");
-        Map<String, Object> response = entityAsMap(client().performRequest(request));
+            }""")));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("created", count));
     }
@@ -61,9 +56,9 @@ public class ManyDocumentsIT extends ESRestTestCase {
         Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();
         Map<?, ?> http = (Map<?, ?>) nodeInfo.get("http");
         String remote = "http://" + http.get("publish_address");
-        Request request = new Request("POST", "/_reindex");
+        String jsonEntity;
         if (randomBoolean()) {
-            request.setJsonEntity(String.format(java.util.Locale.ROOT, """
+            jsonEntity = String.format(java.util.Locale.ROOT, """
                 {
                    "source": {
                      "index": "test",
@@ -74,10 +69,10 @@ public class ManyDocumentsIT extends ESRestTestCase {
                    "dest": {
                      "index": "des"
                    }
-                }""", remote));
+                }""", remote);
         } else {
             // Test with external version_type
-            request.setJsonEntity(String.format(java.util.Locale.ROOT, """
+            jsonEntity = String.format(java.util.Locale.ROOT, """
                 {
                   "source": {
                     "index": "test",
@@ -89,9 +84,9 @@ public class ManyDocumentsIT extends ESRestTestCase {
                     "index": "des",
                     "version_type": "external"
                   }
-                }""", remote));
+                }""", remote);
         }
-        Map<String, Object> response = entityAsMap(client().performRequest(request));
+        Map<String, Object> response = entityAsMap(client().performRequest(new Request("POST", "/_reindex").setJsonEntity(jsonEntity)));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("created", count));
     }
@@ -103,14 +98,12 @@ public class ManyDocumentsIT extends ESRestTestCase {
     }
 
     public void testDeleteByQuery() throws IOException {
-        Request request = new Request("POST", "/test/_delete_by_query");
-        request.setJsonEntity("""
+        Map<String, Object> response = entityAsMap(client().performRequest(new Request("POST", "/test/_delete_by_query").setJsonEntity("""
             {
               "query":{
                 "match_all": {}
               }
-            }""");
-        Map<String, Object> response = entityAsMap(client().performRequest(request));
+            }""")));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("deleted", count));
     }

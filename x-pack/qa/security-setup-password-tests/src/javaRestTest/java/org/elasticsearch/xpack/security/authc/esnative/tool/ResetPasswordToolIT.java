@@ -69,18 +69,15 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         final String adminBasicHeader = "Basic "
             + Base64.getEncoder().encodeToString(("test_admin:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
         try {
-            Request putUserRequest = new Request("PUT", "/_security/user/" + nativeUser);
-            putUserRequest.setJsonEntity(formatted("""
+            var putUserRequest = new Request("PUT", "/_security/user/" + nativeUser).setJsonEntity(formatted("""
                 {
                    "password" : "l0ng-r4nd0m-p@ssw0rd",
                    "roles" : [ "admin", "other_role1" ],
                    "full_name" : "%s",
                    "email" : "%s@example.com",
                    "enabled": true
-                }""", randomAlphaOfLength(5), nativeUser));
-            RequestOptions.Builder options = putUserRequest.getOptions().toBuilder();
-            options.addHeader("Authorization", adminBasicHeader);
-            putUserRequest.setOptions(options);
+                }""", randomAlphaOfLength(5), nativeUser))
+                .setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", adminBasicHeader));
             final Response putUserResponse = client().performRequest(putUserRequest);
             assertThat(putUserResponse.getStatusLine().getStatusCode(), equalTo(200));
         } catch (IOException e) {
@@ -91,10 +88,9 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         final String basicHeader = "Basic "
             + Base64.getEncoder().encodeToString((nativeUser + ":l0ng-r4nd0m-p@ssw0rd").getBytes(StandardCharsets.UTF_8));
         try {
-            Request request = new Request("GET", "/_security/_authenticate");
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("Authorization", basicHeader);
-            request.setOptions(options);
+            var request = new Request("GET", "/_security/_authenticate").setOptions(
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicHeader)
+            );
             Map<String, Object> userInfoMap = entityAsMap(client().performRequest(request));
             assertEquals(nativeUser, userInfoMap.get("username"));
         } catch (IOException e) {
@@ -124,10 +120,9 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         final String newBasicHeader = "Basic "
             + Base64.getEncoder().encodeToString((nativeUser + ":" + password).getBytes(StandardCharsets.UTF_8));
         try {
-            Request request = new Request("GET", "/_security/_authenticate");
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("Authorization", newBasicHeader);
-            request.setOptions(options);
+            var request = new Request("GET", "/_security/_authenticate").setOptions(
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", newBasicHeader)
+            );
             Map<String, Object> userInfoMap = entityAsMap(client().performRequest(request));
             assertEquals(nativeUser, userInfoMap.get("username"));
         } catch (IOException e) {

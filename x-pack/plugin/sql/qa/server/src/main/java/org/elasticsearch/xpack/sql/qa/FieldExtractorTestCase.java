@@ -958,8 +958,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     public void testNestedFieldsHierarchyWithMultiNestedValues() throws IOException {
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/test").setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -991,8 +990,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                   }
                 }
               }
-            }""");
-        client().performRequest(request);
+            }"""));
         index(stripWhitespace("""
             {
               "h": [ { "i": "123", "j": "abc" }, { "i": "890", "j": "xyz" }, { "i": "567", "j": "klm" } ],
@@ -1013,8 +1011,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     public void testNestedFieldsHierarchyWithMissingValue() throws IOException {
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/test").setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -1043,8 +1040,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                   }
                 }
               }
-            }""");
-        client().performRequest(request);
+            }"""));
         index(stripWhitespace("""
             {
               "h": [ { "f": { "b": { "a": "ABC" } } } ]
@@ -1060,8 +1056,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     public void testNestedFieldsHierarchyExtractDeeplyNestedValue() throws IOException {
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/test").setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -1090,8 +1085,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                   }
                 }
               }
-            }""");
-        client().performRequest(request);
+            }"""));
         index(stripWhitespace("""
             {
               "h": [ { "f": { "b": { "a": "ABC" } } } ]
@@ -1104,8 +1098,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     public void testNestedFieldsHierarchyWithArrayOfValues() throws IOException {
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity(stripWhitespace("""
+        client().performRequest(new Request("PUT", "/test").setJsonEntity(stripWhitespace("""
             {
               "mappings": {
                 "properties": {
@@ -1137,8 +1130,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                   }
                 }
               }
-            }"""));
-        client().performRequest(request);
+            }""")));
         index(stripWhitespace("""
             {
               "h": [
@@ -1224,7 +1216,6 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         final int maxDepth = 6;
         final int depth = between(minDepth, maxDepth);
 
-        Request request = new Request("PUT", "/test");
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
         List<Tuple<String, NestedFieldType>> path = new ArrayList<>(depth);
         StringBuilder bulkContent = new StringBuilder();
@@ -1240,8 +1231,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         index.endObject();
         index.endObject();
 
-        request.setJsonEntity(Strings.toString(index));
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test").setJsonEntity(Strings.toString(index)));
         index("{" + bulkContent.toString() + "}");
 
         // the path ends with either a NESTED field or an OBJECT field (both having a leaf field as a sub-field)
@@ -1378,7 +1368,6 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         Map<String, Map<String, Object>> subFieldsProps,
         String... subFieldsTypes
     ) throws IOException {
-        Request request = new Request("PUT", "/test");
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
 
         index.startObject("mappings");
@@ -1446,8 +1435,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         index.endObject();
         index.endObject();
 
-        request.setJsonEntity(Strings.toString(index));
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test").setJsonEntity(Strings.toString(index)));
     }
 
     private Request buildRequest(String query) {

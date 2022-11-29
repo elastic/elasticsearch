@@ -93,17 +93,15 @@ public class MlDeprecationIT extends ESRestTestCase {
                 }
             }""";
 
-        Request request = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
-        request.setOptions(REQUEST_OPTIONS);
-        request.setJsonEntity(jobConfig);
-        return client().performRequest(request);
+        return client().performRequest(
+            new Request("PUT", "/_ml/anomaly_detectors/" + jobId).setOptions(REQUEST_OPTIONS).setJsonEntity(jobConfig)
+        );
     }
 
     private Response indexDoc(String index, String docId, String source) throws IOException {
-        Request request = new Request("PUT", "/" + index + "/_doc/" + docId);
-        request.setOptions(REQUEST_OPTIONS);
-        request.setJsonEntity(source);
-        return client().performRequest(request);
+        return client().performRequest(
+            new Request("PUT", "/" + index + "/_doc/" + docId).setOptions(REQUEST_OPTIONS).setJsonEntity(source)
+        );
     }
 
 }

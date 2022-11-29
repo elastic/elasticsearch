@@ -26,12 +26,11 @@ public abstract class AbstractSnapshotRepoTestKitRestTestCase extends ESRestTest
         logger.info("creating repository [{}] of type [{}]", repository, repositoryType);
         registerRepository(repository, repositoryType, true, repositorySettings);
 
-        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/_analyze");
-        request.addParameter("blob_count", "10");
-        request.addParameter("concurrency", "4");
-        request.addParameter("max_blob_size", "1mb");
-        request.addParameter("timeout", "120s");
-        request.addParameter("seed", Long.toString(randomLong()));
+        var request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/_analyze").addParameter("blob_count", "10")
+            .addParameter("concurrency", "4")
+            .addParameter("max_blob_size", "1mb")
+            .addParameter("timeout", "120s")
+            .addParameter("seed", Long.toString(randomLong()));
         assertOK(client().performRequest(request));
     }
 

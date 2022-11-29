@@ -258,8 +258,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
     }
 
     private void createSnapshotRepo(String repoName) throws IOException {
-        Request request = new Request("PUT", "/_snapshot/" + repoName);
-        request.setJsonEntity(
+        var request = new Request("PUT", "/_snapshot/" + repoName).setJsonEntity(
             Strings.toString(
                 JsonXContent.contentBuilder()
                     .startObject()
@@ -274,50 +273,44 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
     }
 
     private void updateSettings(Map<String, ?> settings, String authHeader) throws IOException {
-        final Request request = new Request("PUT", "/_cluster/settings");
-        if (authHeader != null) {
-            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
-        }
-        request.setJsonEntity(
+        var request = new Request("PUT", "/_cluster/settings").setJsonEntity(
             Strings.toString(
                 JsonXContent.contentBuilder().startObject().startObject("persistent").mapContents(settings).endObject().endObject()
             )
         );
+        if (authHeader != null) {
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+        }
         assertOK(client().performRequest(request));
     }
 
     private void deleteSettings(Collection<String> settingKeys, String authHeader) throws IOException {
-        final Request request = new Request("PUT", "/_cluster/settings");
-        if (authHeader != null) {
-            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
-        }
         final XContentBuilder builder = JsonXContent.contentBuilder().startObject().startObject("persistent");
         for (String k : settingKeys) {
             builder.nullField(k);
         }
         builder.endObject().endObject();
-        request.setJsonEntity(Strings.toString(builder));
+        var request = new Request("PUT", "/_cluster/settings").setJsonEntity(Strings.toString(builder));
+        if (authHeader != null) {
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+        }
         assertOK(client().performRequest(request));
     }
 
     private void takeSnapshot(String repoName, String snapshotName) throws IOException {
-        final Request request = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName);
-        request.addParameter("wait_for_completion", "true");
-        request.setJsonEntity(
-            Strings.toString(JsonXContent.contentBuilder().startObject().field("include_global_state", true).endObject())
-        );
+        var request = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName).addParameter("wait_for_completion", "true")
+            .setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("include_global_state", true).endObject()));
         assertOK(client().performRequest(request));
     }
 
     private void restoreSnapshot(String repoName, String snapshotName, String authHeader) throws IOException {
-        final Request request = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");
+        var request = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore").addParameter(
+            "wait_for_completion",
+            "true"
+        ).setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("include_global_state", true).endObject()));
         if (authHeader != null) {
             request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
         }
-        request.addParameter("wait_for_completion", "true");
-        request.setJsonEntity(
-            Strings.toString(JsonXContent.contentBuilder().startObject().field("include_global_state", true).endObject())
-        );
         assertOK(client().performRequest(request));
     }
 

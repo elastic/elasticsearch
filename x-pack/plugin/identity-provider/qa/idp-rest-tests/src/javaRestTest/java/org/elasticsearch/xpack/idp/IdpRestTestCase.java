@@ -105,9 +105,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         );
         final String body = Strings.toString(descriptor);
 
-        final Request request = new Request(HttpPut.METHOD_NAME, "/_security/role/" + name);
-        request.setJsonEntity(body);
-        adminClient().performRequest(request);
+        adminClient().performRequest(new Request(HttpPut.METHOD_NAME, "/_security/role/" + name).setJsonEntity(body));
     }
 
     protected void deleteRole(String name) throws IOException {
@@ -130,8 +128,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         builder.endObject();
         builder.flush();
 
-        final Request request = new Request(HttpPost.METHOD_NAME, "/_security/privilege/");
-        request.setJsonEntity(bos.toString(StandardCharsets.UTF_8));
+        var request = new Request(HttpPost.METHOD_NAME, "/_security/privilege/").setJsonEntity(bos.toString(StandardCharsets.UTF_8));
         adminClient().performRequest(request);
     }
 
@@ -151,9 +148,9 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
     protected SamlServiceProviderIndex.DocumentVersion createServiceProvider(String entityId, Map<String, Object> body) throws IOException {
         // so that we don't hit [SERVICE_UNAVAILABLE/1/state not recovered / initialized]
         ensureGreen("");
-        final Request request = new Request("PUT", "/_idp/saml/sp/" + encode(entityId) + "?refresh=" + RefreshPolicy.IMMEDIATE.getValue());
         final String entity = Strings.toString(JsonXContent.contentBuilder().map(body));
-        request.setJsonEntity(entity);
+        var request = new Request("PUT", "/_idp/saml/sp/" + encode(entityId) + "?refresh=" + RefreshPolicy.IMMEDIATE.getValue())
+            .setJsonEntity(entity);
         final Response response = client().performRequest(request);
         final Map<String, Object> map = entityAsMap(response);
         assertThat(ObjectPath.eval("service_provider.entity_id", map), equalTo(entityId));

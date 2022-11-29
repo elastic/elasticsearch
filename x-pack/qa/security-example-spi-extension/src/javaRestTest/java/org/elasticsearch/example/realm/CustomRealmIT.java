@@ -37,11 +37,9 @@ public class CustomRealmIT extends ESRestTestCase {
     }
 
     public void testHttpConnectionWithNoAuthentication() {
-        Request request = new Request("GET", "/");
-        RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-        builder.addHeader(CustomRealm.USER_HEADER, "");
-        builder.addHeader(CustomRealm.PW_HEADER, "");
-        request.setOptions(builder);
+        Request request = new Request("GET", "/").setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader(CustomRealm.USER_HEADER, "").addHeader(CustomRealm.PW_HEADER, "")
+        );
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         Response response = e.getResponse();
         assertThat(response.getStatusLine().getStatusCode(), is(401));
@@ -50,18 +48,15 @@ public class CustomRealmIT extends ESRestTestCase {
     }
 
     public void testHttpAuthentication() throws Exception {
-        Request request = new Request("GET", "/");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader(CustomRealm.USER_HEADER, USERNAME);
-        options.addHeader(CustomRealm.PW_HEADER, PASSWORD);
-        request.setOptions(options);
+        var request = new Request("GET", "/").setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader(CustomRealm.USER_HEADER, USERNAME).addHeader(CustomRealm.PW_HEADER, PASSWORD)
+        );
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testSettingsFiltering() throws Exception {
-        Request request = new Request("GET", "/_nodes/_all/settings");
-        request.addParameter("flat_settings", "true");
+        var request = new Request("GET", "/_nodes/_all/settings").addParameter("flat_settings", "true");
         Response response = client().performRequest(request);
         String responseString = EntityUtils.toString(response.getEntity());
         assertThat(responseString, not(containsString("xpack.security.authc.realms.custom.my_realm.filtered_setting")));

@@ -72,9 +72,7 @@ public class XPackUsageIT extends ESCCRRestTestCase {
 
     private void createLeaderIndex(String indexName) throws IOException {
         try (RestClient leaderClient = buildLeaderClient()) {
-            Request request = new Request("PUT", "/" + indexName);
-            request.setJsonEntity("{}");
-            assertOK(leaderClient.performRequest(request));
+            assertOK(leaderClient.performRequest(new Request("PUT", "/" + indexName).setJsonEntity("{}")));
         }
     }
 

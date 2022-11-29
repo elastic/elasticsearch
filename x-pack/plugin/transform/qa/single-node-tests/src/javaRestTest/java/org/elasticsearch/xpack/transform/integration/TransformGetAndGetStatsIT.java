@@ -456,10 +456,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
                 """, transformSrc, randomFrom(42, 47, 113), 10, 5, now));
         }
         bulk.append("\r\n");
-        final Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.setJsonEntity(bulk.toString());
-        client().performRequest(bulkRequest);
+        client().performRequest(new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString()));
 
         waitForTransformCheckpoint(transformId, 2L);
 
@@ -498,8 +495,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         int numberOfTransforms = randomIntBetween(1_500, 4_000);
         for (int i = 0; i < numberOfTransforms; ++i) {
             String transformId = formatted("t-%05d", i);
-            final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
-            createTransformRequest.setJsonEntity(config);
+            var createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null).setJsonEntity(config);
             assertOK(client().performRequest(createTransformRequest));
         }
 

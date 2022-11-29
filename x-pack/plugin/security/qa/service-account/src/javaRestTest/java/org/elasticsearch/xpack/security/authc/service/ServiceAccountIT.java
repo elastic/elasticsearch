@@ -292,12 +292,11 @@ public class ServiceAccountIT extends ESRestTestCase {
     public void testAuthenticateShouldNotFallThroughInCaseOfFailure() throws IOException {
         final boolean securityIndexExists = randomBoolean();
         if (securityIndexExists) {
-            final Request createRoleRequest = new Request("POST", "_security/role/dummy_role");
-            createRoleRequest.setJsonEntity("{\"cluster\":[]}");
-            assertOK(adminClient().performRequest(createRoleRequest));
+            assertOK(adminClient().performRequest(new Request("POST", "_security/role/dummy_role").setJsonEntity("{\"cluster\":[]}")));
         }
-        final Request request = new Request("GET", "_security/_authenticate");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + INVALID_SERVICE_TOKEN));
+        var request = new Request("GET", "_security/_authenticate").setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + INVALID_SERVICE_TOKEN)
+        );
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
         if (securityIndexExists) {
@@ -311,8 +310,9 @@ public class ServiceAccountIT extends ESRestTestCase {
     }
 
     public void testAuthenticateShouldWorkWithOAuthBearerToken() throws IOException {
-        final Request oauthTokenRequest = new Request("POST", "_security/oauth2/token");
-        oauthTokenRequest.setJsonEntity("{\"grant_type\":\"password\",\"username\":\"test_admin\",\"password\":\"x-pack-test-password\"}");
+        var oauthTokenRequest = new Request("POST", "_security/oauth2/token").setJsonEntity(
+            "{\"grant_type\":\"password\",\"username\":\"test_admin\",\"password\":\"x-pack-test-password\"}"
+        );
         final Response oauthTokenResponse = adminClient().performRequest(oauthTokenRequest);
         assertOK(oauthTokenResponse);
         final Map<String, Object> oauthTokenResponseMap = responseAsMap(oauthTokenResponse);
@@ -327,8 +327,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(responseMap.get("authentication_type"), equalTo("token"));
 
         final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
-        final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity(formatted("""
+        var refreshTokenRequest = new Request("POST", "_security/oauth2/token").setJsonEntity(formatted("""
             {"grant_type":"refresh_token","refresh_token":"%s"}
             """, refreshToken));
         final Response refreshTokenResponse = adminClient().performRequest(refreshTokenRequest);
@@ -489,14 +488,14 @@ public class ServiceAccountIT extends ESRestTestCase {
         }
         final RequestOptions.Builder requestOptions = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + token);
 
-        final Request createApiKeyRequest1 = new Request("PUT", "_security/api_key");
+        String jsonEntity;
         if (randomBoolean()) {
-            createApiKeyRequest1.setJsonEntity("{\"name\":\"key-1\"}");
+            jsonEntity = "{\"name\":\"key-1\"}";
         } else {
-            createApiKeyRequest1.setJsonEntity("""
-                {"name":"key-1","role_descriptors":{"a":{"cluster":["all"]}}}""");
+            jsonEntity = """
+                {"name":"key-1","role_descriptors":{"a":{"cluster":["all"]}}}""";
         }
-        createApiKeyRequest1.setOptions(requestOptions);
+        var createApiKeyRequest1 = new Request("PUT", "_security/api_key").setOptions(requestOptions).setJsonEntity(jsonEntity);
         final Response createApiKeyResponse1 = client().performRequest(createApiKeyRequest1);
         assertOK(createApiKeyResponse1);
         final Map<String, Object> createApiKeyResponseMap1 = responseAsMap(createApiKeyResponse1);
@@ -519,10 +518,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(e.getMessage(), containsString("is unauthorized for API key"));
 
-        final Request invalidateApiKeysRequest = new Request("DELETE", "_security/api_key");
-        invalidateApiKeysRequest.setJsonEntity(formatted("""
-            {"ids":["%s"],"owner":true}""", apiKeyId1));
-        invalidateApiKeysRequest.setOptions(requestOptions);
+        final Request invalidateApiKeysRequest = new Request("DELETE", "_security/api_key").setJsonEntity(formatted("""
+            {"ids":["%s"],"owner":true}""", apiKeyId1)).setOptions(requestOptions);
         final Response invalidateApiKeysResponse = client().performRequest(invalidateApiKeysRequest);
         assertOK(invalidateApiKeysResponse);
         final Map<String, Object> invalidateApiKeysResponseMap = responseAsMap(invalidateApiKeysResponse);

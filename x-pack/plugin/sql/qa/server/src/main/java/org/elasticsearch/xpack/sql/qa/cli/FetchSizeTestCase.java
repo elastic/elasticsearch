@@ -17,15 +17,12 @@ import static org.hamcrest.Matchers.containsString;
  */
 public abstract class FetchSizeTestCase extends CliIntegrationTestCase {
     public void testSelect() throws IOException {
-        Request request = new Request("PUT", "/test/_bulk");
-        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test_field\":" + i + "}\n");
         }
-        request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString()));
 
         assertEquals("[?1l>[?1000l[?2004lfetch size set to [90m4[0m", command("fetch size = 4"));
         assertEquals(
@@ -59,15 +56,12 @@ public abstract class FetchSizeTestCase extends CliIntegrationTestCase {
     // Even though fetch size and limit are smaller than the noRows, all buckets
     // should be processed to achieve the global ordering of the aggregate function.
     public void testOrderingOnAggregate() throws IOException {
-        Request request = new Request("PUT", "/test/_bulk");
-        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 1; i <= 100; i++) {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"a\":").append(i).append(", \"b\" : ").append(i).append("}\n");
         }
-        request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString()));
 
         assertEquals("[?1l>[?1000l[?2004lfetch size set to [90m4[0m", command("fetch size = 4"));
         assertEquals(

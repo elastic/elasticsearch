@@ -74,9 +74,8 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
         StringBuilder bulk = new StringBuilder();
 
         // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
-        Request createAirlineDataRequest = new Request("PUT", "/airline-data");
         // space in 'time stamp' is intentional
-        createAirlineDataRequest.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/airline-data").setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -91,8 +90,7 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
                   }
                 }
               }
-            }""");
-        client().performRequest(createAirlineDataRequest);
+            }"""));
 
         bulk.append("""
             {"index": {"_index": "airline-data", "_id": 1}}
@@ -119,20 +117,16 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
             }""";
 
         { // Request with secondary headers without perms
-            Request explain = explainRequestViaConfig(config);
-            RequestOptions.Builder options = explain.getOptions().toBuilder();
-            addAuthHeader(options, SUPER_USER);
-            addSecondaryAuthHeader(options, ML_ADMIN);
-            explain.setOptions(options);
+            var explain = explainRequestViaConfig(config).setOptions(
+                addSecondaryAuthHeader(addAuthHeader(RequestOptions.DEFAULT.toBuilder(), SUPER_USER), ML_ADMIN)
+            );
             // Should throw
             expectThrows(ResponseException.class, () -> client().performRequest(explain));
         }
         { // request with secondary headers with perms
-            Request explain = explainRequestViaConfig(config);
-            RequestOptions.Builder options = explain.getOptions().toBuilder();
-            addAuthHeader(options, ML_ADMIN);
-            addSecondaryAuthHeader(options, SUPER_USER);
-            explain.setOptions(options);
+            var explain = explainRequestViaConfig(config).setOptions(
+                addSecondaryAuthHeader(addAuthHeader(RequestOptions.DEFAULT.toBuilder(), ML_ADMIN), SUPER_USER)
+            );
             // Should not throw
             client().performRequest(explain);
         }
@@ -157,34 +151,27 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
 
         String configId = "explain_test";
 
-        Request storeConfig = new Request("PUT", "_ml/data_frame/analytics/" + configId);
-        storeConfig.setJsonEntity(config);
+        var storeConfig = new Request("PUT", "_ml/data_frame/analytics/" + configId).setJsonEntity(config);
         client().performRequest(storeConfig);
 
         { // Request with secondary headers without perms
-            Request explain = explainRequestConfigId(configId);
-            RequestOptions.Builder options = explain.getOptions().toBuilder();
-            addAuthHeader(options, SUPER_USER);
-            addSecondaryAuthHeader(options, ML_ADMIN);
-            explain.setOptions(options);
+            var explain = explainRequestConfigId(configId).setOptions(
+                addSecondaryAuthHeader(addAuthHeader(RequestOptions.DEFAULT.toBuilder(), SUPER_USER), ML_ADMIN)
+            );
             // Should throw
             expectThrows(ResponseException.class, () -> client().performRequest(explain));
         }
         { // request with secondary headers with perms
-            Request explain = explainRequestConfigId(configId);
-            RequestOptions.Builder options = explain.getOptions().toBuilder();
-            addAuthHeader(options, ML_ADMIN);
-            addSecondaryAuthHeader(options, SUPER_USER);
-            explain.setOptions(options);
+            var explain = explainRequestConfigId(configId).setOptions(
+                addSecondaryAuthHeader(addAuthHeader(RequestOptions.DEFAULT.toBuilder(), ML_ADMIN), SUPER_USER)
+            );
             // Should not throw
             client().performRequest(explain);
         }
     }
 
     private static Request explainRequestViaConfig(String config) {
-        Request request = new Request("POST", "_ml/data_frame/analytics/_explain");
-        request.setJsonEntity(config);
-        return request;
+        return new Request("POST", "_ml/data_frame/analytics/_explain").setJsonEntity(config);
     }
 
     private static Request explainRequestConfigId(String id) {
@@ -192,10 +179,7 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
     }
 
     private void bulkIndex(String bulk) throws IOException {
-        Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.setJsonEntity(bulk);
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.addParameter("pretty", null);
+        var bulkRequest = new Request("POST", "/_bulk").setJsonEntity(bulk).addParameter("refresh", "true").addParameter("pretty", null);
         String bulkResponse = EntityUtils.toString(client().performRequest(bulkRequest).getEntity());
         assertThat(bulkResponse, not(containsString("\"errors\": false")));
     }

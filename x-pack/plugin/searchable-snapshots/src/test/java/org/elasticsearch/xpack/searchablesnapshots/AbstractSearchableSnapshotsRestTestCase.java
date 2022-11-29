@@ -167,9 +167,10 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                             }
                         }
                         if (bulkSize > 0) {
-                            Request documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk");
-                            documents.addParameter("refresh", Boolean.TRUE.toString());
-                            documents.setJsonEntity(bulkBody.toString());
+                            var documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk").addParameter(
+                                "refresh",
+                                Boolean.TRUE.toString()
+                            ).setJsonEntity(bulkBody.toString());
                             assertOK(client().performRequest(documents));
                         }
                     } while (remainingDocs.get() > 0);
@@ -190,9 +191,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                 bulkUpdateBody.append("{\"doc\":{").append("\"text\":\"Updated document number ").append(i).append("\"}}\n");
             }
 
-            final Request bulkUpdate = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk");
-            bulkUpdate.addParameter("refresh", Boolean.TRUE.toString());
-            bulkUpdate.setJsonEntity(bulkUpdateBody.toString());
+            var bulkUpdate = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk").addParameter("refresh", Boolean.TRUE.toString())
+                .setJsonEntity(bulkUpdateBody.toString());
             assertOK(client().performRequest(bulkUpdate));
         }
 
@@ -251,14 +251,14 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
                 // takes a snapshot of the searchable snapshot index into the source-only repository should fail
                 String sourceOnlySnapshot = "source-only-snap-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-                final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + WRITE_REPOSITORY_NAME + '/' + sourceOnlySnapshot);
-                request.addParameter("wait_for_completion", "true");
-                request.setJsonEntity(formatted("""
-                    {
-                        "include_global_state": false,
-                        "indices" : "%s"
-                    }
-                    """, indexName));
+                var request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + WRITE_REPOSITORY_NAME + '/' + sourceOnlySnapshot)
+                    .addParameter("wait_for_completion", "true")
+                    .setJsonEntity(formatted("""
+                        {
+                            "include_global_state": false,
+                            "indices" : "%s"
+                        }
+                        """, indexName));
 
                 final Response response = adminClient().performRequest(request);
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
@@ -366,15 +366,18 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             // useful for third party tests that runs the test against a real external service.
             deleteSnapshot(snapshot2Name, true);
 
-            final Request snapshotRequest = new Request(HttpPut.METHOD_NAME, "_snapshot/" + WRITE_REPOSITORY_NAME + '/' + snapshot2Name);
-            snapshotRequest.addParameter("wait_for_completion", "true");
+            StringEntity entity;
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
                 builder.field("indices", restoredIndexName);
                 builder.field("include_global_state", "false");
                 builder.endObject();
-                snapshotRequest.setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
+                entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             }
+            var snapshotRequest = new Request(HttpPut.METHOD_NAME, "_snapshot/" + WRITE_REPOSITORY_NAME + '/' + snapshot2Name).addParameter(
+                "wait_for_completion",
+                "true"
+            ).setEntity(entity);
             assertOK(client().performRequest(snapshotRequest));
 
             final List<Map<String, Map<String, Object>>> snapshotShardsStats = extractValue(
@@ -440,9 +443,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                                 return;
                             }
 
-                            Request searchRequest = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_search");
-                            searchRequest.addParameter("search_type", "query_then_fetch");
-                            searchRequest.setJsonEntity(
+                            var searchRequest = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_search").setJsonEntity(
                                 new SearchSourceBuilder().trackTotalHits(true)
                                     .query(
                                         QueryBuilders.scriptQuery(
@@ -455,7 +456,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                                         )
                                     )
                                     .toString()
-                            );
+                            ).addParameter("search_type", "query_then_fetch");
 
                             Response searchResponse = client().performRequest(searchRequest);
                             assertThat(extractValue(responseAsMap(searchResponse), "hits.total.value"), equalTo(numDocs));
@@ -544,16 +545,15 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     }
 
     protected static void mountSnapshot(String snapshotIndexName, String mountIndexName, String repositoryName) throws IOException {
-        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repositoryName + "/" + SNAPSHOT_NAME + "/_mount");
-        request.addParameter("wait_for_completion", Boolean.toString(true));
-        request.addParameter("storage", randomFrom("full_copy", "shared_cache"));
-
         final XContentBuilder builder = JsonXContent.contentBuilder().startObject().field("index", snapshotIndexName);
         if (snapshotIndexName.equals(mountIndexName) == false || randomBoolean()) {
             builder.field("renamed_index", mountIndexName);
         }
         builder.endObject();
-        request.setJsonEntity(Strings.toString(builder));
+        var request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repositoryName + "/" + SNAPSHOT_NAME + "/_mount").addParameter(
+            "wait_for_completion",
+            Boolean.toString(true)
+        ).addParameter("storage", randomFrom("full_copy", "shared_cache")).setJsonEntity(Strings.toString(builder));
 
         final Response response = client().performRequest(request);
         assertThat(
@@ -575,9 +575,10 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     }
 
     protected static void forceMerge(String index, boolean onlyExpungeDeletes, boolean flush) throws IOException {
-        final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_forcemerge");
-        request.addParameter("only_expunge_deletes", Boolean.toString(onlyExpungeDeletes));
-        request.addParameter("flush", Boolean.toString(flush));
+        var request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_forcemerge").addParameter(
+            "only_expunge_deletes",
+            Boolean.toString(onlyExpungeDeletes)
+        ).addParameter("flush", Boolean.toString(flush));
         assertOK(client().performRequest(request));
     }
 
@@ -599,8 +600,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     }
 
     protected static Map<String, Object> search(String index, QueryBuilder query, Boolean ignoreThrottled) throws IOException {
-        final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search");
-        request.setJsonEntity(new SearchSourceBuilder().trackTotalHits(true).query(query).toString());
+        var request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search").setJsonEntity(
+            new SearchSourceBuilder().trackTotalHits(true).query(query).toString()
+        );
 
         // If warning are returned than these must exist in this set:
         Set<String> expectedWarnings = new HashSet<>();
@@ -612,16 +614,14 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                     + "Consider cold or frozen tiers in place of frozen indices."
             );
         }
-
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
             for (String warning : warnings) {
                 if (expectedWarnings.contains(warning) == false) {
                     return true;
                 }
             }
             return false;
-        }).build();
-        request.setOptions(requestOptions);
+        }).build());
 
         final Response response = client().performRequest(request);
         assertThat(
@@ -640,8 +640,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     }
 
     protected static Map<String, Object> searchableSnapshotStats(String index) throws IOException {
-        final Request request = new Request(HttpGet.METHOD_NAME, '/' + index + "/_searchable_snapshots/stats");
-        request.addParameter("level", "shards");
+        var request = new Request(HttpGet.METHOD_NAME, '/' + index + "/_searchable_snapshots/stats").addParameter("level", "shards");
         final Response response = client().performRequest(request);
         assertThat(
             "Failed to retrieve searchable snapshots stats for on index [" + index + "]: " + response,

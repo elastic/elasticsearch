@@ -72,17 +72,19 @@ public final class Request {
      * @throws IllegalArgumentException if a parameter with that name has
      *      already been set
      */
-    public void addParameter(String name, String value) {
+    public Request addParameter(String name, String value) {
         Objects.requireNonNull(name, "url parameter name cannot be null");
         if (parameters.containsKey(name)) {
             throw new IllegalArgumentException("url parameter [" + name + "] has already been set to [" + parameters.get(name) + "]");
         } else {
             parameters.put(name, value);
         }
+        return this;
     }
 
-    public void addParameters(Map<String, String> paramSource) {
+    public Request addParameters(Map<String, String> paramSource) {
         paramSource.forEach(this::addParameter);
+        return this;
     }
 
     /**
@@ -98,8 +100,9 @@ public final class Request {
      * Set the body of the request. If not set or set to {@code null} then no
      * body is sent with the request.
      */
-    public void setEntity(HttpEntity entity) {
+    public Request setEntity(HttpEntity entity) {
         this.entity = entity;
+        return this;
     }
 
     /**
@@ -109,8 +112,9 @@ public final class Request {
      * If you need a different content type then use
      * {@link #setEntity(HttpEntity)}.
      */
-    public void setJsonEntity(String body) {
+    public Request setJsonEntity(String body) {
         setEntity(body == null ? null : new NStringEntity(body, ContentType.APPLICATION_JSON));
+        return this;
     }
 
     /**
@@ -125,18 +129,20 @@ public final class Request {
      * Set the portion of an HTTP request to Elasticsearch that can be
      * manipulated without changing Elasticsearch's behavior.
      */
-    public void setOptions(RequestOptions options) {
+    public Request setOptions(RequestOptions options) {
         Objects.requireNonNull(options, "options cannot be null");
         this.options = options;
+        return this;
     }
 
     /**
      * Set the portion of an HTTP request to Elasticsearch that can be
      * manipulated without changing Elasticsearch's behavior.
      */
-    public void setOptions(RequestOptions.Builder options) {
+    public Request setOptions(RequestOptions.Builder options) {
         Objects.requireNonNull(options, "options cannot be null");
         this.options = options.build();
+        return this;
     }
 
     /**

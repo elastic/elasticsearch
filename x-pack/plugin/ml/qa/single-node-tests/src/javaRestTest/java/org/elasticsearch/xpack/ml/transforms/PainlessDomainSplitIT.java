@@ -191,9 +191,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         createIndex("painless", settings.build());
-        Request createDoc = new Request("PUT", "/painless/_doc/1");
-        createDoc.setJsonEntity("{\"test\": \"test\"}");
-        createDoc.addParameter("refresh", "true");
+        var createDoc = new Request("PUT", "/painless/_doc/1").setJsonEntity("{\"test\": \"test\"}").addParameter("refresh", "true");
         client().performRequest(createDoc);
 
         Pattern pattern = Pattern.compile("domain_split\":\\[(.*?),(.*?)\\]");
@@ -204,8 +202,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             String mapAsJson = Strings.toString(jsonBuilder().map(params));
             logger.info("params={}", mapAsJson);
 
-            Request searchRequest = new Request("GET", "/painless/_search");
-            searchRequest.setJsonEntity(formatted("""
+            var searchRequest = new Request("GET", "/painless/_search").setJsonEntity(formatted("""
                 {
                     "query" : {
                         "match_all": {}
@@ -266,8 +263,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
     public void testHRDSplit() throws Exception {
         // Create job
-        Request createJobRequest = new Request("PUT", BASE_PATH + "anomaly_detectors/hrd-split-job");
-        createJobRequest.setJsonEntity("""
+        client().performRequest(new Request("PUT", BASE_PATH + "anomaly_detectors/hrd-split-job").setJsonEntity("""
             {
                 "description":"Domain splitting",
                 "analysis_config" : {
@@ -277,8 +273,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "data_description" : {
                     "time_field":"time"
                 }
-            }""");
-        client().performRequest(createJobRequest);
+            }"""));
         client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/hrd-split-job/_open"));
 
         // Create index to hold data
@@ -304,16 +299,14 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             if (i % 50 == 0) {
                 // Anomaly has 100 docs, but we don't care about the value
                 for (int j = 0; j < 100; j++) {
-                    Request createDocRequest = new Request("POST", "/painless/_doc");
-                    createDocRequest.setJsonEntity(formatted("""
+                    var createDocRequest = new Request("POST", "/painless/_doc").setJsonEntity(formatted("""
                         {"domain": "bar.bar.com", "time": "%s"}
                         """, formattedTime));
                     client().performRequest(createDocRequest);
                 }
             } else {
                 // Non-anomalous values will be what's seen when the anomaly is reported
-                Request createDocRequest = new Request("PUT", "/painless/_doc/" + formattedTime);
-                createDocRequest.setJsonEntity(formatted("""
+                var createDocRequest = new Request("PUT", "/painless/_doc/" + formattedTime).setJsonEntity(formatted("""
                     {"domain": "%s", "time": "%s"}
                     """, test.hostName, formattedTime));
                 client().performRequest(createDocRequest);
@@ -323,8 +316,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         client().performRequest(new Request("POST", "/painless/_refresh"));
 
         // Create and start datafeed
-        Request createFeedRequest = new Request("PUT", BASE_PATH + "datafeeds/hrd-split-datafeed");
-        createFeedRequest.setJsonEntity("""
+        client().performRequest(new Request("PUT", BASE_PATH + "datafeeds/hrd-split-datafeed").setJsonEntity("""
             {
                "job_id":"hrd-split-job",
                "indexes":["painless"],
@@ -333,12 +325,11 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                      "script": "return domainSplit(doc['domain'].value, params);"
                   }
                }
-            }""");
-
-        client().performRequest(createFeedRequest);
-        Request startDatafeedRequest = new Request("POST", BASE_PATH + "datafeeds/hrd-split-datafeed/_start");
-        startDatafeedRequest.addParameter("start", baseTime.format(DateTimeFormatter.ISO_DATE_TIME));
-        startDatafeedRequest.addParameter("end", ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ISO_DATE_TIME));
+            }"""));
+        var startDatafeedRequest = new Request("POST", BASE_PATH + "datafeeds/hrd-split-datafeed/_start").addParameter(
+            "start",
+            baseTime.format(DateTimeFormatter.ISO_DATE_TIME)
+        ).addParameter("end", ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ISO_DATE_TIME));
         client().performRequest(startDatafeedRequest);
 
         waitUntilDatafeedIsStopped("hrd-split-datafeed");

@@ -264,8 +264,9 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
             {
                 // check that skip_unavailable alone cannot be set
-                Request request = new Request("PUT", "/_cluster/settings");
-                request.setEntity(buildUpdateSettingsRequestBody(Collections.singletonMap("skip_unavailable", randomBoolean())));
+                var request = new Request("PUT", "/_cluster/settings").setEntity(
+                    buildUpdateSettingsRequestBody(Collections.singletonMap("skip_unavailable", randomBoolean()))
+                );
                 ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
                 assertThat(
@@ -283,8 +284,9 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
 
             {
                 // check that seeds cannot be reset alone if skip_unavailable is set
-                Request request = new Request("PUT", "/_cluster/settings");
-                request.setEntity(buildUpdateSettingsRequestBody(Collections.singletonMap("seeds", null)));
+                var request = new Request("PUT", "/_cluster/settings").setEntity(
+                    buildUpdateSettingsRequestBody(Collections.singletonMap("seeds", null))
+                );
                 ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
                 assertThat(
@@ -335,8 +337,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
     }
 
     private static void updateRemoteClusterSettings(Map<String, Object> settings) throws IOException {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setEntity(buildUpdateSettingsRequestBody(settings));
+        var request = new Request("PUT", "/_cluster/settings").setEntity(buildUpdateSettingsRequestBody(settings));
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }

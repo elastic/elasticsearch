@@ -84,10 +84,9 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             SnapshotRetentionConfiguration.EMPTY
         );
 
-        Request putLifecycle = new Request("PUT", "/_slm/policy/missing-repo-policy");
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
         policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
-        putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
+        var putLifecycle = new Request("PUT", "/_slm/policy/missing-repo-policy").setJsonEntity(Strings.toString(lifecycleBuilder));
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(putLifecycle));
         Response resp = e.getResponse();
         assertThat(resp.getStatusLine().getStatusCode(), equalTo(400));
@@ -435,9 +434,9 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         req.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, "*/1 * * * * ?"));
         try (XContentBuilder builder = jsonBuilder()) {
             req.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Request r = new Request("PUT", "/_cluster/settings");
-            r.setJsonEntity(Strings.toString(builder));
-            Response updateSettingsResp = client().performRequest(r);
+            Response updateSettingsResp = client().performRequest(
+                new Request("PUT", "/_cluster/settings").setJsonEntity(Strings.toString(builder))
+            );
             assertAcked(updateSettingsResp);
         }
 
@@ -477,9 +476,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             unsetRequest.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, (String) null));
             try (XContentBuilder builder = jsonBuilder()) {
                 unsetRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                Request r = new Request("PUT", "/_cluster/settings");
-                r.setJsonEntity(Strings.toString(builder));
-                client().performRequest(r);
+                client().performRequest(new Request("PUT", "/_cluster/settings").setJsonEntity(Strings.toString(builder)));
             }
         }
     }
@@ -657,8 +654,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     // This method should be called inside an assertBusy, it has no retry logic of its own
     @SuppressWarnings("unchecked")
     private void assertHistoryIsPresent(String policyName, boolean success, String repository, String operation) throws IOException {
-        final Request historySearchRequest = new Request("GET", ".slm-history*/_search");
-        historySearchRequest.setJsonEntity(formatted("""
+        var historySearchRequest = new Request("GET", ".slm-history*/_search").setJsonEntity(formatted("""
             {
               "query": {
                 "bool": {
@@ -774,10 +770,9 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             retention
         );
 
-        Request putLifecycle = new Request("PUT", "/_slm/policy/" + policyName);
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
         policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
-        putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
+        var putLifecycle = new Request("PUT", "/_slm/policy/" + policyName).setJsonEntity(Strings.toString(lifecycleBuilder));
         final Response response = client().performRequest(putLifecycle);
         assertAcked(response);
     }
@@ -787,9 +782,9 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         req.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_MINIMUM_INTERVAL, "0s"));
         try (XContentBuilder builder = jsonBuilder()) {
             req.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Request r = new Request("PUT", "/_cluster/settings");
-            r.setJsonEntity(Strings.toString(builder));
-            Response updateSettingsResp = client().performRequest(r);
+            Response updateSettingsResp = client().performRequest(
+                new Request("PUT", "/_cluster/settings").setJsonEntity(Strings.toString(builder))
+            );
             assertAcked(updateSettingsResp);
         }
     }
@@ -799,8 +794,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     private void initializeRepo(String repoName, String maxBytesPerSecond) throws IOException {
-        Request request = new Request("PUT", "/_snapshot/" + repoName);
-        request.setJsonEntity(
+        var request = new Request("PUT", "/_snapshot/" + repoName).setJsonEntity(
             Strings.toString(
                 JsonXContent.contentBuilder()
                     .startObject()
@@ -822,9 +816,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             document.field((String) fields[i], fields[i + 1]);
         }
         document.endObject();
-        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
-        request.setJsonEntity(Strings.toString(document));
-        assertOK(client.performRequest(request));
+        assertOK(client.performRequest(new Request("POST", "/" + index + "/_doc/" + id).setJsonEntity(Strings.toString(document))));
     }
 
     @SuppressWarnings("unchecked")

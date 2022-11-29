@@ -177,9 +177,9 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
 
             // write
-            Request index = new Request("POST", "/.test-data-stream/_doc");
-            index.setJsonEntity("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }");
-            index.addParameter("refresh", "true");
+            var index = new Request("POST", "/.test-data-stream/_doc").setJsonEntity(
+                "{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }"
+            ).addParameter("refresh", "true");
 
             // no product specified
             ResponseException re = expectThrows(ResponseException.class, () -> restClient.performRequest(index));
@@ -221,9 +221,8 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
 
             // search all
-            Request search = new Request("GET", "/_search");
-            search.addParameter("expand_wildcards", "open,hidden");
-            search.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
+            var search = new Request("GET", "/_search").addParameter("expand_wildcards", "open,hidden")
+                .setJsonEntity("{ \"query\": { \"match_all\": {} } }");
 
             // no header
             Response searchResponse = restClient.performRequest(search);
@@ -264,8 +263,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             assertThat(hitsHits.size(), is(1));
 
             // search the datastream
-            Request searchIdx = new Request("GET", "/.test-data-stream/_search");
-            searchIdx.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
+            var searchIdx = new Request("GET", "/.test-data-stream/_search").setJsonEntity("{ \"query\": { \"match_all\": {} } }");
 
             // no header
             re = expectThrows(ResponseException.class, () -> restClient.performRequest(searchIdx));

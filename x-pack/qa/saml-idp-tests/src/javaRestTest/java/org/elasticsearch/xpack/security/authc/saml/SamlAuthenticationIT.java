@@ -96,8 +96,9 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      */
     @Before
     public void setKibanaPassword() throws IOException {
-        Request request = new Request("PUT", "/_security/user/kibana_system/_password");
-        request.setJsonEntity("{ \"password\" : \"" + KIBANA_PASSWORD + "\" }");
+        var request = new Request("PUT", "/_security/user/kibana_system/_password").setJsonEntity(
+            "{ \"password\" : \"" + KIBANA_PASSWORD + "\" }"
+        );
         adminClient().performRequest(request);
     }
 
@@ -108,8 +109,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      */
     @Before
     public void setupRoleMapping() throws IOException {
-        Request request = new Request("PUT", "/_security/role_mapping/thor-kibana");
-        request.setJsonEntity(
+        var request = new Request("PUT", "/_security/role_mapping/thor-kibana").setJsonEntity(
             Strings.toString(
                 XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
@@ -458,8 +458,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         for (Header header : headers) {
             options.addHeader(header.getName(), header.getValue());
         }
-        request.setOptions(options);
-        return request;
+        return request.setOptions(options);
     }
 
     private static BasicHeader kibanaAuth() {

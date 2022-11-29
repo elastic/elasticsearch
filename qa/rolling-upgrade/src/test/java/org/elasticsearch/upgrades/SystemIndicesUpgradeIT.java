@@ -28,21 +28,17 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
             + "access to system indices will be prevented by default";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // create index
-            Request createTestIndex = new Request("PUT", "/test_index_old");
-            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            var createTestIndex = new Request("PUT", "/test_index_old").setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
             client().performRequest(createTestIndex);
 
-            Request bulk = new Request("POST", "/_bulk");
-            bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("""
+            var bulk = new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity("""
                 {"index": {"_index": "test_index_old"}}
                 {"f1": "v1", "f2": "v2"}
                 """);
             client().performRequest(bulk);
 
             // start a async reindex job
-            Request reindex = new Request("POST", "/_reindex");
-            reindex.setJsonEntity("""
+            var reindex = new Request("POST", "/_reindex").setJsonEntity("""
                 {
                   "source":{
                     "index":"test_index_old"
@@ -50,28 +46,20 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
                   "dest":{
                     "index":"test_index_reindex"
                   }
-                }""");
-            reindex.addParameter("wait_for_completion", "false");
+                }""").addParameter("wait_for_completion", "false");
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");
 
             // wait for task
-            Request getTask = new Request("GET", "/_tasks/" + taskId);
-            getTask.addParameter("wait_for_completion", "true");
+            var getTask = new Request("GET", "/_tasks/" + taskId).addParameter("wait_for_completion", "true");
             client().performRequest(getTask);
 
             // make sure .tasks index exists
-            Request getTasksIndex = new Request("GET", "/.tasks");
-            getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
+            var getTasksIndex = new Request("GET", "/.tasks").setOptions(expectVersionSpecificWarnings(v -> {
                 v.current(systemIndexWarning);
                 v.compatible(systemIndexWarning);
-            }));
-            getTasksIndex.addParameter("allow_no_indices", "false");
+            })).addParameter("allow_no_indices", "false");
 
-            getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
-                v.current(systemIndexWarning);
-                v.compatible(systemIndexWarning);
-            }));
             assertBusy(() -> {
                 try {
                     assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
@@ -84,15 +72,13 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
             // upgraded properly. If we're already on 8.x, skip this part of the test.
             if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
                 // Create an alias to make sure it gets upgraded properly
-                Request putAliasRequest = new Request("POST", "/_aliases");
-                putAliasRequest.setJsonEntity("""
+                var putAliasRequest = new Request("POST", "/_aliases").setJsonEntity("""
                     {
                       "actions": [
                         {"add":  {"index":  ".tasks", "alias": "test-system-alias"}},
                         {"add":  {"index":  "test_index_reindex", "alias": "test-system-alias"}}
                       ]
-                    }""");
-                putAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
+                    }""").setOptions(expectVersionSpecificWarnings(v -> {
                     v.current(systemIndexWarning);
                     v.compatible(systemIndexWarning);
                 }));

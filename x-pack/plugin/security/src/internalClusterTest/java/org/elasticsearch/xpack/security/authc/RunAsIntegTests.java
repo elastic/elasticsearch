@@ -152,13 +152,11 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     }
 
     public void testRunAsUsingApiKey() throws IOException {
-        final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
-        createApiKeyRequest.setJsonEntity("{\"name\":\"k1\"}\n");
-        createApiKeyRequest.setOptions(
-            createApiKeyRequest.getOptions()
-                .toBuilder()
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING))
-        );
+        var createApiKeyRequest = new Request("PUT", "/_security/api_key").setJsonEntity("{\"name\":\"k1\"}\n")
+            .setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING))
+            );
         final Response createApiKeyResponse = getRestClient().performRequest(createApiKeyRequest);
         final XContentTestUtils.JsonMapView apiKeyMapView = XContentTestUtils.createJsonMapView(
             createApiKeyResponse.getEntity().getContent()
@@ -168,11 +166,9 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         final boolean useOAuth2Token = randomBoolean();
         final String authHeader;
         if (useOAuth2Token) {
-            final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
-            createTokenRequest.setOptions(
-                createTokenRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKeyMapView.get("encoded"))
-            );
-            createTokenRequest.setJsonEntity("{\"grant_type\":\"client_credentials\"}");
+            var createTokenRequest = new Request("POST", "/_security/oauth2/token").setOptions(
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + apiKeyMapView.get("encoded"))
+            ).setJsonEntity("{\"grant_type\":\"client_credentials\"}");
             final Response createTokenResponse = getRestClient().performRequest(createTokenRequest);
             final XContentTestUtils.JsonMapView createTokenJsonView = XContentTestUtils.createJsonMapView(
                 createTokenResponse.getEntity().getContent()
@@ -197,10 +193,8 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         assertThat(authenticateJsonView.get("lookup_realm.type"), equalTo("file"));
         assertThat(authenticateJsonView.get("authentication_type"), equalTo(useOAuth2Token ? "token" : "api_key"));
 
-        final Request getUserRequest = new Request("GET", "/_security/user");
-        getUserRequest.setOptions(
-            getUserRequest.getOptions()
-                .toBuilder()
+        var getUserRequest = new Request("GET", "/_security/user").setOptions(
+            RequestOptions.DEFAULT.toBuilder()
                 .addHeader("Authorization", "ApiKey " + apiKeyMapView.get("encoded"))
                 .addHeader(
                     AuthenticationServiceField.RUN_AS_USER_HEADER,
@@ -215,14 +209,11 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         }
 
         // Run-As ignored if using the token is already created with run-as
-        final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
-        createTokenRequest.setOptions(
-            createTokenRequest.getOptions()
-                .toBuilder()
+        var createTokenRequest = new Request("POST", "/_security/oauth2/token").setOptions(
+            RequestOptions.DEFAULT.toBuilder()
                 .addHeader("Authorization", "ApiKey " + apiKeyMapView.get("encoded"))
                 .addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME)
-        );
-        createTokenRequest.setJsonEntity("{\"grant_type\":\"client_credentials\"}");
+        ).setJsonEntity("{\"grant_type\":\"client_credentials\"}");
         final Response createTokenResponse = getRestClient().performRequest(createTokenRequest);
         final XContentTestUtils.JsonMapView createTokenJsonView = XContentTestUtils.createJsonMapView(
             createTokenResponse.getEntity().getContent()
@@ -240,14 +231,13 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
     public void testRunAsForOAuthToken() throws IOException {
         // Run-as works for oauth tokens
-        final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
-        createTokenRequest.setJsonEntity("{\"grant_type\":\"client_credentials\"}");
-        createTokenRequest.setOptions(
-            createTokenRequest.getOptions()
-                .toBuilder()
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING))
+        final Response createTokenResponse = getRestClient().performRequest(
+            new Request("POST", "/_security/oauth2/token").setJsonEntity("{\"grant_type\":\"client_credentials\"}")
+                .setOptions(
+                    RequestOptions.DEFAULT.toBuilder()
+                        .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING))
+                )
         );
-        final Response createTokenResponse = getRestClient().performRequest(createTokenRequest);
         final XContentTestUtils.JsonMapView tokenMapView = XContentTestUtils.createJsonMapView(
             createTokenResponse.getEntity().getContent()
         );
@@ -261,15 +251,14 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         assertThat(authenticateJsonView.get("authentication_type"), equalTo("token"));
 
         // Run-as is ignored if the token itself already has run-as
-        final Request createTokenRequest2 = new Request("POST", "/_security/oauth2/token");
-        createTokenRequest2.setJsonEntity("{\"grant_type\":\"client_credentials\"}");
-        createTokenRequest2.setOptions(
-            createTokenRequest2.getOptions()
-                .toBuilder()
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING))
-                .addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME)
+        final Response createTokenResponse2 = getRestClient().performRequest(
+            new Request("POST", "/_security/oauth2/token").setJsonEntity("{\"grant_type\":\"client_credentials\"}")
+                .setOptions(
+                    RequestOptions.DEFAULT.toBuilder()
+                        .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING))
+                        .addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME)
+                )
         );
-        final Response createTokenResponse2 = getRestClient().performRequest(createTokenRequest2);
         final XContentTestUtils.JsonMapView tokenMapView2 = XContentTestUtils.createJsonMapView(
             createTokenResponse2.getEntity().getContent()
         );
@@ -290,9 +279,8 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         // randomly use a token created for the anonymous user
         final boolean useOauth2Token = randomBoolean();
         if (useOauth2Token) {
-            final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
-            createTokenRequest.setJsonEntity("{\"grant_type\":\"client_credentials\"}");
-            createTokenRequest.setOptions(createTokenRequest.getOptions().toBuilder());
+            var createTokenRequest = new Request("POST", "/_security/oauth2/token").setJsonEntity("{\"grant_type\":\"client_credentials\"}")
+                .setOptions(RequestOptions.DEFAULT);
             final Response createTokenResponse = getRestClient().performRequest(createTokenRequest);
             final XContentTestUtils.JsonMapView tokenMapView = XContentTestUtils.createJsonMapView(
                 createTokenResponse.getEntity().getContent()

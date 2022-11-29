@@ -57,8 +57,7 @@ public class MlPluginDisabledIT extends ESRestTestCase {
         }
         xContentBuilder.endObject();
 
-        Request request = new Request("PUT", BASE_PATH + "anomaly_detectors/foo");
-        request.setJsonEntity(Strings.toString(xContentBuilder));
+        var request = new Request("PUT", BASE_PATH + "anomaly_detectors/foo").setJsonEntity(Strings.toString(xContentBuilder));
         ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(exception.getMessage(), containsString("method [PUT]"));
         assertThat(exception.getMessage(), containsString("URI [/_ml/anomaly_detectors/foo]"));

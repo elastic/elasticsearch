@@ -1658,19 +1658,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                     (createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8)
                 );
 
-            final Request authRequest = new Request("GET", "_security/_authenticate");
-            authRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue).build());
+            var authRequest = new Request("GET", "_security/_authenticate").setOptions(
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue).build()
+            );
             final ResponseException e1 = expectThrows(ResponseException.class, () -> restClient.performRequest(authRequest));
             assertThat(e1.getMessage(), containsString("429 Too Many Requests"));
             assertThat(e1.getResponse().getStatusLine().getStatusCode(), is(429));
 
-            final Request createApiKeyRequest = new Request("POST", "_security/api_key");
-            createApiKeyRequest.setJsonEntity("{\"name\":\"key\"}");
-            createApiKeyRequest.setOptions(
-                createApiKeyRequest.getOptions()
-                    .toBuilder()
-                    .addHeader("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
-            );
+            var createApiKeyRequest = new Request("POST", "_security/api_key").setJsonEntity("{\"name\":\"key\"}")
+                .setOptions(
+                    RequestOptions.DEFAULT.toBuilder()
+                        .addHeader("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
+                );
             final ResponseException e2 = expectThrows(ResponseException.class, () -> restClient.performRequest(createApiKeyRequest));
             assertThat(e2.getMessage(), containsString("429 Too Many Requests"));
             assertThat(e2.getResponse().getStatusLine().getStatusCode(), is(429));

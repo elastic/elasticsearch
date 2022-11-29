@@ -93,9 +93,8 @@ public class TransformContinuousIT extends TransformRestTestCase {
         // Make sure we never retry on failure to speed up the test
         // Set logging level to trace
         // see: https://github.com/elastic/elasticsearch/issues/45562
-        Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
         // reduces bulk failure spam
-        addFailureRetrySetting.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/_cluster/settings").setJsonEntity("""
             {
               "persistent": {
                 "xpack.transform.num_transform_failure_retries": "0",
@@ -104,8 +103,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
                 "logger.org.elasticsearch.xpack.transform": "debug",
                 "logger.org.elasticsearch.xpack.transform.transforms.scheduling": "trace"
               }
-            }""");
-        client().performRequest(addFailureRetrySetting);
+            }"""));
     }
 
     @Before
@@ -414,8 +412,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
             String indexSettingsAndMappings = Strings.toString(builder);
             logger.info("Creating source index with: {}", indexSettingsAndMappings);
             if (isDataStream) {
-                Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
-                createCompositeTemplate.setJsonEntity(formatted("""
+                var createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template").setJsonEntity(formatted("""
                     {
                       "index_patterns": [ "%s" ],
                       "data_stream": {
@@ -426,9 +423,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
                 client().performRequest(new Request("PUT", "_data_stream/" + indexName));
             } else {
                 final StringEntity entity = new StringEntity(indexSettingsAndMappings, ContentType.APPLICATION_JSON);
-                Request req = new Request("PUT", indexName);
-                req.setEntity(entity);
-                client().performRequest(req);
+                client().performRequest(new Request("PUT", indexName).setEntity(entity));
             }
         }
     }
@@ -521,8 +516,9 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
     private void putPipeline(String pipelineId, String pipelineDefinition) throws IOException {
         logger.info("putPipeline {}: {}", pipelineId, pipelineDefinition);
-        Request putPipeline = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
-        putPipeline.setEntity(new StringEntity(pipelineDefinition, ContentType.APPLICATION_JSON));
+        var putPipeline = new Request("PUT", "/_ingest/pipeline/" + pipelineId).setEntity(
+            new StringEntity(pipelineDefinition, ContentType.APPLICATION_JSON)
+        );
         assertOK(client().performRequest(putPipeline));
     }
 

@@ -90,8 +90,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
                     .endObject()
             );
 
-        final Request request = new Request("POST", "/_security/role_mapping/kerberosrolemapping");
-        request.setJsonEntity(json);
+        var request = new Request("POST", "/_security/role_mapping/kerberosrolemapping").setJsonEntity(json);
         final Response response = adminClient().performRequest(request);
         assertOK(response);
     }

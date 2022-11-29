@@ -80,9 +80,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             XContentBuilder builder = jsonBuilder();
             lifecyclePolicy.toXContent(builder, null);
             final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-            Request request = new Request("PUT", "_ilm/policy/shrink-only-policy");
-            request.setEntity(entity);
-            assertOK(client().performRequest(request));
+            assertOK(client().performRequest(new Request("PUT", "_ilm/policy/shrink-only-policy").setEntity(entity)));
         }
 
         createIndexWithSettings(

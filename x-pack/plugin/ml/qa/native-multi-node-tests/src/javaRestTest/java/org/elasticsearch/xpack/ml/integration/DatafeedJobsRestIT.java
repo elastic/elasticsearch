@@ -65,16 +65,14 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     private static void setupDataAccessRole(String index) throws IOException {
-        Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "/_security/role/test_data_access").setJsonEntity(formatted("""
             {  "indices" : [    { "names": ["%s"], "privileges": ["read"] }  ]}
             """, index));
         client().performRequest(request);
     }
 
     private void setupFullAccessRole(String index) throws IOException {
-        Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "/_security/role/test_data_access").setJsonEntity(formatted("""
             {  "indices" : [    { "names": ["%s"], "privileges": ["all"] }  ]}
             """, index));
         client().performRequest(request);
@@ -83,8 +81,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     private void setupUser(String user, List<String> roles) throws IOException {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
-        Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "/_security/user/" + user).setJsonEntity(formatted("""
             { "password" : "%s", "roles" : [ %s ]}
             """, password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
         client().performRequest(request);
@@ -105,9 +102,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     private void addAirlineData() throws IOException {
         StringBuilder bulk = new StringBuilder();
 
-        Request createEmptyAirlineDataRequest = new Request("PUT", "/airline-data-empty");
         // space in 'time stamp' is intentional
-        createEmptyAirlineDataRequest.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/airline-data-empty").setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -122,13 +118,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                   }
                 }
               }
-            }""");
-        client().performRequest(createEmptyAirlineDataRequest);
+            }"""));
 
         // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
-        Request createAirlineDataRequest = new Request("PUT", "/airline-data");
         // space in 'time stamp' is intentional
-        createAirlineDataRequest.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/airline-data").setJsonEntity("""
             {
               "mappings": {
                 "runtime": {
@@ -159,8 +153,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                   }
                 }
               }
-            }""");
-        client().performRequest(createAirlineDataRequest);
+            }"""));
 
         bulk.append("""
             {"index": {"_index": "airline-data", "_id": 1}}
@@ -170,8 +163,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             """);
 
         // Create index with source = enabled, doc_values = disabled (except time), stored = false
-        Request createAirlineDataDisabledDocValues = new Request("PUT", "/airline-data-disabled-doc-values");
-        createAirlineDataDisabledDocValues.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/airline-data-disabled-doc-values").setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -188,8 +180,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                   }
                 }
               }
-            }""");
-        client().performRequest(createAirlineDataDisabledDocValues);
+            }"""));
 
         bulk.append("""
             {"index": {"_index": "airline-data-disabled-doc-values", "_id": 1}}
@@ -199,8 +190,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             """);
 
         // Create index with source = disabled, doc_values = enabled (except time), stored = true
-        Request createAirlineDataDisabledSource = new Request("PUT", "/airline-data-disabled-source");
-        createAirlineDataDisabledSource.setJsonEntity("""
+        var createAirlineDataDisabledSource = new Request("PUT", "/airline-data-disabled-source").setJsonEntity("""
             {
               "mappings": {
                 "_source": {
@@ -231,8 +221,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             """);
 
         // Create index with nested documents
-        Request createAirlineDataNested = new Request("PUT", "/nested-data");
-        createAirlineDataNested.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/nested-data").setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -241,8 +230,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                   }
                 }
               }
-            }""");
-        client().performRequest(createAirlineDataNested);
+            }"""));
 
         bulk.append("""
             {"index": {"_index": "nested-data", "_id": 1}}
@@ -252,9 +240,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             """);
 
         // Create index with multiple docs per time interval for aggregation testing
-        Request createAirlineDataAggs = new Request("PUT", "/airline-data-aggs");
         // space in 'time stamp' is intentional
-        createAirlineDataAggs.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/airline-data-aggs").setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -269,8 +256,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                   }
                 }
               }
-            }""");
-        client().performRequest(createAirlineDataAggs);
+            }"""));
 
         bulk.append("""
             {"index": {"_index": "airline-data-aggs", "_id": 1}}
@@ -296,8 +282,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private void addNetworkData(String index) throws IOException {
         // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
-        Request createIndexRequest = new Request("PUT", index);
-        createIndexRequest.setJsonEntity("""
+        var createIndexRequest = new Request("PUT", index).setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -381,8 +366,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackonlyWithNestedFields() throws Exception {
         String jobId = "test-lookback-only-with-nested-fields";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "description": "Nested job",
               "analysis_config": {
@@ -415,8 +399,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackWithGeo() throws Exception {
         String jobId = "test-lookback-only-with-geo";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "description": "lat_long with geo_point",
               "analysis_config": {
@@ -435,8 +418,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         StringBuilder bulk = new StringBuilder();
 
-        Request createGeoData = new Request("PUT", "/geo-data");
-        createGeoData.setJsonEntity("""
+        var createGeoData = new Request("PUT", "/geo-data").setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -488,8 +470,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackWithIndicesOptions() throws Exception {
         String jobId = "test-lookback-only-with-indices-options";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "description": "custom indices options",
               "analysis_config": {
@@ -508,8 +489,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         StringBuilder bulk = new StringBuilder();
 
-        Request createGeoData = new Request("PUT", "/.hidden-index");
-        createGeoData.setJsonEntity("""
+        var createGeoData = new Request("PUT", "/.hidden-index").setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -570,8 +550,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testInsufficientSearchPrivilegesOnPut() throws Exception {
         String jobId = "privs-put-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "description": "Aggs job",
               "analysis_config": {
@@ -604,8 +583,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testInsufficientSearchPrivilegesOnPutWithJob() {
         String jobId = "privs-failed-put-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "description": "Aggs job",
               "datafeed_config": {"indexes": ["airline-data-aggs"]},
@@ -621,10 +599,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 ]
               },
               "data_description" : {"time_field": "time stamp"}
-            }""");
-        RequestOptions.Builder options = createJobRequest.getOptions().toBuilder();
-        options.addHeader("Authorization", BASIC_AUTH_VALUE_ML_ADMIN);
-        createJobRequest.setOptions(options);
+            }""").setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", BASIC_AUTH_VALUE_ML_ADMIN));
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createJobRequest));
         assertThat(e.getMessage(), containsString("Cannot create datafeed"));
         assertThat(e.getMessage(), containsString("user ml_admin lacks permissions on the indices"));
@@ -651,8 +626,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testInsufficientSearchPrivilegesOnPreview() throws Exception {
         String jobId = "privs-preview-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "description": "Aggs job",
               "analysis_config": {
@@ -727,8 +701,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackOnlyGivenAggregationsWithHistogram() throws Exception {
         String jobId = "aggs-histogram-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "description": "Aggs job",
               "analysis_config": {
@@ -792,8 +765,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackOnlyGivenAggregationsWithDateHistogram() throws Exception {
         String jobId = "aggs-date-histogram-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "description": "Aggs job",
               "analysis_config": {
@@ -857,8 +829,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackUsingDerivativeAggWithLargerHistogramBucketThanDataRate() throws Exception {
         String jobId = "derivative-agg-network-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "analysis_config": {
                 "bucket_span": "300s",
@@ -930,8 +901,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackUsingDerivativeAggWithSmallerHistogramBucketThanDataRate() throws Exception {
         String jobId = "derivative-agg-network-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "analysis_config": {
                 "bucket_span": "300s",
@@ -999,8 +969,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackWithoutPermissions() throws Exception {
         String jobId = "permission-test-network-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "analysis_config": {
                 "bucket_span": "300s",
@@ -1094,8 +1063,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackWithPipelineBucketAgg() throws Exception {
         String jobId = "pipeline-bucket-agg-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "analysis_config": {
                 "bucket_span": "1h",
@@ -1160,8 +1128,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackOnlyGivenAggregationsWithHistogramAndRollupIndex() throws Exception {
         String jobId = "aggs-histogram-rollup-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "description": "Aggs job",
               "analysis_config": {
@@ -1180,8 +1147,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String rollupJobId = "rollup-" + jobId;
-        Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
-        createRollupRequest.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/_rollup/job/" + rollupJobId).setJsonEntity("""
             {
             "index_pattern": "airline-data-aggs",
                 "rollup_index": "airline-data-aggs-rollup",
@@ -1206,8 +1172,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                         "metrics": ["min","max"]
                     }
                 ]
-            }""");
-        client().performRequest(createRollupRequest);
+            }"""));
         client().performRequest(new Request("POST", "/_rollup/job/" + rollupJobId + "/_start"));
 
         assertBusy(() -> {
@@ -1294,8 +1259,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testLookbackWithSingleBucketAgg() throws Exception {
         String jobId = "aggs-date-histogram-with-single-bucket-agg-job";
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "description": "Aggs job",
               "analysis_config": {
@@ -1363,8 +1327,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         new DatafeedBuilder(datafeedId, jobId, "airline-data").setFrequency(TimeValue.timeValueSeconds(5)).build();
         openJob(client(), jobId);
 
-        Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
-        startRequest.addParameter("start", "2016-06-01T00:00:00Z");
+        var startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start").addParameter(
+            "start",
+            "2016-06-01T00:00:00Z"
+        );
         Response response = client().performRequest(startRequest);
         assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
 
@@ -1455,8 +1421,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         new DatafeedBuilder(datafeedId, jobId, "airline-data").build();
         openJob(client(), jobId);
 
-        Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
-        startRequest.addParameter("start", "2016-06-01T00:00:00Z");
+        var startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start").addParameter(
+            "start",
+            "2016-06-01T00:00:00Z"
+        );
         Response response = client().performRequest(startRequest);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
@@ -1472,8 +1440,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             containsString("Cannot delete datafeed [" + datafeedId + "] while its status is started")
         );
 
-        Request forceDeleteRequest = new Request("DELETE", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
-        forceDeleteRequest.addParameter("force", "true");
+        var forceDeleteRequest = new Request("DELETE", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId).addParameter("force", "true");
         response = client().performRequest(forceDeleteRequest);
         assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"acknowledged\":true}"));
 
@@ -1549,12 +1516,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     private void startDatafeedAndWaitUntilStopped(String datafeedId, String authHeader) throws Exception {
-        Request request = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
-        request.addParameter("start", "2016-06-01T00:00:00Z");
-        request.addParameter("end", "2016-06-02T00:00:00Z");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", authHeader);
-        request.setOptions(options);
+        Request request = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start").addParameter(
+            "start",
+            "2016-06-01T00:00:00Z"
+        ).addParameter("end", "2016-06-02T00:00:00Z").setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
         Response startDatafeedResponse = client().performRequest(request);
         assertThat(EntityUtils.toString(startDatafeedResponse.getEntity()), containsString("\"started\":true"));
         assertBusy(() -> {
@@ -1583,8 +1548,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     private Response createJob(String id, String airlineVariant) throws Exception {
-        Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + id);
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + id).setJsonEntity(formatted("""
             {
               "description": "Analysis of response time by airline",
               "analysis_config": {
@@ -1666,8 +1630,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         }
 
         Response build() throws IOException {
-            Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
-            request.setJsonEntity(
+            RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader);
+            if (this.secondaryAuthHeader != null) {
+                options.addHeader("es-secondary-authorization", secondaryAuthHeader);
+            }
+            Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId).setJsonEntity(
                 formatted(
                     """
                         {
@@ -1691,29 +1658,19 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                         ,"chunking_config":{"mode":"MANUAL","time_span":"%s"}
                         """, chunkingTimespan)
                 )
-            );
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("Authorization", authHeader);
-            if (this.secondaryAuthHeader != null) {
-                options.addHeader("es-secondary-authorization", secondaryAuthHeader);
-            }
-            request.setOptions(options);
+            ).setOptions(options);
             return client().performRequest(request);
         }
     }
 
     private void bulkIndex(String bulk) throws IOException {
-        Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.setJsonEntity(bulk);
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.addParameter("pretty", null);
+        var bulkRequest = new Request("POST", "/_bulk").setJsonEntity(bulk).addParameter("refresh", "true").addParameter("pretty", null);
         String bulkResponse = EntityUtils.toString(client().performRequest(bulkRequest).getEntity());
         assertThat(bulkResponse, not(containsString("\"errors\": false")));
     }
 
     private Response createJobAndDataFeed(String jobId, String datafeedId) throws IOException {
-        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
-        createJobRequest.setJsonEntity("""
+        var createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId).setJsonEntity("""
             {
               "description": "Aggs job",
               "analysis_config": {
@@ -1732,8 +1689,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String rollupJobId = "rollup-" + jobId;
-        Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
-        createRollupRequest.setJsonEntity("""
+        var createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId).setJsonEntity("""
             {
             "index_pattern": "airline-data-aggs",
                 "rollup_index": "airline-data-aggs-rollup",

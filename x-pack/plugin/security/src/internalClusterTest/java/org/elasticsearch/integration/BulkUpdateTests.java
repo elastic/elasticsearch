@@ -88,13 +88,10 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         );
         final RequestOptions options = optionsBuilder.build();
 
-        Request createRequest = new Request("PUT", path);
-        createRequest.setOptions(options);
-        createRequest.setJsonEntity("{\"test\":\"test\"}");
+        var createRequest = new Request("PUT", path).setOptions(options).setJsonEntity("{\"test\":\"test\"}");
         getRestClient().performRequest(createRequest);
 
-        Request getRequest = new Request("GET", path);
-        getRequest.setOptions(options);
+        var getRequest = new Request("GET", path).setOptions(options);
         assertThat(EntityUtils.toString(getRestClient().performRequest(getRequest).getEntity()), containsString("\"test\":\"test\""));
 
         if (randomBoolean()) {
@@ -102,9 +99,8 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         }
 
         // update with new field
-        Request updateRequest = new Request("POST", "/index1/_update/1");
-        updateRequest.setOptions(options);
-        updateRequest.setJsonEntity("{\"doc\": {\"not test\": \"not test\"}}");
+        var updateRequest = new Request("POST", "/index1/_update/1").setOptions(options)
+            .setJsonEntity("{\"doc\": {\"not test\": \"not test\"}}");
         getRestClient().performRequest(updateRequest);
 
         String afterUpdate = EntityUtils.toString(getRestClient().performRequest(getRequest).getEntity());
@@ -115,9 +111,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         // FLS kicks in because the request can't be found and only returns meta fields
         flushAndRefresh();
 
-        Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.setOptions(options);
-        bulkRequest.setJsonEntity("""
+        var bulkRequest = new Request("POST", "/_bulk").setOptions(options).setJsonEntity("""
             {"update": {"_index": "index1", "_id": "1"}}
             {"doc": {"bulk updated":"bulk updated"}}
             """);

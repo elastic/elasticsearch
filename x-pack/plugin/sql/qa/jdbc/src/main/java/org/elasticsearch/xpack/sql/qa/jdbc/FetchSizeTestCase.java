@@ -30,7 +30,6 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
 
     @Before
     public void createTestIndex() throws IOException {
-        Request request = new Request("PUT", "/test");
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("mappings");
         {
@@ -45,11 +44,8 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
             createIndex.endObject();
         }
         createIndex.endObject().endObject();
-        request.setJsonEntity(Strings.toString(createIndex));
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test").setJsonEntity(Strings.toString(createIndex)));
 
-        request = new Request("PUT", "/test/_bulk");
-        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         StringBuilder bulkLine;
         for (int i = 0; i < 20; i++) {
@@ -63,8 +59,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
             bulkLine.append("]");
             bulk.append(bulkLine).append("}\n");
         }
-        request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString()));
     }
 
     /**
@@ -104,7 +99,6 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testScrollWithDatetimeAndTimezoneParam() throws IOException, SQLException {
-        Request request = new Request("PUT", "/test_date_timezone");
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("mappings");
         {
@@ -116,18 +110,15 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
             createIndex.endObject();
         }
         createIndex.endObject().endObject();
-        request.setJsonEntity(Strings.toString(createIndex));
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test_date_timezone").setJsonEntity(Strings.toString(createIndex)));
 
-        request = new Request("PUT", "/test_date_timezone/_bulk");
-        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         long[] datetimes = new long[] { 1_000, 10_000, 100_000, 1_000_000, 10_000_000 };
         for (long datetime : datetimes) {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"date\":").append(datetime).append("}\n");
         }
-        request.setJsonEntity(bulk.toString());
+        var request = new Request("PUT", "/test_date_timezone/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString());
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
 
         ZoneId zoneId = randomZone();
@@ -260,8 +251,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
     }
 
     private void addPivotData() throws IOException {
-        Request request = new Request("PUT", "/test_pivot/_bulk");
-        request.addParameter("refresh", "true");
+
         StringBuilder bulk = new StringBuilder();
         String[] continent = new String[] { "AF", "AS", "EU", "NA", "SA", "AQ", "AU" };
         for (int i = 0; i <= 100; i++) {
@@ -277,7 +267,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
                 .append("\"")
                 .append("}\n");
         }
-        request.setJsonEntity(bulk.toString());
+        var request = new Request("PUT", "/test_pivot/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString());
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 }

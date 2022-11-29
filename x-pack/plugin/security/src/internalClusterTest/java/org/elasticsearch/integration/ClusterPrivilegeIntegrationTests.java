@@ -192,9 +192,8 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
         assertAccessIsDenied("user_e", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo", repoJson);
 
-        Request createBar = new Request("PUT", "/someindex/_doc/1");
-        createBar.setJsonEntity("{ \"name\" : \"elasticsearch\" }");
-        createBar.addParameter("refresh", "true");
+        var createBar = new Request("PUT", "/someindex/_doc/1").setJsonEntity("{ \"name\" : \"elasticsearch\" }")
+            .addParameter("refresh", "true");
         assertAccessIsDenied("user_a", createBar);
         assertAccessIsDenied("user_b", createBar);
         assertAccessIsDenied("user_d", createBar);
@@ -224,8 +223,10 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
         assertAccessIsDenied("user_e", "DELETE", "/someindex");
         assertAccessIsAllowed("user_c", "DELETE", "/someindex");
 
-        Request restoreSnapshotRequest = new Request("POST", "/_snapshot/my-repo/my-snapshot/_restore");
-        restoreSnapshotRequest.addParameter("wait_for_completion", "true");
+        var restoreSnapshotRequest = new Request("POST", "/_snapshot/my-repo/my-snapshot/_restore").addParameter(
+            "wait_for_completion",
+            "true"
+        );
         assertAccessIsDenied("user_b", restoreSnapshotRequest);
         assertAccessIsDenied("user_c", restoreSnapshotRequest);
         assertAccessIsDenied("user_d", restoreSnapshotRequest);

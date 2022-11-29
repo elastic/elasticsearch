@@ -77,14 +77,13 @@ public class PermissionsIT extends ESRestTestCase {
 
     @Before
     public void init() throws Exception {
-        Request request = new Request("PUT", "/_cluster/settings");
         XContentBuilder pollIntervalEntity = JsonXContent.contentBuilder();
         pollIntervalEntity.startObject();
         pollIntervalEntity.startObject("persistent");
         pollIntervalEntity.field(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
         pollIntervalEntity.endObject();
         pollIntervalEntity.endObject();
-        request.setJsonEntity(Strings.toString(pollIntervalEntity));
+        var request = new Request("PUT", "/_cluster/settings").setJsonEntity(Strings.toString(pollIntervalEntity));
         assertOK(adminClient().performRequest(request));
         indexSettingsWithPolicy = Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, deletePolicy)
@@ -157,12 +156,9 @@ public class PermissionsIT extends ESRestTestCase {
         createIndexAsAdmin("index", Settings.builder().put("index.number_of_replicas", 0).build(), "");
 
         // Set up two roles and users, one for reading SLM, another for managing SLM
-        Request roleRequest = new Request("PUT", "/_security/role/slm-read");
-        roleRequest.setJsonEntity("""
-            { "cluster": ["read_slm"] }""");
-        assertOK(adminClient().performRequest(roleRequest));
-        roleRequest = new Request("PUT", "/_security/role/slm-manage");
-        roleRequest.setJsonEntity("""
+        assertOK(adminClient().performRequest(new Request("PUT", "/_security/role/slm-read").setJsonEntity("""
+            { "cluster": ["read_slm"] }""")));
+        assertOK(adminClient().performRequest(new Request("PUT", "/_security/role/slm-manage").setJsonEntity("""
             {
               "cluster": [ "manage_slm", "cluster:admin/repository/*", "cluster:admin/snapshot/*" ],
               "indices": [
@@ -171,8 +167,7 @@ public class PermissionsIT extends ESRestTestCase {
                   "privileges": [ "all" ]
                 }
               ]
-            }""");
-        assertOK(adminClient().performRequest(roleRequest));
+            }""")));
 
         createUser("slm_admin", "slm-admin-password", "slm-manage");
         createUser("slm_user", "slm-user-password", "slm-read");
@@ -318,12 +313,7 @@ public class PermissionsIT extends ESRestTestCase {
 
     private Response performWithOptions(RequestOptions options, String verb, String endpoint, @Nullable String jsonBody)
         throws IOException {
-        Request req = new Request(verb, endpoint);
-        if (jsonBody != null) {
-            req.setJsonEntity(jsonBody);
-        }
-        req.setOptions(options);
-        return adminClient().performRequest(req);
+        return adminClient().performRequest(new Request(verb, endpoint).setJsonEntity(jsonBody).setOptions(options));
     }
 
     private void createNewSingletonPolicy(RestClient client, String policy, String phaseName, LifecycleAction action) throws IOException {
@@ -332,14 +322,12 @@ public class PermissionsIT extends ESRestTestCase {
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "_ilm/policy/" + policy);
-        request.setEntity(entity);
+        var request = new Request("PUT", "_ilm/policy/" + policy).setEntity(entity);
         assertOK(client.performRequest(request));
     }
 
     private void createIndexAsAdmin(String name, Settings settings, String mapping) throws IOException {
-        Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "/" + name).setJsonEntity(formatted("""
             {
              "settings": %s, "mappings" : {%s}
             }""", Strings.toString(settings), mapping));
@@ -347,14 +335,14 @@ public class PermissionsIT extends ESRestTestCase {
     }
 
     private void createIndexAsAdmin(String name, String alias, boolean isWriteIndex) throws IOException {
-        Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{ \"aliases\": { \"" + alias + "\": {" + ((isWriteIndex) ? "\"is_write_index\" : true" : "") + "} } }");
+        var request = new Request("PUT", "/" + name).setJsonEntity(
+            "{ \"aliases\": { \"" + alias + "\": {" + ((isWriteIndex) ? "\"is_write_index\" : true" : "") + "} } }"
+        );
         assertOK(adminClient().performRequest(request));
     }
 
     private void createIndexTemplate(String name, String pattern, String alias, String policy) throws IOException {
-        Request request = new Request("PUT", "/_template/" + name);
-        request.setJsonEntity(formatted("""
+        Request request = new Request("PUT", "/_template/" + name).setJsonEntity(formatted("""
             {
               "index_patterns": [
                 "%s"
@@ -371,14 +359,16 @@ public class PermissionsIT extends ESRestTestCase {
     }
 
     private void createUser(String name, String password, String role) throws IOException {
-        Request request = new Request("PUT", "/_security/user/" + name);
-        request.setJsonEntity("{ \"password\": \"" + password + "\", \"roles\": [ \"" + role + "\"] }");
+        var request = new Request("PUT", "/_security/user/" + name).setJsonEntity(
+            "{ \"password\": \"" + password + "\", \"roles\": [ \"" + role + "\"] }"
+        );
         assertOK(adminClient().performRequest(request));
     }
 
     private void createRole(String name, String alias) throws IOException {
-        Request request = new Request("PUT", "/_security/role/" + name);
-        request.setJsonEntity("{ \"indices\": [ { \"names\" : [ \"" + alias + "\"], \"privileges\": [ \"write\", \"manage\" ] } ] }");
+        var request = new Request("PUT", "/_security/role/" + name).setJsonEntity(
+            "{ \"indices\": [ { \"names\" : [ \"" + alias + "\"], \"privileges\": [ \"write\", \"manage\" ] } ] }"
+        );
         assertOK(adminClient().performRequest(request));
     }
 
@@ -390,9 +380,7 @@ public class PermissionsIT extends ESRestTestCase {
         try (RestClient userClient = builder.build();) {
 
             for (int cnt = 0; cnt < noOfDocs; cnt++) {
-                Request request = new Request("POST", "/" + index + "/_doc");
-                request.setJsonEntity(jsonDoc);
-                assertOK(userClient.performRequest(request));
+                assertOK(userClient.performRequest(new Request("POST", "/" + index + "/_doc").setJsonEntity(jsonDoc)));
             }
         }
     }

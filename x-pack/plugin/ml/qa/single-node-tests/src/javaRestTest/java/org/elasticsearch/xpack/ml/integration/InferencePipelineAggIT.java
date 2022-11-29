@@ -98,15 +98,11 @@ public class InferencePipelineAggIT extends InferenceTestCase {
     }
 
     private void indexData(String data) throws IOException {
-        Request request = new Request("POST", INDEX_NAME + "/_doc");
-        request.setJsonEntity(data);
-        client().performRequest(request);
+        client().performRequest(new Request("POST", INDEX_NAME + "/_doc").setJsonEntity(data));
     }
 
     private Response search(String searchBody) throws IOException {
-        Request request = new Request("POST", INDEX_NAME + "/_search");
-        request.setJsonEntity(searchBody);
-        return client().performRequest(request);
+        return client().performRequest(new Request("POST", INDEX_NAME + "/_search").setJsonEntity(searchBody));
     }
 
     @SuppressWarnings("unchecked")

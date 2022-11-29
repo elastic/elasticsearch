@@ -795,8 +795,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         }
 
         // activate profile for anonymous user
-        final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
-        createTokenRequest.setJsonEntity("{\"grant_type\": \"client_credentials\"}");
+        var createTokenRequest = new Request("POST", "/_security/oauth2/token").setJsonEntity("{\"grant_type\": \"client_credentials\"}");
         final Response createTokenResponse = getRestClient().performRequest(createTokenRequest);
         assertThat(createTokenResponse.getStatusLine().getStatusCode(), equalTo(200));
         final String accessToken = XContentTestUtils.createJsonMapView(createTokenResponse.getEntity().getContent()).get("access_token");

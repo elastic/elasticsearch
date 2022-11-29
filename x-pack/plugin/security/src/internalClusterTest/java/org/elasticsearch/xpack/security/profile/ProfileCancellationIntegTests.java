@@ -170,13 +170,11 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
         requestBodyBuilder.endObject();
 
         final String xOpaqueId = randomAlphaOfLength(10);
-        Request request = new Request("POST", "/_security/profile/_has_privileges");
-        RequestOptions.Builder options = request.getOptions()
-            .toBuilder()
-            .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
-            .addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, xOpaqueId);
-        request.setOptions(options);
-        request.setJsonEntity(Strings.toString(requestBodyBuilder));
+        var request = new Request("POST", "/_security/profile/_has_privileges").setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+                .addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, xOpaqueId)
+        ).setJsonEntity(Strings.toString(requestBodyBuilder));
 
         blockCheckPrivileges();
 
@@ -216,12 +214,12 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
         boolean cancelViaAPI = randomBoolean();
 
         if (cancelViaAPI) {
-            request = new Request("POST", "/_tasks/_cancel?actions=cluster%3Aadmin%2Fxpack%2Fsecurity%2Fprofile%2Fhas_privileges");
-            options = request.getOptions()
-                .toBuilder()
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING));
-            request.setOptions(options);
-            Response cancelTasksResponse = getRestClient().performRequest(request);
+            var cancelRequest = new Request("POST", "/_tasks/_cancel?actions=cluster%3Aadmin%2Fxpack%2Fsecurity%2Fprofile%2Fhas_privileges")
+                .setOptions(
+                    RequestOptions.DEFAULT.toBuilder()
+                        .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+                );
+            Response cancelTasksResponse = getRestClient().performRequest(cancelRequest);
             assertThat(cancelTasksResponse.getStatusLine().getStatusCode(), is(200));
         } else {
             cancellable.cancel();

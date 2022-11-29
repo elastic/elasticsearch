@@ -32,8 +32,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class WaitForRefreshAndCloseIT extends ESRestTestCase {
     @Before
     public void setupIndex() throws IOException {
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("{\"settings\":{\"refresh_interval\":-1}}");
+        var request = new Request("PUT", "/test").setJsonEntity("{\"settings\":{\"refresh_interval\":-1}}");
         client().performRequest(request);
     }
 
@@ -47,24 +46,19 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
     }
 
     public void testIndexAndThenClose() throws Exception {
-        Request request = new Request("PUT", docPath());
-        request.setJsonEntity("{\"test\":\"test\"}");
+        var request = new Request("PUT", docPath()).setJsonEntity("{\"test\":\"test\"}");
         closeWhileListenerEngaged(start(request));
     }
 
     public void testUpdateAndThenClose() throws Exception {
-        Request createDoc = new Request("PUT", docPath());
-        createDoc.setJsonEntity("{\"test\":\"test\"}");
+        var createDoc = new Request("PUT", docPath()).setJsonEntity("{\"test\":\"test\"}");
         client().performRequest(createDoc);
-        Request updateDoc = new Request("POST", "test/_update/1");
-        updateDoc.setJsonEntity("{\"doc\":{\"name\":\"test\"}}");
+        var updateDoc = new Request("POST", "test/_update/1").setJsonEntity("{\"doc\":{\"name\":\"test\"}}");
         closeWhileListenerEngaged(start(updateDoc));
     }
 
     public void testDeleteAndThenClose() throws Exception {
-        Request request = new Request("PUT", docPath());
-        request.setJsonEntity("{\"test\":\"test\"}");
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", docPath()).setJsonEntity("{\"test\":\"test\"}"));
         closeWhileListenerEngaged(start(new Request("DELETE", docPath())));
     }
 

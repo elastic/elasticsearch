@@ -194,8 +194,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
-        createPolicyRequest.setEntity(entity);
+        var createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy).setEntity(entity);
         assertOK(client().performRequest(createPolicyRequest));
 
         createComposableTemplate(
@@ -402,9 +401,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         // snapshot the data stream
         String dsSnapshotName = "snapshot_ds_" + dataStream;
-        Request takeSnapshotRequest = new Request("PUT", "/_snapshot/" + snapshotRepo + "/" + dsSnapshotName);
-        takeSnapshotRequest.addParameter("wait_for_completion", "true");
-        takeSnapshotRequest.setJsonEntity("{\"indices\": \"" + dataStream + "\", \"include_global_state\": false}");
+        var takeSnapshotRequest = new Request("PUT", "/_snapshot/" + snapshotRepo + "/" + dsSnapshotName).addParameter(
+            "wait_for_completion",
+            "true"
+        ).setJsonEntity("{\"indices\": \"" + dataStream + "\", \"include_global_state\": false}");
         assertOK(client().performRequest(takeSnapshotRequest));
 
         // now that we have a backup of the data stream, let's delete the local one and update the ILM policy to include some illegal
@@ -427,9 +427,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         );
 
         // restore the datastream
-        Request restoreSnapshot = new Request("POST", "/_snapshot/" + snapshotRepo + "/" + dsSnapshotName + "/_restore");
-        restoreSnapshot.addParameter("wait_for_completion", "true");
-        restoreSnapshot.setJsonEntity("{\"indices\": \"" + dataStream + "\", \"include_global_state\": false}");
+        var restoreSnapshot = new Request("POST", "/_snapshot/" + snapshotRepo + "/" + dsSnapshotName + "/_restore").addParameter(
+            "wait_for_completion",
+            "true"
+        ).setJsonEntity("{\"indices\": \"" + dataStream + "\", \"include_global_state\": false}");
         assertOK(client().performRequest(restoreSnapshot));
 
         assertThat(indexExists(searchableSnapMountedIndexName), is(true));

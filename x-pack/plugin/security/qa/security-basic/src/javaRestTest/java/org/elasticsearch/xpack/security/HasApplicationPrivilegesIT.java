@@ -166,8 +166,6 @@ public class HasApplicationPrivilegesIT extends SecurityInBasicRestTestCase {
     private List<ResourcePrivileges> hasPrivilege(RequestOptions requestOptions, String appName, String[] privileges, String[] resources)
         throws IOException {
         logger.info("Checking privileges: App=[{}] Privileges=[{}] Resources=[{}]", appName, privileges, resources);
-        Request req = new Request("POST", "/_security/user/_has_privileges");
-        req.setOptions(requestOptions);
         Map<String, Object> body = Map.ofEntries(
             Map.entry(
                 "application",
@@ -180,7 +178,8 @@ public class HasApplicationPrivilegesIT extends SecurityInBasicRestTestCase {
                 )
             )
         );
-        req.setJsonEntity(XContentTestUtils.convertToXContent(body, XContentType.JSON).utf8ToString());
+        var req = new Request("POST", "/_security/user/_has_privileges").setOptions(requestOptions)
+            .setJsonEntity(XContentTestUtils.convertToXContent(body, XContentType.JSON).utf8ToString());
         final Map<String, Object> response = responseAsMap(client().performRequest(req));
         logger.info("Has privileges: [{}]", response);
         final Map<String, Object> privilegesByResource = ObjectPath.eval("application." + appName, response);

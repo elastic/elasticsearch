@@ -54,18 +54,16 @@ public class IndexingIT extends AbstractRollingTestCase {
             case OLD:
                 break;
             case MIXED:
-                Request waitForYellow = new Request("GET", "/_cluster/health");
-                waitForYellow.addParameter("wait_for_nodes", "3");
-                waitForYellow.addParameter("wait_for_status", "yellow");
+                Request waitForYellow = new Request("GET", "/_cluster/health").addParameter("wait_for_nodes", "3")
+                    .addParameter("wait_for_status", "yellow");
                 client().performRequest(waitForYellow);
                 break;
             case UPGRADED:
-                Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index");
-                waitForGreen.addParameter("wait_for_nodes", "3");
-                waitForGreen.addParameter("wait_for_status", "green");
                 // wait for long enough that we give delayed unassigned shards to stop being delayed
-                waitForGreen.addParameter("timeout", "70s");
-                waitForGreen.addParameter("level", "shards");
+                Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index").addParameter(
+                    "wait_for_nodes",
+                    "3"
+                ).addParameter("wait_for_status", "green").addParameter("timeout", "70s").addParameter("level", "shards");
                 client().performRequest(waitForGreen);
                 break;
             default:
@@ -73,20 +71,17 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            Request createTestIndex = new Request("PUT", "/test_index");
-            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            var createTestIndex = new Request("PUT", "/test_index").setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
             useIgnoreMultipleMatchingTemplatesWarningsHandler(createTestIndex);
             client().performRequest(createTestIndex);
 
             String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
-            Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
-            createIndexWithReplicas.setJsonEntity(recoverQuickly);
+            var createIndexWithReplicas = new Request("PUT", "/index_with_replicas").setJsonEntity(recoverQuickly);
             useIgnoreMultipleMatchingTemplatesWarningsHandler(createIndexWithReplicas);
             client().performRequest(createIndexWithReplicas);
 
-            Request createEmptyIndex = new Request("PUT", "/empty_index");
             // Ask for recovery to be quick
-            createEmptyIndex.setJsonEntity(recoverQuickly);
+            var createEmptyIndex = new Request("PUT", "/empty_index").setJsonEntity(recoverQuickly);
             useIgnoreMultipleMatchingTemplatesWarningsHandler(createEmptyIndex);
             client().performRequest(createEmptyIndex);
 
@@ -119,14 +114,12 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         if (CLUSTER_TYPE != ClusterType.OLD) {
             bulk("test_index", "_" + CLUSTER_TYPE, 5);
-            Request toBeDeleted = new Request("PUT", "/test_index/_doc/to_be_deleted");
-            toBeDeleted.addParameter("refresh", "true");
-            toBeDeleted.setJsonEntity("{\"f1\": \"delete-me\"}");
+            var toBeDeleted = new Request("PUT", "/test_index/_doc/to_be_deleted").addParameter("refresh", "true")
+                .setJsonEntity("{\"f1\": \"delete-me\"}");
             client().performRequest(toBeDeleted);
             assertCount("test_index", expectedCount + 6);
 
-            Request delete = new Request("DELETE", "/test_index/_doc/to_be_deleted");
-            delete.addParameter("refresh", "true");
+            var delete = new Request("DELETE", "/test_index/_doc/to_be_deleted").addParameter("refresh", "true");
             client().performRequest(delete);
 
             assertCount("test_index", expectedCount + 5);
@@ -145,13 +138,13 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         switch (CLUSTER_TYPE) {
             case OLD -> {
-                Request createTestIndex = new Request("PUT", "/" + indexName);
-                createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+                var createTestIndex = new Request("PUT", "/" + indexName).setJsonEntity(
+                    "{\"settings\": {\"index.number_of_replicas\": 0}}"
+                );
                 client().performRequest(createTestIndex);
             }
             case MIXED -> {
-                Request waitForGreen = new Request("GET", "/_cluster/health");
-                waitForGreen.addParameter("wait_for_nodes", "3");
+                var waitForGreen = new Request("GET", "/_cluster/health").addParameter("wait_for_nodes", "3");
                 client().performRequest(waitForGreen);
                 Version minNodeVersion = minNodeVersion();
                 if (minNodeVersion.before(Version.V_7_5_0)) {
@@ -177,7 +170,6 @@ public class IndexingIT extends AbstractRollingTestCase {
         final String indexName = "test_date_nanos";
         switch (CLUSTER_TYPE) {
             case OLD -> {
-                Request createIndex = new Request("PUT", "/" + indexName);
                 XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
                     .startObject("mappings")
@@ -191,25 +183,23 @@ public class IndexingIT extends AbstractRollingTestCase {
                     .endObject()
                     .endObject()
                     .endObject();
-                createIndex.setJsonEntity(Strings.toString(mappings));
+                var createIndex = new Request("PUT", "/" + indexName).setJsonEntity(Strings.toString(mappings));
                 client().performRequest(createIndex);
-                Request index = new Request("POST", "/" + indexName + "/_doc/");
                 XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
                     .field("date", "2015-01-01T12:10:30.123456789Z")
                     .field("date_nanos", "2015-01-01T12:10:30.123456789Z")
                     .endObject();
-                index.addParameter("refresh", "true");
-                index.setJsonEntity(Strings.toString(doc));
+                var index = new Request("POST", "/" + indexName + "/_doc/").addParameter("refresh", "true")
+                    .setJsonEntity(Strings.toString(doc));
                 client().performRequest(index);
             }
             case UPGRADED -> {
-                Request search = new Request("POST", "/" + indexName + "/_search");
                 XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
                     .array("fields", new String[] { "date", "date_nanos" })
                     .endObject();
-                search.setJsonEntity(Strings.toString(query));
+                var search = new Request("POST", "/" + indexName + "/_search").setJsonEntity(Strings.toString(query));
                 Map<String, Object> response = entityAsMap(client().performRequest(search));
                 Map<?, ?> bestHit = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("hits.hits", response))).get(0);
                 List<?> date = (List<?>) XContentMapValues.extractValue("fields.date", bestHit);
@@ -296,14 +286,11 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     private void bulk(String index, String entity) throws IOException {
-        Request bulk = new Request("POST", "/_bulk");
-        bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity(entity.toString());
+        var bulk = new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity(entity.toString());
         assertThat(EntityUtils.toString(client().performRequest(bulk).getEntity()), containsString("\"errors\":false"));
     }
 
     private void createTsdbIndex() throws IOException {
-        Request createIndex = new Request("PUT", "/tsdb");
         XContentBuilder indexSpec = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
         indexSpec.startObject("mappings").startObject("properties");
         {
@@ -317,7 +304,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         indexSpec.field("time_series.start_time", 1L);
         indexSpec.field("time_series.end_time", DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
         indexSpec.endObject().endObject();
-        createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
+        var createIndex = new Request("PUT", "/tsdb").setJsonEntity(Strings.toString(indexSpec.endObject()));
         client().performRequest(createIndex);
     }
 
@@ -334,8 +321,6 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     private void assertTsdbAgg(Matcher<?>... expected) throws IOException {
-        Request request = new Request("POST", "/tsdb/_search");
-        request.addParameter("size", "0");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();
         body.startObject("aggs").startObject("tsids");
         {
@@ -347,7 +332,7 @@ public class IndexingIT extends AbstractRollingTestCase {
             body.endObject().endObject();
         }
         body.endObject().endObject();
-        request.setJsonEntity(Strings.toString(body.endObject()));
+        var request = new Request("POST", "/tsdb/_search").addParameter("size", "0").setJsonEntity(Strings.toString(body.endObject()));
         ListMatcher tsidsExpected = matchesList();
         for (int d = 0; d < expected.length; d++) {
             Object key = Map.of("dim", TSDB_DIMS.get(d));
@@ -365,7 +350,6 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         switch (CLUSTER_TYPE) {
             case OLD -> {
-                Request createIndex = new Request("PUT", "/synthetic");
                 XContentBuilder indexSpec = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
                 indexSpec.startObject("mappings");
                 {
@@ -373,7 +357,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     indexSpec.startObject("properties").startObject("kwd").field("type", "keyword").endObject().endObject();
                 }
                 indexSpec.endObject();
-                createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
+                var createIndex = new Request("PUT", "/synthetic").setJsonEntity(Strings.toString(indexSpec.endObject()));
                 client().performRequest(createIndex);
                 bulk("synthetic", """
                     {"index": {"_index": "synthetic", "_id": "old"}}
@@ -431,9 +415,8 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     private void assertCount(String index, int count) throws IOException {
-        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        searchTestIndexRequest.addParameter("filter_path", "hits.total");
+        var searchTestIndexRequest = new Request("POST", "/" + index + "/_search").addParameter(TOTAL_HITS_AS_INT_PARAM, "true")
+            .addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
         assertEquals(
             "{\"hits\":{\"total\":" + count + "}}",

@@ -124,8 +124,7 @@ public class Zen2RestApiIT extends ESIntegTestCase {
         List<String> nodes = internalCluster().startNodes(3);
         ensureStableCluster(3);
         RestClient restClient = getRestClient();
-        final Request request = new Request("POST", "/_cluster/voting_config_exclusions");
-        request.addParameter("node_names", nodes.get(2));
+        var request = new Request("POST", "/_cluster/voting_config_exclusions").addParameter("node_names", nodes.get(2));
         final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
@@ -142,8 +141,7 @@ public class Zen2RestApiIT extends ESIntegTestCase {
         ensureStableCluster(3);
         RestClient restClient = getRestClient();
         String nodeToWithdraw = nodes.get(randomIntBetween(0, 2));
-        final Request request = new Request("POST", "/_cluster/voting_config_exclusions");
-        request.addParameter("node_names", nodeToWithdraw);
+        var request = new Request("POST", "/_cluster/voting_config_exclusions").addParameter("node_names", nodeToWithdraw);
         final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
@@ -158,8 +156,10 @@ public class Zen2RestApiIT extends ESIntegTestCase {
         List<String> nodes = internalCluster().startNodes(3);
         ensureStableCluster(3);
         RestClient restClient = getRestClient();
-        final Request request = new Request("POST", "/_cluster/voting_config_exclusions");
-        request.addParameter("node_names", nodes.get(2) + "," + nodes.get(0));
+        var request = new Request("POST", "/_cluster/voting_config_exclusions").addParameter(
+            "node_names",
+            nodes.get(2) + "," + nodes.get(0)
+        );
         final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));

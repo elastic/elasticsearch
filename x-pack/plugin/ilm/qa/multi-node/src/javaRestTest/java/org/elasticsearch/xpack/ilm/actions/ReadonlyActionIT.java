@@ -79,8 +79,9 @@ public class ReadonlyActionIT extends ESRestTestCase {
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
-        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
-        createPolicyRequest.setJsonEntity("{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}");
+        var createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy).setJsonEntity(
+            "{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}"
+        );
         client().performRequest(createPolicyRequest);
 
         // then create the index and index a document to trigger rollover

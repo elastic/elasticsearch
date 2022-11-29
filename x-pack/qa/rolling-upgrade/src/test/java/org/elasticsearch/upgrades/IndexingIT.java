@@ -29,19 +29,20 @@ public class IndexingIT extends AbstractUpgradeTestCase {
             case OLD:
                 break;
             case MIXED:
-                ensureHealth((request -> {
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "yellow");
-                }));
+                ensureHealth(
+                    (request -> request.addParameter("timeout", "70s")
+                        .addParameter("wait_for_nodes", "3")
+                        .addParameter("wait_for_status", "yellow"))
+                );
                 break;
             case UPGRADED:
-                ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "green");
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("level", "shards");
-                }));
+                ensureHealth(
+                    "test_index,index_with_replicas,empty_index",
+                    (request -> request.addParameter("wait_for_nodes", "3")
+                        .addParameter("wait_for_status", "green")
+                        .addParameter("timeout", "70s")
+                        .addParameter("level", "shards"))
+                );
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -49,20 +50,17 @@ public class IndexingIT extends AbstractUpgradeTestCase {
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
 
-            Request createTestIndex = new Request("PUT", "/test_index");
-            createTestIndex.setJsonEntity("""
+            var createTestIndex = new Request("PUT", "/test_index").setJsonEntity("""
                 {"settings": {"index.number_of_replicas": 0}}""");
             client().performRequest(createTestIndex);
 
             String recoverQuickly = """
                 {"settings": {"index.unassigned.node_left.delayed_timeout": "100ms"}}""";
-            Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
-            createIndexWithReplicas.setJsonEntity(recoverQuickly);
+            var createIndexWithReplicas = new Request("PUT", "/index_with_replicas").setJsonEntity(recoverQuickly);
             client().performRequest(createIndexWithReplicas);
 
-            Request createEmptyIndex = new Request("PUT", "/empty_index");
             // Ask for recovery to be quick
-            createEmptyIndex.setJsonEntity(recoverQuickly);
+            var createEmptyIndex = new Request("PUT", "/empty_index").setJsonEntity(recoverQuickly);
             client().performRequest(createEmptyIndex);
 
             bulk("test_index", "_OLD", 5);
@@ -94,14 +92,12 @@ public class IndexingIT extends AbstractUpgradeTestCase {
 
         if (CLUSTER_TYPE != ClusterType.OLD) {
             bulk("test_index", "_" + CLUSTER_TYPE, 5);
-            Request toBeDeleted = new Request("PUT", "/test_index/_doc/to_be_deleted");
-            toBeDeleted.addParameter("refresh", "true");
-            toBeDeleted.setJsonEntity("{\"f1\": \"delete-me\"}");
+            var toBeDeleted = new Request("PUT", "/test_index/_doc/to_be_deleted").addParameter("refresh", "true")
+                .setJsonEntity("{\"f1\": \"delete-me\"}");
             client().performRequest(toBeDeleted);
             assertCount("test_index", expectedCount + 6);
 
-            Request delete = new Request("DELETE", "/test_index/_doc/to_be_deleted");
-            delete.addParameter("refresh", "true");
+            var delete = new Request("DELETE", "/test_index/_doc/to_be_deleted").addParameter("refresh", "true");
             client().performRequest(delete);
 
             assertCount("test_index", expectedCount + 5);
@@ -116,16 +112,12 @@ public class IndexingIT extends AbstractUpgradeTestCase {
                 {"f1": "v%s%s", "f2": %s}
                 """, index, i, valueSuffix, i));
         }
-        Request bulk = new Request("POST", "/_bulk");
-        bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity(b.toString());
-        client().performRequest(bulk);
+        client().performRequest(new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity(b.toString()));
     }
 
     static void assertCount(String index, int count) throws IOException {
-        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        searchTestIndexRequest.addParameter("filter_path", "hits.total");
+        var searchTestIndexRequest = new Request("POST", "/" + index + "/_search").addParameter(TOTAL_HITS_AS_INT_PARAM, "true")
+            .addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
         assertEquals(formatted("""
             {"hits":{"total":%s}}\

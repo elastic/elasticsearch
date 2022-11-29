@@ -196,8 +196,6 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
     }
 
     protected void indexWithIndexName(String indexName, String... docs) throws IOException {
-        Request request = new Request("POST", "/" + indexName + "/_bulk");
-        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {
             bulk.append(String.format(Locale.ROOT, """
@@ -205,16 +203,15 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
                 %s
                 """, doc));
         }
-        request.setJsonEntity(bulk.toString());
+        var request = new Request("POST", "/" + indexName + "/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString());
         provisioningClient().performRequest(request);
     }
 
     // can be used with regular indices as well as data streams (that would need a "create":{} instead of an "index":{} bulk operation)
     protected void indexWithIndexName(String indexName, String doc) throws IOException {
-        Request request = new Request("POST", "/" + indexName + "/_doc");
-        request.addParameter("refresh", "true");
-        request.setJsonEntity(doc);
-        provisioningClient().performRequest(request);
+        provisioningClient().performRequest(
+            new Request("POST", "/" + indexName + "/_doc").addParameter("refresh", "true").setJsonEntity(doc)
+        );
     }
 
     protected void deleteTestIndex() throws IOException {
@@ -226,19 +223,19 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
     }
 
     public static void createDataStream(String dataStreamName) throws IOException {
-        Request request = new Request("PUT", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName);
-        request.setJsonEntity("{\"index_patterns\": [\"" + dataStreamName + "*\"], \"data_stream\": {}}");
-        assertOK(provisioningClient().performRequest(request));
-
-        request = new Request("PUT", "/_data_stream/" + dataStreamName);
-        assertOK(provisioningClient().performRequest(request));
+        assertOK(
+            provisioningClient().performRequest(
+                new Request("PUT", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName).setJsonEntity(
+                    "{\"index_patterns\": [\"" + dataStreamName + "*\"], \"data_stream\": {}}"
+                )
+            )
+        );
+        assertOK(provisioningClient().performRequest(new Request("PUT", "/_data_stream/" + dataStreamName)));
     }
 
     public static void deleteDataStream(String dataStreamName) throws IOException {
-        Request request = new Request("DELETE", "_data_stream/" + dataStreamName);
-        provisioningClient().performRequest(request);
-        request = new Request("DELETE", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName);
-        provisioningClient().performRequest(request);
+        provisioningClient().performRequest(new Request("DELETE", "_data_stream/" + dataStreamName));
+        provisioningClient().performRequest(new Request("DELETE", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName));
     }
 
     public static RequestObjectBuilder query(String query) {

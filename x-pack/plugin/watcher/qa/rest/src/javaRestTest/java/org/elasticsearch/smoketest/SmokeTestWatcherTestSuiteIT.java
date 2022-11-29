@@ -127,9 +127,9 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
     }
 
     private void indexWatch(String watchId, XContentBuilder builder) throws Exception {
-        Request request = new Request("PUT", "/_watcher/watch/" + watchId);
-        request.setJsonEntity(Strings.toString(builder));
-        Response response = client().performRequest(request);
+        Response response = client().performRequest(
+            new Request("PUT", "/_watcher/watch/" + watchId).setJsonEntity(Strings.toString(builder))
+        );
         Map<String, Object> responseMap = entityAsMap(response);
         assertThat(responseMap, hasEntry("_id", watchId));
         logger.info("Successfully indexed watch with id [{}]", watchId);
@@ -198,10 +198,10 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
                 builder.endObject();
 
                 logger.info("Searching watcher history");
-                Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
-                searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-                searchRequest.setJsonEntity(Strings.toString(builder));
-                Response response = client().performRequest(searchRequest);
+                Response response = client().performRequest(
+                    new Request("POST", "/.watcher-history-*/_search").addParameter(TOTAL_HITS_AS_INT_PARAM, "true")
+                        .setJsonEntity(Strings.toString(builder))
+                );
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);
                 int totalHits = objectPath.evaluate("hits.total");
                 logger.info("Found [{}] hits in watcher history", totalHits);

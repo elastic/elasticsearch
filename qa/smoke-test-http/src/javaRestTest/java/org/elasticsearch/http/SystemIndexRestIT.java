@@ -68,18 +68,14 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
         // make sure the system index now exists
         assertBusy(() -> {
-            Request searchRequest = new Request("GET", "/" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "/_count");
-            searchRequest.setOptions(
+            // Disallow no indices to cause an exception if the flag above doesn't work
+            var searchRequest = new Request("GET", "/" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "/_count").setOptions(
                 expectWarnings(
                     "this request accesses system indices: ["
                         + SystemIndexTestPlugin.SYSTEM_INDEX_NAME
                         + "], but in a future major version, direct access to system indices will be prevented by default"
                 )
-            );
-
-            // Disallow no indices to cause an exception if the flag above doesn't work
-            searchRequest.addParameter("allow_no_indices", "false");
-            searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
+            ).addParameter("allow_no_indices", "false").setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
 
             final Response searchResponse = getRestClient().performRequest(searchRequest);
             assertThat(searchResponse.getStatusLine().getStatusCode(), is(200));
@@ -96,9 +92,9 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
         // If we're not expanding wildcards, we don't get anything
         {
-            Request searchRequest = new Request("GET", "/" + randomFrom("*", "_all") + randomFrom("/_count", "/_search"));
-            searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
-            searchRequest.addParameter("allow_no_indices", "false");
+            var searchRequest = new Request("GET", "/" + randomFrom("*", "_all") + randomFrom("/_count", "/_search")).setJsonEntity(
+                "{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}"
+            ).addParameter("allow_no_indices", "false");
 
             ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(searchRequest));
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(404));
@@ -111,9 +107,9 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                 + SystemIndexTestPlugin.SYSTEM_INDEX_NAME
                 + "], but in a "
                 + "future major version, direct access to system indices will be prevented by default";
-            Request putDocDirectlyRequest = new Request("PUT", "/" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "/_doc/43");
-            putDocDirectlyRequest.setJsonEntity("{\"some_field\":  \"some_other_value\"}");
-            putDocDirectlyRequest.setOptions(expectWarnings(expectedWarning));
+            var putDocDirectlyRequest = new Request("PUT", "/" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "/_doc/43").setJsonEntity(
+                "{\"some_field\":  \"some_other_value\"}"
+            ).setOptions(expectWarnings(expectedWarning));
             Response response = getRestClient().performRequest(putDocDirectlyRequest);
             assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
         }
@@ -124,12 +120,13 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
             + warningIndexName
             + "], but in a "
             + "future major version, direct access to system indices will be prevented by default";
-        Request searchRequest = new Request("GET", "/" + queryPattern + randomFrom("/_count", "/_search"));
-        searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
         // Disallow no indices to cause an exception if this resolves to zero indices, so that we're sure it resolved the index
-        searchRequest.addParameter("allow_no_indices", "false");
-        searchRequest.addParameter("expand_wildcards", "open,hidden");
-        searchRequest.setOptions(expectWarnings(expectedWarning));
+        var searchRequest = new Request("GET", "/" + queryPattern + randomFrom("/_count", "/_search")).setJsonEntity(
+            "{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}"
+        )
+            .addParameter("allow_no_indices", "false")
+            .addParameter("expand_wildcards", "open,hidden")
+            .setOptions(expectWarnings(expectedWarning));
 
         Response response = getRestClient().performRequest(searchRequest);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

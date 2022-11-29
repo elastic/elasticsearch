@@ -101,8 +101,7 @@ public abstract class InferenceTestCase extends ESRestTestCase {
     }
 
     void putRegressionModel(String modelId, String body) throws IOException {
-        Request model = new Request("PUT", "_ml/trained_models/" + modelId);
-        model.setJsonEntity(body);
+        var model = new Request("PUT", "_ml/trained_models/" + modelId).setJsonEntity(body);
         assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
     }
 

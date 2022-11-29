@@ -149,8 +149,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
         assertTrue(indexExists(index));
 
-        Request request = new Request("PUT", index + "/_settings");
-        request.setJsonEntity("{\"index.blocks.read_only\":false}");
+        var request = new Request("PUT", index + "/_settings").setJsonEntity("{\"index.blocks.read_only\":false}");
         assertOK(client().performRequest(request));
 
         assertBusy(() -> assertFalse(indexExists(index)));
@@ -180,8 +179,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
 
         // ILM must honour the cached delete phase and eventually delete the index
-        Request request = new Request("PUT", index + "/_settings");
-        request.setJsonEntity("{\"index.blocks.read_only\":false}");
+        var request = new Request("PUT", index + "/_settings").setJsonEntity("{\"index.blocks.read_only\":false}");
         assertOK(client().performRequest(request));
 
         assertBusy(() -> assertFalse(indexExists(index)));
@@ -432,8 +430,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public void testDeleteDuringSnapshot() throws Exception {
         // Create the repository before taking the snapshot.
-        Request request = new Request("PUT", "/_snapshot/repo");
-        request.setJsonEntity(
+        var request = new Request("PUT", "/_snapshot/repo").setJsonEntity(
             Strings.toString(
                 JsonXContent.contentBuilder()
                     .startObject()
@@ -460,10 +457,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         indexDocument(client(), index);
         // start snapshot
         String snapName = "snapshot-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        request = new Request("PUT", "/_snapshot/repo/" + snapName);
-        request.addParameter("wait_for_completion", "false");
-        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
-        assertOK(client().performRequest(request));
+        var startSnapshotRequest = new Request("PUT", "/_snapshot/repo/" + snapName).addParameter("wait_for_completion", "false")
+            .setJsonEntity("{\"indices\": \"" + index + "\"}");
+        assertOK(client().performRequest(startSnapshotRequest));
         // add policy and expect it to trigger delete immediately (while snapshot in progress)
         updatePolicy(client(), index, policy);
         // assert that index was deleted
@@ -481,9 +477,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
-            Request request = new Request("PUT", index + "/_doc/" + i);
-            request.addParameter("refresh", "true");
-            request.setEntity(new StringEntity("{\"a\": \"test\"}", ContentType.APPLICATION_JSON));
+            var request = new Request("PUT", index + "/_doc/" + i).addParameter("refresh", "true")
+                .setEntity(new StringEntity("{\"a\": \"test\"}", ContentType.APPLICATION_JSON));
             client().performRequest(request);
         }
 
@@ -564,9 +559,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 }
               }
             }""", indexPrefix), ContentType.APPLICATION_JSON);
-        Request templateRequest = new Request("PUT", "_template/test");
-        templateRequest.setEntity(template);
-        templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
+        var templateRequest = new Request("PUT", "_template/test").setEntity(template)
+            .setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(templateRequest);
 
         policy = randomAlphaOfLengthBetween(5, 20);
@@ -581,9 +575,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 }
               }
             }""", ContentType.APPLICATION_JSON);
-        Request putIndexRequest = new Request("PUT", index);
-        putIndexRequest.setEntity(putIndex);
-        client().performRequest(putIndexRequest);
+        client().performRequest(new Request("PUT", index).setEntity(putIndex));
         indexDocument(client(), index);
 
         assertBusy(() -> {
@@ -713,13 +705,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
 
         // Remove the policy from the original index
-        Request removeRequest = new Request("POST", "/" + originalIndex + "/_ilm/remove");
-        removeRequest.setJsonEntity("");
-        client().performRequest(removeRequest);
+        client().performRequest(new Request("POST", "/" + originalIndex + "/_ilm/remove").setJsonEntity(""));
 
         // Add the policy again
-        Request addPolicyRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        addPolicyRequest.setJsonEntity(formatted("""
+        var addPolicyRequest = new Request("PUT", "/" + originalIndex + "/_settings").setJsonEntity(formatted("""
             {
               "settings": {
                 "index.lifecycle.name": "%s",
@@ -779,8 +768,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         // update policy on index
         updatePolicy(client(), originalIndex, policy);
-        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(formatted("""
+        var createIndexTemplate = new Request("PUT", "_template/rolling_indexes").setJsonEntity(formatted("""
             {"index_patterns": ["%s-*"],
               "settings": {
                 "number_of_shards": 1,
@@ -805,8 +793,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
-        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(formatted("""
+        var createIndexTemplate = new Request("PUT", "_template/rolling_indexes").setJsonEntity(formatted("""
             {
               "index_patterns": [ "%s-*" ],
               "settings": {
@@ -815,8 +802,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""", index, policy, alias));
-        createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
+            }""", index, policy, alias)).setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
         createIndexWithSettings(client(), index + "-1", alias, Settings.builder(), true);
@@ -914,8 +900,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String index = "refresh-index";
 
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 100L, null, null, null, null, null, null));
-        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(formatted("""
+        var createIndexTemplate = new Request("PUT", "_template/rolling_indexes").setJsonEntity(formatted("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -924,8 +909,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""", index, policy, alias));
-        createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
+            }""", index, policy, alias)).setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
         createIndexWithSettings(
@@ -981,9 +965,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             XContentBuilder builder = jsonBuilder();
             lifecyclePolicy.toXContent(builder, null);
             final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-            Request request = new Request("PUT", "_ilm/policy/" + policy);
-            request.setEntity(entity);
-            assertOK(client().performRequest(request));
+            assertOK(client().performRequest(new Request("PUT", "_ilm/policy/" + policy).setEntity(entity)));
         }
 
         // The index should move into the deleted phase and be deleted
@@ -1008,8 +990,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
-        createPolicyRequest.setEntity(entity);
+        var createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy).setEntity(entity);
         assertOK(client().performRequest(createPolicyRequest));
 
         createIndexWithSettings(
@@ -1133,8 +1114,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             action,
             stepName
         );
-        final Request historySearchRequest = new Request("GET", "ilm-history*/_search?expand_wildcards=all");
-        historySearchRequest.setJsonEntity(
+        var historySearchRequest = new Request("GET", "ilm-history*/_search?expand_wildcards=all").setJsonEntity(
             formatted(
                 """
                     {
@@ -1187,8 +1167,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
             // For a failure, print out whatever history we *do* have for the index
             if (hits == 0) {
-                final Request allResults = new Request("GET", "ilm-history*/_search");
-                allResults.setJsonEntity(formatted("""
+                var allResults = new Request("GET", "ilm-history*/_search").setJsonEntity(formatted("""
                     {
                       "query": {
                         "bool": {
@@ -1229,9 +1208,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     private void createSlmPolicy(String smlPolicy, String repo) throws IOException {
-        Request request;
-        request = new Request("PUT", "/_slm/policy/" + smlPolicy);
-        request.setJsonEntity(
+        var request = new Request("PUT", "/_slm/policy/" + smlPolicy).setJsonEntity(
             Strings.toString(
                 JsonXContent.contentBuilder()
                     .startObject()

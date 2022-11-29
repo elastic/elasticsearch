@@ -479,9 +479,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         }
         bulk.append("\r\n");
 
-        final Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.setJsonEntity(bulk.toString());
+        var bulkRequest = new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
 
         waitForTransformCheckpoint(transformId, 2);
@@ -631,9 +629,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         }
         bulk.append("\r\n");
 
-        final Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.setJsonEntity(bulk.toString());
+        var bulkRequest = new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
 
         waitForTransformCheckpoint(transformId, 2);
@@ -2012,9 +2008,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         }
         bulk.append("\r\n");
 
-        final Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.setJsonEntity(bulk.toString());
+        var bulkRequest = new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
 
         waitForTransformCheckpoint(transformId, 2);
@@ -2355,8 +2349,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             }
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT", indexName);
-            req.setEntity(entity);
+            var req = new Request("PUT", indexName).setEntity(entity);
             client().performRequest(req);
         }
 
@@ -2370,9 +2363,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
             if (i % 50 == 0) {
                 bulk.append("\r\n");
-                final Request bulkRequest = new Request("POST", "/_bulk");
-                bulkRequest.addParameter("refresh", "true");
-                bulkRequest.setJsonEntity(bulk.toString());
+                var bulkRequest = new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString());
                 client().performRequest(bulkRequest);
                 // clear the builder
                 bulk.setLength(0);
@@ -2380,9 +2371,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         }
         bulk.append("\r\n");
 
-        final Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.setJsonEntity(bulk.toString());
+        var bulkRequest = new Request("POST", "/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
     }
 }

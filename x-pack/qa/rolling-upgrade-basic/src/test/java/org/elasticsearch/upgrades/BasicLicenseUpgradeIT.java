@@ -25,10 +25,9 @@ public class BasicLicenseUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void checkBasicLicense() throws Exception {
-        final Request request = new Request("GET", "/_license");
         // This avoids throwing a ResponseException when the license is not ready yet
         // allowing to retry the check using assertBusy
-        request.addParameter("ignore", "404");
+        var request = new Request("GET", "/_license").addParameter("ignore", "404");
         Response licenseResponse = client().performRequest(request);
         assertOK(licenseResponse);
         Map<String, Object> licenseResponseMap = entityAsMap(licenseResponse);
@@ -39,10 +38,9 @@ public class BasicLicenseUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void checkNonExpiringBasicLicense() throws Exception {
-        final Request request = new Request("GET", "/_license");
         // This avoids throwing a ResponseException when the license is not ready yet
         // allowing to retry the check using assertBusy
-        request.addParameter("ignore", "404");
+        var request = new Request("GET", "/_license").addParameter("ignore", "404");
         Response licenseResponse = client().performRequest(request);
         assertOK(licenseResponse);
         Map<String, Object> licenseResponseMap = entityAsMap(licenseResponse);

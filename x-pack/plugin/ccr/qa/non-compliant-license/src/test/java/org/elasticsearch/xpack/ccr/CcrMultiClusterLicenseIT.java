@@ -22,21 +22,17 @@ public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
 
     public void testFollow() {
         if ("follow".equals(targetCluster)) {
-            final Request request = new Request("PUT", "/follower/_ccr/follow");
-            request.setJsonEntity("""
+            assertNonCompliantLicense(new Request("PUT", "/follower/_ccr/follow").setJsonEntity("""
                 {"remote_cluster": "leader_cluster", "leader_index": "leader"}
-                """);
-            assertNonCompliantLicense(request, "remote index [leader_cluster:leader] metadata");
+                """), "remote index [leader_cluster:leader] metadata");
         }
     }
 
     public void testAutoFollow() {
         if ("follow".equals(targetCluster)) {
-            final Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-            request.setJsonEntity("""
+            assertNonCompliantLicense(new Request("PUT", "/_ccr/auto_follow/test_pattern").setJsonEntity("""
                 {"leader_index_patterns":["*"], "remote_cluster": "leader_cluster"}
-                """);
-            assertNonCompliantLicense(request, "remote cluster state");
+                """), "remote cluster state");
         }
     }
 

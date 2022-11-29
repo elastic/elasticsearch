@@ -37,8 +37,7 @@ public class MlRestTestStateCleaner {
 
     @SuppressWarnings("unchecked")
     private void deleteAllTrainedModelIngestPipelines() throws IOException {
-        final Request getAllTrainedModelStats = new Request("GET", "/_ml/trained_models/_stats");
-        getAllTrainedModelStats.addParameter("size", "10000");
+        var getAllTrainedModelStats = new Request("GET", "/_ml/trained_models/_stats").addParameter("size", "10000");
         final Response trainedModelsStatsResponse = adminClient.performRequest(getAllTrainedModelStats);
 
         final List<Map<String, Object>> pipelines = (List<Map<String, Object>>) XContentMapValues.extractValue(

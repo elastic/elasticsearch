@@ -105,9 +105,9 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
         List<SearchBlockPlugin> plugins = initBlockFactory(true, true);
         String id = randomAlphaOfLength(10);
 
-        Request request = new Request("POST", Protocol.SQL_QUERY_REST_ENDPOINT);
-        request.setJsonEntity(queryAsJson("SELECT event_type FROM test WHERE val=1"));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
+        var request = new Request("POST", Protocol.SQL_QUERY_REST_ENDPOINT).setJsonEntity(
+            queryAsJson("SELECT event_type FROM test WHERE val=1")
+        ).setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
         logger.trace("Preparing search");
 
         CountDownLatch latch = new CountDownLatch(1);

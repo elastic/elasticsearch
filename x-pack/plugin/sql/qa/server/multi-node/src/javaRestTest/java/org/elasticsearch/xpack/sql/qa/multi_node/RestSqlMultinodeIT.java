@@ -73,9 +73,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         }
         index.endObject();
         index.endObject();
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity(Strings.toString(index));
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test").setJsonEntity(Strings.toString(index)));
         int documents = between(10, 100);
         createTestData(documents);
 
@@ -85,9 +83,6 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
     }
 
     private void createTestData(int documents) throws UnsupportedCharsetException, IOException {
-        Request request = new Request("PUT", "/test/_bulk");
-        request.addParameter("refresh", "true");
-
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < documents; i++) {
             int a = 3 * i;
@@ -98,9 +93,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
                 {"a": %s, "b": %s, "c": %s}
                 """, i, a, b, c));
         }
-        request.setJsonEntity(bulk.toString());
-
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString()));
     }
 
     private Map<String, Object> responseToMap(Response response) throws IOException {
@@ -113,8 +106,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         expected.put("columns", singletonList(columnInfo(mode, "COUNT(*)", "long", JDBCType.BIGINT, 20)));
         expected.put("rows", singletonList(singletonList(count)));
 
-        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
-        request.setJsonEntity(query("SELECT COUNT(*) FROM test").mode(mode).toString());
+        var request = new Request("POST", SQL_QUERY_REST_ENDPOINT).setJsonEntity(query("SELECT COUNT(*) FROM test").mode(mode).toString());
         Map<String, Object> actual = BaseRestSqlTestCase.toMap(client.performRequest(request), mode);
 
         if (false == expected.equals(actual)) {

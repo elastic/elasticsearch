@@ -55,9 +55,9 @@ public class RestSqlDeprecationIT extends BaseRestSqlTestCase {
     private void testDeprecationWarning(RequestObjectBuilder query, String warning) throws IOException {
         index("{\"foo\": 1}");
 
-        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
-        request.setEntity(new StringEntity(query.toString(), ContentType.APPLICATION_JSON));
-        request.setOptions(expectWarnings(warning));
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT).setEntity(
+            new StringEntity(query.toString(), ContentType.APPLICATION_JSON)
+        ).setOptions(expectWarnings(warning));
     }
 
 }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.idp;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
@@ -99,16 +100,14 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
     }
 
     private String initSso(String entityId, String acs, UsernamePasswordToken secondaryAuth) throws IOException {
-        final Request request = new Request("POST", "/_idp/saml/init/");
-        request.setJsonEntity(toJson(Map.of("entity_id", entityId, "acs", acs)));
-        request.setOptions(
-            request.getOptions()
-                .toBuilder()
-                .addHeader(
-                    "es-secondary-authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue(secondaryAuth.principal(), secondaryAuth.credentials())
-                )
-        );
+        var request = new Request("POST", "/_idp/saml/init/").setJsonEntity(toJson(Map.of("entity_id", entityId, "acs", acs)))
+            .setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader(
+                        "es-secondary-authorization",
+                        UsernamePasswordToken.basicAuthHeaderValue(secondaryAuth.principal(), secondaryAuth.credentials())
+                    )
+            );
         Response response = client().performRequest(request);
 
         final Map<String, Object> map = entityAsMap(response);

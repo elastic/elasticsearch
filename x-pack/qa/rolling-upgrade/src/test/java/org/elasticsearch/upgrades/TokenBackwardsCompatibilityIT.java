@@ -298,8 +298,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private void assertRefreshTokenInvalidated(String refreshToken) throws IOException {
         for (RestClient client : twoClients) {
-            Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
-            refreshTokenRequest.setJsonEntity(formatted("""
+            var refreshTokenRequest = new Request("POST", "/_security/oauth2/token").setJsonEntity(formatted("""
                 {
                   "refresh_token": "%s",
                   "grant_type": "refresh_token"
@@ -335,8 +334,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private Map<String, Object> createTokens(RestClient client, String username, String password) throws IOException {
-        final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
-        createTokenRequest.setJsonEntity(formatted("""
+        var createTokenRequest = new Request("POST", "/_security/oauth2/token").setJsonEntity(formatted("""
             {
               "username": "%s",
               "password": "%s",
@@ -348,8 +346,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private void storeTokens(RestClient client, int idx, String accessToken, String refreshToken) throws IOException {
-        final Request indexRequest = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token" + idx);
-        indexRequest.setJsonEntity(formatted("""
+        var indexRequest = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token" + idx).setJsonEntity(formatted("""
             {
               "token": "%s",
               "refresh_token": "%s"
@@ -367,8 +364,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private Map<String, Object> refreshToken(RestClient client, String refreshToken) throws IOException {
-        final Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity(formatted("""
+        var refreshTokenRequest = new Request("POST", "/_security/oauth2/token").setJsonEntity(formatted("""
             {
               "refresh_token": "%s",
               "grant_type": "refresh_token"
@@ -379,17 +375,16 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private void invalidateAccessToken(RestClient client, String accessToken) throws IOException {
-        Request invalidateRequest = new Request("DELETE", "/_security/oauth2/token");
-        invalidateRequest.setJsonEntity("{\"token\": \"" + accessToken + "\"}");
-        invalidateRequest.addParameter("error_trace", "true");
+        var invalidateRequest = new Request("DELETE", "/_security/oauth2/token").setJsonEntity("{\"token\": \"" + accessToken + "\"}")
+            .addParameter("error_trace", "true");
         Response invalidateResponse = client.performRequest(invalidateRequest);
         assertOK(invalidateResponse);
     }
 
     private void invalidateRefreshToken(RestClient client, String refreshToken) throws IOException {
-        Request invalidateRequest = new Request("DELETE", "/_security/oauth2/token");
-        invalidateRequest.setJsonEntity("{\"refresh_token\": \"" + refreshToken + "\"}");
-        invalidateRequest.addParameter("error_trace", "true");
+        var invalidateRequest = new Request("DELETE", "/_security/oauth2/token").setJsonEntity(
+            "{\"refresh_token\": \"" + refreshToken + "\"}"
+        ).addParameter("error_trace", "true");
         Response invalidateResponse = client.performRequest(invalidateRequest);
         assertOK(invalidateResponse);
     }
@@ -405,10 +400,10 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
      */
     private void extendExpirationTimeForAllTokens() throws Exception {
         final List<String> tokensIds = getAllTokenIds();
-        final var bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
-        bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         final long newExpirationTime = Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli();
-        bulkRequest.setJsonEntity(tokensIds.stream().map(tokenId -> formatted("""
+        final var bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true").setOptions(
+            RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE)
+        ).setJsonEntity(tokensIds.stream().map(tokenId -> formatted("""
             {"update": {"_id": "%s"}}
             {"doc": {"access_token": {"user_token": {"expiration_time": %s}}}}
             """, tokenId, newExpirationTime)).collect(Collectors.joining("\n")));
@@ -428,16 +423,14 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private List<String> getAllTokenIds() throws IOException {
         refreshSecurityTokensIndex();
         final long searchSize = 100L;
-        final var searchRequest = new Request("POST", "/.security-tokens/_search?size=" + searchSize);
-        searchRequest.setOptions(searchRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-        searchRequest.setJsonEntity("""
+        final var searchRequest = new Request("POST", "/.security-tokens/_search?size=" + searchSize).setJsonEntity("""
             {
               "query": {
                 "term": {
                   "doc_type": "token"
                 }
               }
-            }""");
+            }""").setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
         final SearchHits searchHits = SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits();

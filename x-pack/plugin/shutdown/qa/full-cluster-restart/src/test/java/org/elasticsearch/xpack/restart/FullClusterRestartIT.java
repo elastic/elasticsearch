@@ -57,7 +57,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final Map<String, Object> nodes = (Map<String, Object>) entityAsMap(getNodesResp).get("nodes");
             final String nodeIdToShutdown = randomFrom(nodes.keySet());
 
-            final Request putShutdownRequest = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            String jsonEntity;
             try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
                 putBody.startObject();
                 {
@@ -67,8 +67,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     putBody.field("reason", this.getTestName());
                 }
                 putBody.endObject();
-                putShutdownRequest.setJsonEntity(Strings.toString(putBody));
+                jsonEntity = Strings.toString(putBody);
             }
+            var putShutdownRequest = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown").setJsonEntity(jsonEntity);
             assertOK(client().performRequest(putShutdownRequest));
         }
 

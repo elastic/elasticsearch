@@ -193,13 +193,13 @@ public class DownsampleActionIT extends ESRestTestCase {
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
-        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
-        createPolicyRequest.setJsonEntity("{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}");
+        var createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy).setJsonEntity(
+            "{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}"
+        );
         client().performRequest(createPolicyRequest);
 
         // and a template
-        Request createTemplateRequest = new Request("PUT", "_template/" + index);
-        createTemplateRequest.setJsonEntity(formatted("""
+        Request createTemplateRequest = new Request("PUT", "_template/" + index).setJsonEntity(formatted("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -248,8 +248,9 @@ public class DownsampleActionIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(ConfigTestHelpers.randomInterval()));
 
         // Create a template
-        Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
-        createIndexTemplateRequest.setJsonEntity(formatted(TEMPLATE, dataStream, policy));
+        Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream).setJsonEntity(
+            formatted(TEMPLATE, dataStream, policy)
+        );
         assertOK(client().performRequest(createIndexTemplateRequest));
 
         String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());

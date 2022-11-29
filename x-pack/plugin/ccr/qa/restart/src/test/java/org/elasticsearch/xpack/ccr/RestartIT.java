@@ -32,8 +32,7 @@ public class RestartIT extends ESCCRRestTestCase {
                 verifyFollower("follow-leader", numberOfDocuments, client());
 
                 // now create an auto-follow pattern for "leader-*"
-                final Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/leader_cluster_pattern");
-                putPatternRequest.setJsonEntity("""
+                var putPatternRequest = new Request("PUT", "/_ccr/auto_follow/leader_cluster_pattern").setJsonEntity("""
                     {
                       "leader_index_patterns": [
                         "leader-*"
@@ -74,8 +73,7 @@ public class RestartIT extends ESCCRRestTestCase {
     }
 
     private void createIndexAndIndexDocuments(final String index, final int numberOfDocuments, final RestClient client) throws IOException {
-        final Request createIndexRequest = new Request("PUT", "/" + index);
-        createIndexRequest.setJsonEntity("{\"settings\":" + Strings.toString(Settings.EMPTY) + "}");
+        var createIndexRequest = new Request("PUT", "/" + index).setJsonEntity("{\"settings\":" + Strings.toString(Settings.EMPTY) + "}");
         assertOK(client.performRequest(createIndexRequest));
         indexDocuments(index, numberOfDocuments, 0, client);
     }

@@ -245,8 +245,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
         for (Header header : headers) {
             options.addHeader(header.getName(), header.getValue());
         }
-        request.setOptions(options);
-        return request;
+        return request.setOptions(options);
     }
 
     private static BasicHeader facilitatorAuth() {
@@ -264,12 +263,10 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
      */
     private void setFacilitatorUser() throws Exception {
         try (RestClient restClient = getElasticsearchClient()) {
-            Request createRoleRequest = new Request("PUT", "/_security/role/facilitator");
-            createRoleRequest.setJsonEntity("""
+            Request createRoleRequest = new Request("PUT", "/_security/role/facilitator").setJsonEntity("""
                 { "cluster" : ["manage_oidc", "manage_token"] }""");
             restClient.performRequest(createRoleRequest);
-            Request createUserRequest = new Request("PUT", "/_security/user/facilitator");
-            createUserRequest.setJsonEntity(formatted("""
+            Request createUserRequest = new Request("PUT", "/_security/user/facilitator").setJsonEntity(formatted("""
                 { "password" : "%s", "roles" : ["facilitator"] }""", FACILITATOR_PASSWORD));
             restClient.performRequest(createUserRequest);
         }
@@ -277,8 +274,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
 
     private void setRoleMappings() throws Exception {
         try (RestClient restClient = getElasticsearchClient()) {
-            Request createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_kibana");
-            createRoleMappingRequest.setJsonEntity(formatted("""
+            Request createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_kibana").setJsonEntity(formatted("""
                 {
                   "roles": [ "kibana_admin" ],
                   "enabled": true,
@@ -309,8 +305,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
                 }""", REALM_NAME, REALM_NAME_PROXY, REALM_NAME_CLIENT_POST_AUTH, REALM_NAME_CLIENT_JWT_AUTH));
             restClient.performRequest(createRoleMappingRequest);
 
-            createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_limited");
-            createRoleMappingRequest.setJsonEntity(formatted("""
+            createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_limited").setJsonEntity(formatted("""
                 {
                   "roles": [ "limited_user" ],
                   "enabled": true,
@@ -322,8 +317,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
                 }""", REALM_NAME_IMPLICIT));
             restClient.performRequest(createRoleMappingRequest);
 
-            createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_auditor");
-            createRoleMappingRequest.setJsonEntity("""
+            createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_auditor").setJsonEntity("""
                 {
                   "roles": [ "auditor" ],
                   "enabled": true,

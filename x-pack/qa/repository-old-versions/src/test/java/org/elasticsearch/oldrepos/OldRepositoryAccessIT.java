@@ -140,7 +140,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     ) throws IOException {
         String repoName = "repo_" + indexName;
         String snapshotName = "snap_" + indexName;
-        Request createIndex = new Request("PUT", "/" + indexName);
         int numberOfShards = randomIntBetween(1, 3);
 
         XContentBuilder settingsBuilder = XContentFactory.jsonBuilder().startObject().startObject("settings");
@@ -153,7 +152,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
         settingsBuilder.endObject().endObject();
 
-        createIndex.setJsonEntity(Strings.toString(settingsBuilder));
+        var createIndex = new Request("PUT", "/" + indexName).setJsonEntity(Strings.toString(settingsBuilder));
         assertOK(oldEs.performRequest(createIndex));
 
         for (int i = 0; i < numDocs + extraDocs; i++) {
@@ -161,9 +160,8 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             expectedIds.add(id);
             // use multiple types for ES versions < 6.0.0
             String type = getType(oldVersion, id);
-            Request doc = new Request("PUT", "/" + indexName + "/" + type + "/" + id);
-            doc.addParameter("refresh", "true");
-            doc.setJsonEntity(sourceForDoc(i));
+            var doc = new Request("PUT", "/" + indexName + "/" + type + "/" + id).addParameter("refresh", "true")
+                .setJsonEntity(sourceForDoc(i));
             assertOK(oldEs.performRequest(doc));
         }
 
@@ -171,8 +169,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             String id = randomFrom(expectedIds);
             expectedIds.remove(id);
             String type = getType(oldVersion, id);
-            Request doc = new Request("DELETE", "/" + indexName + "/" + type + "/" + id);
-            doc.addParameter("refresh", "true");
+            var doc = new Request("DELETE", "/" + indexName + "/" + type + "/" + id).addParameter("refresh", "true");
             oldEs.performRequest(doc);
         }
 
@@ -185,9 +182,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             """, repoLocation));
         assertOK(oldEs.performRequest(createRepoRequest));
 
-        Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);
-        createSnapshotRequest.addParameter("wait_for_completion", "true");
-        createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
+        var createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName).addParameter(
+            "wait_for_completion",
+            "true"
+        ).setJsonEntity("{\"indices\":\"" + indexName + "\"}");
         assertOK(oldEs.performRequest(createSnapshotRequest));
 
         // register repo on new ES
@@ -195,8 +193,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         if (sourceOnlyRepository) {
             repoSettingsBuilder.put("delegate_type", "fs");
         }
-        Request createRepo = new Request("PUT", "/_snapshot/" + repoName);
-        createRepo.setJsonEntity(
+        var createRepo = new Request("PUT", "/_snapshot/" + repoName).setJsonEntity(
             Strings.toString(new PutRepositoryRequest().type(sourceOnlyRepository ? "source" : "fs").settings(repoSettingsBuilder.build()))
         );
         assertAcknowledged(client().performRequest(createRepo));
@@ -297,11 +294,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         String snapshotName
     ) throws IOException {
         // restore index
-        Request restoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");
-        restoreRequest.setJsonEntity(
+        var restoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore").setJsonEntity(
             Strings.toString(new RestoreSnapshotRequest().indices(indexName).renamePattern("(.+)").renameReplacement("restored_$1"))
-        );
-        restoreRequest.addParameter("wait_for_completion", "true");
+        ).addParameter("wait_for_completion", "true");
         Response restoreResponse = client().performRequest(restoreRequest);
         ObjectPath restore = ObjectPath.createFromResponse(restoreResponse);
         assertEquals(numberOfShards, (int) restore.evaluate("snapshot.shards.total"));
@@ -344,15 +339,13 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertDocs("restored_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion, numberOfShards);
 
         // mount as full copy searchable snapshot
-        Request mountRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_mount");
-        mountRequest.setJsonEntity(
+        var mountRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_mount").setJsonEntity(
             "{\"index\": \""
                 + indexName
                 + "\",\"renamed_index\": \"mounted_full_copy_"
                 + indexName
                 + "\",\"index_settings\": {\"index.number_of_replicas\": 1}}"
-        );
-        mountRequest.addParameter("wait_for_completion", "true");
+        ).addParameter("wait_for_completion", "true");
         ObjectPath mountResponse = ObjectPath.createFromResponse(client().performRequest(mountRequest));
         assertNotNull(mountResponse.evaluate("snapshot"));
         assertEquals(numberOfShards, (int) mountResponse.evaluate("snapshot.shards.total"));
@@ -364,11 +357,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertDocs("mounted_full_copy_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion, numberOfShards);
 
         // mount as shared cache searchable snapshot
-        mountRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_mount");
-        mountRequest.setJsonEntity("{\"index\": \"" + indexName + "\",\"renamed_index\": \"mounted_shared_cache_" + indexName + "\"}");
-        mountRequest.addParameter("wait_for_completion", "true");
-        mountRequest.addParameter("storage", "shared_cache");
-        mountResponse = ObjectPath.createFromResponse(client().performRequest(mountRequest));
+        var mountAsSharedCache = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_mount").setJsonEntity(
+            "{\"index\": \"" + indexName + "\",\"renamed_index\": \"mounted_shared_cache_" + indexName + "\"}"
+        ).addParameter("wait_for_completion", "true").addParameter("storage", "shared_cache");
+        mountResponse = ObjectPath.createFromResponse(client().performRequest(mountAsSharedCache));
         assertNotNull(mountResponse.evaluate("snapshot"));
         assertEquals(numberOfShards, (int) mountResponse.evaluate("snapshot.shards.total"));
         assertEquals(numberOfShards, (int) mountResponse.evaluate("snapshot.shards.successful"));

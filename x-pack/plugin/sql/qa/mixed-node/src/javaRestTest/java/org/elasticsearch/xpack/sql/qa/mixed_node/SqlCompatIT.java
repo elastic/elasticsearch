@@ -86,28 +86,24 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     private void indexDocs() throws IOException {
-        Request putIndex = new Request("PUT", "/test");
-        putIndex.setJsonEntity("""
-            {"settings":{"index":{"number_of_shards":3}}}""");
-        client().performRequest(putIndex);
+        client().performRequest(new Request("PUT", "/test").setJsonEntity("""
+            {"settings":{"index":{"number_of_shards":3}}}"""));
 
-        Request indexDocs = new Request("POST", "/test/_bulk");
-        indexDocs.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : Arrays.asList("{\"int\":1,\"kw\":\"foo\"}", "{\"int\":2,\"kw\":\"bar\"}", "{\"kw\":\"bar\"}")) {
             bulk.append("{\"index\":{}}\n").append(doc).append("\n");
         }
 
-        indexDocs.setJsonEntity(bulk.toString());
-        client().performRequest(indexDocs);
+        client().performRequest(new Request("POST", "/test/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString()));
     }
 
     @SuppressWarnings("unchecked")
     private List<Integer> runOrderByNullsLastQuery(RestClient queryClient) throws IOException {
         indexDocs();
 
-        Request query = new Request("POST", "_sql");
-        query.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1 ORDER BY 1 NULLS LAST", bwcVersion));
+        Request query = new Request("POST", "_sql").setJsonEntity(
+            sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1 ORDER BY 1 NULLS LAST", bwcVersion)
+        );
         Map<String, Object> result = performRequestAndReadBodyAsJson(queryClient, query);
 
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
@@ -150,14 +146,14 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         throws IOException {
         indexDocs();
 
-        Request req = new Request("POST", "_sql");
-        req.setJsonEntity(sqlQueryEntityWithOptionalMode(Map.of("query", "SELECT int FROM test", "fetch_size", 1), bwcVersion));
+        var req = new Request("POST", "_sql").setJsonEntity(
+            sqlQueryEntityWithOptionalMode(Map.of("query", "SELECT int FROM test", "fetch_size", 1), bwcVersion)
+        );
         Map<String, Object> json = performRequestAndReadBodyAsJson(client1, req);
         String cursor = (String) json.get("cursor");
         assertThat(cursor, Matchers.not(Matchers.emptyOrNullString()));
 
-        Request scrollReq = new Request("POST", "_sql");
-        scrollReq.setJsonEntity(formatted("{\"cursor\": \"%s\"}", cursor));
+        var scrollReq = new Request("POST", "_sql").setJsonEntity(formatted("{\"cursor\": \"%s\"}", cursor));
         ResponseException exception = expectThrows(ResponseException.class, () -> client2.performRequest(scrollReq));
 
         assertThat(
@@ -188,15 +184,13 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     public void testCreateCursorWithFormatTxt(RestClient client) throws IOException {
         index("{\"foo\":1}", "{\"foo\":2}");
 
-        Request query = new Request("POST", "_sql");
         XContentBuilder json = XContentFactory.jsonBuilder()
             .startObject()
             .field("query", randomFrom("SELECT foo FROM test", "SELECT foo FROM test GROUP BY foo"))
             .field("fetch_size", 1)
             .endObject();
 
-        query.setJsonEntity(Strings.toString(json));
-        query.addParameter("format", "txt");
+        Request query = new Request("POST", "_sql").setJsonEntity(Strings.toString(json)).addParameter("format", "txt");
 
         Response response = client.performRequest(query);
         assertOK(response);

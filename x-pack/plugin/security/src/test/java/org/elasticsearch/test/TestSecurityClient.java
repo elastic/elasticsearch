@@ -83,15 +83,12 @@ public class TestSecurityClient {
      */
     public void putUser(User user, SecureString password) throws IOException {
         final String endpoint = "/_security/user/" + user.principal();
-        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         final Map<String, Object> map = XContentTestUtils.convertToMap(user);
         if (password != null) {
             map.put("password", password.toString());
         }
         final String body = toJson(map);
-        request.setJsonEntity(body);
-        request.addParameters(Map.of("refresh", "true"));
-        execute(request);
+        execute(new Request(HttpPut.METHOD_NAME, endpoint).setJsonEntity(body).addParameters(Map.of("refresh", "true")));
     }
 
     /**
@@ -100,9 +97,7 @@ public class TestSecurityClient {
      */
     public void deleteUser(String username) throws IOException {
         final String endpoint = "/_security/user/" + username;
-        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        request.addParameters(Map.of("refresh", "true"));
-        execute(request);
+        execute(new Request(HttpDelete.METHOD_NAME, endpoint).addParameters(Map.of("refresh", "true")));
     }
 
     /**
@@ -111,14 +106,12 @@ public class TestSecurityClient {
      */
     public void changePassword(String username, SecureString password) throws IOException {
         final String endpoint = "/_security/user/" + username + "/_password";
-        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         final String body = String.format(Locale.ROOT, """
             {
                 "password": "%s"
             }
             """, password.toString());
-        request.setJsonEntity(body);
-        execute(request);
+        execute(new Request(HttpPost.METHOD_NAME, endpoint).setJsonEntity(body));
     }
 
     /**
@@ -127,8 +120,7 @@ public class TestSecurityClient {
      */
     public void setUserEnabled(String username, boolean enabled) throws IOException {
         final String endpoint = "/_security/user/" + username + "/" + (enabled ? "_enable" : "_disable");
-        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        execute(request);
+        execute(new Request(HttpPut.METHOD_NAME, endpoint));
     }
 
     /**
@@ -137,8 +129,7 @@ public class TestSecurityClient {
      */
     public ApiKey getApiKey(String id) throws IOException {
         final String endpoint = "/_security/api_key/";
-        final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        request.addParameter("id", id);
+        var request = new Request(HttpGet.METHOD_NAME, endpoint).addParameter("id", id);
         final Response response = execute(request);
         try (XContentParser parser = getParser(response)) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
@@ -158,14 +149,11 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction
      */
     public void invalidateApiKeysForUser(String username) throws IOException {
-        final String endpoint = "/_security/api_key/";
-        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        request.setJsonEntity(String.format(Locale.ROOT, """
+        execute(new Request(HttpDelete.METHOD_NAME, "/_security/api_key/").setJsonEntity(String.format(Locale.ROOT, """
             {
                 "username":"%s"
             }
-            """, username));
-        execute(request);
+            """, username)));
     }
 
     /**
@@ -173,10 +161,11 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction
      */
     public void invalidateApiKeys(final String... apiKeyIds) throws IOException {
-        final var endpoint = "/_security/api_key/";
-        final var request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        request.setJsonEntity(XContentTestUtils.convertToXContent(Map.of("ids", apiKeyIds), XContentType.JSON).utf8ToString());
-        execute(request);
+        execute(
+            new Request(HttpDelete.METHOD_NAME, "/_security/api_key/").setJsonEntity(
+                XContentTestUtils.convertToXContent(Map.of("ids", apiKeyIds), XContentType.JSON).utf8ToString()
+            )
+        );
     }
 
     /**
@@ -223,11 +212,8 @@ public class TestSecurityClient {
      */
     public DocWriteResponse.Result putRole(RoleDescriptor descriptor) throws IOException {
         final String endpoint = "/_security/role/" + descriptor.getName();
-        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-
         final String body = toJson(descriptor);
-        request.setJsonEntity(body);
-        request.addParameters(Map.of("refresh", "true"));
+        var request = new Request(HttpPut.METHOD_NAME, endpoint).setJsonEntity(body).addParameters(Map.of("refresh", "true"));
 
         final Map<String, Object> response = entityAsMap(execute(request));
 
@@ -274,10 +260,7 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappingAction
      */
     public void putRoleMapping(String mappingName, String mappingJson) throws IOException {
-        final String endpoint = "/_security/role_mapping/" + mappingName;
-        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setJsonEntity(mappingJson);
-        execute(request);
+        execute(new Request(HttpPost.METHOD_NAME, "/_security/role_mapping/" + mappingName).setJsonEntity(mappingJson));
     }
 
     /**
@@ -285,9 +268,7 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.rolemapping.RestDeleteRoleMappingAction
      */
     public void deleteRoleMapping(String mappingName) throws IOException {
-        final String endpoint = "/_security/role_mapping/" + mappingName;
-        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        execute(request);
+        execute(new Request(HttpDelete.METHOD_NAME, "/_security/role_mapping/" + mappingName));
     }
 
     /**
@@ -392,11 +373,9 @@ public class TestSecurityClient {
     @SuppressWarnings("unchecked")
     public TokenInvalidation invalidateTokens(String requestBody) throws IOException {
         final String endpoint = "/_security/oauth2/token";
-        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         // This API returns 404 (with the same body as a 200 response) if there's nothing to delete.
         // RestClient will throw an exception on 404, but we don't want that, we want to parse the body and return it
-        request.addParameter("ignore", "404");
-        request.setJsonEntity(requestBody);
+        var request = new Request(HttpDelete.METHOD_NAME, endpoint).addParameter("ignore", "404").setJsonEntity(requestBody);
         final Map<String, Object> responseBody = entityAsMap(execute(request));
         final List<Map<String, ?>> errors = (List<Map<String, ?>>) responseBody.get("error_details");
         return new TokenInvalidation(

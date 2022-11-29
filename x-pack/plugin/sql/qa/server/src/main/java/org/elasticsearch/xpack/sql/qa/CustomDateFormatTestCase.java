@@ -72,7 +72,6 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
     }
 
     private void createIndex() throws IOException {
-        Request request = new Request("PUT", "/test");
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
 
         index.startObject("mappings");
@@ -93,8 +92,6 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
         }
         index.endObject();
         index.endObject();
-
-        request.setJsonEntity(Strings.toString(index));
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/test").setJsonEntity(Strings.toString(index)));
     }
 }

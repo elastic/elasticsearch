@@ -34,17 +34,14 @@ public class HttpCompressionIT extends ESRestTestCase {
         }""";
 
     public void testCompressesResponseIfRequested() throws IOException {
-        Request request = new Request("POST", "/company/_doc/2");
-        request.setJsonEntity(SAMPLE_DOCUMENT);
-        Response response = client().performRequest(request);
+        Response response = client().performRequest(new Request("POST", "/company/_doc/2").setJsonEntity(SAMPLE_DOCUMENT));
         assertEquals(201, response.getStatusLine().getStatusCode());
         assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
         assertThat(response.getEntity(), is(not(instanceOf(GzipDecompressingEntity.class))));
 
-        request = new Request("GET", "/company/_doc/2");
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING).build();
-
-        request.setOptions(requestOptions);
+        var request = new Request("GET", "/company/_doc/2").setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING).build()
+        );
         response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
@@ -59,9 +56,7 @@ public class HttpCompressionIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
 
-        Request request = new Request("POST", "/company/_doc/1");
-        request.setJsonEntity(SAMPLE_DOCUMENT);
-        response = client().performRequest(request);
+        response = client().performRequest(new Request("POST", "/company/_doc/1").setJsonEntity(SAMPLE_DOCUMENT));
         assertEquals(201, response.getStatusLine().getStatusCode());
         assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
         assertThat(response.getEntity(), is(not(instanceOf(GzipDecompressingEntity.class))));

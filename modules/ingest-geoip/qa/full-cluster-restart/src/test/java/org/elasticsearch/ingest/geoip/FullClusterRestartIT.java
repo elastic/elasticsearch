@@ -24,14 +24,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     public void testGeoIpSystemFeaturesMigration() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            Request enableDownloader = new Request("PUT", "/_cluster/settings");
-            enableDownloader.setJsonEntity("""
+            var enableDownloader = new Request("PUT", "/_cluster/settings").setJsonEntity("""
                 {"persistent": {"ingest.geoip.downloader.enabled": true}}
                 """);
             assertOK(client().performRequest(enableDownloader));
 
-            Request putPipeline = new Request("PUT", "/_ingest/pipeline/geoip");
-            putPipeline.setJsonEntity("""
+            var putPipeline = new Request("PUT", "/_ingest/pipeline/geoip").setJsonEntity("""
                 {
                     "description": "Add geoip info",
                     "processors": [{
@@ -58,8 +56,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-8", "my-index-00001"));
             assertBusy(() -> testIndexGeoDoc());
 
-            Request disableDownloader = new Request("PUT", "/_cluster/settings");
-            disableDownloader.setJsonEntity("""
+            var disableDownloader = new Request("PUT", "/_cluster/settings").setJsonEntity("""
                 {"persistent": {"ingest.geoip.downloader.enabled": false}}
                 """);
             assertOK(client().performRequest(disableDownloader));
@@ -67,8 +64,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // the geoip index should be deleted
             assertBusy(() -> testCatIndices("my-index-00001"));
 
-            Request enableDownloader = new Request("PUT", "/_cluster/settings");
-            enableDownloader.setJsonEntity("""
+            var enableDownloader = new Request("PUT", "/_cluster/settings").setJsonEntity("""
                 {"persistent": {"ingest.geoip.downloader.enabled": true}}
                 """);
             assertOK(client().performRequest(enableDownloader));

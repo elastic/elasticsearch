@@ -139,8 +139,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void checkHasPrivileges() throws IOException {
-        final Request request = new Request("GET", "/_security/user/_has_privileges");
-        request.setJsonEntity("""
+        Response response = client().performRequest(new Request("GET", "/_security/user/_has_privileges").setJsonEntity("""
             {
               "cluster": [ "manage", "monitor" ],
               "index": [
@@ -149,8 +148,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
                   "privileges": [ "read", "all" ]
                 }
               ]
-            }""");
-        Response response = client().performRequest(request);
+            }"""));
         final Map<String, Object> auth = entityAsMap(response);
         assertThat(ObjectPath.evaluate(auth, "username"), equalTo("security_test_user"));
         assertThat(ObjectPath.evaluate(auth, "has_all_requested"), equalTo(false));
@@ -163,38 +161,33 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void checkIndexWrite() throws IOException {
-        final Request request1 = new Request("POST", "/index_allowed/_doc");
-        request1.setJsonEntity("{ \"key\" : \"value\" }");
-        Response response1 = client().performRequest(request1);
+        Response response1 = client().performRequest(new Request("POST", "/index_allowed/_doc").setJsonEntity("{ \"key\" : \"value\" }"));
         final Map<String, Object> result1 = entityAsMap(response1);
         assertThat(ObjectPath.evaluate(result1, "_index"), equalTo("index_allowed"));
         assertThat(ObjectPath.evaluate(result1, "result"), equalTo("created"));
 
-        final Request request2 = new Request("POST", "/index_denied/_doc");
-        request2.setJsonEntity("{ \"key\" : \"value\" }");
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request2));
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(new Request("POST", "/index_denied/_doc").setJsonEntity("{ \"key\" : \"value\" }"))
+        );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(e.getMessage(), containsString("unauthorized for user [security_test_user]"));
     }
 
     private Request buildGetTokenRequest() {
-        final Request getToken = new Request("POST", "/_security/oauth2/token");
-        getToken.setJsonEntity("""
+        return new Request("POST", "/_security/oauth2/token").setJsonEntity("""
             {"grant_type" : "password",
               "username" : "security_test_user",
               "password" : "security-test-password"
             }""");
-        return getToken;
     }
 
     private Request buildGetApiKeyRequest() {
-        final Request getApiKey = new Request("POST", "/_security/api_key");
-        getApiKey.setJsonEntity("""
+        return new Request("POST", "/_security/api_key").setJsonEntity("""
             {"name" : "my-api-key",
               "expiration" : "2d",
               "role_descriptors" : {}\s
             }""");
-        return getApiKey;
     }
 
     private String getAccessToken() throws IOException {
@@ -273,8 +266,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void assertAddRoleWithDLS(boolean shouldSucceed) throws IOException {
-        final Request addRole = new Request("POST", "/_security/role/dlsrole");
-        addRole.setJsonEntity("""
+        var addRole = new Request("POST", "/_security/role/dlsrole").setJsonEntity("""
             {
               "cluster": ["all"],
               "indices": [
@@ -304,8 +296,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void assertAddRoleWithFLS(boolean shouldSucceed) throws IOException {
-        final Request addRole = new Request("POST", "/_security/role/flsrole");
-        addRole.setJsonEntity("""
+        var addRole = new Request("POST", "/_security/role/flsrole").setJsonEntity("""
             {
               "cluster": ["all"],
               "indices": [
@@ -337,8 +328,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void createUserWithDlsOrFlsRole() throws IOException {
-        final Request request = new Request("PUT", "/_security/user/dls_fls_user");
-        request.setJsonEntity(
+        var request = new Request("PUT", "/_security/user/dls_fls_user").setJsonEntity(
             "{\"password\":\"superstrongpassword\"," + "\"roles\":[\"" + (randomBoolean() ? "dlsrole" : "flsrole") + "\"]}"
         );
         assertOK(adminClient().performRequest(request));
@@ -347,11 +337,11 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     private Tuple<String, Boolean> assertCreateApiKeyWithDlsFls() throws IOException {
         createUserWithDlsOrFlsRole();
 
-        final Request request = new Request("POST", "/_security/api_key");
+        String jsonEntity;
         final boolean keyRoleHasDlsFls = randomBoolean();
         if (keyRoleHasDlsFls) {
             if (randomBoolean()) {
-                request.setJsonEntity("""
+                jsonEntity = """
                     {
                       "name": "my-key",
                       "role_descriptors": {
@@ -375,9 +365,9 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
                           ]
                         }
                       }
-                    }""");
+                    }""";
             } else {
-                request.setJsonEntity("""
+                jsonEntity = """
                     {
                       "name": "my-key",
                       "role_descriptors": {
@@ -397,10 +387,10 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
                           ]
                         }
                       }
-                    }""");
+                    }""";
             }
         } else {
-            request.setJsonEntity("""
+            jsonEntity = """
                 {
                   "name": "my-key",
                   "role_descriptors": {
@@ -413,14 +403,13 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
                       ]
                     }
                   }
-                }""");
+                }""";
         }
-        request.setOptions(
-            request.getOptions()
-                .toBuilder()
-                .addHeader("Authorization", basicAuthHeaderValue("dls_fls_user", new SecureString("superstrongpassword".toCharArray())))
-        );
-
+        var request = new Request("POST", "/_security/api_key").setJsonEntity(jsonEntity)
+            .setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader("Authorization", basicAuthHeaderValue("dls_fls_user", new SecureString("superstrongpassword".toCharArray())))
+            );
         final Response response = client().performRequest(request);
         assertOK(response);
         return new Tuple<>((String) responseAsMap(response).get("encoded"), keyRoleHasDlsFls);
@@ -453,9 +442,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             .addHeader(HttpHeaders.AUTHORIZATION, basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray())));
 
         // Activate Profile
-        final Request activateRequest = new Request("POST", "_security/profile/_activate");
-        activateRequest.setOptions(requestOptions);
-        activateRequest.setJsonEntity("""
+        var activateRequest = new Request("POST", "_security/profile/_activate").setOptions(requestOptions).setJsonEntity("""
             {
               "grant_type": "password",
               "username": "admin_user",
@@ -466,41 +453,33 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         final String uid = (String) responseAsMap(activateResponse).get("uid");
 
         // Get Profile
-        final Request getProfileRequest = new Request("GET", "_security/profile/" + uid);
-        getProfileRequest.setOptions(requestOptions);
-        assertOK(client.performRequest(getProfileRequest));
+        assertOK(client.performRequest(new Request("GET", "_security/profile/" + uid).setOptions(requestOptions)));
 
         // Update profile data
-        final Request putDataRequest = new Request("PUT", "_security/profile/" + uid + "/_data");
-        putDataRequest.setOptions(requestOptions);
-        putDataRequest.setJsonEntity("""
-            {
-              "labels": {
-                "my_app": {
-                  "tag": "prod"
-                }
-              },
-              "data": {
-                "my_app": {
-                  "theme": "default"
-                }
-              }
-            }""");
-        assertOK(client.performRequest(putDataRequest));
+        assertOK(
+            client.performRequest(new Request("PUT", "_security/profile/" + uid + "/_data").setOptions(requestOptions).setJsonEntity("""
+                {
+                  "labels": {
+                    "my_app": {
+                      "tag": "prod"
+                    }
+                  },
+                  "data": {
+                    "my_app": {
+                      "theme": "default"
+                    }
+                  }
+                }"""))
+        );
 
         // Disable profile
-        final Request disableProfileRequest = new Request("PUT", "_security/profile/" + uid + "/_disable");
-        disableProfileRequest.setOptions(requestOptions);
-        assertOK(client.performRequest(disableProfileRequest));
+        assertOK(client.performRequest(new Request("PUT", "_security/profile/" + uid + "/_disable").setOptions(requestOptions)));
 
         // Enable profile
-        final Request enableProfileRequest = new Request("PUT", "_security/profile/" + uid + "/_enable");
-        enableProfileRequest.setOptions(requestOptions);
-        assertOK(client.performRequest(enableProfileRequest));
+        assertOK(client.performRequest(new Request("PUT", "_security/profile/" + uid + "/_enable").setOptions(requestOptions)));
 
         // Suggest profiles
-        final Request suggestProfilesRequest = new Request("GET", "_security/profile/_suggest");
-        suggestProfilesRequest.setOptions(requestOptions);
+        var suggestProfilesRequest = new Request("GET", "_security/profile/_suggest").setOptions(requestOptions);
         if (clusterHasTrialLicense) {
             assertOK(client.performRequest(suggestProfilesRequest));
         } else {
@@ -510,27 +489,26 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         }
 
         // Profile hasPrivileges
-        final Request hasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
-        hasPrivilegesRequest.setOptions(requestOptions);
-        hasPrivilegesRequest.setJsonEntity(formatted("""
-            {
-              "uids": [
-                "%s"
-              ],
-              "privileges": {
-                "applications": [
-                  {
-                    "application": "app-1",
-                    "privileges": [
-                      "all"
-                    ],
-                    "resources": [
-                      "foo"
+        var hasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges").setOptions(requestOptions)
+            .setJsonEntity(formatted("""
+                {
+                  "uids": [
+                    "%s"
+                  ],
+                  "privileges": {
+                    "applications": [
+                      {
+                        "application": "app-1",
+                        "privileges": [
+                          "all"
+                        ],
+                        "resources": [
+                          "foo"
+                        ]
+                      }
                     ]
                   }
-                ]
-              }
-            }""", uid));
+                }""", uid));
         if (clusterHasTrialLicense) {
             assertOK(client.performRequest(hasPrivilegesRequest));
         } else {

@@ -70,16 +70,14 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Response openResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
         assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
-        Request addData = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
-        addData.setEntity(
+        Request addData = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data").setEntity(
             new NStringEntity(
                 """
                     {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
                     {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}""",
                 randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))
             )
-        );
-        addData.setOptions(POST_DATA_OPTIONS);
+        ).setOptions(POST_DATA_OPTIONS);
         Response addDataResponse = client().performRequest(addData);
         assertEquals(202, addDataResponse.getStatusLine().getStatusCode());
         Map<String, Object> responseBody = entityAsMap(addDataResponse);
@@ -97,8 +95,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Response flushResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
         assertFlushResponse(flushResponse, true, 1403481600000L);
 
-        Request closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
-        closeRequest.addParameter("timeout", "20s");
+        var closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close").addParameter("timeout", "20s");
         Response closeResponse = client().performRequest(closeRequest);
         assertEquals(Collections.singletonMap("closed", true), entityAsMap(closeResponse));
 
@@ -128,8 +125,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Response openResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
         assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
-        Request startRequest = new Request("POST", BASE_PATH + "datafeeds/" + datafeedId + "/_start");
-        startRequest.addParameter("start", "0");
+        var startRequest = new Request("POST", BASE_PATH + "datafeeds/" + datafeedId + "/_start").addParameter("start", "0");
         Response startResponse = client().performRequest(startRequest);
         assertThat(entityAsMap(startResponse), hasEntry("started", true));
 
@@ -149,8 +145,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Response stopResponse = client().performRequest(new Request("POST", BASE_PATH + "datafeeds/" + datafeedId + "/_stop"));
         assertEquals(Collections.singletonMap("stopped", true), entityAsMap(stopResponse));
 
-        Request closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
-        closeRequest.addParameter("timeout", "20s");
+        var closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close").addParameter("timeout", "20s");
         assertEquals(Collections.singletonMap("closed", true), entityAsMap(client().performRequest(closeRequest)));
 
         client().performRequest(new Request("DELETE", BASE_PATH + "datafeeds/" + datafeedId));
@@ -164,8 +159,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Response openResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
         assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
-        Request addDataRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
-        addDataRequest.setEntity(
+        var addDataRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data").setEntity(
             new NStringEntity(
                 """
                     {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
@@ -175,9 +169,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                     {"airline":"NKS","responsetime":"9991.3981","sourcetype":"farequote","time":"1403482000"}""",
                 randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))
             )
-        );
-        // Post data is deprecated, so expect a deprecation warning
-        addDataRequest.setOptions(POST_DATA_OPTIONS);
+        ).setOptions(POST_DATA_OPTIONS); // Post data is deprecated, so expect a deprecation warning
         Response addDataResponse = client().performRequest(addDataRequest);
         assertEquals(202, addDataResponse.getStatusLine().getStatusCode());
         Map<String, Object> responseBody = entityAsMap(addDataResponse);
@@ -195,21 +187,18 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Response flushResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
         assertFlushResponse(flushResponse, true, 1403481600000L);
 
-        Request closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
-        closeRequest.addParameter("timeout", "20s");
+        var closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close").addParameter("timeout", "20s");
         assertEquals(Collections.singletonMap("closed", true), entityAsMap(client().performRequest(closeRequest)));
 
         Request statsRequest = new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         client().performRequest(statsRequest);
 
-        Request openRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
-        openRequest.addParameter("timeout", "20s");
+        var openRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open").addParameter("timeout", "20s");
         Response openResponse2 = client().performRequest(openRequest);
         assertThat(entityAsMap(openResponse2), hasEntry("opened", true));
 
         // feed some more data points
-        Request addDataRequest2 = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
-        addDataRequest2.setEntity(
+        Request addDataRequest2 = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data").setEntity(
             new NStringEntity(
                 """
                     {"airline":"AAL","responsetime":"136.2361","sourcetype":"farequote","time":"1407081600"}
@@ -219,9 +208,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                     {"airline":"FFT","responsetime":"221.8693","sourcetype":"farequote","time":"1407082000"}""",
                 randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))
             )
-        );
-        // Post data is deprecated, so expect a deprecation warning
-        addDataRequest2.setOptions(POST_DATA_OPTIONS);
+        ).setOptions(POST_DATA_OPTIONS); // Post data is deprecated, so expect a deprecation warning
         Response addDataResponse2 = client().performRequest(addDataRequest2);
         assertEquals(202, addDataResponse2.getStatusLine().getStatusCode());
         Map<String, Object> responseBody2 = entityAsMap(addDataResponse2);
@@ -269,9 +256,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         originalJobBody.remove("job_id");
 
         XContentBuilder xContentBuilder = jsonBuilder().map(originalJobBody);
-        Request request = new Request("PUT", BASE_PATH + "anomaly_detectors/" + jobId + "-import");
-        request.setJsonEntity(Strings.toString(xContentBuilder));
-        client().performRequest(request);
+        client().performRequest(
+            new Request("PUT", BASE_PATH + "anomaly_detectors/" + jobId + "-import").setJsonEntity(Strings.toString(xContentBuilder))
+        );
 
         Response importedJobResponse = client().performRequest(
             new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "-import" + "?exclude_generated=true")
@@ -301,9 +288,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Map<String, Object> toPut = new HashMap<>(originalDfBody);
         toPut.put("job_id", jobId);
         XContentBuilder xContentBuilder = jsonBuilder().map(toPut);
-        Request request = new Request("PUT", BASE_PATH + "datafeeds/" + datafeedId + "-import");
-        request.setJsonEntity(Strings.toString(xContentBuilder));
-        client().performRequest(request);
+        client().performRequest(
+            new Request("PUT", BASE_PATH + "datafeeds/" + datafeedId + "-import").setJsonEntity(Strings.toString(xContentBuilder))
+        );
 
         Response importedDfResponse = client().performRequest(
             new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "-import" + "?exclude_generated=true")
@@ -344,9 +331,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         }
         xContentBuilder.endObject();
 
-        Request request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId);
-        request.setJsonEntity(Strings.toString(xContentBuilder));
-        client().performRequest(request);
+        client().performRequest(
+            new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId).setJsonEntity(Strings.toString(xContentBuilder))
+        );
 
         Response jobResponse = client().performRequest(
             new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true")
@@ -355,9 +342,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         originalJobBody.remove("id");
 
         XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
-        request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import");
-        request.setJsonEntity(Strings.toString(newBuilder));
-        client().performRequest(request);
+        client().performRequest(
+            new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import").setJsonEntity(Strings.toString(newBuilder))
+        );
 
         Response importedJobResponse = client().performRequest(
             new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true")
@@ -400,9 +387,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         }
         xContentBuilder.endObject();
 
-        Request request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId);
-        request.setJsonEntity(Strings.toString(xContentBuilder));
-        client().performRequest(request);
+        client().performRequest(
+            new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId).setJsonEntity(Strings.toString(xContentBuilder))
+        );
 
         Response jobResponse = client().performRequest(
             new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true")
@@ -411,9 +398,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         originalJobBody.remove("id");
 
         XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
-        request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import");
-        request.setJsonEntity(Strings.toString(newBuilder));
-        client().performRequest(request);
+        client().performRequest(
+            new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import").setJsonEntity(Strings.toString(newBuilder))
+        );
 
         Response importedJobResponse = client().performRequest(
             new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true")
@@ -456,9 +443,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         }
         xContentBuilder.endObject();
 
-        Request request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId);
-        request.setJsonEntity(Strings.toString(xContentBuilder));
-        client().performRequest(request);
+        client().performRequest(
+            new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId).setJsonEntity(Strings.toString(xContentBuilder))
+        );
 
         Response jobResponse = client().performRequest(
             new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true")
@@ -467,9 +454,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         originalJobBody.remove("id");
 
         XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
-        request = new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import");
-        request.setJsonEntity(Strings.toString(newBuilder));
-        client().performRequest(request);
+        client().performRequest(
+            new Request("PUT", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import").setJsonEntity(Strings.toString(newBuilder))
+        );
 
         Response importedJobResponse = client().performRequest(
             new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true")
@@ -486,8 +473,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.field("job_id", jobId);
         xContentBuilder.array("indexes", "airline-data");
         xContentBuilder.endObject();
-        Request request = new Request("PUT", BASE_PATH + "datafeeds/" + datafeedId);
-        request.setJsonEntity(Strings.toString(xContentBuilder));
+        var request = new Request("PUT", BASE_PATH + "datafeeds/" + datafeedId).setJsonEntity(Strings.toString(xContentBuilder));
         return client().performRequest(request);
     }
 

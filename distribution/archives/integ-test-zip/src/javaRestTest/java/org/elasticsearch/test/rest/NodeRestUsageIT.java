@@ -67,13 +67,11 @@ public class NodeRestUsageIT extends ESRestTestCase {
         // Do some requests to get some rest usage stats
         client().performRequest(new Request("PUT", "/test"));
         for (int i = 0; i < 3; i++) {
-            final Request index = new Request("POST", "/test/_doc/1");
-            index.setJsonEntity("{\"foo\": \"bar\"}");
+            var index = new Request("POST", "/test/_doc/1").setJsonEntity("{\"foo\": \"bar\"}");
             client().performRequest(index);
         }
         client().performRequest(new Request("GET", "/test/_search"));
-        final Request index4 = new Request("POST", "/test/_doc/4");
-        index4.setJsonEntity("{\"foo\": \"bar\"}");
+        var index4 = new Request("POST", "/test/_doc/4").setJsonEntity("{\"foo\": \"bar\"}");
         client().performRequest(index4);
         client().performRequest(new Request("POST", "/test/_refresh"));
         client().performRequest(new Request("GET", "/_cat/indices"));
@@ -141,8 +139,7 @@ public class NodeRestUsageIT extends ESRestTestCase {
 
         Map<String, Map<String, Long>> beforeCombinedAggsUsage = getTotalUsage(beforeNodesMap);
         // Do some requests to get some rest usage stats
-        Request create = new Request("PUT", "/test");
-        create.setJsonEntity("""
+        var create = new Request("PUT", "/test").setJsonEntity("""
                 {
                   "mappings": {
                     "properties": {
@@ -163,22 +160,17 @@ public class NodeRestUsageIT extends ESRestTestCase {
                 }""");
         client().performRequest(create);
 
-        Request searchRequest = new Request("GET", "/test/_search");
         SearchSourceBuilder searchSource = new SearchSourceBuilder().aggregation(
             AggregationBuilders.terms("str_terms").field("str.keyword")
         ).aggregation(AggregationBuilders.terms("num_terms").field("num")).aggregation(AggregationBuilders.avg("num_avg").field("num"));
-        searchRequest.setJsonEntity(Strings.toString(searchSource));
-        searchRequest.setJsonEntity(Strings.toString(searchSource));
-        client().performRequest(searchRequest);
+        client().performRequest(new Request("GET", "/test/_search").setJsonEntity(Strings.toString(searchSource)));
 
-        searchRequest = new Request("GET", "/test/_search");
         searchSource = new SearchSourceBuilder().aggregation(AggregationBuilders.terms("start").field("start"))
             .aggregation(AggregationBuilders.avg("num1").field("num"))
             .aggregation(AggregationBuilders.avg("num2").field("num"))
             .aggregation(AggregationBuilders.terms("foo").field("foo.keyword"));
         String r = Strings.toString(searchSource);
-        searchRequest.setJsonEntity(Strings.toString(searchSource));
-        client().performRequest(searchRequest);
+        client().performRequest(new Request("GET", "/test/_search").setJsonEntity(Strings.toString(searchSource)));
 
         Response response = client().performRequest(new Request("GET", "_nodes/usage"));
         Map<String, Object> responseBodyMap = entityAsMap(response);

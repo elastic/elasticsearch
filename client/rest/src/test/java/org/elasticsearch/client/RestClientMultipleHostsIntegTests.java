@@ -343,8 +343,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         });
 
         failureCount.set(0);
-        Request request = new Request("POST", "/20bytes");
-        request.setOptions(options);
+        Request request = new Request("POST", "/20bytes").setOptions(options);
         try {
             RestClientSingleHostTests.performRequestSyncOrAsync(client, request);
             fail("Request should not succeed");

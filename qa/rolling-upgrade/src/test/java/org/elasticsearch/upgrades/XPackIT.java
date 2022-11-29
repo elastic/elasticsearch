@@ -47,18 +47,15 @@ public class XPackIT extends AbstractRollingTestCase {
      * <strong>might</strong> have already installed a trial license.
      */
     public void testBasicFeature() throws IOException {
-        Request bulk = new Request("POST", "/sql_test/_bulk");
-        bulk.setJsonEntity("""
+        var bulk = new Request("POST", "/sql_test/_bulk").setJsonEntity("""
             {"index":{}}
             {"f": "1"}
             {"index":{}}
             {"f": "2"}
-            """);
-        bulk.addParameter("refresh", "true");
+            """).addParameter("refresh", "true");
         client().performRequest(bulk);
 
-        Request sql = new Request("POST", "/_sql");
-        sql.setJsonEntity("{\"query\": \"SELECT * FROM sql_test WHERE f > 1 ORDER BY f ASC\"}");
+        var sql = new Request("POST", "/_sql").setJsonEntity("{\"query\": \"SELECT * FROM sql_test WHERE f > 1 ORDER BY f ASC\"}");
         String response = EntityUtils.toString(client().performRequest(sql).getEntity());
         assertEquals("""
             {"columns":[{"name":"f","type":"text"}],"rows":[["2"]]}""", response);
@@ -75,15 +72,13 @@ public class XPackIT extends AbstractRollingTestCase {
      * trial license a little bit to make sure that it works.
      */
     public void testTrialLicense() throws IOException {
-        Request startTrial = new Request("POST", "/_license/start_trial");
-        startTrial.addParameter("acknowledge", "true");
+        var startTrial = new Request("POST", "/_license/start_trial").addParameter("acknowledge", "true");
         client().performRequest(startTrial);
 
         String noJobs = EntityUtils.toString(client().performRequest(new Request("GET", "/_ml/anomaly_detectors")).getEntity());
         assertEquals("{\"count\":0,\"jobs\":[]}", noJobs);
 
-        Request createJob = new Request("PUT", "/_ml/anomaly_detectors/test_job");
-        createJob.setJsonEntity("""
+        var createJob = new Request("PUT", "/_ml/anomaly_detectors/test_job").setJsonEntity("""
             {
               "analysis_config" : {
                 "bucket_span": "10m",

@@ -69,8 +69,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             createIndex(index, settings.build());
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             ensureGreen(index);
-            Request shardStatsRequest = new Request("GET", index + "/_stats");
-            shardStatsRequest.addParameter("level", "shards");
+            var shardStatsRequest = new Request("GET", index + "/_stats").addParameter("level", "shards");
             Response response = client().performRequest(shardStatsRequest);
             ObjectPath objectPath = ObjectPath.createFromResponse(response);
             List<Object> shardStats = objectPath.evaluate("indices." + index + ".shards.0");
@@ -92,8 +91,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
-            Request indexDoc = new Request("PUT", index + "/_doc/" + id);
-            indexDoc.setJsonEntity("{\"test\": \"test_" + randomAsciiLettersOfLength(2) + "\"}");
+            var indexDoc = new Request("PUT", index + "/_doc/" + id).setJsonEntity(
+                "{\"test\": \"test_" + randomAsciiLettersOfLength(2) + "\"}"
+            );
             client().performRequest(indexDoc);
         }
         return numDocs;
@@ -384,8 +384,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 if (oldNodeNames.size() == 1) {
                     final String oldNodeName = oldNodeNames.get(0);
                     logger.info("--> excluding index [{}] from node [{}]", index, oldNodeName);
-                    final Request putSettingsRequest = new Request("PUT", "/" + index + "/_settings");
-                    putSettingsRequest.setJsonEntity("{\"index.routing.allocation.exclude._name\":\"" + oldNodeName + "\"}");
+                    var putSettingsRequest = new Request("PUT", "/" + index + "/_settings").setJsonEntity(
+                        "{\"index.routing.allocation.exclude._name\":\"" + oldNodeName + "\"}"
+                    );
                     assertOK(client().performRequest(putSettingsRequest));
                 }
                 ensureGreen(index);
@@ -521,9 +522,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
      * Returns the version in which the given index has been created
      */
     private static Version indexVersionCreated(final String indexName) throws IOException {
-        final Request request = new Request("GET", "/" + indexName + "/_settings");
         final String versionCreatedSetting = indexName + ".settings.index.version.created";
-        request.addParameter("filter_path", versionCreatedSetting);
+        var request = new Request("GET", "/" + indexName + "/_settings").addParameter("filter_path", versionCreatedSetting);
 
         final Response response = client().performRequest(request);
         return Version.fromId(Integer.parseInt(ObjectPath.createFromResponse(response).evaluate(versionCreatedSetting)));
@@ -593,8 +593,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
             final int times = randomIntBetween(0, 2);
             for (int i = 0; i < times; i++) {
                 long value = randomNonNegativeLong();
-                Request update = new Request("POST", index + "/_update/" + docId);
-                update.setJsonEntity("{\"doc\": {\"updated_field\": " + value + "}}");
+                var update = new Request("POST", index + "/_update/" + docId).setJsonEntity(
+                    "{\"doc\": {\"updated_field\": " + value + "}}"
+                );
                 client().performRequest(update);
                 updates.put(docId, value);
             }
@@ -748,8 +749,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 softDeletesEnabled = randomBoolean();
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled);
             }
-            Request request = new Request("PUT", "/" + indexName);
-            request.setJsonEntity("{\"settings\": " + Strings.toString(settings.build()) + "}");
+            var request = new Request("PUT", "/" + indexName).setJsonEntity("{\"settings\": " + Strings.toString(settings.build()) + "}");
             if (softDeletesEnabled == false) {
                 expectSoftDeletesWarning(request, indexName);
             }

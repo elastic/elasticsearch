@@ -109,8 +109,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         String leaderRemoteClusterSeed = System.getProperty("tests.leader_remote_cluster_seed");
         if (leaderRemoteClusterSeed != null) {
             logger.info("Configuring leader remote cluster [{}]", leaderRemoteClusterSeed);
-            Request request = new Request("PUT", "/_cluster/settings");
-            request.setJsonEntity(formatted("""
+            var request = new Request("PUT", "/_cluster/settings").setJsonEntity(formatted("""
                 {
                   "persistent": {
                     "cluster.remote.leader.seeds": "%s"
@@ -129,8 +128,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         String followerRemoteClusterSeed = System.getProperty("tests.follower_remote_cluster_seed");
         if (followerRemoteClusterSeed != null) {
             logger.info("Configuring follower remote cluster [{}]", followerRemoteClusterSeed);
-            Request request = new Request("PUT", "/_cluster/settings");
-            request.setJsonEntity(formatted("""
+            var request = new Request("PUT", "/_cluster/settings").setJsonEntity(formatted("""
                 {
                   "persistent": {
                     "cluster.remote.follower.seeds": "%s"

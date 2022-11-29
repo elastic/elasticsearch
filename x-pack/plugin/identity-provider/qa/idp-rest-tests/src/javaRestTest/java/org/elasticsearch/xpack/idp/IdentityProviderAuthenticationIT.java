@@ -102,8 +102,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     }
 
     private Map<String, Object> validateAuthnRequest(String entityId, String authnRequestQuery) throws Exception {
-        final Request request = new Request("POST", "/_idp/saml/validate");
-        request.setJsonEntity("{\"authn_request_query\":\"" + authnRequestQuery + "\"}");
+        var request = new Request("POST", "/_idp/saml/validate").setJsonEntity("{\"authn_request_query\":\"" + authnRequestQuery + "\"}");
         final Response response = client().performRequest(request);
         final Map<String, Object> map = entityAsMap(response);
         assertThat(ObjectPath.eval("service_provider.entity_id", map), instanceOf(String.class));
@@ -113,8 +112,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     }
 
     private SamlPrepareAuthenticationResponse generateSamlAuthnRequest(String realmName) throws Exception {
-        final Request request = new Request("POST", "/_security/saml/prepare");
-        request.setJsonEntity("{\"realm\":\"" + realmName + "\"}");
+        var request = new Request("POST", "/_security/saml/prepare").setJsonEntity("{\"realm\":\"" + realmName + "\"}");
         try (RestClient kibanaClient = restClientAsKibanaSystem()) {
             final Response response = kibanaClient.performRequest(request);
             final Map<String, Object> map = entityAsMap(response);

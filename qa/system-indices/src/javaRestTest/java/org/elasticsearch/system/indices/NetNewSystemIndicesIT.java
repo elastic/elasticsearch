@@ -47,33 +47,30 @@ public class NetNewSystemIndicesIT extends ESRestTestCase {
     public void testIndexDoc() throws Exception {
         String id = randomAlphaOfLength(4);
 
-        ResponseException e = expectThrows(ResponseException.class, () -> {
-            Request request = new Request("PUT", "/.net-new-system-index-" + Version.CURRENT.major + "/_doc" + id);
-            request.setJsonEntity("{}");
-            client().performRequest(request);
-        });
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(
+                new Request("PUT", "/.net-new-system-index-" + Version.CURRENT.major + "/_doc" + id).setJsonEntity("{}")
+            )
+        );
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("system"));
 
-        Request request = new Request("PUT", "/_net_new_sys_index/" + id);
-        request.setJsonEntity("{}");
+        var request = new Request("PUT", "/_net_new_sys_index/" + id).setJsonEntity("{}");
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testSearch() throws Exception {
         // search before indexing doc
-        Request searchRequest = new Request("GET", "/_search");
-        searchRequest.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
-        searchRequest.addParameter("size", "10000");
+        var searchRequest = new Request("GET", "/_search").setJsonEntity("{ \"query\": { \"match_all\": {} } }")
+            .addParameter("size", "10000");
         Response searchResponse = client().performRequest(searchRequest);
         assertThat(searchResponse.getStatusLine().getStatusCode(), is(200));
         assertThat(EntityUtils.toString(searchResponse.getEntity()), not(containsString(".net-new")));
 
         // create a doc
         String id = randomAlphaOfLength(4);
-        Request request = new Request("PUT", "/_net_new_sys_index/" + id);
-        request.setJsonEntity("{}");
-        request.addParameter("refresh", "true");
+        var request = new Request("PUT", "/_net_new_sys_index/" + id).setJsonEntity("{}").addParameter("refresh", "true");
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 
@@ -83,17 +80,17 @@ public class NetNewSystemIndicesIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(searchResponse.getEntity()), not(containsString(".net-new")));
 
         // index wildcard search
-        searchRequest = new Request("GET", "/.net-new-system-index*/_search");
-        searchRequest.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
-        searchRequest.addParameter("size", "10000");
-        searchResponse = client().performRequest(searchRequest);
+        var wildcardSearchRequest = new Request("GET", "/.net-new-system-index*/_search").setJsonEntity(
+            "{ \"query\": { \"match_all\": {} } }"
+        ).addParameter("size", "10000");
+        searchResponse = client().performRequest(wildcardSearchRequest);
         assertThat(searchResponse.getStatusLine().getStatusCode(), is(200));
         assertThat(EntityUtils.toString(searchResponse.getEntity()), not(containsString(".net-new")));
 
         // direct index search
-        Request directRequest = new Request("GET", "/.net-new-system-index-" + Version.CURRENT.major + "/_search");
-        directRequest.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
-        directRequest.addParameter("size", "10000");
+        var directRequest = new Request("GET", "/.net-new-system-index-" + Version.CURRENT.major + "/_search").setJsonEntity(
+            "{ \"query\": { \"match_all\": {} } }"
+        ).addParameter("size", "10000");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(directRequest));
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("system"));
     }

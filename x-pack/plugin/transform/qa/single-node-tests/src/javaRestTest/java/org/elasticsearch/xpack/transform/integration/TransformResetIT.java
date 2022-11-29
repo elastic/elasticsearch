@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -74,37 +73,32 @@ public class TransformResetIT extends TransformRestTestCase {
         String transformDest = transformId + "_idx";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
 
-        final Request createTransformRequest = createRequestWithAuth(
-            "PUT",
-            getTransformEndpoint() + transformId,
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
-        );
-        String config = formatted("""
-            {
-              "dest": {
-                "index": "%s"
-              },
-              "source": {
-                "index": "%s"
-              },
-              "pivot": {
-                "group_by": {
-                  "reviewer": {
-                    "terms": {
-                      "field": "user_id"
+        var createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1)
+            .setJsonEntity(formatted("""
+                {
+                  "dest": {
+                    "index": "%s"
+                  },
+                  "source": {
+                    "index": "%s"
+                  },
+                  "pivot": {
+                    "group_by": {
+                      "reviewer": {
+                        "terms": {
+                          "field": "user_id"
+                        }
+                      }
+                    },
+                    "aggregations": {
+                      "avg_rating": {
+                        "avg": {
+                          "field": "stars"
+                        }
+                      }
                     }
                   }
-                },
-                "aggregations": {
-                  "avg_rating": {
-                    "avg": {
-                      "field": "stars"
-                    }
-                  }
-                }
-              }
-            }""", transformDest, REVIEWS_INDEX_NAME);
-        createTransformRequest.setJsonEntity(config);
+                }""", transformDest, REVIEWS_INDEX_NAME));
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 

@@ -119,9 +119,7 @@ public class GeoDataLoader {
     }
 
     private static void loadData(RestClient client, String index, String bulk) throws IOException {
-        Request request = new Request("POST", "/" + index + "/_bulk");
-        request.addParameter("refresh", "true");
-        request.setJsonEntity(bulk);
+        Request request = new Request("POST", "/" + index + "/_bulk").addParameter("refresh", "true").setJsonEntity(bulk);
         Response response = client.performRequest(request);
 
         if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
@@ -137,9 +135,9 @@ public class GeoDataLoader {
     }
 
     public static void makeFilteredAlias(RestClient client, String aliasName, String index, String filter) throws Exception {
-        Request request = new Request("POST", "/" + index + "/_alias/" + aliasName);
-        request.setJsonEntity("{\"filter\" : { " + filter + " } }");
-        client.performRequest(request);
+        client.performRequest(
+            new Request("POST", "/" + index + "/_alias/" + aliasName).setJsonEntity("{\"filter\" : { " + filter + " } }")
+        );
     }
 
     private static String readResource(String location) throws IOException {

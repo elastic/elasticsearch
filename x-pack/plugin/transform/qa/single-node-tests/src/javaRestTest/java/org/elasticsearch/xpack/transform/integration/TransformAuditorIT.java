@@ -69,8 +69,7 @@ public class TransformAuditorIT extends TransformRestTestCase {
         startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         // Make sure we wrote to the audit
-        final Request request = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search");
-        request.setJsonEntity("""
+        var request = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search").setJsonEntity("""
             {"query":{"term":{"transform_id":"simple_pivot_for_audit"}}}""");
         assertBusy(() -> {
             assertTrue(indexExists(TransformInternalIndexConstants.AUDIT_INDEX));
@@ -107,11 +106,10 @@ public class TransformAuditorIT extends TransformRestTestCase {
                 + "with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices "
                 + "and system indices"
         );
-        Request request = new Request("PUT", "/" + TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED);
         String entity = "{\"settings\": " + Strings.toString(settings.build()) + "}";
-        request.setJsonEntity(entity);
-        request.setOptions(options);
-        client().performRequest(request);
+        client().performRequest(
+            new Request("PUT", "/" + TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED).setJsonEntity(entity).setOptions(options)
+        );
 
         assertBusy(
             () -> assertTrue(

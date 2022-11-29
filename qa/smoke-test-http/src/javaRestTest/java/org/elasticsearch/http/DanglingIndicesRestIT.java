@@ -105,11 +105,10 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         final List<String> danglingIndexIds = listDanglingIndexIds();
         assertThat(danglingIndexIds, hasSize(1));
 
-        final Request importRequest = new Request("POST", "/_dangling/" + danglingIndexIds.get(0));
-        importRequest.addParameter("accept_data_loss", "true");
         // Ensure this parameter is accepted
-        importRequest.addParameter("timeout", "20s");
-        importRequest.addParameter("master_timeout", "20s");
+        var importRequest = new Request("POST", "/_dangling/" + danglingIndexIds.get(0)).addParameter("accept_data_loss", "true")
+            .addParameter("timeout", "20s")
+            .addParameter("master_timeout", "20s");
         final Response importResponse = restClient.performRequest(importRequest);
         assertThat(importResponse.getStatusLine().getStatusCode(), equalTo(ACCEPTED.getStatus()));
 
@@ -141,11 +140,10 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         final List<String> danglingIndexIds = listDanglingIndexIds();
         assertThat(danglingIndexIds, hasSize(1));
 
-        final Request deleteRequest = new Request("DELETE", "/_dangling/" + danglingIndexIds.get(0));
-        deleteRequest.addParameter("accept_data_loss", "true");
         // Ensure these parameters is accepted
-        deleteRequest.addParameter("timeout", "20s");
-        deleteRequest.addParameter("master_timeout", "20s");
+        var deleteRequest = new Request("DELETE", "/_dangling/" + danglingIndexIds.get(0)).addParameter("accept_data_loss", "true")
+            .addParameter("timeout", "20s")
+            .addParameter("master_timeout", "20s");
         final Response deleteResponse = restClient.performRequest(deleteRequest);
         assertThat(deleteResponse.getStatusLine().getStatusCode(), equalTo(ACCEPTED.getStatus()));
 
@@ -232,9 +230,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
                     }
                   }
                 }""";
-            Request request = new Request("PUT", "/" + index);
-            request.setJsonEntity(indexSettings);
-            assertOK(getRestClient().performRequest(request));
+            assertOK(getRestClient().performRequest(new Request("PUT", "/" + index).setJsonEntity(indexSettings)));
         }
         ensureGreen(indices);
 

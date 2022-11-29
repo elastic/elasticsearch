@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.sql.qa.security;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -140,7 +139,6 @@ public class UserFunctionIT extends ESRestTestCase {
     }
 
     private void createUser(String name, String role) throws IOException {
-        Request request = new Request("PUT", "/_security/user/" + name);
         XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
         user.startObject();
         {
@@ -148,23 +146,20 @@ public class UserFunctionIT extends ESRestTestCase {
             user.field("roles", role);
         }
         user.endObject();
-        request.setJsonEntity(Strings.toString(user));
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/_security/user/" + name).setJsonEntity(Strings.toString(user)));
     }
 
     private void deleteUser(String name) throws IOException {
-        Request request = new Request("DELETE", "/_security/user/" + name);
-        client().performRequest(request);
+        client().performRequest(new Request("DELETE", "/_security/user/" + name));
     }
 
     private Map<String, Object> runSql(String asUser, String mode, String sql) throws IOException {
-        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        var request = new Request("POST", SQL_QUERY_REST_ENDPOINT).setEntity(
+            new StringEntity(query(sql).mode(mode).toString(), ContentType.APPLICATION_JSON)
+        );
         if (asUser != null) {
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("es-security-runas-user", asUser);
-            request.setOptions(options);
+            request.setOptions(request.getOptions().toBuilder().addHeader("es-security-runas-user", asUser));
         }
-        request.setEntity(new StringEntity(query(sql).mode(mode).toString(), ContentType.APPLICATION_JSON));
         return BaseRestSqlTestCase.toMap(client().performRequest(request), mode);
     }
 
@@ -177,14 +172,11 @@ public class UserFunctionIT extends ESRestTestCase {
     }
 
     private void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/_bulk");
-        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {
             bulk.append("{\"index\":{}}\n");
             bulk.append(doc + "\n");
         }
-        request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
+        client().performRequest(new Request("POST", "/test/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString()));
     }
 }

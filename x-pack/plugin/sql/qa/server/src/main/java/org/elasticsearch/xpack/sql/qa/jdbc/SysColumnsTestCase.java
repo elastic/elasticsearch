@@ -435,7 +435,6 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
     }
 
     private static void createAliases(CheckedConsumer<XContentBuilder, IOException> definitions) throws Exception {
-        Request request = new Request("POST", "/_aliases");
         XContentBuilder createAliases = JsonXContent.contentBuilder().startObject();
         createAliases.startArray("actions");
         {
@@ -443,8 +442,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
         }
         createAliases.endArray();
         createAliases.endObject();
-        request.setJsonEntity(Strings.toString(createAliases));
-        client().performRequest(request);
+        client().performRequest(new Request("POST", "/_aliases").setJsonEntity(Strings.toString(createAliases)));
     }
 
     private void assertResultsForQuery(String query, String[][] rows) throws Exception {

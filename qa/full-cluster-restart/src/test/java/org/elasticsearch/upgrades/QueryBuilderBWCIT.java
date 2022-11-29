@@ -190,15 +190,13 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
-            Request request = new Request("PUT", "/" + index);
-            request.setJsonEntity(Strings.toString(mappingsAndSettings));
-            Response rsp = client().performRequest(request);
+            Response rsp = client().performRequest(new Request("PUT", "/" + index).setJsonEntity(Strings.toString(mappingsAndSettings)));
             assertEquals(200, rsp.getStatusLine().getStatusCode());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
-                request = new Request("PUT", "/" + index + "/_doc/" + Integer.toString(i));
-                request.setJsonEntity((String) CANDIDATES.get(i)[0]);
-                rsp = client().performRequest(request);
+                rsp = client().performRequest(
+                    new Request("PUT", "/" + index + "/_doc/" + Integer.toString(i)).setJsonEntity((String) CANDIDATES.get(i)[0])
+                );
                 assertEquals(201, rsp.getStatusLine().getStatusCode());
             }
         } else {
@@ -208,8 +206,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
                 QueryBuilder expectedQueryBuilder = (QueryBuilder) CANDIDATES.get(i)[1];
-                Request request = new Request("GET", "/" + index + "/_search");
-                request.setJsonEntity(formatted("""
+                var request = new Request("GET", "/" + index + "/_search").setJsonEntity(formatted("""
                     {"query": {"ids": {"values": ["%s"]}}, "docvalue_fields": [{"field":"query.query_builder_field"}]}
                     """, i));
                 Response rsp = client().performRequest(request);

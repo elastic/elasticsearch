@@ -71,11 +71,9 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             createIndex("old_green_2", Settings.EMPTY, greenMapping);
             createIndex("old_green_empty", Settings.EMPTY, greenMapping);
             for (String index : List.of("old_red_1", "old_red_2", "old_green_1", "old_green_2")) {
-                final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/1");
-                indexRequest.addParameter("refresh", "true");
-                indexRequest.setJsonEntity(
+                var indexRequest = new Request("POST", "/" + index + "/" + "_doc/1").setJsonEntity(
                     Strings.toString(JsonXContent.contentBuilder().startObject().field("timestamp", "2020-01-01").endObject())
-                );
+                ).addParameter("refresh", "true");
                 assertOK(client().performRequest(indexRequest));
             }
         } else if (CLUSTER_TYPE == ClusterType.MIXED && FIRST_MIXED_ROUND) {
@@ -86,11 +84,9 @@ public class FieldCapsIT extends AbstractRollingTestCase {
             createIndex("new_green_2", Settings.EMPTY, greenMapping);
             createIndex("new_green_empty", Settings.EMPTY, greenMapping);
             for (String index : List.of("new_red_1", "new_red_2", "new_green_1", "new_green_2")) {
-                final Request indexRequest = new Request("POST", "/" + index + "/" + "_doc/1");
-                indexRequest.addParameter("refresh", "true");
-                indexRequest.setJsonEntity(
+                var indexRequest = new Request("POST", "/" + index + "/" + "_doc/1").setJsonEntity(
                     Strings.toString(JsonXContent.contentBuilder().startObject().field("timestamp", "2020-10-10").endObject())
-                );
+                ).addParameter("refresh", "true");
                 assertOK(client().performRequest(indexRequest));
             }
         }

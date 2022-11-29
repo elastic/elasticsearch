@@ -58,12 +58,11 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
     }
 
     protected void index(String index, int docId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
-        Request request = new Request("PUT", "/" + index + "/_doc/" + docId);
-        request.addParameter("refresh", "true");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
         builder.endObject();
-        request.setJsonEntity(Strings.toString(builder));
+        Request request = new Request("PUT", "/" + index + "/_doc/" + docId).addParameter("refresh", "true")
+            .setJsonEntity(Strings.toString(builder));
         client().performRequest(request);
     }
 

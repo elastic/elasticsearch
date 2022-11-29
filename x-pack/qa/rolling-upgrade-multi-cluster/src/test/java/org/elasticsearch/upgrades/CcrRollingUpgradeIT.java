@@ -292,16 +292,14 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     private static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1").setJsonEntity(formatted("""
             {"remote_cluster": "%s", "leader_index": "%s", "read_poll_timeout": "10ms"}
             """, leaderCluster, leaderIndex));
         assertOK(client.performRequest(request));
     }
 
     private static void putAutoFollowPattern(RestClient client, String name, String remoteCluster, String pattern) throws IOException {
-        Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "/_ccr/auto_follow/" + name).setJsonEntity(formatted("""
             {
               "leader_index_patterns": [ "%s" ],
               "remote_cluster": "%s",
@@ -329,9 +327,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     private static void index(RestClient client, String index, int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
-            final Request request = new Request("POST", "/" + index + "/_doc/");
-            request.setJsonEntity("{}");
-            assertOK(client.performRequest(request));
+            assertOK(client.performRequest(new Request("POST", "/" + index + "/_doc/").setJsonEntity("{}")));
             if (randomIntBetween(0, 5) == 3) {
                 assertOK(client.performRequest(new Request("POST", "/" + index + "/_refresh")));
             }
@@ -344,8 +340,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     private static void verifyTotalHitCount(final String index, final int expectedTotalHits, final RestClient client) throws IOException {
-        final Request request = new Request("GET", "/" + index + "/_search");
-        request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+        var request = new Request("GET", "/" + index + "/_search").addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         Map<?, ?> response = toMap(client.performRequest(request));
         final int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
         assertThat(totalHits, equalTo(expectedTotalHits));
@@ -366,11 +361,10 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     private static void ensureGreen(RestClient client, String index) throws IOException {
-        Request request = new Request("GET", "/_cluster/health/" + index);
-        request.addParameter("wait_for_status", "green");
-        request.addParameter("wait_for_no_relocating_shards", "true");
-        request.addParameter("timeout", "70s");
-        request.addParameter("level", "shards");
+        var request = new Request("GET", "/_cluster/health/" + index).addParameter("wait_for_status", "green")
+            .addParameter("wait_for_no_relocating_shards", "true")
+            .addParameter("timeout", "70s")
+            .addParameter("level", "shards");
         client.performRequest(request);
     }
 

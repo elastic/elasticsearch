@@ -213,7 +213,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     public void testNextPageWithDatetimeAndTimezoneParam() throws IOException {
-        Request request = new Request("PUT", "/test_date_timezone");
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("mappings");
         {
@@ -225,18 +224,15 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             createIndex.endObject();
         }
         createIndex.endObject().endObject();
-        request.setJsonEntity(Strings.toString(createIndex));
-        provisioningClient().performRequest(request);
+        provisioningClient().performRequest(new Request("PUT", "/test_date_timezone").setJsonEntity(Strings.toString(createIndex)));
 
-        request = new Request("PUT", "/test_date_timezone/_bulk");
-        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         long[] datetimes = new long[] { 1_000, 10_000, 100_000, 1_000_000, 10_000_000 };
         for (long datetime : datetimes) {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"date\":").append(datetime).append("}\n");
         }
-        request.setJsonEntity(bulk.toString());
+        var request = new Request("PUT", "/test_date_timezone/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString());
         assertEquals(200, provisioningClient().performRequest(request).getStatusLine().getStatusCode());
 
         ZoneId zoneId = randomZone();
@@ -304,15 +300,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     public void testScoreWithFieldNamedScore() throws IOException {
-        Request request = new Request("POST", "/test/_bulk");
-        request.addParameter("refresh", "true");
         String mode = randomMode();
         String bulk = """
             {"index":{"_id":"1"}}
             {"name":"test", "score":10}
             """;
-        request.setJsonEntity(bulk);
-        provisioningClient().performRequest(request);
+        provisioningClient().performRequest(new Request("POST", "/test/_bulk").addParameter("refresh", "true").setJsonEntity(bulk));
 
         Map<String, Object> expected = new HashMap<>();
         boolean columnar = randomBoolean();
@@ -387,9 +380,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     @Override
     public void testSelectColumnFromEmptyIndex() throws Exception {
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("{}");
-        provisioningClient().performRequest(request);
+        provisioningClient().performRequest(new Request("PUT", "/test").setJsonEntity("{}"));
         String mode = randomFrom("jdbc", "plain");
         expectBadRequest(() -> runSql(mode, "SELECT abc FROM " + indexPattern("test")), containsString("1:8: Unknown column [abc]"));
     }
@@ -1119,9 +1110,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         createIndex.endObject().endObject();
 
-        Request request = new Request("PUT", "/test_binary");
-        request.setJsonEntity(Strings.toString(createIndex));
-        assertEquals(200, provisioningClient().performRequest(request).getStatusLine().getStatusCode());
+        assertEquals(
+            200,
+            provisioningClient().performRequest(new Request("PUT", "/test_binary").setJsonEntity(Strings.toString(createIndex)))
+                .getStatusLine()
+                .getStatusCode()
+        );
 
         long nonNullId = randomLong();
         long nullId = randomLong();
@@ -1141,9 +1135,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         bulk.append("}\n");
 
-        request = new Request("PUT", "/test_binary/_bulk?refresh=true");
-        request.setJsonEntity(bulk.toString());
-        assertEquals(200, provisioningClient().performRequest(request).getStatusLine().getStatusCode());
+        assertEquals(
+            200,
+            provisioningClient().performRequest(new Request("PUT", "/test_binary/_bulk?refresh=true").setJsonEntity(bulk.toString()))
+                .getStatusLine()
+                .getStatusCode()
+        );
 
         String mode = randomMode();
         Map<String, Object> expected = new HashMap<>();
@@ -1215,8 +1212,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     private static void bulkLoadTestData(int count) throws IOException {
-        Request request = new Request("POST", "/test/_bulk");
-        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < count; i++) {
             bulk.append(formatted("""
@@ -1224,13 +1219,13 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 {"text":"text%s", "number":%s}
                 """, i, i, i));
         }
-        request.setJsonEntity(bulk.toString());
-        provisioningClient().performRequest(request);
+        provisioningClient().performRequest(
+            new Request("POST", "/test/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString())
+        );
     }
 
     private void loadUnsignedLongTestData() throws IOException {
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("""
+        provisioningClient().performRequest(new Request("PUT", "/test").setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -1239,8 +1234,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                   }
                 }
               }
-            }""");
-        provisioningClient().performRequest(request);
+            }"""));
         index("{\"unsigned_long\": 18446744073709551615}");
     }
 
@@ -1253,12 +1247,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
      * rather than an {@code Accept} header.
      */
     private static Tuple<String, String> runSqlAsTextWithFormat(String sql, String format) throws IOException {
-        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
-        request.addParameter("error_trace", "true");
-        request.addParameter("format", format);
-        request.setJsonEntity(query(sql).toString());
-
-        Response response = client().performRequest(request);
+        Response response = client().performRequest(
+            new Request("POST", SQL_QUERY_REST_ENDPOINT).addParameter("error_trace", "true")
+                .addParameter("format", format)
+                .setJsonEntity(query(sql).toString())
+        );
         return new Tuple<>(responseBody(response), response.getHeader("Cursor"));
     }
 
@@ -1638,9 +1631,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         final String warnMessage = "org.elasticsearch.index.query.QueryShardException: failed to create query: " + reason;
 
         for (int i = 0; i < maxWarningHeaders - 1 + okShards + extraBadShards; i++) {
-            Request request = new Request("PUT", "/test" + i);
             boolean indexWithDocVals = i < okShards;
-            request.setJsonEntity(String.format(Locale.ROOT, mappingTemplate, indexWithDocVals, indexWithDocVals));
+            var request = new Request("PUT", "/test" + i).setJsonEntity(
+                String.format(Locale.ROOT, mappingTemplate, indexWithDocVals, indexWithDocVals)
+            );
             assertOK(provisioningClient().performRequest(request));
             indexWithIndexName("test" + i, "{\"bool\": " + randomBoolean() + "}");
         }

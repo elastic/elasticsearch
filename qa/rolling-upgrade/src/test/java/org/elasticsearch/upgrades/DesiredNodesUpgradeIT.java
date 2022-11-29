@@ -198,12 +198,13 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
     }
 
     private void updateDesiredNodes(List<DesiredNode> nodes, int version) throws IOException {
-        final var request = new Request("PUT", "/_internal/desired_nodes/upgrade_test/" + version);
         try (var builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             builder.xContentList(UpdateDesiredNodesRequest.NODES_FIELD.getPreferredName(), nodes);
             builder.endObject();
-            request.setJsonEntity(Strings.toString(builder));
+            final var request = new Request("PUT", "/_internal/desired_nodes/upgrade_test/" + version).setJsonEntity(
+                Strings.toString(builder)
+            );
             final var response = client().performRequest(request);
             final var statusCode = response.getStatusLine().getStatusCode();
             assertThat(statusCode, equalTo(200));

@@ -34,8 +34,7 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
     }
 
     private static void setupDataAccessRole(String index) throws IOException {
-        Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "/_security/role/test_data_access").setJsonEntity(formatted("""
             {  "indices" : [    { "names": ["%s"], "privileges": ["read"] }  ]}
             """, index));
         client().performRequest(request);
@@ -44,8 +43,7 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
     private void setupUser(String user, List<String> roles) throws IOException {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
-        Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "/_security/user/" + user).setJsonEntity(formatted("""
             { "password" : "%s",  "roles" : [ %s ]}
             """, password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
         client().performRequest(request);
@@ -53,8 +51,7 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
 
     public void testEvaluate_withSecurity() throws Exception {
         String index = "test_data";
-        Request createDoc = new Request("POST", index + "/_doc");
-        createDoc.setJsonEntity("""
+        var createDoc = new Request("POST", index + "/_doc").setJsonEntity("""
             {
               "is_outlier": 0.0,
               "ml.outlier_score": 1.0
@@ -78,8 +75,7 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
     }
 
     private static Request buildRegressionEval(String index, String primaryHeader, String secondaryHeader) {
-        Request evaluateRequest = new Request("POST", "_ml/data_frame/_evaluate");
-        evaluateRequest.setJsonEntity(formatted("""
+        var evaluateRequest = new Request("POST", "_ml/data_frame/_evaluate").setJsonEntity(formatted("""
             {
               "index": "%s",
               "evaluation": {
@@ -93,7 +89,6 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
         RequestOptions.Builder options = evaluateRequest.getOptions().toBuilder();
         options.addHeader("Authorization", primaryHeader);
         options.addHeader("es-secondary-authorization", secondaryHeader);
-        evaluateRequest.setOptions(options);
-        return evaluateRequest;
+        return evaluateRequest.setOptions(options);
     }
 }

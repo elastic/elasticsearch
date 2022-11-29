@@ -54,8 +54,7 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
 
         // update
         final String updatedJson = getPipelineJson("2020-03-09T15:42:35.229Z");
-        Request putRequest = new Request("PUT", "/_logstash/pipeline/test_pipeline");
-        putRequest.setJsonEntity(updatedJson);
+        var putRequest = new Request("PUT", "/_logstash/pipeline/test_pipeline").setJsonEntity(updatedJson);
         Response putResponse = client().performRequest(putRequest);
         assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
 
@@ -135,8 +134,7 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
     }
 
     private void createPipeline(String id, String json) throws IOException {
-        Request putRequest = new Request("PUT", "/_logstash/pipeline/" + id);
-        putRequest.setJsonEntity(json);
+        var putRequest = new Request("PUT", "/_logstash/pipeline/" + id).setJsonEntity(json);
         Response putResponse = client().performRequest(putRequest);
         assertThat(putResponse.getStatusLine().getStatusCode(), is(201));
     }

@@ -34,8 +34,7 @@ public class AutoCreateIndexIT extends ESRestTestCase {
         configureAutoCreateIndex(false);
 
         // Attempt to add a document to a non-existing index. Auto-creating the index should fail owing to the setting above.
-        final Request indexDocumentRequest = new Request("POST", "recipe_kr/_doc/123456");
-        indexDocumentRequest.setJsonEntity("{ \"name\": \"Kimchi\" }");
+        var indexDocumentRequest = new Request("POST", "recipe_kr/_doc/123456").setJsonEntity("{ \"name\": \"Kimchi\" }");
         final ResponseException responseException = expectThrows(ResponseException.class, this::indexDocument);
 
         assertThat(
@@ -87,9 +86,8 @@ public class AutoCreateIndexIT extends ESRestTestCase {
             .endObject()
             .endObject();
 
-        final Request settingsRequest = new Request("PUT", "_cluster/settings");
-        settingsRequest.setJsonEntity(Strings.toString(builder));
-        final Response settingsResponse = client().performRequest(settingsRequest);
+        var createTemplateRequest = new Request("PUT", "_cluster/settings").setJsonEntity(Strings.toString(builder));
+        final Response settingsResponse = client().performRequest(createTemplateRequest);
         assertOK(settingsResponse);
     }
 
@@ -100,15 +98,12 @@ public class AutoCreateIndexIT extends ESRestTestCase {
             .field("allow_auto_create", allowAutoCreate)
             .endObject();
 
-        final Request createTemplateRequest = new Request("PUT", "_index_template/recipe_template");
-        createTemplateRequest.setJsonEntity(Strings.toString(builder));
+        var createTemplateRequest = new Request("PUT", "_index_template/recipe_template").setJsonEntity(Strings.toString(builder));
         final Response createTemplateResponse = client().performRequest(createTemplateRequest);
         assertOK(createTemplateResponse);
     }
 
     private Response indexDocument() throws IOException {
-        final Request indexDocumentRequest = new Request("POST", "recipe_kr/_doc/123456");
-        indexDocumentRequest.setJsonEntity("{ \"name\": \"Kimchi\" }");
-        return client().performRequest(indexDocumentRequest);
+        return client().performRequest(new Request("POST", "recipe_kr/_doc/123456").setJsonEntity("{ \"name\": \"Kimchi\" }"));
     }
 }

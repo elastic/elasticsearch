@@ -97,16 +97,14 @@ public class RolloverActionIT extends ESRestTestCase {
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
-        Request updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        updateSettingsRequest.setJsonEntity(formatted("""
+        var updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings").setJsonEntity(formatted("""
             {
               "settings": {
                 "%s": true
               }
             }""", LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
         client().performRequest(updateSettingsRequest);
-        Request updateAliasRequest = new Request("POST", "/_aliases");
-        updateAliasRequest.setJsonEntity(formatted("""
+        var updateAliasRequest = new Request("POST", "/_aliases").setJsonEntity(formatted("""
             {
               "actions": [
                 {
@@ -327,8 +325,7 @@ public class RolloverActionIT extends ESRestTestCase {
         );
 
         // remove the read only block
-        Request allowWritesOnIndexSettingUpdate = new Request("PUT", firstIndex + "/_settings");
-        allowWritesOnIndexSettingUpdate.setJsonEntity("""
+        var allowWritesOnIndexSettingUpdate = new Request("PUT", firstIndex + "/_settings").setJsonEntity("""
             {  "index": {
                  "blocks.read_only" : "false"\s
               }
@@ -346,8 +343,7 @@ public class RolloverActionIT extends ESRestTestCase {
 
         // Set up a policy with rollover
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 2L, null, null, null, null, null, null));
-        Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(formatted("""
+        var createIndexTemplate = new Request("PUT", "_template/rolling_indexes").setJsonEntity(formatted("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -440,8 +436,7 @@ public class RolloverActionIT extends ESRestTestCase {
             TimeUnit.SECONDS
         );
 
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity("""
+        var moveToStepRequest = new Request("POST", "_ilm/move/" + index).setJsonEntity("""
             {
               "current_step": {
                 "phase": "hot",
@@ -508,8 +503,7 @@ public class RolloverActionIT extends ESRestTestCase {
 
         // moving ILM to the "update-rollover-lifecycle-date" without having gone through the actual rollover step
         // the "update-rollover-lifecycle-date" step will fail as the index has no rollover information
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity("""
+        var moveToStepRequest = new Request("POST", "_ilm/move/" + index).setJsonEntity("""
             {
               "current_step": {
                 "phase": "hot",

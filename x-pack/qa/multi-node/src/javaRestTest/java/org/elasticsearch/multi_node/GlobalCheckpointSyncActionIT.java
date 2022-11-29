@@ -60,8 +60,7 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
         }
 
         // wait for the replica to recover
-        Request healthRequest = new Request("GET", "/_cluster/health");
-        healthRequest.addParameter("wait_for_status", "green");
+        var healthRequest = new Request("GET", "/_cluster/health").addParameter("wait_for_status", "green");
         client().performRequest(healthRequest);
 
         // index some documents
@@ -81,9 +80,7 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
 
         // we have to wait for the post-operation global checkpoint sync to propagate to the replica
         assertBusy(() -> {
-            final Request request = new Request("GET", "/test-index/_stats");
-            request.addParameter("level", "shards");
-            request.addParameter("filter_path", "**.seq_no");
+            var request = new Request("GET", "/test-index/_stats").addParameter("level", "shards").addParameter("filter_path", "**.seq_no");
             final Response response = client().performRequest(request);
             final ObjectPath path = ObjectPath.createFromResponse(response);
             // int looks funny here since global checkpoints are longs but the response parser does not know enough to treat them as long

@@ -48,9 +48,7 @@ public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCa
     }
 
     protected Response assertAccessIsAllowed(String user, String method, String uri, String body) throws IOException {
-        Request request = new Request(method, uri);
-        request.setJsonEntity(body);
-        return assertAccessIsAllowed(user, request);
+        return assertAccessIsAllowed(user, new Request(method, uri).setJsonEntity(body));
     }
 
     protected void assertAccessIsAllowed(String user, String method, String uri) throws IOException {
@@ -76,9 +74,7 @@ public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCa
     }
 
     protected void assertAccessIsDenied(String user, String method, String uri, String body) throws IOException {
-        Request request = new Request(method, uri);
-        request.setJsonEntity(body);
-        assertAccessIsDenied(user, request);
+        assertAccessIsDenied(user, new Request(method, uri).setJsonEntity(body));
     }
 
     protected void assertAccessIsDenied(String user, String method, String uri) throws IOException {
@@ -100,17 +96,16 @@ public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCa
     }
 
     protected void assertBodyHasAccessIsDenied(String user, String method, String uri, String body) throws IOException {
-        Request request = new Request(method, uri);
-        request.setJsonEntity(body);
-        assertBodyHasAccessIsDenied(user, request);
+        assertBodyHasAccessIsDenied(user, new Request(method, uri).setJsonEntity(body));
     }
 
     private void setUser(Request request, String user) {
-        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-        options.addHeader(
-            "Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader(
+                    "Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+                )
         );
-        request.setOptions(options);
     }
 }

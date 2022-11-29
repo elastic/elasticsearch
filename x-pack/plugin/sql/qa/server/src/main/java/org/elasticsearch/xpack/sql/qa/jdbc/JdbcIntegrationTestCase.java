@@ -77,19 +77,16 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
     }
 
     public static void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
-        Request request = new Request("PUT", "/" + index + "/_doc/" + documentId);
-        request.addParameter("refresh", "true");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
         builder.endObject();
-        request.setJsonEntity(Strings.toString(builder));
+        var request = new Request("PUT", "/" + index + "/_doc/" + documentId).addParameter("refresh", "true")
+            .setJsonEntity(Strings.toString(builder));
         provisioningClient().performRequest(request);
     }
 
     public static void delete(String index, String documentId) throws IOException {
-        Request request = new Request("DELETE", "/" + index + "/_doc/" + documentId);
-        request.addParameter("refresh", "true");
-        provisioningClient().performRequest(request);
+        provisioningClient().performRequest(new Request("DELETE", "/" + index + "/_doc/" + documentId).addParameter("refresh", "true"));
     }
 
     protected String clusterName() {
@@ -117,7 +114,6 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
     }
 
     protected static void createIndexWithSettingsAndMappings(String index) throws IOException {
-        Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
         {
@@ -131,7 +127,7 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
             createIndex.endObject();
         }
         createIndex.endObject().endObject();
-        request.setJsonEntity(Strings.toString(createIndex));
+        var request = new Request("PUT", "/" + index).setJsonEntity(Strings.toString(createIndex));
         provisioningClient().performRequest(request);
     }
 

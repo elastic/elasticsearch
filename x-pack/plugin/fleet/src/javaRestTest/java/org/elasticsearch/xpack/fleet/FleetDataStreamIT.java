@@ -50,8 +50,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
 
     public void testAliasWithSystemDataStream() throws Exception {
         // Create a system data stream
-        Request initialDocResponse = new Request("POST", ".fleet-actions-results/_doc");
-        initialDocResponse.setJsonEntity("{\"@timestamp\": 0}");
+        var initialDocResponse = new Request("POST", ".fleet-actions-results/_doc").setJsonEntity("{\"@timestamp\": 0}");
         assertOK(adminClient().performRequest(initialDocResponse));
 
         // Create a system index - this one has an alias
@@ -61,8 +60,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
         // Create a regular index
         String regularIndex = "regular-idx";
         String regularAlias = "regular-alias";
-        Request regularIdxRequest = new Request("PUT", regularIndex);
-        regularIdxRequest.setJsonEntity("{\"aliases\": {\"" + regularAlias + "\":  {}}}");
+        var regularIdxRequest = new Request("PUT", regularIndex).setJsonEntity("{\"aliases\": {\"" + regularAlias + "\":  {}}}");
         assertOK(client().performRequest(regularIdxRequest));
 
         assertGetAliasAPIBehavesAsExpected(regularIndex, regularAlias);
@@ -76,8 +74,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
         // Create a regular index
         String regularIndex = "regular-idx";
         String regularAlias = "regular-alias";
-        Request regularIdxRequest = new Request("PUT", regularIndex);
-        regularIdxRequest.setJsonEntity("{\"aliases\": {\"" + regularAlias + "\":  {}}}");
+        var regularIdxRequest = new Request("PUT", regularIndex).setJsonEntity("{\"aliases\": {\"" + regularAlias + "\":  {}}}");
         assertOK(client().performRequest(regularIdxRequest));
 
         assertGetAliasAPIBehavesAsExpected(regularIndex, regularAlias);
@@ -197,8 +194,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
         assertThatAPIWildcardResolutionWorks();
 
         // Create a system data stream
-        Request initialDocResponse = new Request("POST", ".fleet-actions-results/_doc");
-        initialDocResponse.setJsonEntity("{\"@timestamp\": 0}");
+        var initialDocResponse = new Request("POST", ".fleet-actions-results/_doc").setJsonEntity("{\"@timestamp\": 0}");
         assertOK(adminClient().performRequest(initialDocResponse));
         assertThatAPIWildcardResolutionWorks();
 
@@ -217,8 +213,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
         // Create a regular index
         String regularIndex = "regular-idx";
         String regularAlias = "regular-alias";
-        Request regularIdxRequest = new Request("PUT", regularIndex);
-        regularIdxRequest.setJsonEntity("{\"aliases\": {\"" + regularAlias + "\":  {}}}");
+        var regularIdxRequest = new Request("PUT", regularIndex).setJsonEntity("{\"aliases\": {\"" + regularAlias + "\":  {}}}");
         assertOK(client().performRequest(regularIdxRequest));
         assertThatAPIWildcardResolutionWorks();
         assertThatAPIWildcardResolutionWorks(emptyList(), "r*");

@@ -154,25 +154,19 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
         final String pattern = "pattern_" + prefix;
         {
-            Request request = new Request("PUT", "/_ccr/auto_follow/" + pattern);
-            request.setJsonEntity("""
+            var request = new Request("PUT", "/_ccr/auto_follow/" + pattern).setJsonEntity("""
                 {"leader_index_patterns": ["testautofollowpatterns-*"], "remote_cluster": "leader_cluster"}""");
             Exception e = expectThrows(ResponseException.class, () -> assertOK(client().performRequest(request)));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [testautofollowpatterns-*]"));
         }
 
-        Request request = new Request("PUT", "/_ccr/auto_follow/" + pattern);
-        request.setJsonEntity("""
-            {"leader_index_patterns": ["testautofollowpatterns-eu*"], "remote_cluster": "leader_cluster"}""");
-        assertOK(client().performRequest(request));
+        assertOK(client().performRequest(new Request("PUT", "/_ccr/auto_follow/" + pattern).setJsonEntity("""
+            {"leader_index_patterns": ["testautofollowpatterns-eu*"], "remote_cluster": "leader_cluster"}""")));
 
         try (RestClient leaderClient = buildLeaderClient()) {
             for (String index : new String[] { allowedIndex, disallowedIndex }) {
-                String requestBody = """
-                    {"mappings": {"properties": {"field": {"type": "keyword"}}}}""";
-                request = new Request("PUT", "/" + index);
-                request.setJsonEntity(requestBody);
-                assertOK(leaderClient.performRequest(request));
+                assertOK(leaderClient.performRequest(new Request("PUT", "/" + index).setJsonEntity("""
+                    {"mappings": {"properties": {"field": {"type": "keyword"}}}}""")));
 
                 for (int i = 0; i < 5; i++) {
                     String id = Integer.toString(i);
@@ -234,8 +228,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 assertThat(shards.get("successful"), equalTo(1));
                 assertThat(shards.get("failed"), equalTo(0));
 
-                final Request retentionLeasesRequest = new Request("GET", "/" + forgetLeader + "/_stats");
-                retentionLeasesRequest.addParameter("level", "shards");
+                var retentionLeasesRequest = new Request("GET", "/" + forgetLeader + "/_stats").addParameter("level", "shards");
                 final Response retentionLeasesResponse = leaderClient.performRequest(retentionLeasesRequest);
                 final ArrayList<Object> shardsStats = ObjectPath.createFromResponse(retentionLeasesResponse)
                     .evaluate("indices." + forgetLeader + ".shards.0");
@@ -288,11 +281,10 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         {
             try (var leaderClient = buildLeaderClient()) {
                 for (var i = 0; i < numDocs; i++) {
-                    var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
-                    indexRequest.addParameter("refresh", "true");
-                    indexRequest.setJsonEntity(formatted("""
-                        {"@timestamp": "%s","message":"abc"}
-                        """, dateFormat.format(new Date())));
+                    var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc").addParameter("refresh", "true")
+                        .setJsonEntity(formatted("""
+                            {"@timestamp": "%s","message":"abc"}
+                            """, dateFormat.format(new Date())));
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
@@ -318,24 +310,20 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
     }
 
     private static void withMonitoring(Logger logger, CheckedRunnable<Exception> runnable) throws Exception {
-        Request enableMonitoring = new Request("PUT", "/_cluster/settings");
-        enableMonitoring.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
-        enableMonitoring.setJsonEntity(
+        var enableMonitoring = new Request("PUT", "/_cluster/settings").setJsonEntity(
             "{\"persistent\":{" + "\"xpack.monitoring.collection.enabled\":true," + "\"xpack.monitoring.collection.interval\":\"1s\"" + "}}"
-        );
+        ).setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
         assertOK(adminClient().performRequest(enableMonitoring));
         logger.info("monitoring collection enabled");
         try {
             runnable.run();
         } finally {
-            Request disableMonitoring = new Request("PUT", "/_cluster/settings");
-            disableMonitoring.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
-            disableMonitoring.setJsonEntity(
+            var disableMonitoring = new Request("PUT", "/_cluster/settings").setJsonEntity(
                 "{\"persistent\":{"
                     + "\"xpack.monitoring.collection.enabled\":null,"
                     + "\"xpack.monitoring.collection.interval\":null"
                     + "}}"
-            );
+            ).setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
             assertOK(adminClient().performRequest(disableMonitoring));
             logger.info("monitoring collection disabled");
         }

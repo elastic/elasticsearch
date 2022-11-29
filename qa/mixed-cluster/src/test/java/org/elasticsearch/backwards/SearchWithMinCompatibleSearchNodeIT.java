@@ -62,8 +62,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                     .build()
             );
             for (int i = 0; i < numDocs; i++) {
-                Request request = new Request("PUT", index + "/_doc/" + i);
-                request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\"}");
+                var request = new Request("PUT", index + "/_doc/" + i).setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\"}");
                 assertOK(client().performRequest(request));
             }
             ensureGreen(index);
@@ -93,11 +92,10 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
 
     public void testMinVersionAsOldVersion() throws Exception {
         try (RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::publishAddress).toArray(HttpHost[]::new))) {
-            Request oldVersionRequest = new Request(
+            var oldVersionRequest = new Request(
                 "POST",
                 index + "/_search?min_compatible_shard_node=" + bwcVersion + "&ccs_minimize_roundtrips=false"
-            );
-            oldVersionRequest.setJsonEntity("""
+            ).setJsonEntity("""
                 {"query":{"match_all":{}},"_source":false}""");
             assertBusy(() -> {
                 assertWithBwcVersionCheck(() -> {

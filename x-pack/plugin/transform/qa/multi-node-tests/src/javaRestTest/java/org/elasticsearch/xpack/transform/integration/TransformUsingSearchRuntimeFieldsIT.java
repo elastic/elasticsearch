@@ -281,8 +281,7 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
         );
 
         // Verify destination index contents
-        Request searchRequest = new Request("GET", destIndexName + "/_search");
-        searchRequest.addParameter("size", "1000");
+        var searchRequest = new Request("GET", destIndexName + "/_search").addParameter("size", "1000");
         Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
         var searchMap = entityAsMap(searchResponse);

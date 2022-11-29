@@ -181,8 +181,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         // the tier preference will have defaulted to data_content, set it back to null
         updateIndexSettings(indexWithDataWarmRouting, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
 
-        Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
-        migrateRequest.setJsonEntity(formatted("""
+        Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers").setJsonEntity(formatted("""
             {"legacy_template_to_delete": "%s", "node_attribute": "data"}
             """, templateName));
         Response migrateDeploymentResponse = client().performRequest(migrateRequest);
@@ -262,41 +261,34 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         // legacy template to migrate
         String legacyTemplateToMigrate = "legacy_to_migrate";
         {
-            Request legacyTemplateToMigrateReq = new Request("PUT", "/_template/" + legacyTemplateToMigrate);
             Settings indexSettings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.routing.allocation.require.data", "hot")
                 .build();
-            legacyTemplateToMigrateReq.setJsonEntity(
+            var legacyTemplateToMigrateReq = new Request("PUT", "/_template/" + legacyTemplateToMigrate).setJsonEntity(
                 "{\"index_patterns\":  [\"legacynotreallyimportant-*\"], \"settings\":  " + Strings.toString(indexSettings) + "}"
-            );
-            legacyTemplateToMigrateReq.setOptions(
-                expectWarnings("Legacy index templates are deprecated in favor of composable templates" + ".")
-            );
+            ).setOptions(expectWarnings("Legacy index templates are deprecated in favor of composable templates" + "."));
             assertOK(client().performRequest(legacyTemplateToMigrateReq));
         }
 
         // legacy template that doesn't need migrating
         String legacyTemplate = "legacy_template";
         {
-            Request legacyTemplateRequest = new Request("PUT", "/_template/" + legacyTemplate);
             Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).build();
-            legacyTemplateRequest.setJsonEntity(
+            var legacyTemplateRequest = new Request("PUT", "/_template/" + legacyTemplate).setJsonEntity(
                 "{\"index_patterns\":  [\"legacynotreallyimportant-*\"], \"settings\":  " + Strings.toString(indexSettings) + "}"
-            );
-            legacyTemplateRequest.setOptions(expectWarnings("Legacy index templates are deprecated in favor of composable templates."));
+            ).setOptions(expectWarnings("Legacy index templates are deprecated in favor of composable templates."));
             assertOK(client().performRequest(legacyTemplateRequest));
         }
 
         // put a composable template that needs migrating
         String composableTemplateToMigrate = "to_migrate_composable_template";
         {
-            Request toMigrateComposableTemplateReq = new Request("PUT", "/_index_template/" + composableTemplateToMigrate);
             Settings indexSettings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.routing.allocation.require.data", "hot")
                 .build();
-            toMigrateComposableTemplateReq.setJsonEntity(
+            var toMigrateComposableTemplateReq = new Request("PUT", "/_index_template/" + composableTemplateToMigrate).setJsonEntity(
                 "{\"index_patterns\":  [\"0notreallyimportant-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
             );
             assertOK(client().performRequest(toMigrateComposableTemplateReq));
@@ -305,9 +297,8 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         // put a composable template that doesn't need migrating
         String composableTemplate = "no_need_to_migrate_composable_template";
         {
-            Request composableTemplateRequest = new Request("PUT", "/_index_template/" + composableTemplate);
             Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
-            composableTemplateRequest.setJsonEntity(
+            var composableTemplateRequest = new Request("PUT", "/_index_template/" + composableTemplate).setJsonEntity(
                 "{\"index_patterns\":  [\"1notreallyimportant-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
             );
             assertOK(client().performRequest(composableTemplateRequest));
@@ -316,21 +307,23 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         // put a component template that needs migrating
         String componentTemplateToMigrate = "to_migrate_component_template";
         {
-            Request componentTemplateRequest = new Request("PUT", "/_component_template/" + componentTemplateToMigrate);
             Settings indexSettings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.routing.allocation.require.data", "hot")
                 .build();
-            componentTemplateRequest.setJsonEntity("{\"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}");
+            var componentTemplateRequest = new Request("PUT", "/_component_template/" + componentTemplateToMigrate).setJsonEntity(
+                "{\"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
+            );
             assertOK(client().performRequest(componentTemplateRequest));
         }
 
         // put a component template that doesn't need migrating
         String componentTemplate = "no_need_to_migrate_component_template";
         {
-            Request componentTemplateRequest = new Request("PUT", "/_component_template/" + componentTemplate);
             Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).build();
-            componentTemplateRequest.setJsonEntity("{\"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}");
+            var componentTemplateRequest = new Request("PUT", "/_component_template/" + componentTemplate).setJsonEntity(
+                "{\"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
+            );
             assertOK(client().performRequest(componentTemplateRequest));
         }
 
@@ -343,11 +336,10 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             });
         }
 
-        Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
-        migrateRequest.addParameter("dry_run", String.valueOf(dryRun));
-        migrateRequest.setJsonEntity("""
-            { "node_attribute": "data"}
-            """);
+        var migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers").addParameter("dry_run", String.valueOf(dryRun))
+            .setJsonEntity("""
+                { "node_attribute": "data"}
+                """);
         Response migrateDeploymentResponse = client().performRequest(migrateRequest);
         assertOK(migrateDeploymentResponse);
 
@@ -420,9 +412,8 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         // the tier preference will have defaulted to data_content, set it back to null
         updateIndexSettings(indexWithDataWarmRouting, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
 
-        Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
-        migrateRequest.addParameter("dry_run", "true");
-        migrateRequest.setJsonEntity("{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}");
+        var migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers").addParameter("dry_run", "true")
+            .setJsonEntity("{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}");
         Response migrateDeploymentResponse = client().performRequest(migrateRequest);
         assertOK(migrateDeploymentResponse);
 
@@ -485,9 +476,8 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
                 }
               }
             }""", indexPrefix), ContentType.APPLICATION_JSON);
-        Request templateRequest = new Request("PUT", "_template/" + templateName);
-        templateRequest.setEntity(template);
-        templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
+        var templateRequest = new Request("PUT", "_template/" + templateName).setEntity(template)
+            .setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(templateRequest);
     }
 }

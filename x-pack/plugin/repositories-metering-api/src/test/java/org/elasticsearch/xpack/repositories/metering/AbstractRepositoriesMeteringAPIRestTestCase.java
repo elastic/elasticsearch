@@ -240,9 +240,8 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
             bulkBody.append("{\"field\":").append(i).append(",\"text\":\"Document number ").append(i).append("\"}\n");
         }
 
-        final Request documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk");
-        documents.addParameter("refresh", Boolean.TRUE.toString());
-        documents.setJsonEntity(bulkBody.toString());
+        var documents = new Request(HttpPost.METHOD_NAME, '/' + indexName + "/_bulk").addParameter("refresh", Boolean.TRUE.toString())
+            .setJsonEntity(bulkBody.toString());
         assertOK(client().performRequest(documents));
 
         createSnapshot(repository, snapshot, true);

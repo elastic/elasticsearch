@@ -39,8 +39,9 @@ public class SystemAliasIT extends ESRestTestCase {
 
     public void testCreatingSystemIndexWithAlias() throws Exception {
         {
-            Request request = new Request("PUT", "/.internal-unmanaged-index-8");
-            request.setJsonEntity("{\"aliases\": {\".internal-unmanaged-alias\": {}}}");
+            var request = new Request("PUT", "/.internal-unmanaged-index-8").setJsonEntity(
+                "{\"aliases\": {\".internal-unmanaged-alias\": {}}}"
+            );
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -51,16 +52,14 @@ public class SystemAliasIT extends ESRestTestCase {
 
     public void testCreatingSystemIndexWithLegacyAlias() throws Exception {
         {
-            Request request = new Request("PUT", "/_template/system_template");
-            request.setJsonEntity(
+            var request = new Request("PUT", "/_template/system_template").setJsonEntity(
                 "{"
                     + "  \"index_patterns\": [\".internal-unmanaged-*\"],"
                     + "  \"aliases\": {"
                     + "    \".internal-unmanaged-alias\": {}"
                     + "  }"
                     + "}"
-            );
-            request.setOptions(expectWarnings("Legacy index templates are deprecated in favor of composable templates."));
+            ).setOptions(expectWarnings("Legacy index templates are deprecated in favor of composable templates."));
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -83,8 +82,7 @@ public class SystemAliasIT extends ESRestTestCase {
         }
 
         {
-            Request request = new Request("PUT", "/.internal-unmanaged-index-8/_alias/.internal-unmanaged-alias");
-            request.setOptions(
+            var request = new Request("PUT", "/.internal-unmanaged-index-8/_alias/.internal-unmanaged-alias").setOptions(
                 expectWarnings(
                     "this request accesses system indices: [.internal-unmanaged-index-8], "
                         + "but in a future major version, direct access to system indices will be prevented by default"
@@ -100,20 +98,20 @@ public class SystemAliasIT extends ESRestTestCase {
 
     public void testCreatingSystemIndexWithAliasEndpoint() throws Exception {
         {
-            Request request = new Request("PUT", "/.internal-unmanaged-index-8");
-            Response response = client().performRequest(request);
+            Response response = client().performRequest(new Request("PUT", "/.internal-unmanaged-index-8"));
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
 
         {
-            Request request = new Request("PUT", "/_alias/.internal-unmanaged-alias");
-            request.setJsonEntity("{\"index\": \".internal-unmanaged-index-8\"}");
-            request.setOptions(
-                expectWarnings(
-                    "this request accesses system indices: [.internal-unmanaged-index-8], "
-                        + "but in a future major version, direct access to system indices will be prevented by default"
-                )
-            );
+            var request = new Request("PUT", "/_alias/.internal-unmanaged-alias").setJsonEntity(
+                "{\"index\": \".internal-unmanaged-index-8\"}"
+            )
+                .setOptions(
+                    expectWarnings(
+                        "this request accesses system indices: [.internal-unmanaged-index-8], "
+                            + "but in a future major version, direct access to system indices will be prevented by default"
+                    )
+                );
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -130,8 +128,7 @@ public class SystemAliasIT extends ESRestTestCase {
         }
 
         {
-            Request request = new Request("POST", "/_aliases");
-            request.setJsonEntity(
+            var request = new Request("POST", "/_aliases").setJsonEntity(
                 "{"
                     + "  \"actions\": ["
                     + "    {"
@@ -142,14 +139,13 @@ public class SystemAliasIT extends ESRestTestCase {
                     + "    }"
                     + "  ]"
                     + "}"
-            );
-
-            request.setOptions(
-                expectWarnings(
-                    "this request accesses system indices: [.internal-unmanaged-index-8], "
-                        + "but in a future major version, direct access to system indices will be prevented by default"
-                )
-            );
+            )
+                .setOptions(
+                    expectWarnings(
+                        "this request accesses system indices: [.internal-unmanaged-index-8], "
+                            + "but in a future major version, direct access to system indices will be prevented by default"
+                    )
+                );
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -160,8 +156,7 @@ public class SystemAliasIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertAliasIsHiddenInIndexResponse(String indexName, String aliasName, boolean expectMatch) throws IOException {
-        Request request = new Request("GET", "/" + indexName);
-        request.setOptions(
+        var request = new Request("GET", "/" + indexName).setOptions(
             expectWarnings(
                 "this request accesses system indices: ["
                     + indexName
@@ -189,8 +184,7 @@ public class SystemAliasIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertAliasIsHiddenInAliasesEndpoint(String indexName, String aliasName, boolean expectMatch) throws IOException {
-        Request request = new Request("GET", "/_aliases");
-        request.setOptions(
+        var request = new Request("GET", "/_aliases").setOptions(
             expectWarnings(
                 "this request accesses system indices: ["
                     + indexName

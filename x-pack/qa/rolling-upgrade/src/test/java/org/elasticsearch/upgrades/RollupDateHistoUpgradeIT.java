@@ -38,18 +38,16 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
             case OLD:
                 break;
             case MIXED:
-                Request waitForYellow = new Request("GET", "/_cluster/health");
-                waitForYellow.addParameter("wait_for_nodes", "3");
-                waitForYellow.addParameter("wait_for_status", "yellow");
+                var waitForYellow = new Request("GET", "/_cluster/health").addParameter("wait_for_nodes", "3")
+                    .addParameter("wait_for_status", "yellow");
                 client().performRequest(waitForYellow);
                 break;
             case UPGRADED:
-                Request waitForGreen = new Request("GET", "/_cluster/health/target,rollup");
-                waitForGreen.addParameter("wait_for_nodes", "3");
-                waitForGreen.addParameter("wait_for_status", "green");
                 // wait for long enough that we give delayed unassigned shards to stop being delayed
-                waitForGreen.addParameter("timeout", "70s");
-                waitForGreen.addParameter("level", "shards");
+                var waitForGreen = new Request("GET", "/_cluster/health/target,rollup").addParameter("wait_for_nodes", "3")
+                    .addParameter("wait_for_status", "green")
+                    .addParameter("timeout", "70s")
+                    .addParameter("level", "shards");
                 client().performRequest(waitForGreen);
                 break;
             default:
@@ -62,17 +60,14 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
             String recoverQuickly = """
                 {"settings": {"index.unassigned.node_left.delayed_timeout": "100ms"}}""";
 
-            Request createTargetIndex = new Request("PUT", "/target");
-            createTargetIndex.setJsonEntity(recoverQuickly);
-            client().performRequest(createTargetIndex);
+            client().performRequest(new Request("PUT", "/target").setJsonEntity(recoverQuickly));
 
-            final Request indexRequest = new Request("POST", "/target/_doc/1");
-            indexRequest.setJsonEntity("{\"timestamp\":\"" + timestamp.toString() + "\",\"value\":123}");
-            client().performRequest(indexRequest);
+            client().performRequest(
+                new Request("POST", "/target/_doc/1").setJsonEntity("{\"timestamp\":\"" + timestamp.toString() + "\",\"value\":123}")
+            );
 
             // create the rollup job with an old interval style
-            final Request createRollupJobRequest = new Request("PUT", "_rollup/job/rollup-id-test");
-            createRollupJobRequest.setJsonEntity("""
+            var createRollupJobRequest = new Request("PUT", "_rollup/job/rollup-id-test").setJsonEntity("""
                 {
                   "index_pattern": "target",
                   "rollup_index": "rollup",
@@ -102,8 +97,7 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
             Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
-            Request updateSettings = new Request("PUT", "/rollup/_settings");
-            updateSettings.setJsonEntity(recoverQuickly);
+            var updateSettings = new Request("PUT", "/rollup/_settings").setJsonEntity(recoverQuickly);
             client().performRequest(updateSettings);
 
             // start the rollup job
@@ -117,9 +111,11 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
         }
 
         if (CLUSTER_TYPE == ClusterType.MIXED && Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
-            final Request indexRequest = new Request("POST", "/target/_doc/2");
-            indexRequest.setJsonEntity("{\"timestamp\":\"" + timestamp.plusDays(1).toString() + "\",\"value\":345}");
-            client().performRequest(indexRequest);
+            client().performRequest(
+                new Request("POST", "/target/_doc/2").setJsonEntity(
+                    "{\"timestamp\":\"" + timestamp.plusDays(1).toString() + "\",\"value\":345}"
+                )
+            );
 
             assertRollUpJob("rollup-id-test");
             client().performRequest(new Request("POST", "rollup/_refresh"));
@@ -133,9 +129,11 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
         }
 
         if (CLUSTER_TYPE == ClusterType.MIXED && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
-            final Request indexRequest = new Request("POST", "/target/_doc/3");
-            indexRequest.setJsonEntity("{\"timestamp\":\"" + timestamp.plusDays(2).toString() + "\",\"value\":456}");
-            client().performRequest(indexRequest);
+            client().performRequest(
+                new Request("POST", "/target/_doc/3").setJsonEntity(
+                    "{\"timestamp\":\"" + timestamp.plusDays(2).toString() + "\",\"value\":456}"
+                )
+            );
 
             assertRollUpJob("rollup-id-test");
             client().performRequest(new Request("POST", "rollup/_refresh"));
@@ -154,9 +152,11 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
         }
 
         if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            final Request indexRequest = new Request("POST", "/target/_doc/4");
-            indexRequest.setJsonEntity("{\"timestamp\":\"" + timestamp.plusDays(3).toString() + "\",\"value\":567}");
-            client().performRequest(indexRequest);
+            client().performRequest(
+                new Request("POST", "/target/_doc/4").setJsonEntity(
+                    "{\"timestamp\":\"" + timestamp.plusDays(3).toString() + "\",\"value\":567}"
+                )
+            );
 
             assertRollUpJob("rollup-id-test");
             client().performRequest(new Request("POST", "rollup/_refresh"));
@@ -214,9 +214,7 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
         }
 
         // check that the rollup job is started using the Tasks API
-        final Request taskRequest = new Request("GET", "_tasks");
-        taskRequest.addParameter("detailed", "true");
-        taskRequest.addParameter("actions", "xpack/rollup/*");
+        var taskRequest = new Request("GET", "_tasks").addParameter("detailed", "true").addParameter("actions", "xpack/rollup/*");
         Map<String, Object> taskResponse = entityAsMap(client().performRequest(taskRequest));
         Map<String, Object> taskResponseNodes = (Map<String, Object>) taskResponse.get("nodes");
         Map<String, Object> taskResponseNode = (Map<String, Object>) taskResponseNodes.values().iterator().next();

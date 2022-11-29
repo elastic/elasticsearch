@@ -84,9 +84,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
                 },
                 "data_description": {}
             }""", jobId);
-
-        Request putJobRequest = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
-        putJobRequest.setJsonEntity(jobConfig);
+        var putJobRequest = new Request("PUT", "/_ml/anomaly_detectors/" + jobId).setJsonEntity(jobConfig);
         Response putJobResponse = client().performRequest(putJobRequest);
         assertThat(putJobResponse.getStatusLine().getStatusCode(), equalTo(200));
     }

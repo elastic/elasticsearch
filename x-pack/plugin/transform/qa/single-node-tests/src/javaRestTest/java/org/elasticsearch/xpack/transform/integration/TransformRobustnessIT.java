@@ -89,18 +89,21 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         // but the task is still there
         assertEquals(1, getNumberOfTransformTasks());
 
-        Request stopTransformRequest = new Request("POST", TransformField.REST_BASE_PATH_TRANSFORMS + transformId + "/_stop");
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(stopTransformRequest));
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(new Request("POST", TransformField.REST_BASE_PATH_TRANSFORMS + transformId + "/_stop"))
+        );
 
         assertEquals(409, e.getResponse().getStatusLine().getStatusCode());
         assertThat(
             e.getMessage(),
             containsString("Detected transforms with no config [" + transformId + "]. Use force to stop/delete them.")
         );
-        stopTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(true));
-
         // make sync, to avoid in-flux state, see gh#51347
-        stopTransformRequest.addParameter(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
+        var stopTransformRequest = new Request("POST", TransformField.REST_BASE_PATH_TRANSFORMS + transformId + "/_stop").addParameter(
+            TransformField.FORCE.getPreferredName(),
+            Boolean.toString(true)
+        ).addParameter(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
 
         Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
         assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));

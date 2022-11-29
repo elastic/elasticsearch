@@ -106,19 +106,16 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     }
 
     public static void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
-        Request request = new Request("PUT", "/" + index + "/_doc/" + documentId);
-        request.addParameter("refresh", "true");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
         builder.endObject();
-        request.setJsonEntity(Strings.toString(builder));
+        var request = new Request("PUT", "/" + index + "/_doc/" + documentId).addParameter("refresh", "true")
+            .setJsonEntity(Strings.toString(builder));
         client().performRequest(request);
     }
 
     public static void delete(String index, String documentId) throws IOException {
-        Request request = new Request("DELETE", "/" + index + "/_doc/" + documentId);
-        request.addParameter("refresh", "true");
-        client().performRequest(request);
+        client().performRequest(new Request("DELETE", "/" + index + "/_doc/" + documentId).addParameter("refresh", "true"));
     }
 
     /**

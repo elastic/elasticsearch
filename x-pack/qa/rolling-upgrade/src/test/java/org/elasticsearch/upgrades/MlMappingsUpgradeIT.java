@@ -72,7 +72,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     private void createAndOpenTestJob() throws IOException {
         // Use a custom index because other rolling upgrade tests meddle with the shared index
-        String jobConfig = """
+        Request putJob = new Request("PUT", "_ml/anomaly_detectors/" + JOB_ID).setJsonEntity("""
                         {
                             "results_index_name":"mappings-upgrade-test",
                             "analysis_config" : {
@@ -82,10 +82,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                             "data_description" : {
                             }
                         }"
-            """;
-
-        Request putJob = new Request("PUT", "_ml/anomaly_detectors/" + JOB_ID);
-        putJob.setJsonEntity(jobConfig);
+            """);
         Response response = client().performRequest(putJob);
         assertEquals(200, response.getStatusLine().getStatusCode());
 

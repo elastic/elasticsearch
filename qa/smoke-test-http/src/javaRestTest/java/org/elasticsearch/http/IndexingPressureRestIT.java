@@ -48,8 +48,7 @@ public class IndexingPressureRestIT extends HttpSmokeTestCase {
 
     @SuppressWarnings("unchecked")
     public void testIndexingPressureStats() throws IOException {
-        Request createRequest = new Request("PUT", "/index_name");
-        createRequest.setJsonEntity("""
+        var createRequest = new Request("PUT", "/index_name").setJsonEntity("""
             {
               "settings": {
                 "index": {
@@ -62,8 +61,7 @@ public class IndexingPressureRestIT extends HttpSmokeTestCase {
         final Response indexCreatedResponse = getRestClient().performRequest(createRequest);
         assertThat(indexCreatedResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
-        Request successfulIndexingRequest = new Request("POST", "/index_name/_doc/");
-        successfulIndexingRequest.setJsonEntity("{\"x\": \"small text\"}");
+        var successfulIndexingRequest = new Request("POST", "/index_name/_doc/").setJsonEntity("{\"x\": \"small text\"}");
         final Response indexSuccessFul = getRestClient().performRequest(successfulIndexingRequest);
         assertThat(indexSuccessFul.getStatusLine().getStatusCode(), equalTo(CREATED.getStatus()));
 
@@ -112,9 +110,8 @@ public class IndexingPressureRestIT extends HttpSmokeTestCase {
         assertThat(node2CoordinatingRejections, equalTo(0));
         assertThat(node2PrimaryRejections, equalTo(0));
 
-        Request failedIndexingRequest = new Request("POST", "/index_name/_doc/");
         String largeString = randomAlphaOfLength(10000);
-        failedIndexingRequest.setJsonEntity("{\"x\": " + largeString + "}");
+        var failedIndexingRequest = new Request("POST", "/index_name/_doc/").setJsonEntity("{\"x\": " + largeString + "}");
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(failedIndexingRequest));
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(TOO_MANY_REQUESTS.getStatus()));
 

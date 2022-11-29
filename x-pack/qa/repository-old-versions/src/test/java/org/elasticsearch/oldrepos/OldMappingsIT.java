@@ -94,33 +94,37 @@ public class OldMappingsIT extends ESRestTestCase {
             assertOK(oldEs.performRequest(createIndex("custom", "custom.json")));
             assertOK(oldEs.performRequest(createIndex("nested", "nested.json")));
 
-            Request doc1 = new Request("PUT", "/" + "custom" + "/" + "doc" + "/" + "1");
-            doc1.addParameter("refresh", "true");
-            XContentBuilder bodyDoc1 = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("apache2")
-                .startObject("access")
-                .field("url", "myurl1")
-                .field("agent", "agent1")
-                .endObject()
-                .endObject()
-                .endObject();
-            doc1.setJsonEntity(Strings.toString(bodyDoc1));
+            var doc1 = new Request("PUT", "/" + "custom" + "/" + "doc" + "/" + "1").addParameter("refresh", "true")
+                .setJsonEntity(
+                    Strings.toString(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("apache2")
+                            .startObject("access")
+                            .field("url", "myurl1")
+                            .field("agent", "agent1")
+                            .endObject()
+                            .endObject()
+                            .endObject()
+                    )
+                );
             assertOK(oldEs.performRequest(doc1));
 
-            Request doc2 = new Request("PUT", "/" + "custom" + "/" + "doc" + "/" + "2");
-            doc2.addParameter("refresh", "true");
-            XContentBuilder bodyDoc2 = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("apache2")
-                .startObject("access")
-                .field("url", "myurl2")
-                .field("agent", "agent2 agent2")
-                .endObject()
-                .endObject()
-                .field("completion", "some_value")
-                .endObject();
-            doc2.setJsonEntity(Strings.toString(bodyDoc2));
+            Request doc2 = new Request("PUT", "/" + "custom" + "/" + "doc" + "/" + "2").addParameter("refresh", "true")
+                .setJsonEntity(
+                    Strings.toString(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("apache2")
+                            .startObject("access")
+                            .field("url", "myurl2")
+                            .field("agent", "agent2 agent2")
+                            .endObject()
+                            .endObject()
+                            .field("completion", "some_value")
+                            .endObject()
+                    )
+                );
             assertOK(oldEs.performRequest(doc2));
 
             Request doc3 = new Request("PUT", "/" + "nested" + "/" + "doc" + "/" + "1");
@@ -143,34 +147,34 @@ public class OldMappingsIT extends ESRestTestCase {
             assertOK(oldEs.performRequest(doc3));
 
             // register repo on old ES and take snapshot
-            Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
-            createRepoRequest.setJsonEntity(formatted("""
+            Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName).setJsonEntity(formatted("""
                 {"type":"fs","settings":{"location":"%s"}}
                 """, repoLocation));
             assertOK(oldEs.performRequest(createRepoRequest));
 
-            Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);
-            createSnapshotRequest.addParameter("wait_for_completion", "true");
-            createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}");
+            var createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName).addParameter(
+                "wait_for_completion",
+                "true"
+            ).setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}");
             assertOK(oldEs.performRequest(createSnapshotRequest));
         }
 
         // register repo on new ES and restore snapshot
-        Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);
-        createRepoRequest2.setJsonEntity(formatted("""
+        Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName).setJsonEntity(formatted("""
             {"type":"fs","settings":{"location":"%s"}}
             """, repoLocation));
         assertOK(client().performRequest(createRepoRequest2));
 
-        final Request createRestoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");
-        createRestoreRequest.addParameter("wait_for_completion", "true");
-        createRestoreRequest.setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}");
-        createRestoreRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        var createRestoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore").addParameter(
+            "wait_for_completion",
+            "true"
+        )
+            .setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}")
+            .setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(createRestoreRequest));
     }
 
     private Request createIndex(String indexName, String file) throws IOException {
-        Request createIndex = new Request("PUT", "/" + indexName);
         int numberOfShards = randomIntBetween(1, 3);
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -181,9 +185,7 @@ public class OldMappingsIT extends ESRestTestCase {
             .startObject("mappings");
         builder.rawValue(OldMappingsIT.class.getResourceAsStream(file), XContentType.JSON);
         builder.endObject().endObject();
-
-        createIndex.setJsonEntity(Strings.toString(builder));
-        return createIndex;
+        return new Request("PUT", "/" + indexName).setJsonEntity(Strings.toString(builder));
     }
 
     public void testMappingOk() throws IOException {
@@ -199,36 +201,40 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testSearchKeyword() throws IOException {
-        Request search = new Request("POST", "/" + "custom" + "/_search");
-        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
-            .startObject()
-            .startObject("query")
-            .startObject("match")
-            .startObject("apache2.access.url")
-            .field("query", "myurl2")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        search.setJsonEntity(Strings.toString(query));
+        var search = new Request("POST", "/" + "custom" + "/_search").setJsonEntity(
+            Strings.toString(
+                XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                    .startObject("query")
+                    .startObject("match")
+                    .startObject("apache2.access.url")
+                    .field("query", "myurl2")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
         Map<String, Object> response = entityAsMap(client().performRequest(search));
         List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
         assertThat(hits, hasSize(1));
     }
 
     public void testSearchOnPlaceHolderField() throws IOException {
-        Request search = new Request("POST", "/" + "custom" + "/_search");
-        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
-            .startObject()
-            .startObject("query")
-            .startObject("match")
-            .startObject("completion")
-            .field("query", "some-agent")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        search.setJsonEntity(Strings.toString(query));
+        var search = new Request("POST", "/" + "custom" + "/_search").setJsonEntity(
+            Strings.toString(
+                XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                    .startObject("query")
+                    .startObject("match")
+                    .startObject("completion")
+                    .field("query", "some-agent")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
         ResponseException re = expectThrows(ResponseException.class, () -> entityAsMap(client().performRequest(search)));
         assertThat(
             re.getMessage(),
@@ -237,35 +243,39 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testAggregationOnPlaceholderField() throws IOException {
-        Request search = new Request("POST", "/" + "custom" + "/_search");
-        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
-            .startObject()
-            .startObject("aggs")
-            .startObject("agents")
-            .startObject("terms")
-            .field("field", "completion")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        search.setJsonEntity(Strings.toString(query));
+        var search = new Request("POST", "/" + "custom" + "/_search").setJsonEntity(
+            Strings.toString(
+                XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                    .startObject("aggs")
+                    .startObject("agents")
+                    .startObject("terms")
+                    .field("field", "completion")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
         ResponseException re = expectThrows(ResponseException.class, () -> entityAsMap(client().performRequest(search)));
         assertThat(re.getMessage(), containsString("can't run aggregation or sorts on field type completion of legacy index"));
     }
 
     public void testConstantScoringOnTextField() throws IOException {
-        Request search = new Request("POST", "/" + "custom" + "/_search");
-        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
-            .startObject()
-            .startObject("query")
-            .startObject("match")
-            .startObject("apache2.access.agent")
-            .field("query", "agent2")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        search.setJsonEntity(Strings.toString(query));
+        var search = new Request("POST", "/" + "custom" + "/_search").setJsonEntity(
+            Strings.toString(
+                XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                    .startObject("query")
+                    .startObject("match")
+                    .startObject("apache2.access.agent")
+                    .field("query", "agent2")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
         Map<String, Object> response = entityAsMap(client().performRequest(search));
         List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
         assertThat(hits, hasSize(1));
@@ -276,37 +286,41 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testFieldsExistQueryOnTextField() throws IOException {
-        Request search = new Request("POST", "/" + "custom" + "/_search");
-        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
-            .startObject()
-            .startObject("query")
-            .startObject("exists")
-            .field("field", "apache2.access.agent")
-            .endObject()
-            .endObject()
-            .endObject();
-        search.setJsonEntity(Strings.toString(query));
+        var search = new Request("POST", "/" + "custom" + "/_search").setJsonEntity(
+            Strings.toString(
+                XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                    .startObject("query")
+                    .startObject("exists")
+                    .field("field", "apache2.access.agent")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
         Map<String, Object> response = entityAsMap(client().performRequest(search));
         List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
         assertThat(hits, hasSize(2));
     }
 
     public void testSearchFieldsOnPlaceholderField() throws IOException {
-        Request search = new Request("POST", "/" + "custom" + "/_search");
-        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
-            .startObject()
-            .startObject("query")
-            .startObject("match")
-            .startObject("apache2.access.url")
-            .field("query", "myurl2")
-            .endObject()
-            .endObject()
-            .endObject()
-            .startArray("fields")
-            .value("completion")
-            .endArray()
-            .endObject();
-        search.setJsonEntity(Strings.toString(query));
+        var search = new Request("POST", "/" + "custom" + "/_search").setJsonEntity(
+            Strings.toString(
+                XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                    .startObject("query")
+                    .startObject("match")
+                    .startObject("apache2.access.url")
+                    .field("query", "myurl2")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .startArray("fields")
+                    .value("completion")
+                    .endArray()
+                    .endObject()
+            )
+        );
         Map<String, Object> response = entityAsMap(client().performRequest(search));
         List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
         assertThat(hits, hasSize(1));

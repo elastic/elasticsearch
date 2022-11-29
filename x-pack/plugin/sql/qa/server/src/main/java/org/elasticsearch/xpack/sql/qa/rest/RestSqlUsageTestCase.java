@@ -296,8 +296,6 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
 
     private void index(List<IndexDocument> docs) throws IOException {
-        Request request = new Request("POST", "/library/_bulk");
-        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (IndexDocument doc : docs) {
             bulk.append(formatted("""
@@ -305,8 +303,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
                 {"condition":"%s","name":"%s","page_count":%s}
                 """, doc.condition, doc.name, doc.pageCount));
         }
-        request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
+        client().performRequest(new Request("POST", "/library/_bulk").addParameter("refresh", "true").setJsonEntity(bulk.toString()));
     }
 
     private Map<String, Object> getStats() throws UnsupportedOperationException, IOException {

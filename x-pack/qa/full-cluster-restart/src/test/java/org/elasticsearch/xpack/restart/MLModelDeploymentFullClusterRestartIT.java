@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.restart;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -64,15 +65,13 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
 
     @Before
     public void setLogging() throws IOException {
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        client().performRequest(new Request("PUT", "_cluster/settings").setJsonEntity("""
             {"persistent" : {
                     "logger.org.elasticsearch.xpack.ml.inference.assignment" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.process.assignment.planning" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.process.logging" : "TRACE"
-                }}""");
-        client().performRequest(loggingSettings);
+                }}"""));
     }
 
     @Override
@@ -93,10 +92,10 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
             startDeployment(modelId);
             assertInfer(modelId);
         } else {
-            ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                request.addParameter("wait_for_status", "yellow");
-                request.addParameter("timeout", "70s");
-            }));
+            ensureHealth(
+                ".ml-inference-*,.ml-config*",
+                (request -> request.addParameter("wait_for_status", "yellow").addParameter("timeout", "70s"))
+            );
             waitForDeploymentStarted(modelId);
             assertInfer(modelId);
             assertNewInfer(modelId);
@@ -145,16 +144,14 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
         vocabularyWithPad.addAll(vocabulary);
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity(formatted("""
+        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary").setJsonEntity(formatted("""
             { "vocabulary": [%s] }
             """, quotedWords));
         client().performRequest(request);
     }
 
     private void createTrainedModel(String modelId) throws IOException {
-        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/_ml/trained_models/" + modelId).setJsonEntity("""
             {
                "description": "simple model for testing",
                "model_type": "pytorch",
@@ -167,8 +164,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
                    }
                  }
                }
-             }""");
-        client().performRequest(request);
+             }"""));
     }
 
     private Response startDeployment(String modelId) throws IOException {
@@ -204,20 +200,16 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(formatted("""
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer").setJsonEntity(formatted("""
             {  "docs": [{"input":"%s"}] }
-            """, input));
-
-        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
+            """, input)).setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);
         return response;
     }
 
     private Response newInfer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity(formatted("""
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer").setJsonEntity(formatted("""
             {  "docs": [{"input":"%s"}] }
             """, input));
         var response = client().performRequest(request);

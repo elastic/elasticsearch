@@ -56,8 +56,7 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
         final RestClient adminClient = adminClient();
         final RestClient client = client();
 
-        final Request putScriptRequest = new Request("PUT", "_scripts/range-now");
-        putScriptRequest.setJsonEntity("""
+        var putScriptRequest = new Request("PUT", "_scripts/range-now").setJsonEntity("""
             {
               "script": {
                 "lang": "painless",
@@ -67,8 +66,7 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(adminClient.performRequest(putScriptRequest));
 
         // Create the index with a date field and 1 primary shard with no replica
-        final Request putIndexRequest = new Request("PUT", DLS_TEMPLATE_PAINLESS_INDEX);
-        putIndexRequest.setJsonEntity("""
+        var putIndexRequest = new Request("PUT", DLS_TEMPLATE_PAINLESS_INDEX).setJsonEntity("""
             {
               "mappings": {
                 "properties": {
@@ -86,25 +84,26 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(adminClient.performRequest(putIndexRequest));
 
         // A doc in the past 1 min
-        final Request putDocRequest1 = new Request("PUT", DLS_TEMPLATE_PAINLESS_INDEX + "/_doc/1");
-        putDocRequest1.setJsonEntity("{\"date\":" + Instant.now().minus(Duration.ofSeconds(60)).toEpochMilli() + "}");
+        var putDocRequest1 = new Request("PUT", DLS_TEMPLATE_PAINLESS_INDEX + "/_doc/1").setJsonEntity(
+            "{\"date\":" + Instant.now().minus(Duration.ofSeconds(60)).toEpochMilli() + "}"
+        );
         assertOK(adminClient.performRequest(putDocRequest1));
 
         // A doc in the future 1 min
-        final Request putDocRequest2 = new Request("PUT", DLS_TEMPLATE_PAINLESS_INDEX + "/_doc/2");
-        putDocRequest2.setJsonEntity("{\"date\":" + Instant.now().plus(Duration.ofSeconds(60)).toEpochMilli() + "}");
+        var putDocRequest2 = new Request("PUT", DLS_TEMPLATE_PAINLESS_INDEX + "/_doc/2").setJsonEntity(
+            "{\"date\":" + Instant.now().plus(Duration.ofSeconds(60)).toEpochMilli() + "}"
+        );
         assertOK(adminClient.performRequest(putDocRequest2));
 
-        final Request refreshRequest = new Request("POST", DLS_TEMPLATE_PAINLESS_INDEX + "/_refresh");
+        var refreshRequest = new Request("POST", DLS_TEMPLATE_PAINLESS_INDEX + "/_refresh");
         assertOK(adminClient.performRequest(refreshRequest));
 
         // First search should only get 1 doc in the past
-        final Request searchRequest = new Request("GET", DLS_TEMPLATE_PAINLESS_INDEX + "/_search");
-        searchRequest.addParameter("request_cache", "true");
-        searchRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder()
-                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(DLS_USER, DLS_USER_PASSWORD))
-        );
+        var searchRequest = new Request("GET", DLS_TEMPLATE_PAINLESS_INDEX + "/_search").addParameter("request_cache", "true")
+            .setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(DLS_USER, DLS_USER_PASSWORD))
+            );
         assertSearchResponse(client.performRequest(searchRequest), Set.of("1"));
         // Cache should not be used since DLS query uses stored script
         assertCacheState(0, 0);

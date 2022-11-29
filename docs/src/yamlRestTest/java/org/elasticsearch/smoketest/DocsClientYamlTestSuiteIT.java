@@ -129,12 +129,15 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         // not, so we prepare by taking a snapshot first to ensure that the UUID really has been created.
         super.initClient();
 
-        final Request putRepoRequest = new Request("PUT", "/_snapshot/test_setup_repo");
-        putRepoRequest.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"my_backup_location\"}}");
+        var putRepoRequest = new Request("PUT", "/_snapshot/test_setup_repo").setJsonEntity(
+            "{\"type\":\"fs\",\"settings\":{\"location\":\"my_backup_location\"}}"
+        );
         assertOK(adminClient().performRequest(putRepoRequest));
 
-        final Request putSnapshotRequest = new Request("PUT", "/_snapshot/test_setup_repo/test_setup_snap");
-        putSnapshotRequest.addParameter("wait_for_completion", "true");
+        var putSnapshotRequest = new Request("PUT", "/_snapshot/test_setup_repo/test_setup_snap").addParameter(
+            "wait_for_completion",
+            "true"
+        );
         assertOK(adminClient().performRequest(putSnapshotRequest));
 
         final Request deleteSnapshotRequest = new Request("DELETE", "/_snapshot/test_setup_repo/test_setup_snap");

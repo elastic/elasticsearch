@@ -70,9 +70,8 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         );
 
         // move to a step
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + originalIndex);
         assertBusy(() -> assertTrue(getStepKeyForIndex(client(), originalIndex).equals(new StepKey("new", "complete", "complete"))));
-        moveToStepRequest.setJsonEntity("""
+        var moveToStepRequest = new Request("POST", "_ilm/move/" + originalIndex).setJsonEntity("""
             {
               "current_step": {
                 "phase": "new",
@@ -107,12 +106,11 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
-        // move to a step
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + originalIndex);
         // index document to trigger rollover
         index(client(), originalIndex, "_id", "foo", "bar");
         logger.info(getStepKeyForIndex(client(), originalIndex));
-        moveToStepRequest.setJsonEntity("""
+        // move to a step
+        var moveToStepRequest = new Request("POST", "_ilm/move/" + originalIndex).setJsonEntity("""
             {
               "current_step": {
                 "phase": "new",
@@ -158,8 +156,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(new StepKey("new", "complete", "complete"))));
 
         // Move to a step from the injected unfollow action
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity("""
+        var moveToStepRequest = new Request("POST", "_ilm/move/" + index).setJsonEntity("""
             {
               "current_step": {
                 "phase": "new",
@@ -220,8 +217,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         );
 
         // Move to the same step, which should re-read the policy
-        Request moveToStepRequest = new Request("POST", "_ilm/move/test-1");
-        moveToStepRequest.setJsonEntity("""
+        var moveToStepRequest = new Request("POST", "_ilm/move/test-1").setJsonEntity("""
             {
               "current_step": {
                 "phase": "hot",
@@ -258,8 +254,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         );
 
         // move to a step
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity("""
+        var moveToStepRequest = new Request("POST", "_ilm/move/" + index).setJsonEntity("""
             {
               "current_step": {
                 "phase": "new",
@@ -300,8 +295,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         );
 
         // move to a step
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity("""
+        var moveToStepRequest = new Request("POST", "_ilm/move/" + index).setJsonEntity("""
             {
               "current_step": {
                 "phase": "new",
@@ -337,8 +331,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         );
 
         // move to a step
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity("""
+        var moveToStepRequest = new Request("POST", "_ilm/move/" + index).setJsonEntity("""
             {
               "current_step": {
                 "phase": "new",
@@ -373,8 +366,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         );
 
         // move to a step with an invalid request
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity("""
+        var moveToStepRequest = new Request("POST", "_ilm/move/" + index).setJsonEntity("""
             {
               "current_step": {
                 "phase": "new",
@@ -409,8 +401,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         );
 
         // move to a step with an invalid request
-        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity("""
+        var moveToStepRequest = new Request("POST", "_ilm/move/" + index).setJsonEntity("""
             {
               "current_step": {
                 "phase": "new",

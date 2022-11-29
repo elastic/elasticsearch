@@ -113,10 +113,7 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
 
     protected Response search(String index, String query, Map<String, String> queryParameters) throws IOException {
         try {
-            Request searchRequest = new Request("GET", index + "/_search");
-            searchRequest.setJsonEntity(query);
-            searchRequest.addParameters(queryParameters);
-            return client().performRequest(searchRequest);
+            return client().performRequest(new Request("GET", index + "/_search").setJsonEntity(query).addParameters(queryParameters));
         } catch (Exception e) {
             logger.error("Search failed with an exception.", e);
             throw e;

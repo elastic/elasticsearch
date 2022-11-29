@@ -85,8 +85,7 @@ public class VersionHttpResourceTests extends ESTestCase {
     }
 
     public void testDoCheckAndPublishFailedWithIOException() {
-        final Request request = new Request("GET", "/");
-        request.addParameter("filter_path", "version.number");
+        var request = new Request("GET", "/").addParameter("filter_path", "version.number");
 
         whenPerformRequestAsyncWith(client, request, new IOException("expected"));
 
@@ -103,8 +102,7 @@ public class VersionHttpResourceTests extends ESTestCase {
         final Response response = mock(Response.class);
         when(response.getEntity()).thenReturn(entity);
 
-        final Request request = new Request("GET", "/");
-        request.addParameter("filter_path", "version.number");
+        var request = new Request("GET", "/").addParameter("filter_path", "version.number");
 
         whenPerformRequestAsyncWith(client, request, response);
 

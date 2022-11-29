@@ -132,14 +132,12 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             new SecureString(SAMPLE_IDPUSER_PASSWORD.toCharArray())
         );
         // Make a request to init an SSO flow with the API Key as secondary authentication
-        Request request = new Request("POST", "/_idp/saml/init");
-        request.setOptions(
+        var request = new Request("POST", "/_idp/saml/init").setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .addHeader("Authorization", basicAuthHeaderValue(CONSOLE_USER_NAME, new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
                 .addHeader("es-secondary-authorization", "ApiKey " + apiKeyCredentials)
                 .build()
-        );
-        request.setJsonEntity("{ \"entity_id\": \"" + entityId + randomAlphaOfLength(3) + "\", \"acs\": \"" + acsUrl + "\" }");
+        ).setJsonEntity("{ \"entity_id\": \"" + entityId + randomAlphaOfLength(3) + "\", \"acs\": \"" + acsUrl + "\" }");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(e.getMessage(), containsString("is not known to this Identity Provider"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
@@ -150,9 +148,8 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         String entityId = SP_ENTITY_ID;
         setupTestData(entityId, acsUrl);
         // Make a request to init an SSO flow with the API Key as secondary authentication
-        Request request = new Request("POST", "/_idp/saml/init");
-        request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
-        request.setJsonEntity("{ \"entity_id\": \"" + entityId + "\", \"acs\": \"" + acsUrl + "\" }");
+        var request = new Request("POST", "/_idp/saml/init").setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER)
+            .setJsonEntity("{ \"entity_id\": \"" + entityId + "\", \"acs\": \"" + acsUrl + "\" }");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(e.getMessage(), containsString("Request is missing secondary authentication"));
     }
@@ -162,8 +159,6 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         String entityId = SP_ENTITY_ID;
         setupTestData(entityId, acsUrl);
         // Validate incoming authentication request
-        Request validateRequest = new Request("POST", "/_idp/saml/validate");
-        validateRequest.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
         final String nameIdFormat = TRANSIENT;
         final String relayString = randomBoolean() ? randomAlphaOfLength(8) : null;
         final boolean forceAuthn = true;
@@ -175,7 +170,8 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             forceAuthn
         );
         final String query = getQueryString(authnRequest, relayString, false, null);
-        validateRequest.setJsonEntity("{\"authn_request_query\":\"" + query + "\"}");
+        var validateRequest = new Request("POST", "/_idp/saml/validate").setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER)
+            .setJsonEntity("{\"authn_request_query\":\"" + query + "\"}");
         Response validateResponse = getRestClient().performRequest(validateRequest);
         ObjectPath validateResponseObject = ObjectPath.createFromResponse(validateResponse);
         Map<String, String> serviceProvider = validateResponseObject.evaluate("service_provider");
@@ -231,8 +227,6 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         registerServiceProvider(entityId, acsUrl);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
         // Validate incoming authentication request
-        Request validateRequest = new Request("POST", "/_idp/saml/validate");
-        validateRequest.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
         final String nameIdFormat = TRANSIENT;
         final String relayString = randomBoolean() ? randomAlphaOfLength(8) : null;
         final boolean forceAuthn = true;
@@ -244,7 +238,8 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             forceAuthn
         );
         final String query = getQueryString(authnRequest, relayString, false, null);
-        validateRequest.setJsonEntity("{\"authn_request_query\":\"" + query + "\"}");
+        var validateRequest = new Request("POST", "/_idp/saml/validate").setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER)
+            .setJsonEntity("{\"authn_request_query\":\"" + query + "\"}");
         Response validateResponse = getRestClient().performRequest(validateRequest);
         ObjectPath validateResponseObject = ObjectPath.createFromResponse(validateResponse);
         Map<String, String> serviceProvider = validateResponseObject.evaluate("service_provider");
@@ -262,16 +257,14 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         // User login a.k.a exchange the user credentials for an API Key - user can authenticate but shouldn't have access this SP
         final String apiKeyCredentials = getApiKeyFromCredentials(SAMPLE_USER_NAME, new SecureString(SAMPLE_USER_PASSWORD.toCharArray()));
         // Make a request to init an SSO flow with the API Key as secondary authentication
-        Request initRequest = new Request("POST", "/_idp/saml/init");
-        initRequest.setOptions(
+        XContentBuilder authnStateBuilder = jsonBuilder();
+        authnStateBuilder.map(authnState);
+        var initRequest = new Request("POST", "/_idp/saml/init").setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .addHeader("Authorization", basicAuthHeaderValue(CONSOLE_USER_NAME, new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
                 .addHeader("es-secondary-authorization", "ApiKey " + apiKeyCredentials)
                 .build()
-        );
-        XContentBuilder authnStateBuilder = jsonBuilder();
-        authnStateBuilder.map(authnState);
-        initRequest.setJsonEntity(formatted("""
+        ).setJsonEntity(formatted("""
             {"entity_id":"%s", "acs":"%s","authn_state":%s}
             """, entityId, acsUrl, Strings.toString(authnStateBuilder)));
         Response initResponse = getRestClient().performRequest(initRequest);
@@ -294,8 +287,6 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         String entityId = SP_ENTITY_ID;
         setupTestData(entityId, acsUrl);
         // Validate incoming authentication request
-        Request validateRequest = new Request("POST", "/_idp/saml/validate");
-        validateRequest.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
         final String nameIdFormat = TRANSIENT;
         final String relayString = null;
         final boolean forceAuthn = randomBoolean();
@@ -307,7 +298,8 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             forceAuthn
         );
         final String query = getQueryString(authnRequest, relayString, false, null);
-        validateRequest.setJsonEntity("{\"authn_request_query\":\"" + query + "\"}");
+        var validateRequest = new Request("POST", "/_idp/saml/validate").setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER)
+            .setJsonEntity("{\"authn_request_query\":\"" + query + "\"}");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(validateRequest));
         assertThat(e.getMessage(), containsString("is not known to this Identity Provider"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
@@ -319,8 +311,6 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         setupTestData(entityId, acsUrl);
 
         // Validate incoming authentication request
-        Request validateRequest = new Request("POST", "/_idp/saml/validate");
-        validateRequest.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
         final String nameIdFormat = TRANSIENT;
         final String relayString = null;
         final boolean forceAuthn = randomBoolean();
@@ -335,15 +325,17 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
 
         // Skip http parameter name
         final String queryWithoutParam = query.substring(12);
-        validateRequest.setJsonEntity("{\"authn_request_query\":\"" + queryWithoutParam + "\"}");
+        var validateRequest = new Request("POST", "/_idp/saml/validate").setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER)
+            .setJsonEntity("{\"authn_request_query\":\"" + queryWithoutParam + "\"}");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(validateRequest));
         assertThat(e.getMessage(), containsString("does not contain a SAMLRequest parameter"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
 
         // arbitrarily trim the request
         final String malformedRequestQuery = query.substring(0, query.length() - randomIntBetween(10, 15));
-        validateRequest.setJsonEntity("{\"authn_request_query\":\"" + malformedRequestQuery + "\"}");
-        ResponseException e1 = expectThrows(ResponseException.class, () -> getRestClient().performRequest(validateRequest));
+        var malformedRequest = new Request("POST", "/_idp/saml/validate").setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER)
+            .setJsonEntity("{\"authn_request_query\":\"" + malformedRequestQuery + "\"}");
+        ResponseException e1 = expectThrows(ResponseException.class, () -> getRestClient().performRequest(malformedRequest));
         assertThat(e1.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
     }
 
@@ -351,14 +343,12 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         // User login a.k.a exchange the user credentials for an API Key
         final String apiKeyCredentials = getApiKeyFromCredentials(username, password);
         // Make a request to init an SSO flow with the API Key as secondary authentication
-        Request request = new Request("POST", "/_idp/saml/init");
-        request.setOptions(
+        var request = new Request("POST", "/_idp/saml/init").setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .addHeader("Authorization", basicAuthHeaderValue(CONSOLE_USER_NAME, new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
                 .addHeader("es-secondary-authorization", "ApiKey " + apiKeyCredentials)
                 .build()
-        );
-        request.setJsonEntity("{ \"entity_id\": \"" + entityId + "\", \"acs\": \"" + acsUrl + "\" }");
+        ).setJsonEntity("{ \"entity_id\": \"" + entityId + "\", \"acs\": \"" + acsUrl + "\" }");
         Response initResponse = getRestClient().performRequest(request);
         ObjectPath objectPath = ObjectPath.createFromResponse(initResponse);
         return objectPath;
@@ -405,14 +395,13 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             )
         );
         spFields.put("privileges", Map.of("resource", entityId, "roles", Set.of("sso:(\\w+)")));
-        Request request = new Request(
-            "PUT",
-            "/_idp/saml/sp/" + urlEncode(entityId) + "?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue()
-        );
-        request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
+
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(spFields);
-        request.setJsonEntity(Strings.toString(builder));
+        var request = new Request(
+            "PUT",
+            "/_idp/saml/sp/" + urlEncode(entityId) + "?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue()
+        ).setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER).setJsonEntity(Strings.toString(builder));
         Response registerResponse = getRestClient().performRequest(request);
         assertThat(registerResponse.getStatusLine().getStatusCode(), equalTo(200));
         ObjectPath registerResponseObject = ObjectPath.createFromResponse(registerResponse);
@@ -437,8 +426,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
     }
 
     private void registerApplicationPrivileges(Map<String, Set<String>> privileges) throws IOException {
-        Request request = new Request("PUT", "/_security/privilege?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue());
-        request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
+
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("elastic-cloud"); // app-name
@@ -453,21 +441,19 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         });
         builder.endObject(); // app-name
         builder.endObject(); // root
-        request.setJsonEntity(Strings.toString(builder));
 
+        var request = new Request("PUT", "/_security/privilege?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue()).setOptions(
+            REQUEST_OPTIONS_AS_CONSOLE_USER
+        ).setJsonEntity(Strings.toString(builder));
         Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
     }
 
     private void createRole(String roleName, String roleBody, RequestOptions options) throws IOException {
-        Request req = new Request("PUT", "/_security/role/" + roleName);
-        req.setJsonEntity(roleBody);
-        req.setOptions(options);
-        getRestClient().performRequest(req);
+        getRestClient().performRequest(new Request("PUT", "/_security/role/" + roleName).setJsonEntity(roleBody).setOptions(options));
     }
 
     private void createUser(String userName, SecureString password, String roleName, RequestOptions options) throws IOException {
-        final Request req = new Request("PUT", "/_security/user/" + userName);
         final String body = formatted("""
             {
               "username": "%s",
@@ -476,8 +462,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
               "roles": [ "%s" ]
             }
             """, userName, getTestName(), password, roleName);
-        req.setJsonEntity(body);
-        req.setOptions(options);
+        var req = new Request("PUT", "/_security/user/" + userName).setJsonEntity(body).setOptions(options);
         getRestClient().performRequest(req);
     }
 

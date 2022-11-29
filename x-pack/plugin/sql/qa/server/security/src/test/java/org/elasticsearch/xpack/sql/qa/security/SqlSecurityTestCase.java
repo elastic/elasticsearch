@@ -171,8 +171,6 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
              * write the test data once. */
             return;
         }
-        Request request = new Request("PUT", "/_bulk");
-        request.addParameter("refresh", "true");
 
         String bulk = """
             {"index":{"_index": "test", "_id":"1"}}
@@ -182,8 +180,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             {"index":{"_index": "bort", "_id":"1"}}
             {"a": "test"}
             """;
-        request.setJsonEntity(bulk);
-        client().performRequest(request);
+        client().performRequest(new Request("PUT", "/_bulk").addParameter("refresh", "true").setJsonEntity(bulk));
         oneTimeSetup = true;
     }
 

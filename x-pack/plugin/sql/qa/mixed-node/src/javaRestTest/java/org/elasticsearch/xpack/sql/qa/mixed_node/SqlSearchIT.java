@@ -210,8 +210,7 @@ public class SqlSearchIT extends ESRestTestCase {
             additionalValues.accept(builder, fieldValues);
             builder.append("}");
 
-            Request request = new Request("PUT", index + "/_doc/" + i);
-            request.setJsonEntity(builder.toString());
+            var request = new Request("PUT", index + "/_doc/" + i).setJsonEntity(builder.toString());
             assertOK(client().performRequest(request));
 
             List<Object> row = new ArrayList<>(fieldValues.values());
@@ -249,8 +248,7 @@ public class SqlSearchIT extends ESRestTestCase {
                 .collect(Collectors.joining(", "));
             String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
 
-            Request request = new Request("POST", "_sql");
-            request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query, bwcVersion));
+            var request = new Request("POST", "_sql").setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query, bwcVersion));
             assertBusy(() -> { assertResponse(expectedResponse, dropDisplaySizes(runSql(client, request))); });
         }
     }

@@ -34,13 +34,13 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     @After
     public void cleanExporters() throws Exception {
-        Request cleanupSettingsRequest = new Request("PUT", "/_cluster/settings");
-        cleanupSettingsRequest.setJsonEntity(
-            Strings.toString(
-                jsonBuilder().startObject().startObject("persistent").nullField("xpack.monitoring.exporters.*").endObject().endObject()
+        adminClient().performRequest(
+            new Request("PUT", "/_cluster/settings").setJsonEntity(
+                Strings.toString(
+                    jsonBuilder().startObject().startObject("persistent").nullField("xpack.monitoring.exporters.*").endObject().endObject()
+                )
             )
         );
-        adminClient().performRequest(cleanupSettingsRequest);
         deleteAllWatcherData();
     }
 
@@ -48,18 +48,18 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
     public void testThatLocalExporterAddsWatches() throws Exception {
         String watchId = createMonitoringWatch();
 
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(
-            Strings.toString(
-                jsonBuilder().startObject()
-                    .startObject("persistent")
-                    .field("xpack.monitoring.exporters.my_local_exporter.type", "local")
-                    .field("xpack.monitoring.exporters.my_local_exporter.cluster_alerts.management.enabled", true)
-                    .endObject()
-                    .endObject()
+        adminClient().performRequest(
+            new Request("PUT", "/_cluster/settings").setJsonEntity(
+                Strings.toString(
+                    jsonBuilder().startObject()
+                        .startObject("persistent")
+                        .field("xpack.monitoring.exporters.my_local_exporter.type", "local")
+                        .field("xpack.monitoring.exporters.my_local_exporter.cluster_alerts.management.enabled", true)
+                        .endObject()
+                        .endObject()
+                )
             )
         );
-        adminClient().performRequest(request);
 
         assertTotalWatchCount(WATCH_IDS.length);
 
@@ -87,8 +87,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
     private String createMonitoringWatch() throws Exception {
         String clusterUUID = getClusterUUID();
         String watchId = clusterUUID + "_kibana_version_mismatch";
-        Request request = new Request("PUT", "/_watcher/watch/" + watchId);
-        String watch = """
+        client().performRequest(new Request("PUT", "/_watcher/watch/" + watchId).setJsonEntity("""
             {
               "trigger": {
                 "schedule": {
@@ -109,9 +108,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
                   }
                 }
               }
-            }""";
-        request.setJsonEntity(watch);
-        client().performRequest(request);
+            }"""));
         return watchId;
     }
 

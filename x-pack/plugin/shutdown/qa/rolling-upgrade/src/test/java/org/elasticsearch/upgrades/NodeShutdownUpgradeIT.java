@@ -113,7 +113,6 @@ public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Request shutdownNode(String nodeIdToShutdown) throws IOException {
-        final Request putShutdownRequest = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
         try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
             putBody.startObject();
             {
@@ -121,9 +120,8 @@ public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
                 putBody.field("reason", this.getTestName());
             }
             putBody.endObject();
-            putShutdownRequest.setJsonEntity(Strings.toString(putBody));
+            return new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown").setJsonEntity(Strings.toString(putBody));
         }
-        return putShutdownRequest;
     }
 
     private String nodeIdToShutdown(int nodeNumber) {

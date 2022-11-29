@@ -145,8 +145,7 @@ public class ShrinkActionIT extends ESRestTestCase {
 
     public void testShrinkDuringSnapshot() throws Exception {
         // Create the repository before taking the snapshot.
-        Request request = new Request("PUT", "/_snapshot/repo");
-        request.setJsonEntity(
+        Request request = new Request("PUT", "/_snapshot/repo").setJsonEntity(
             Strings.toString(
                 JsonXContent.contentBuilder()
                     .startObject()
@@ -176,10 +175,9 @@ public class ShrinkActionIT extends ESRestTestCase {
         // index document so snapshot actually does something
         indexDocument(client(), index);
         // start snapshot
-        request = new Request("PUT", "/_snapshot/repo/snapshot");
-        request.addParameter("wait_for_completion", "false");
-        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
-        assertOK(client().performRequest(request));
+        var startSnapshotRequest = new Request("PUT", "/_snapshot/repo/snapshot").addParameter("wait_for_completion", "false")
+            .setJsonEntity("{\"indices\": \"" + index + "\"}");
+        assertOK(client().performRequest(startSnapshotRequest));
         // add policy and expect it to trigger shrink immediately (while snapshot in progress)
         updatePolicy(client(), index, policy);
         String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
@@ -213,13 +211,13 @@ public class ShrinkActionIT extends ESRestTestCase {
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
-        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
-        createPolicyRequest.setJsonEntity("{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}");
+        var createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy).setJsonEntity(
+            "{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}"
+        );
         client().performRequest(createPolicyRequest);
 
         // and a template
-        Request createTemplateRequest = new Request("PUT", "_template/" + index);
-        createTemplateRequest.setJsonEntity(formatted("""
+        var createTemplateRequest = new Request("PUT", "_template/" + index).setJsonEntity(formatted("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -261,8 +259,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         ensureGreen(index);
 
         // unallocate all index shards
-        Request setAllocationToMissingAttribute = new Request("PUT", "/" + index + "/_settings");
-        setAllocationToMissingAttribute.setJsonEntity("""
+        var setAllocationToMissingAttribute = new Request("PUT", "/" + index + "/_settings").setJsonEntity("""
             {
               "settings": {
                 "index.routing.allocation.include.rack": "bogus_rack"
@@ -289,8 +286,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-        Request putPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
-        putPolicyRequest.setEntity(entity);
+        var putPolicyRequest = new Request("PUT", "_ilm/policy/" + policy).setEntity(entity);
         client().performRequest(putPolicyRequest);
         updatePolicy(client(), index, policy);
 
@@ -308,8 +304,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             }
         }, 30, TimeUnit.SECONDS));
 
-        Request resetAllocationForIndex = new Request("PUT", "/" + index + "/_settings");
-        resetAllocationForIndex.setJsonEntity("""
+        var resetAllocationForIndex = new Request("PUT", "/" + index + "/_settings").setJsonEntity("""
             {
               "settings": {
                 "index.routing.allocation.include.rack": null  }

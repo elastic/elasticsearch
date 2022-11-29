@@ -10,6 +10,7 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.After;
@@ -67,8 +68,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     @Before
     public void setUpLogging() throws IOException {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/_cluster/settings").setJsonEntity("""
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
@@ -76,14 +76,12 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 "logger.org.elasticsearch.xpack.ml.action": "TRACE"
               }
             }
-            """);
-        client().performRequest(request);
+            """));
     }
 
     @After
     public void removeLogging() throws IOException {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity("""
+        client().performRequest(new Request("PUT", "/_cluster/settings").setJsonEntity("""
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.ml.inference": "INFO",
@@ -91,8 +89,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 "logger.org.elasticsearch.xpack.ml.action": "INFO"
               }
             }
-            """);
-        client().performRequest(request);
+            """));
     }
 
     public void testTrainedModelDeployment() throws Exception {
@@ -106,10 +103,10 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 assertInfer(modelId);
             }
             case MIXED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureHealth(
+                    ".ml-inference-*,.ml-config*",
+                    (request -> request.addParameter("wait_for_status", "yellow").addParameter("timeout", "70s"))
+                );
                 waitForDeploymentStarted(modelId);
                 // attempt inference on new and old nodes multiple times
                 for (int i = 0; i < 10; i++) {
@@ -117,10 +114,10 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 }
             }
             case UPGRADED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureHealth(
+                    ".ml-inference-*,.ml-config*",
+                    (request -> request.addParameter("wait_for_status", "yellow").addParameter("timeout", "70s"))
+                );
 
                 waitForDeploymentStarted(modelId);
                 assertInfer(modelId);
@@ -142,17 +139,17 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 assertInfer(modelId);
             }
             case MIXED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureHealth(
+                    ".ml-inference-*,.ml-config*",
+                    (request -> request.addParameter("wait_for_status", "yellow").addParameter("timeout", "70s"))
+                );
                 stopDeployment(modelId);
             }
             case UPGRADED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureHealth(
+                    ".ml-inference-*,.ml-config*",
+                    (request -> request.addParameter("wait_for_status", "yellow").addParameter("timeout", "70s"))
+                );
                 assertThatTrainedModelAssignmentMetadataIsEmpty("upgrade-deployment-test-stop-mixed-cluster");
 
             }
@@ -190,8 +187,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void putModelDefinition(String modelId) throws IOException {
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0").setJsonEntity(formatted("""
             {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
     }
@@ -203,16 +199,14 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         vocabularyWithPad.addAll(vocabulary);
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary").setJsonEntity(formatted("""
             { "vocabulary": [%s] }
             """, quotedWords));
         client().performRequest(request);
     }
 
     private void createTrainedModel(String modelId) throws IOException {
-        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity("""
+        var request = new Request("PUT", "/_ml/trained_models/" + modelId).setJsonEntity("""
             {
                "description": "simple model for testing",
                "model_type": "pytorch",
@@ -234,15 +228,14 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
-        Request request = new Request(
+        var request = new Request(
             "POST",
             "/_ml/trained_models/"
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
                 + "&inference_threads=1&model_threads=1"
-        );
-        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
+        ).setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);
         return response;
@@ -268,26 +261,23 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response getTrainedModelStats(String modelId) throws IOException {
-        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
+        var request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
         var response = client().performRequest(request);
         assertOK(response);
         return response;
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(formatted("""
+        var request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer").setJsonEntity(formatted("""
             {  "docs": [{"input":"%s"}] }
-            """, input));
-        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
+            """, input)).setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);
         return response;
     }
 
     private Response newInfer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity(formatted("""
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer").setJsonEntity(formatted("""
             {  "docs": [{"input":"%s"}] }
             """, input));
         var response = client().performRequest(request);

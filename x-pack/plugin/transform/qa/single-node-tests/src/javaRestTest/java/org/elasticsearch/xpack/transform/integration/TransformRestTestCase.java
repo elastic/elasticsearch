@@ -148,12 +148,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     protected void doBulk(String bulkDocuments, boolean refresh) throws IOException {
-        Request bulkRequest = new Request("POST", "/_bulk");
+        var bulkRequest = new Request("POST", "/_bulk").setJsonEntity(bulkDocuments).setOptions(RequestOptions.DEFAULT);
         if (refresh) {
             bulkRequest.addParameter("refresh", "true");
         }
-        bulkRequest.setJsonEntity(bulkDocuments);
-        bulkRequest.setOptions(RequestOptions.DEFAULT);
         Response bulkResponse = client().performRequest(bulkRequest);
         assertOK(bulkResponse);
         var bulkMap = entityAsMap(bulkResponse);
@@ -205,21 +203,21 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             }
             builder.endObject();
             if (isDataStream) {
-                Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
-                createCompositeTemplate.setJsonEntity(formatted("""
-                    {
-                      "index_patterns": [ "%s" ],
-                      "data_stream": {
-                      },
-                      "template":
-                      %s
-                    }""", indexName, Strings.toString(builder)));
+                Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template").setJsonEntity(
+                    formatted("""
+                        {
+                          "index_patterns": [ "%s" ],
+                          "data_stream": {
+                          },
+                          "template":
+                          %s
+                        }""", indexName, Strings.toString(builder))
+                );
                 client().performRequest(createCompositeTemplate);
                 client().performRequest(new Request("PUT", "_data_stream/" + indexName));
             } else {
                 final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-                Request req = new Request("PUT", indexName);
-                req.setEntity(entity);
+                var req = new Request("PUT", indexName).setEntity(entity);
                 client().performRequest(req);
             }
         }
@@ -382,14 +380,12 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     private void createReviewsTransform(String transformId, String authHeader, String secondaryAuthHeader, String config)
         throws IOException {
-        final Request createTransformRequest = createRequestWithSecondaryAuth(
+        var createTransformRequest = createRequestWithSecondaryAuth(
             "PUT",
             getTransformEndpoint() + transformId,
             authHeader,
             secondaryAuthHeader
-        );
-        createTransformRequest.setJsonEntity(config);
-
+        ).setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
@@ -433,10 +429,12 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void stopTransform(String transformId, String authHeader, boolean force, boolean waitForCheckpoint) throws Exception {
-        final Request stopTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_stop", authHeader);
-        stopTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
-        stopTransformRequest.addParameter(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
-        stopTransformRequest.addParameter(TransformField.WAIT_FOR_CHECKPOINT.getPreferredName(), Boolean.toString(waitForCheckpoint));
+        var stopTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_stop", authHeader).addParameter(
+            TransformField.FORCE.getPreferredName(),
+            Boolean.toString(force)
+        )
+            .addParameter(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true))
+            .addParameter(TransformField.WAIT_FOR_CHECKPOINT.getPreferredName(), Boolean.toString(waitForCheckpoint));
         Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
         assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
@@ -486,8 +484,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void resetTransform(String transformId, boolean force) throws IOException {
-        final Request resetTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_reset", null);
-        resetTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
+        var resetTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_reset", null).addParameter(
+            TransformField.FORCE.getPreferredName(),
+            Boolean.toString(force)
+        );
         Map<String, Object> resetTransformResponse = entityAsMap(client().performRequest(resetTransformRequest));
         assertThat(resetTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
@@ -571,8 +571,8 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected static void deleteTransform(String transformId) throws IOException {
-        Request request = new Request("DELETE", getTransformEndpoint() + transformId);
-        request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
+        // Ignore 404s because they imply someone was racing us to delete this
+        var request = new Request("DELETE", getTransformEndpoint() + transformId).addParameter("ignore", "404");
         adminClient().performRequest(request);
     }
 
@@ -604,8 +604,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected void setupDataAccessRole(String role, String... indices) throws IOException {
         String indicesStr = Arrays.stream(indices).collect(Collectors.joining("\",\"", "\"", "\""));
-        Request request = new Request("PUT", "/_security/role/" + role);
-        request.setJsonEntity(formatted("""
+        var request = new Request("PUT", "/_security/role/" + role).setJsonEntity(formatted("""
             {
               "indices": [
                 {
@@ -651,12 +650,12 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     private void logAudits() throws Exception {
         logger.info("writing audit messages to the log");
-        Request searchRequest = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search?ignore_unavailable=true");
-        searchRequest.setJsonEntity("""
-            {
-              "size": 100,
-              "sort": [ { "timestamp": { "order": "asc" } } ]
-            }""");
+        var searchRequest = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search?ignore_unavailable=true")
+            .setJsonEntity("""
+                {
+                  "size": 100,
+                  "sort": [ { "timestamp": { "order": "asc" } } ]
+                }""");
 
         assertBusy(() -> {
             try {

@@ -23,8 +23,8 @@ import org.junit.Before;
 import java.io.IOException;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.eql.SecurityUtils.runAsUserHeader;
 import static org.elasticsearch.xpack.eql.SecurityUtils.secureClientSettings;
-import static org.elasticsearch.xpack.eql.SecurityUtils.setRunAsHeader;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -103,42 +103,34 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
             document.field((String) fields[i], fields[i + 1]);
         }
         document.endObject();
-        final Request request = new Request("POST", "/" + index + "/_doc/" + id);
-        request.setJsonEntity(Strings.toString(document));
+        var request = new Request("POST", "/" + index + "/_doc/" + id).setJsonEntity(Strings.toString(document));
         assertOK(client().performRequest(request));
     }
 
     static Response get(String index, String id, String user) throws IOException {
-        final Request request = new Request("GET", "/" + index + "/_doc/" + id);
-        setRunAsHeader(request, user);
-        return client().performRequest(request);
+        return client().performRequest(new Request("GET", "/" + index + "/_doc/" + id).setOptions(runAsUserHeader(user)));
     }
 
     static Response submitAsyncEqlSearch(String indexName, String query, TimeValue waitForCompletion, String user) throws IOException {
-        final Request request = new Request("POST", indexName + "/_eql/search");
-        setRunAsHeader(request, user);
-        request.setJsonEntity(
-            Strings.toString(
-                JsonXContent.contentBuilder().startObject().field("event_category_field", "event_type").field("query", query).endObject()
-            )
+        String jsonEntity = Strings.toString(
+            JsonXContent.contentBuilder().startObject().field("event_category_field", "event_type").field("query", query).endObject()
         );
-        request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
-        // we do the cleanup explicitly
-        request.addParameter("keep_on_completion", "true");
+        var request = new Request("POST", indexName + "/_eql/search").setOptions(runAsUserHeader(user))
+            .setJsonEntity(jsonEntity)
+            // we do the cleanup explicitly
+            .addParameter("wait_for_completion_timeout", waitForCompletion.toString())
+            .addParameter("keep_on_completion", "true");
         return client().performRequest(request);
     }
 
     static Response getAsyncEqlSearch(String id, String user) throws IOException {
-        final Request request = new Request("GET", "/_eql/search/" + id);
-        setRunAsHeader(request, user);
-        request.addParameter("wait_for_completion_timeout", "0ms");
-        return client().performRequest(request);
+        return client().performRequest(
+            new Request("GET", "/_eql/search/" + id).setOptions(runAsUserHeader(user)).addParameter("wait_for_completion_timeout", "0ms")
+        );
     }
 
     static Response deleteAsyncEqlSearch(String id, String user) throws IOException {
-        final Request request = new Request("DELETE", "/_eql/search/" + id);
-        setRunAsHeader(request, user);
-        return client().performRequest(request);
+        return client().performRequest(new Request("DELETE", "/_eql/search/" + id).setOptions(runAsUserHeader(user)));
     }
 
 }

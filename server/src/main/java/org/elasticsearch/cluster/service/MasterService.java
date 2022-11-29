@@ -602,7 +602,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     if (acquireForExecution()) {
                         executeAndPublishBatch(
                             unbatchedExecutor,
-                            List.of(new ExecutionResult<>(updateTask, threadPool.getThreadContext(), restorableContext)),
+                            List.of(new ExecutionResult<>(source, updateTask, threadPool.getThreadContext(), restorableContext)),
                             summary
                         );
                     }
@@ -863,6 +863,7 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private static class ExecutionResult<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
+        private final String source;
         private final T task;
         private final ThreadContext threadContext;
         private final Supplier<ThreadContext.StoredContext> threadContextSupplier;
@@ -882,10 +883,15 @@ public class MasterService extends AbstractLifecycleComponent {
         @Nullable
         Map<String, List<String>> responseHeaders;
 
-        ExecutionResult(T task, ThreadContext threadContext, Supplier<ThreadContext.StoredContext> threadContextSupplier) {
+        ExecutionResult(String source, T task, ThreadContext threadContext, Supplier<ThreadContext.StoredContext> threadContextSupplier) {
+            this.source = source;
             this.task = task;
             this.threadContext = threadContext;
             this.threadContextSupplier = threadContextSupplier;
+        }
+
+        public String getSource() {
+            return source;
         }
 
         @Override
@@ -1612,35 +1618,33 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
                 final var finalTaskCount = taskCount;
                 final var tasks = new ArrayList<ExecutionResult<T>>(finalTaskCount);
-                final var tasksBySource = new HashMap<String, List<T>>();
                 for (final var entry : executing) {
-                    tasks.add(new ExecutionResult<>(entry.task(), threadPool.getThreadContext(), entry.storedContextSupplier()));
-                    tasksBySource.computeIfAbsent(entry.source(), ignored -> new ArrayList<>()).add(entry.task());
+                    tasks.add(
+                        new ExecutionResult<>(entry.source(), entry.task(), threadPool.getThreadContext(), entry.storedContextSupplier())
+                    );
                 }
                 try {
-                    batchConsumer.runBatch(executor, tasks, new BatchSummary(() -> buildTasksDescription(finalTaskCount, tasksBySource)));
+                    batchConsumer.runBatch(executor, tasks, new BatchSummary(() -> buildTasksDescription(tasks)));
                 } finally {
                     assert executing.size() == finalTaskCount;
                     executing.clear();
                 }
             }
 
-            private String buildTasksDescription(int taskCount, Map<String, List<T>> processTasksBySource) {
+            private String buildTasksDescription(List<ExecutionResult<T>> tasks) {
                 // TODO test for how the description is grouped by source, and the behaviour when it gets too long
+                final var tasksBySource = new HashMap<String, List<T>>();
+                for (final var entry : tasks) {
+                    tasksBySource.computeIfAbsent(entry.getSource(), ignored -> new ArrayList<>()).add(entry.getTask());
+                }
+
                 final var output = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(
-                    (Iterable<String>) () -> processTasksBySource.entrySet().stream().map(entry -> {
-                        var tasks = executor.describeTasks(entry.getValue());
-                        return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
-                    }).filter(s -> s.isEmpty() == false).iterator(),
-                    ", ",
-                    "",
-                    "",
-                    MAX_TASK_DESCRIPTION_CHARS,
-                    output
-                );
+                Strings.collectionToDelimitedStringWithLimit((Iterable<String>) () -> tasksBySource.entrySet().stream().map(entry -> {
+                    var tasksDescription = executor.describeTasks(entry.getValue());
+                    return tasksDescription.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasksDescription + "]";
+                }).filter(s -> s.isEmpty() == false).iterator(), ", ", "", "", MAX_TASK_DESCRIPTION_CHARS, output);
                 if (output.length() > MAX_TASK_DESCRIPTION_CHARS) {
-                    output.append(" (").append(taskCount).append(" tasks in total)");
+                    output.append(" (").append(tasks.size()).append(" tasks in total)");
                 }
                 return output.toString();
             }

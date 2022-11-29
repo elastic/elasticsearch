@@ -89,6 +89,11 @@ public class LogConfigurator {
         StatusLogger.getLogger().registerListener(ERROR_LISTENER);
     }
 
+    /**
+     * This register any needed {@link org.apache.logging.log4j.core.util.ContextDataProvider} implementations.
+     * It must be called early during logging configuration so that the providers are picked up by the relevant
+     * {@link org.apache.logging.log4j.core.ContextDataInjector}.
+     */
     public static void registerContextDataProviders() {
         ThreadContextDataInjector.contextDataProviders.add(new ActionUserContextDataProvider());
     }

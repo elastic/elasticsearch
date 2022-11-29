@@ -16,11 +16,14 @@ import org.elasticsearch.action.support.user.ActionUserContext;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Provides log4j "ContextData" (i.e. MDC) for the Elasticsearch {@link ActionUser}.
+ * The exact MDC fields will be dependent on the implementation of the ActionUser interface.
+ */
 public class ActionUserContextDataProvider implements ContextDataProvider {
 
     @Override
     public Map<String, String> supplyContextData() {
-        // return Map.of("user.name", "@TEST");
         return getActionUser().map(this::supplyContextData).orElse(Map.of());
     }
 
@@ -30,8 +33,7 @@ public class ActionUserContextDataProvider implements ContextDataProvider {
     }
 
     private Map<String, String> supplyContextData(ActionUser actionUser) {
-        Map<String, String> data = actionUser.identifier().toEcsMap("user");
-        return data;
+        return actionUser.identifier().toEcsMap("user");
     }
 
     private static Optional<ActionUser> getActionUser() {

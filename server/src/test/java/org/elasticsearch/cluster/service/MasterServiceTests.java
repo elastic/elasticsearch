@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1835,7 +1836,7 @@ public class MasterServiceTests extends ESTestCase {
                 ) {
                     @Override
                     public boolean innerMatch(LogEvent event) {
-                        return event.getMessage().getFormattedMessage().length() < BatchSummary.MAX_TASK_DESCRIPTION_CHARS + 200;
+                        return event.getMessage().getFormattedMessage().length() < MAX_TASK_DESCRIPTION_CHARS + 200;
                     }
                 }
             );

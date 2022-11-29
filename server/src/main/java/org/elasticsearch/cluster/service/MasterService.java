@@ -1625,8 +1625,6 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
             }
 
-            private static final int MAX_TASK_DESCRIPTION_CHARS = 8 * 1024;
-
             private String buildTasksDescription(int taskCount, Map<String, List<T>> processTasksBySource) {
                 // TODO test for how the description is grouped by source, and the behaviour when it gets too long
                 final var output = new StringBuilder();
@@ -1693,4 +1691,6 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
     }
+
+    static final int MAX_TASK_DESCRIPTION_CHARS = 8 * 1024;
 }

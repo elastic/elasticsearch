@@ -14,8 +14,6 @@ import java.util.function.Supplier;
 
 public class BatchSummary {
 
-    static final int MAX_TASK_DESCRIPTION_CHARS = 8 * 1024;
-
     private final LazyInitializable<String, RuntimeException> lazyDescription;
 
     public BatchSummary(Supplier<String> stringSupplier) {

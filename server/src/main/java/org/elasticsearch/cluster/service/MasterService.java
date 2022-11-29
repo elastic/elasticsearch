@@ -531,7 +531,6 @@ public class MasterService extends AbstractLifecycleComponent {
      */
     @Deprecated
     public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
-        // TODO reject if not STARTED
         final var summary = new BatchSummary(() -> source);
         final var restorableContext = threadPool.getThreadContext().newRestorableContext(true);
         final var executed = new AtomicBoolean(false);
@@ -1312,7 +1311,12 @@ public class MasterService extends AbstractLifecycleComponent {
             assert totalQueueSize.get() > 0;
             assert currentlyExecutingBatch == null;
             try {
-                takeNextItem().run();
+                final var nextBatch = takeNextItem();
+                if (lifecycle.started()) {
+                    nextBatch.run();
+                } else {
+                    nextBatch.onRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
+                }
             } catch (Exception e) {
                 logger.error("unexpected exception executing queue entry", e);
                 assert false : e;
@@ -1346,8 +1350,12 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private void forkQueueProcessor() {
+        if (lifecycle.started() == false) {
+            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
+            return;
+        }
+
         try {
-            // TODO explicitly reject if not STARTED here?
             assert totalQueueSize.get() > 0;
             final var threadContext = threadPool.getThreadContext();
             try (var ignored = threadContext.stashContext()) {
@@ -1358,6 +1366,11 @@ public class MasterService extends AbstractLifecycleComponent {
             assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
             drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", e));
         }
+    }
+
+    private EsRejectedExecutionException getRejectionException() {
+        assert lifecycle.started() == false;
+        return new EsRejectedExecutionException("master service is in state [" + lifecycleState() + "]", true);
     }
 
     private void drainQueueOnRejection(FailedToCommitClusterStateException e) {
@@ -1518,7 +1531,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public void submitTask(String source, T task, @Nullable TimeValue timeout) {
-            // TODO reject if not STARTED
             final var executed = new AtomicBoolean(false);
             final Scheduler.Cancellable timeoutCancellable;
             if (timeout != null && timeout.millis() > 0) {
@@ -1576,7 +1588,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
             void onRejection(FailedToCommitClusterStateException e) {
                 if (acquireForExecution()) {
-                    try (var ignored = storedContextSupplier.get()) { // TODO test for correct context here
+                    try (var ignored = storedContextSupplier.get()) {
                         task.onFailure(e);
                     } catch (Exception e2) {
                         e2.addSuppressed(e);

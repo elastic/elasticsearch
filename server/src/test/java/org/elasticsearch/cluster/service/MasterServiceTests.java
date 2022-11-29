@@ -34,11 +34,14 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
@@ -2062,6 +2065,158 @@ public class MasterServiceTests extends ESTestCase {
             for (final var task : tasks) {
                 task.assertNoPendingTaskEntry();
             }
+        }
+    }
+
+    public void testRejectionBehaviour() {
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var threadPoolExecutor = new PrioritizedEsThreadPoolExecutor(
+            "Rejecting",
+            1,
+            1,
+            1,
+            TimeUnit.SECONDS,
+            r -> { throw new AssertionError("should not create new threads"); },
+            null,
+            null,
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        ) {
+            @Override
+            public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
+                throw new AssertionError("not implemented");
+            }
+
+            @Override
+            public void execute(Runnable command) {
+                if (command instanceof AbstractRunnable) {
+                    throw new AssertionError("unexpected abstract runnable: " + command);
+                } else {
+                    throw new EsRejectedExecutionException("test", true);
+                }
+            }
+        };
+
+        try (var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)) {
+
+            final var actionCount = new AtomicInteger();
+            final var testHeader = "test-header";
+
+            class TestTask implements ClusterStateTaskListener {
+                private final String expectedHeader = threadPool.getThreadContext().getHeader(testHeader);
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
+                    if ((e instanceof FailedToCommitClusterStateException
+                        && e.getCause()instanceof EsRejectedExecutionException esre
+                        && esre.isExecutorShutdown()) == false) {
+                        throw new AssertionError("unexpected exception", e);
+                    }
+                    actionCount.incrementAndGet();
+                }
+            }
+
+            final var queue = masterService.getTaskQueue(
+                "queue",
+                randomFrom(Priority.values()),
+                batchExecutionContext -> { throw new AssertionError("should not execute batch"); }
+            );
+
+            try (var ignored = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
+                queue.submitTask("batched", new TestTask(), null);
+            }
+            try (var ignored = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
+                masterService.submitUnbatchedStateUpdateTask("unbatched", new ClusterStateUpdateTask() {
+                    private final TestTask innerTask = new TestTask();
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        throw new AssertionError("should not execute task");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        innerTask.onFailure(e);
+                    }
+                });
+            }
+            threadPool.getThreadContext().markAsSystemContext();
+            deterministicTaskQueue.runAllTasks();
+
+            assertEquals(2, actionCount.get());
+        }
+    }
+
+    public void testLifecycleBehaviour() {
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var threadPoolExecutor = deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
+
+        try (var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)) {
+
+            final var actionCount = new AtomicInteger();
+            final var testHeader = "test-header";
+
+            class TestTask implements ClusterStateTaskListener {
+                private final String expectedHeader = threadPool.getThreadContext().getHeader(testHeader);
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
+                    if ((e instanceof FailedToCommitClusterStateException
+                        && e.getCause()instanceof EsRejectedExecutionException esre
+                        && esre.isExecutorShutdown()) == false) {
+                        throw new AssertionError("unexpected exception", e);
+                    }
+                    actionCount.incrementAndGet();
+                }
+            }
+
+            final var queue = masterService.getTaskQueue(
+                "queue",
+                randomFrom(Priority.values()),
+                batchExecutionContext -> { throw new AssertionError("should not execute batch"); }
+            );
+
+            while (true) {
+                try (var ignored = threadPool.getThreadContext().stashContext()) {
+                    threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
+                    queue.submitTask("batched", new TestTask(), null);
+                }
+                try (var ignored = threadPool.getThreadContext().stashContext()) {
+                    threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
+                    masterService.submitUnbatchedStateUpdateTask("unbatched", new ClusterStateUpdateTask() {
+                        private final TestTask innerTask = new TestTask();
+
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            throw new AssertionError("should not execute task");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            innerTask.onFailure(e);
+                        }
+                    });
+                }
+
+                if (masterService.lifecycleState() == Lifecycle.State.STARTED) {
+                    masterService.close();
+                } else {
+                    break;
+                }
+            }
+
+            threadPool.getThreadContext().markAsSystemContext();
+            deterministicTaskQueue.runAllTasks();
+            assertEquals(4, actionCount.get());
         }
     }
 

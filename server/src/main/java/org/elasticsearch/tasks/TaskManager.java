@@ -74,7 +74,7 @@ public class TaskManager implements ClusterStateApplier {
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     private final ThreadPool threadPool;
-    private ActionUserContext actionUserContext;
+    private final ActionUserContext actionUserContext;
 
     /** Rest headers that are copied to the task */
     private final String[] taskHeaders;

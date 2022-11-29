@@ -178,6 +178,10 @@ public class TaskResultsService {
                             builder.field("type", "text");
                             builder.endObject();
 
+                            builder.startObject("owner");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
                             builder.startObject("headers");
                             builder.field("type", "object");
                             builder.field("enabled", false);

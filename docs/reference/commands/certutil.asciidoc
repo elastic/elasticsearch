@@ -330,7 +330,7 @@ Both IPv4 and IPv6 values are allowed. The values are added as Subject
 Alternative Names.
 <3> An optional array of strings that represent DNS names for this instance.
 The values are added as Subject Alternative Names.
-<3> An optional array of strings that represent SAN otherName CNs for this instance.
+<4> An optional array of strings that represent SAN otherName CNs for this instance.
 The values are added as Subject Alternative Names. This is only needed for CCS/CCR
 between self-managed clusters and Elastic Cloud deployments. If all clusters
 are in Elastic Cloud, or are self-managed, then SAN otherName is not required.

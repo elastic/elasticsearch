@@ -13,6 +13,7 @@ import com.azure.core.util.serializer.JacksonAdapter;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -31,6 +32,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -93,7 +95,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         AzureClientProvider azureClientProvider = AzureClientProvider.create(threadPool, settings);
         azureStoreService.set(createAzureStorageService(settings, azureClientProvider));

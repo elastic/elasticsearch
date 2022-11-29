@@ -34,6 +34,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
@@ -126,7 +127,7 @@ public class ClusterServiceUtils {
             settings,
             clusterSettings,
             threadPool,
-            new TaskManager(settings, threadPool, Collections.emptySet())
+            new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP)
         );
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))

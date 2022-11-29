@@ -213,7 +213,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
                         for (Map.Entry<TotalHitCountBucketCollector, Integer> expectedCount : expectedCounts.entrySet()) {
                             shouldNoop &= expectedCount.getValue().intValue() <= expectedCount.getKey().getTotalHits();
                         }
-                        LeafBucketCollector collector = wrapped.getLeafCollector(new AggregationExecutionContext(ctx, null, null));
+                        LeafBucketCollector collector = wrapped.getLeafCollector(new AggregationExecutionContext(ctx, null, null, null));
                         assertThat(collector.isNoop(), equalTo(shouldNoop));
                         if (false == collector.isNoop()) {
                             for (int docId = 0; docId < ctx.reader().numDocs(); docId++) {

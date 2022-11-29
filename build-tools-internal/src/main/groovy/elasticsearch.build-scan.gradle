@@ -16,8 +16,15 @@ import java.util.concurrent.TimeUnit
 long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime()
 
 buildScan {
+  URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+
+  // Automatically publish scans from Elasticsearch CI
+  if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev')) {
+    publishAlways()
+    buildScan.server = 'https://gradle-enterprise.elastic.co'
+  }
+
   background {
-    URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
     String buildNumber = System.getenv('BUILD_NUMBER')
     String buildUrl = System.getenv('BUILD_URL')
     String jobName = System.getenv('JOB_NAME')
@@ -30,12 +37,6 @@ buildScan {
     // Tag if this build is run in FIPS mode
     if (BuildParams.inFipsJvm) {
       tag 'FIPS'
-    }
-
-    // Automatically publish scans from Elasticsearch CI
-    if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev')) {
-      publishAlways()
-      buildScan.server = 'https://gradle-enterprise.elastic.co'
     }
 
     // Link to Jenkins worker logs and system metrics

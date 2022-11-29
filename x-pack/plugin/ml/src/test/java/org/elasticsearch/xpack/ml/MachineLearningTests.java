@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
@@ -40,7 +41,7 @@ import static org.mockito.Mockito.when;
 public class MachineLearningTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
-    public void testPrePostSystemIndexUpgrade_givenNotInUpgradeMode() {
+    public void testPrePostSystemIndexUpgrade_givenNotInUpgradeMode() throws IOException {
         ThreadPool threadpool = new TestThreadPool("test");
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
@@ -52,27 +53,40 @@ public class MachineLearningTests extends ESTestCase {
             return null;
         }).when(client).execute(same(SetUpgradeModeAction.INSTANCE), any(SetUpgradeModeAction.Request.class), any(ActionListener.class));
 
-        MachineLearning machineLearning = createMachineLearning(Settings.EMPTY);
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(Settings.EMPTY)) {
 
-        SetOnce<Map<String, Object>> response = new SetOnce<>();
-        machineLearning.prepareForIndicesMigration(clusterService, client, ActionListener.wrap(response::set, e -> fail(e.getMessage())));
+            SetOnce<Map<String, Object>> response = new SetOnce<>();
+            machineLearning.prepareForIndicesMigration(
+                clusterService,
+                client,
+                ActionListener.wrap(response::set, e -> fail(e.getMessage()))
+            );
 
-        assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", false)));
-        verify(client).execute(same(SetUpgradeModeAction.INSTANCE), eq(new SetUpgradeModeAction.Request(true)), any(ActionListener.class));
+            assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", false)));
+            verify(client).execute(
+                same(SetUpgradeModeAction.INSTANCE),
+                eq(new SetUpgradeModeAction.Request(true)),
+                any(ActionListener.class)
+            );
 
-        machineLearning.indicesMigrationComplete(
-            response.get(),
-            clusterService,
-            client,
-            ActionListener.wrap(ESTestCase::assertTrue, e -> fail(e.getMessage()))
-        );
+            machineLearning.indicesMigrationComplete(
+                response.get(),
+                clusterService,
+                client,
+                ActionListener.wrap(ESTestCase::assertTrue, e -> fail(e.getMessage()))
+            );
 
-        verify(client).execute(same(SetUpgradeModeAction.INSTANCE), eq(new SetUpgradeModeAction.Request(false)), any(ActionListener.class));
-
-        threadpool.shutdown();
+            verify(client).execute(
+                same(SetUpgradeModeAction.INSTANCE),
+                eq(new SetUpgradeModeAction.Request(false)),
+                any(ActionListener.class)
+            );
+        } finally {
+            threadpool.shutdown();
+        }
     }
 
-    public void testPrePostSystemIndexUpgrade_givenAlreadyInUpgradeMode() {
+    public void testPrePostSystemIndexUpgrade_givenAlreadyInUpgradeMode() throws IOException {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(
             ClusterState.builder(ClusterName.DEFAULT)
@@ -81,23 +95,28 @@ public class MachineLearningTests extends ESTestCase {
         );
         Client client = mock(Client.class);
 
-        MachineLearning machineLearning = createMachineLearning(Settings.EMPTY);
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(Settings.EMPTY)) {
 
-        SetOnce<Map<String, Object>> response = new SetOnce<>();
-        machineLearning.prepareForIndicesMigration(clusterService, client, ActionListener.wrap(response::set, e -> fail(e.getMessage())));
+            SetOnce<Map<String, Object>> response = new SetOnce<>();
+            machineLearning.prepareForIndicesMigration(
+                clusterService,
+                client,
+                ActionListener.wrap(response::set, e -> fail(e.getMessage()))
+            );
 
-        assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", true)));
-        verifyNoMoreInteractions(client);
+            assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", true)));
+            verifyNoMoreInteractions(client);
 
-        machineLearning.indicesMigrationComplete(
-            response.get(),
-            clusterService,
-            client,
-            ActionListener.wrap(ESTestCase::assertTrue, e -> fail(e.getMessage()))
-        );
+            machineLearning.indicesMigrationComplete(
+                response.get(),
+                clusterService,
+                client,
+                ActionListener.wrap(ESTestCase::assertTrue, e -> fail(e.getMessage()))
+            );
 
-        // Neither pre nor post should have called any action
-        verifyNoMoreInteractions(client);
+            // Neither pre nor post should have called any action
+            verifyNoMoreInteractions(client);
+        }
     }
 
     public void testMaxOpenWorkersSetting_givenDefault() {
@@ -141,7 +160,7 @@ public class MachineLearningTests extends ESTestCase {
         );
     }
 
-    public void testNoAttributes_givenNoClash() {
+    public void testNoAttributes_givenNoClash() throws IOException {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             builder.put("xpack.ml.enabled", randomBoolean());
@@ -151,11 +170,12 @@ public class MachineLearningTests extends ESTestCase {
         }
         builder.put("node.attr.foo", "abc");
         builder.put("node.attr.ml.bar", "def");
-        MachineLearning machineLearning = createMachineLearning(builder.put("path.home", createTempDir()).build());
-        assertNotNull(machineLearning.additionalSettings());
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(builder.put("path.home", createTempDir()).build())) {
+            assertNotNull(machineLearning.additionalSettings());
+        }
     }
 
-    public void testNoAttributes_givenSameAndMlEnabled() {
+    public void testNoAttributes_givenSameAndMlEnabled() throws IOException {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             builder.put("xpack.ml.enabled", randomBoolean());
@@ -164,33 +184,43 @@ public class MachineLearningTests extends ESTestCase {
             int maxOpenJobs = randomIntBetween(5, 15);
             builder.put("xpack.ml.max_open_jobs", maxOpenJobs);
         }
-        MachineLearning machineLearning = createMachineLearning(builder.put("path.home", createTempDir()).build());
-        assertNotNull(machineLearning.additionalSettings());
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(builder.put("path.home", createTempDir()).build())) {
+            assertNotNull(machineLearning.additionalSettings());
+        }
     }
 
-    public void testNoAttributes_givenClash() {
+    public void testNoAttributes_givenClash() throws IOException {
         Settings.Builder builder = Settings.builder();
         builder.put("node.attr.ml.max_open_jobs", randomIntBetween(13, 15));
-        MachineLearning machineLearning = createMachineLearning(builder.put("path.home", createTempDir()).build());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, machineLearning::additionalSettings);
-        assertThat(e.getMessage(), startsWith("Directly setting [node.attr.ml."));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "] is not permitted - "
-                    + "it is reserved for machine learning. If your intention was to customize machine learning, set the [xpack.ml."
-            )
-        );
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(builder.put("path.home", createTempDir()).build())) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, machineLearning::additionalSettings);
+            assertThat(e.getMessage(), startsWith("Directly setting [node.attr.ml."));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "] is not permitted - "
+                        + "it is reserved for machine learning. If your intention was to customize machine learning, set the [xpack.ml."
+                )
+            );
+        }
     }
 
-    private MachineLearning createMachineLearning(Settings settings) {
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+    public static class TrialLicensedMachineLearning extends MachineLearning {
 
-        return new MachineLearning(settings) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return licenseState;
-            }
-        };
+        // A license state constructed like this is considered a trial license
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0L);
+
+        public TrialLicensedMachineLearning(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected XPackLicenseState getLicenseState() {
+            return licenseState;
+        }
+    }
+
+    public static MachineLearning createTrialLicensedMachineLearning(Settings settings) {
+        return new TrialLicensedMachineLearning(settings);
     }
 }

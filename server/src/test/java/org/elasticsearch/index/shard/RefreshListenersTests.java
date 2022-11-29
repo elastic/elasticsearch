@@ -137,7 +137,7 @@ public class RefreshListenersTests extends ESTestCase {
             newMergePolicy(),
             iwc.getAnalyzer(),
             iwc.getSimilarity(),
-            new CodecService(null),
+            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
             eventListener,
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -151,7 +151,8 @@ public class RefreshListenersTests extends ESTestCase {
             () -> RetentionLeases.EMPTY,
             () -> primaryTerm,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null
+            null,
+            System::nanoTime
         );
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
@@ -400,7 +401,7 @@ public class RefreshListenersTests extends ESTestCase {
         // These threads add and block until the refresh makes the change visible and then do a non-realtime get.
         Thread[] indexers = new Thread[threadCount];
         for (int thread = 0; thread < threadCount; thread++) {
-            final String threadId = String.format(Locale.ROOT, "%04d", thread);
+            final String threadId = formatted("%04d", thread);
             indexers[thread] = new Thread(() -> {
                 for (int iteration = 1; iteration <= 50; iteration++) {
                     try {

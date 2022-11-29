@@ -307,7 +307,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.startObject(NAME);
 
         builder.startObject(fieldName);
-        geoBoundingBox.toXContentFragment(builder, false);
+        geoBoundingBox.toXContentFragmentWithArray(builder);
         builder.endObject();
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);

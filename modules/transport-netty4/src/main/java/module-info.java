@@ -7,6 +7,7 @@
  */
 
 module org.elasticsearch.transport.netty4 {
+    requires jdk.net;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;

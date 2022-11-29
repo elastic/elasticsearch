@@ -102,6 +102,20 @@ public final class SearchSlowLog implements SearchOperationListener {
         Property.IndexScope
     );
 
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<SlowLogLevel> INDEX_SEARCH_SLOWLOG_LEVEL = new Setting<>(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".level",
+        SlowLogLevel.TRACE.name(),
+        SlowLogLevel::parse,
+        Property.Dynamic,
+        Property.IndexScope,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
+
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     public SearchSlowLog(IndexSettings indexSettings) {

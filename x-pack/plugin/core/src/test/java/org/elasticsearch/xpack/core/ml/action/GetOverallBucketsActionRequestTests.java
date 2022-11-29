@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction.Request;
 
-public class GetOverallBucketsActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class GetOverallBucketsActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {

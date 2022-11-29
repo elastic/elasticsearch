@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal
 
+import spock.lang.TempDir
 import spock.lang.Unroll
 import com.github.tomakehurst.wiremock.WireMockServer
 
@@ -126,7 +127,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         when:
         def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
             buildFile << repositoryMockSetup(server, jdkVendor, jdkVersion)
-            gradleRunner('getJdk', '-i', '-g', testProjectDir.newFolder().toString()).build()
+            gradleRunner('getJdk', '-i', '-g', gradleUserHome).build()
         }
 
         then:
@@ -179,13 +180,12 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
             buildFile << repositoryMockSetup(server, VENDOR_ADOPTIUM, ADOPT_JDK_VERSION)
 
-            def commonGradleUserHome = testProjectDir.newFolder().toString()
             // initial run
-            def firstResult = gradleRunner('clean', 'getJdk', '-i', '--warning-mode', 'all', '-g', commonGradleUserHome).build()
+            def firstResult = gradleRunner('clean', 'getJdk', '-i', '--warning-mode', 'all', '-g', gradleUserHome).build()
             // assert the output of an executed transform is shown
             assertOutputContains(firstResult.output, "Unpacking $expectedArchiveName using $transformType")
             // run against up-to-date transformations
-            gradleRunner('clean', 'getJdk', '-i', '--warning-mode', 'all', '-g', commonGradleUserHome).build()
+            gradleRunner('clean', 'getJdk', '-i', '--warning-mode', 'all', '-g', gradleUserHome).build()
         }
 
         then:

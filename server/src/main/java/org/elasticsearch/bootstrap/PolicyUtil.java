@@ -13,6 +13,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.script.ClassPermission;
+import org.elasticsearch.secure_sm.ThreadPermission;
 
 import java.io.FilePermission;
 import java.io.IOException;
@@ -184,13 +185,21 @@ public class PolicyUtil {
             new RuntimePermission("createClassLoader"),
             new RuntimePermission("getFileStoreAttributes"),
             new RuntimePermission("accessUserInformation"),
-            new AuthPermission("modifyPrivateCredentials")
+            new AuthPermission("modifyPrivateCredentials"),
+            new RuntimePermission("accessSystemModules")
         );
         PermissionCollection modulePermissionCollection = new Permissions();
         namedPermissions.forEach(modulePermissionCollection::add);
         modulePermissions.forEach(modulePermissionCollection::add);
         modulePermissionCollection.setReadOnly();
-        ALLOWED_MODULE_PERMISSIONS = new PermissionMatcher(modulePermissionCollection, classPermissions);
+        Map<String, List<String>> moduleClassPermissions = new HashMap<>(classPermissions);
+        moduleClassPermissions.put(
+            // Not available to the SecurityManager ClassLoader. See classPermissions comment.
+            ThreadPermission.class.getCanonicalName(),
+            List.of("modifyArbitraryThreadGroup")
+        );
+        moduleClassPermissions = Collections.unmodifiableMap(moduleClassPermissions);
+        ALLOWED_MODULE_PERMISSIONS = new PermissionMatcher(modulePermissionCollection, moduleClassPermissions);
     }
 
     @SuppressForbidden(reason = "create permission for test")
@@ -297,7 +306,7 @@ public class PolicyUtil {
         }
     }
 
-    // pakcage private for tests
+    // package private for tests
     static PluginPolicyInfo readPolicyInfo(Path pluginRoot) throws IOException {
         Path policyFile = pluginRoot.resolve(PluginDescriptor.ES_PLUGIN_POLICY);
         if (Files.exists(policyFile) == false) {

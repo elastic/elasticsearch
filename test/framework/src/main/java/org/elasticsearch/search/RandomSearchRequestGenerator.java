@@ -32,12 +32,12 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -50,6 +50,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.mockScript;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomByte;
@@ -245,6 +246,19 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             builder.postFilter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
         }
+
+        if (randomBoolean()) {
+            String field = randomAlphaOfLength(6);
+            int dim = randomIntBetween(2, 30);
+            float[] vector = new float[dim];
+            for (int i = 0; i < vector.length; i++) {
+                vector[i] = randomFloat();
+            }
+            int k = randomIntBetween(1, 100);
+            int numCands = randomIntBetween(k, 1000);
+            builder.knnSearch(new KnnSearchBuilder(field, vector, k, numCands));
+        }
+
         if (randomBoolean()) {
             int numSorts = randomIntBetween(1, 5);
             for (int i = 0; i < numSorts; i++) {
@@ -295,11 +309,7 @@ public class RandomSearchRequestGenerator {
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        BytesReference.bytes(jsonBuilder).streamInput()
-                    );
+                    .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(jsonBuilder).streamInput());
                 parser.nextToken();
                 parser.nextToken();
                 parser.nextToken();

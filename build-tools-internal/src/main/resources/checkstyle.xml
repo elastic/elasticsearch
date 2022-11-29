@@ -14,6 +14,11 @@
     <property name="file" value="${config_loc}/checkstyle_suppressions.xml" />
   </module>
 
+  <module name="SuppressionFilter">
+    <property name="file" value="${config_loc}/additional_checkstyle_suppressions.xml" />
+    <property name="optional" value="true" />
+  </module>
+
   <module name="SuppressWarningsFilter" />
 
   <module name="RegexpMultiline">
@@ -138,6 +143,15 @@
         <message
             key="forbidden.formatted"
             value="''{0}'' format specifier is unsafe inside ''.formatted'' calls, as it uses the default locale. Use ''String.format'' for numeric formatting with ''Locale.ROOT'' instead." />
+    </module>
+
+    <module name="org.elasticsearch.gradle.internal.checkstyle.SwitchBetweenCheck">
+        <message
+            key="forbidden.switch.between"
+            value="Case ''{0}'' is outside the range of the ''{1}({2}, {3})'' call of the enclosing switch." />
+        <message
+            key="forbidden.switch.randomInt"
+            value="Case ''{0}'' is outside the range of the ''{1}({2})'' call of the enclosing switch." />
     </module>
 
     <!-- We don't use Java's builtin serialization and we suppress all warning

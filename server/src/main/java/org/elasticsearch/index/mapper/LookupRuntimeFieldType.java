@@ -20,7 +20,7 @@ import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -222,14 +222,14 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         }
 
         @Override
-        public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
+        public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
             assert false : "call #fetchDocumentField() instead";
             throw new UnsupportedOperationException("call #fetchDocumentField() instead");
         }
 
         @Override
-        public DocumentField fetchDocumentField(String docName, SourceLookup lookup) throws IOException {
-            final DocumentField inputDoc = inputFieldValueFetcher.fetchDocumentField(inputField, lookup);
+        public DocumentField fetchDocumentField(String docName, Source source, int doc) throws IOException {
+            final DocumentField inputDoc = inputFieldValueFetcher.fetchDocumentField(inputField, source, doc);
             if (inputDoc == null || inputDoc.getValues().isEmpty()) {
                 return null;
             }

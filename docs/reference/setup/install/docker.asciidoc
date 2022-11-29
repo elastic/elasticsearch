@@ -96,7 +96,7 @@ endif::[]
 ifeval::["{release-state}"!="unreleased"]
 [source,sh,subs="attributes"]
 ----
-docker run --name es01 --net elastic -p 9200:9200 -p 9300:9300 -it {docker-image}
+docker run --name es01 --net elastic -p 9200:9200 -it {docker-image}
 ----
 
 endif::[]
@@ -198,7 +198,7 @@ minimum and maximum JVM heap size to 1 GB:
 
 [source,sh,subs="attributes"]
 ----
-docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es02 -p 9201:9200 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
+docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es02 -p 9201:9200 --net elastic -it {docker-image}
 ----
 
 ===== Next steps
@@ -262,6 +262,10 @@ The `.env` file sets environment variables that are used when you run the
 password for the `elastic` and `kibana_system` users with the
 `ELASTIC_PASSWORD` and `KIBANA_PASSWORD` variables. These variable are
 referenced by the `docker-compose.yml` file.
+
+IMPORTANT: Your passwords must be alphanumeric, and cannot contain special
+characters such as `!` or `@`. The `bash` script included in the
+`docker-compose.yml` file only operates on alphanumeric characters.
 
 ["source","txt",subs="attributes"]
 ----

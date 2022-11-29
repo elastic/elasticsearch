@@ -13,6 +13,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -31,6 +32,11 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     @Override
     protected String fieldName() {
         return RoutingFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return true;
     }
 
     @Override
@@ -68,7 +74,11 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             mapperService,
             iw -> { iw.addDocument(mapperService.documentMapper().parse(source("1", b -> {}, "abcd")).rootDoc()); },
             iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+                SearchLookup lookup = new SearchLookup(
+                    mapperService::fieldType,
+                    fieldDataLookup(mapperService),
+                    new SourceLookup.ReaderSourceProvider()
+                );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 RoutingFieldMapper.RoutingFieldType ft = (RoutingFieldMapper.RoutingFieldType) mapperService.fieldType("_routing");
@@ -77,7 +87,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);
                 valueFetcher.setNextReader(context);
-                assertEquals(List.of("abcd"), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+                assertEquals(List.of("abcd"), valueFetcher.fetchValues(lookup.source(), 0, new ArrayList<>()));
             }
         );
     }

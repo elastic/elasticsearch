@@ -218,7 +218,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
             .build();
         logger.info("--> starting 4 nodes");
-        String node_1 = internalCluster().startNode(commonSettings);
+        String node1 = internalCluster().startNode(commonSettings);
         internalCluster().startNode(commonSettings);
         internalCluster().startNode(commonSettings);
         internalCluster().startNode(commonSettings);
@@ -246,7 +246,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         ensureGreen(TimeValue.timeValueMinutes(1));
 
         logger.info("--> stopping node1");
-        internalCluster().stopNode(node_1);
+        internalCluster().stopNode(node1);
 
         // This might run slowly on older hardware
         ensureGreen(TimeValue.timeValueMinutes(2));

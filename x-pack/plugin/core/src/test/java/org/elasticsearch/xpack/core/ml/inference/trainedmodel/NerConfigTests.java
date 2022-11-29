@@ -21,6 +21,15 @@ import java.util.stream.Stream;
 
 public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
 
+    public static NerConfig mutateForVersion(NerConfig instance, Version version) {
+        return new NerConfig(
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getClassificationLabels(),
+            instance.getResultsField()
+        );
+    }
+
     @Override
     protected boolean supportsUnknownFields() {
         return true;
@@ -48,7 +57,7 @@ public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
 
     @Override
     protected NerConfig mutateInstanceForVersion(NerConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static NerConfig createRandom() {

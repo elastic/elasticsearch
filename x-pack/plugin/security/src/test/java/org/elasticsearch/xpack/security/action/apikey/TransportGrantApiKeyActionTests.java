@@ -273,8 +273,6 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             final Object[] args = invocation.getArguments();
             assertThat(args[0], is(authentication));
             assertThat(args[1], is(AuthenticateAction.NAME));
-            final AuthenticateRequest authenticateRequest = (AuthenticateRequest) args[2];
-            assertThat(authenticateRequest.username(), equalTo(runAsUsername));
             @SuppressWarnings("unchecked")
             final ActionListener<Void> listener = (ActionListener<Void>) args[3];
             listener.onResponse(null);

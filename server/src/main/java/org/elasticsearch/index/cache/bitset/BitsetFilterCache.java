@@ -267,7 +267,7 @@ public final class BitsetFilterCache
             MappingLookup lookup = mapperService.mappingLookup();
             NestedLookup nestedLookup = lookup.nestedLookup();
             if (nestedLookup != NestedLookup.EMPTY) {
-                warmUp.add(Queries.newNonNestedFilter());
+                warmUp.add(Queries.newNonNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated()));
                 warmUp.addAll(nestedLookup.getNestedParentFilters().values());
             }
 
@@ -288,7 +288,7 @@ public final class BitsetFilterCache
                                     );
                             }
                         } catch (Exception e) {
-                            indexShard.warmerService().logger().warn(() -> "failed to load " + "bitset for [" + filterToWarm + "]", e);
+                            indexShard.warmerService().logger().warn(() -> "failed to load bitset for [" + filterToWarm + "]", e);
                         } finally {
                             latch.countDown();
                         }

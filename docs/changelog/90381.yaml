@@ -1,0 +1,5 @@
+pr: 90381
+summary: aggregate metric double add a max min validation
+area: Mapping
+type: enhancement
+issues: []

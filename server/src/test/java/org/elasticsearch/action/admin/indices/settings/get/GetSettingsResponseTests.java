@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +21,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSettingsResponse> {
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+
+public class GetSettingsResponseTests extends AbstractChunkedSerializingTestCase<GetSettingsResponse> {
 
     @Override
     protected GetSettingsResponse createTestInstance() {
@@ -72,6 +74,17 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // we do not want to add new fields at the root (index-level), or inside settings blocks
         return f -> f.equals("") || f.contains(".settings") || f.contains(".defaults");
+    }
+
+    public void testOneChunkPerIndex() {
+        final var instance = createTestInstance();
+        final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
+        int chunks = 0;
+        while (iterator.hasNext()) {
+            chunks++;
+            iterator.next();
+        }
+        assertEquals(2 + instance.getIndexToSettings().size(), chunks);
     }
 
 }

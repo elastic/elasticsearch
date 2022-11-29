@@ -198,12 +198,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.SEARCH_THROTTLED, new FixedExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, true));
         builders.put(
             Names.MANAGEMENT,
-            new ScalingExecutorBuilder(Names.MANAGEMENT, 1, boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5), false)
+            new ScalingExecutorBuilder(Names.MANAGEMENT, 2, boundedBy(allocatedProcessors, 2, 5), TimeValue.timeValueMinutes(5), false)
         );
         builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
         builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5), false));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
-        builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
+        builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, 10, TimeValue.timeValueMinutes(5), false));
         builders.put(
             Names.SNAPSHOT_META,
             new ScalingExecutorBuilder(
@@ -914,6 +914,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             || threadName.startsWith("LuceneTestCase")
             || Arrays.stream(permittedThreadPoolNames).anyMatch(n -> threadName.contains('[' + n + ']'))
             : threadName + " not in " + Arrays.toString(permittedThreadPoolNames) + " nor a test thread";
+        return true;
+    }
+
+    public static boolean assertInSystemContext(ThreadPool threadPool) {
+        final var threadName = Thread.currentThread().getName();
+        assert threadName.startsWith("TEST-") || threadName.startsWith("LuceneTestCase") || threadPool.getThreadContext().isSystemContext()
+            : threadName + " is not running in the system context nor a test thread";
         return true;
     }
 

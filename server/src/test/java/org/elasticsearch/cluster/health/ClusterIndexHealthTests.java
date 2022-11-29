@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class ClusterIndexHealthTests extends AbstractSerializingTestCase<ClusterIndexHealth> {
+public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase<ClusterIndexHealth> {
     private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.SHARDS, ClusterHealthRequest.Level.INDICES);
 
     public void testClusterIndexHealth() {

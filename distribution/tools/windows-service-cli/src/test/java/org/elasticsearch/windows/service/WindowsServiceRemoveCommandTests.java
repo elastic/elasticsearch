@@ -13,6 +13,11 @@ import org.elasticsearch.cli.Command;
 import java.io.IOException;
 
 public class WindowsServiceRemoveCommandTests extends WindowsServiceCliTestCase {
+
+    public WindowsServiceRemoveCommandTests(boolean spaceInPath) {
+        super(spaceInPath);
+    }
+
     @Override
     protected Command newCommand() {
         return new WindowsServiceRemoveCommand() {

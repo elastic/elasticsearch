@@ -111,7 +111,7 @@ public class CartesianShapeIndexer implements ShapeIndexer {
 
         @Override
         public Void visit(Polygon polygon) {
-            addFields(XYShape.createIndexableFields(name, ShapeUtils.toLuceneXYPolygon(polygon)));
+            addFields(XYShape.createIndexableFields(name, ShapeUtils.toLuceneXYPolygon(polygon), true));
             return null;
         }
 

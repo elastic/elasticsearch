@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -55,6 +56,7 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -302,7 +304,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         if (enabled == false) {
             return Collections.emptyList();

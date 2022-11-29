@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.MayHaveBeenIndexedBefore;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -39,7 +40,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -117,6 +117,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
+        public boolean isAggregatable() {
+            return fieldDataEnabled.getAsBoolean();
+        }
+
+        @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             return termsQuery(Arrays.asList(value), context);
         }
@@ -140,7 +145,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             if (fieldDataEnabled.getAsBoolean() == false) {
                 throw new IllegalArgumentException(
                     "Fielddata access on the _id field is disallowed, "

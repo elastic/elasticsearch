@@ -37,7 +37,8 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             randomAlphaOfLength(10),
             1,
-            concatLists(actualizedDesiredNodes, pendingDesiredNodes)
+            concatLists(actualizedDesiredNodes, pendingDesiredNodes),
+            false
         );
         updateDesiredNodes(updateDesiredNodesRequest);
 
@@ -49,7 +50,8 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var newVersionUpdateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion() + 1,
-            updateDesiredNodesRequest.getNodes()
+            updateDesiredNodesRequest.getNodes(),
+            false
         );
         updateDesiredNodes(newVersionUpdateDesiredNodesRequest);
 
@@ -70,7 +72,8 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             randomAlphaOfLength(10),
             1,
-            concatLists(actualizedDesiredNodes, pendingDesiredNodes)
+            concatLists(actualizedDesiredNodes, pendingDesiredNodes),
+            false
         );
         updateDesiredNodes(updateDesiredNodesRequest);
 
@@ -98,7 +101,8 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             randomAlphaOfLength(10),
             1,
-            concatLists(actualizedDesiredNodes, pendingDesiredNodes)
+            concatLists(actualizedDesiredNodes, pendingDesiredNodes),
+            false
         );
         updateDesiredNodes(updateDesiredNodesRequest);
 
@@ -130,7 +134,8 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             randomAlphaOfLength(10),
             1,
-            concatLists(actualizedDesiredNodes, pendingDesiredNodes)
+            concatLists(actualizedDesiredNodes, pendingDesiredNodes),
+            false
         );
         updateDesiredNodes(updateDesiredNodesRequest);
 
@@ -146,7 +151,8 @@ public class DesiredNodesStatusIT extends ESIntegTestCase {
         final var updateDesiredNodesWithNewHistoryRequest = new UpdateDesiredNodesRequest(
             randomAlphaOfLength(10),
             1,
-            updateDesiredNodesRequest.getNodes()
+            updateDesiredNodesRequest.getNodes(),
+            false
         );
         final var response = updateDesiredNodes(updateDesiredNodesWithNewHistoryRequest);
         assertThat(response.hasReplacedExistingHistoryId(), is(equalTo(true)));

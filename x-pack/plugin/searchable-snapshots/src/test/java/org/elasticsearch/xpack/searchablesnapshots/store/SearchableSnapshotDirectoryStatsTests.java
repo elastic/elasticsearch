@@ -113,7 +113,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
-        final ByteSizeValue rangeSize = new ByteSizeValue(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6), ByteSizeUnit.BYTES);
+        final ByteSizeValue rangeSize = ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6));
         final ByteSizeValue cacheSize = new ByteSizeValue(10, ByteSizeUnit.MB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
@@ -167,7 +167,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     }
 
     public void testCachedBytesReadsAndWritesNoCache() throws Exception {
-        final ByteSizeValue uncachedChunkSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
+        final ByteSizeValue uncachedChunkSize = ByteSizeValue.ofBytes(randomIntBetween(512, MAX_FILE_LENGTH));
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
             try (IndexInput input = directory.openInput(fileName, randomIOContext())) {
                 final long length = input.length();
@@ -578,10 +578,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     private void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCase(
             defaultCacheService(),
-            createFrozenCacheService(
-                ByteSizeValue.ofMb(10),
-                new ByteSizeValue(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6), ByteSizeUnit.BYTES)
-            ),
+            createFrozenCacheService(ByteSizeValue.ofMb(10), ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6))),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
@@ -644,7 +641,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             fileChecksum,
             Version.CURRENT.luceneVersion.toString()
         );
-        final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
+        final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, ByteSizeValue.ofBytes(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
         final Path shardDir = randomShardPath(shardId);
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);

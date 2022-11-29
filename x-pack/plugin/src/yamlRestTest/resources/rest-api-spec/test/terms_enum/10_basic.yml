@@ -33,6 +33,7 @@ setup:
         name: "dls_all_role"
         body:  >
             {
+              "cluster": [ "manage_own_api_key" ],
               "indices": [
                 { "names": ["test_security"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"const\"}}" }
               ]
@@ -82,6 +83,7 @@ setup:
         name: "dls_some_role"
         body:  >
             {
+              "cluster": [ "manage_own_api_key" ],
               "indices": [
                 { "names": ["test_security"], "privileges": ["read"], "query": "{\"term\": {\"foo\": \"bar_dls\"}}" }
               ]
@@ -560,4 +562,90 @@ teardown:
         body:  {"field": "foo", "string":"b"}
   - length: {terms: 0}
 
+---
+"Test security with API keys":
 
+  - do:
+      headers: { Authorization: "Basic ZGxzX2FsbF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # dls_all_user
+      security.create_api_key:
+        body: >
+          {
+            "name": "dls_all_user_good_key",
+            "role_descriptors": {
+              "role-a": {
+                "index": [
+                  {
+                    "names": ["test_security"],
+                    "privileges": ["read"],
+                    "query": "{\"term\": {\"ck\": \"const\"}}"
+                  }
+                ]
+              }
+            }
+          }
+  - match: { name: "dls_all_user_good_key" }
+  - set: { encoded: login_creds}
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}  # dls_all_user good API key sees all documents
+      terms_enum:
+        index: test_security
+        body: { "field": "foo", "string": "b" }
+  - length: { terms: 1 }
+
+  - do:
+      headers: { Authorization: "Basic ZGxzX2FsbF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # dls_all_user
+      security.create_api_key:
+        body: >
+          {
+            "name": "dls_all_user_bad_key",
+            "role_descriptors": {
+              "role-a": {
+                "index": [
+                  {
+                    "names": ["test_security"],
+                    "privileges": ["read"],
+                    "query": "{\"term\": {\"foo\": \"bar_dls\"}}"
+                  }
+                ]
+              }
+            }
+          }
+  - match: { name: "dls_all_user_bad_key" }
+  - set: { encoded: login_creds}
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}  # dls_all_user bad API key sees selected docs
+      terms_enum:
+        index: test_security
+        body: { "field": "foo", "string": "b" }
+  - length: { terms: 0 }
+
+  - do:
+      headers: { Authorization: "Basic ZGxzX3NvbWVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # dls_some_user
+      # Create an API key with all DLS permissions, but it is still bounded by the owner user's permissions
+      security.create_api_key:
+        body: >
+          {
+            "name": "dls_some_user_key",
+            "role_descriptors": {
+              "role-a": {
+                "index": [
+                  {
+                    "names": ["test_security"],
+                    "privileges": ["read"],
+                    "query": "{\"term\": {\"ck\": \"const\"}}"
+                  }
+                ]
+              }
+            }
+          }
+  - match: { name: "dls_some_user_key" }
+  - set: { encoded: login_creds}
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}  # dls_some_user's API key sees selected user regardless of the key's role descriptor
+      terms_enum:
+        index: test_security
+        body: { "field": "foo", "string": "b" }
+  - length: { terms: 0 }

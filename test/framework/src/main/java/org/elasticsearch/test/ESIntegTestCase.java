@@ -452,7 +452,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 RandomNumbers.randomIntBetween(random, 1, 15) + "ms"
             );
         }
-
+        if (randomBoolean()) {
+            builder.put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), randomBoolean());
+        }
         return builder;
     }
 
@@ -840,7 +842,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
                 assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
                 PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().setLocal(true).get();
-                assertThat("client " + client + " still has pending tasks " + pendingTasks, pendingTasks, Matchers.emptyIterable());
+                assertThat(
+                    "client " + client + " still has pending tasks " + pendingTasks,
+                    pendingTasks.pendingTasks(),
+                    Matchers.emptyIterable()
+                );
                 clusterHealth = client.admin().cluster().prepareHealth().setLocal(true).get();
                 assertThat("client " + client + " still has in flight fetch", clusterHealth.getNumberOfInFlightFetch(), equalTo(0));
             }

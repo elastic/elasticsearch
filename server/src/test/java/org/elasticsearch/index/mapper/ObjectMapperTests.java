@@ -23,6 +23,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ObjectMapperTests extends MapperServiceTestCase {
 
@@ -311,25 +312,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field1] with an object mapping"));
     }
 
-    public void testEmptyName() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("")
-                .startObject("properties")
-                .startObject("name")
-                .field("type", "text")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        // Empty name not allowed in index created after 5.0
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
-    }
-
     public void testUnknownLegacyFields() throws Exception {
         MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
@@ -423,17 +405,12 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseRoot() throws Exception {
-        MapperService mapperService = createMapperService(topMapping(b -> {
-            b.field("subobjects", false);
-            b.startObject("properties");
-            {
-                b.startObject("metrics.service.time");
-                b.field("type", "long");
-                b.endObject();
-                b.startObject("metrics.service.time.max");
-                b.field("type", "long");
-                b.endObject();
-            }
+        MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("metrics.service.time");
+            b.field("type", "long");
+            b.endObject();
+            b.startObject("metrics.service.time.max");
+            b.field("type", "long");
             b.endObject();
         }));
         assertNotNull(mapperService.fieldType("metrics.service.time"));
@@ -446,18 +423,13 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseRootWithInnerObject() {
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
-            b.field("subobjects", false);
-            b.startObject("properties");
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("metrics.service.time");
             {
-                b.startObject("metrics.service.time");
+                b.startObject("properties");
                 {
-                    b.startObject("properties");
-                    {
-                        b.startObject("max");
-                        b.field("type", "long");
-                        b.endObject();
-                    }
+                    b.startObject("max");
+                    b.field("type", "long");
                     b.endObject();
                 }
                 b.endObject();
@@ -471,14 +443,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseRootWithInnerNested() {
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
-            b.field("subobjects", false);
-            b.startObject("properties");
-            {
-                b.startObject("metrics.service");
-                b.field("type", "nested");
-                b.endObject();
-            }
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("metrics.service");
+            b.field("type", "nested");
             b.endObject();
         })));
         assertEquals(
@@ -515,5 +482,44 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
+    }
+
+    /**
+     * Makes sure that an empty object mapper returns {@code null} from
+     * {@link SourceLoader.SyntheticFieldLoader#docValuesLoader}. This
+     * is important because it allows us to skip whole chains of empty
+     * fields when loading synthetic {@code _source}.
+     */
+    public void testSyntheticSourceDocValuesEmpty() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("o").field("type", "object").endObject()));
+        ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
+        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+    }
+
+    /**
+     * Makes sure that an object mapper containing only fields without
+     * doc values returns {@code null} from
+     * {@link SourceLoader.SyntheticFieldLoader#docValuesLoader}. This
+     * is important because it allows us to skip whole chains of empty
+     * fields when loading synthetic {@code _source}.
+     */
+    public void testSyntheticSourceDocValuesFieldWithout() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("o").startObject("properties");
+            {
+                b.startObject("kwd");
+                {
+                    b.field("type", "keyword");
+                    b.field("doc_values", false);
+                    b.field("store", true);
+                }
+                b.endObject();
+            }
+            b.endObject().endObject();
+        }));
+        ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
+        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -51,7 +52,7 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("Start the primary shard (on node1)");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
@@ -61,14 +62,14 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
 
         logger.info("start another node, replica will start recovering form primary");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(5));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(5));
 
         logger.info("start another node, make sure the primary is not relocated");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(5));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(5));

@@ -99,7 +99,7 @@ PARSER.declareInt(MyPojo::setMax, new ParseField("maximum").forRestApiVersion(Re
 
 The above example is for code that live in the version 8 branch of code. In this example, `limit` has been deprecated in version 7 and removed in version 8.  The above code reads use the `maximum` value from the request for both version 7 and version 8. However, if compatibility is requested it will also allow `limit` in the payload.  If `limit` is used a warning will be emitted.
 
-The version in `forRestApiVersion` is reference to when the declaration is valid. Assuming version 8 is the master branch and all changes start in the master branch then get back ported. The above text is what would be applicable for the v8 branch of code. The first line of code is essentially ignored except for when compatibility with version 7 is requested. When back-porting this change to the 7.x branch, the first line would be identical, and the second line would be omitted.
+The version in `forRestApiVersion` is reference to when the declaration is valid. Assuming version 8 is the main branch and all changes start in the main branch then get back ported. The above text is what would be applicable for the v8 branch of code. The first line of code is essentially ignored except for when compatibility with version 7 is requested. When back-porting this change to the 7.x branch, the first line would be identical, and the second line would be omitted.
 
 The above strategy works well for single fields, but could get overly complex very fast for large multiple field changes. For more complex de-serialization changes there is also support to construct a `NamedXContentRegistry` with some "normal" entries as well some entries that are only applied when compatibility with the prior version is requested. The syntax is very similar where can express the desired version from the required `ParseField` when adding an entry to the `NamedXContentRegistry`.
 
@@ -172,7 +172,7 @@ In some cases the prior version of the YAML REST tests are not sufficient to ful
 
 ### Developer's workflow
 
-There should not be much, if any, deviation in a developers normal workflow to introduce and back-port changes. Changes should be applied in master, then back ported as needed.
+There should not be much, if any, deviation in a developers normal workflow to introduce and back-port changes. Changes should be applied in main, then back ported as needed.
 
 Most of the compatibility will work correctly when back-porting as-is, but some care is needed that the logic is correct for that version when back-porting.  For example, both the route (URL) and field (de-serialization) declarations with version awareness will behave differently if the declared version is the current version or the prior version. This allows the same line of code to be back ported as-is with differing behavior.  Additionally the compatible version is always populated (even when not requested, defaulting to the current version), so conditional logic comparing against a specific version is safe across branches.
 
@@ -180,7 +180,7 @@ Mixed clusters are not explicitly tested since the change should be applied at t
 
 ### Troubleshooting compatibility test failures
 
-By far the most common reason that compatibility tests can seemingly randomly fail is that your master branch is out of date with the upstream master. For this reason, it always suggested to ensure that your PR branch is up to date.
+By far the most common reason that compatibility tests can seemingly randomly fail is that your main branch is out of date with the upstream main. For this reason, it always suggested to ensure that your PR branch is up to date.
 
 Test failure reproduction lines should behave identical to the non-compatible variant. However, to assure you are referencing the correct line number when reading the test, be sure to look at the line number from the transformed test on disk.  Generally the fully transformed tests can be found at `build/restResources/v7/yamlTests/transformed/rest-api-spec/test/*` (where v7 will change with different versions).
 

@@ -1,0 +1,133 @@
+---
+setup:
+  - skip:
+      version: " - 8.3.99"
+      reason: "Support for the dry run option was added in in 8.4.0"
+---
+teardown:
+  - do:
+      _internal.delete_desired_nodes: { }
+
+---
+"Test dry run doesn't update empty desired nodes":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        dry_run: true
+        body:
+          nodes:
+            - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+  - match: { dry_run: true }
+
+  - do:
+      catch: missing
+      _internal.get_desired_nodes: {}
+  - match: { status: 404 }
+
+---
+"Test dry run doesn't update existing desired nodes":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+  - match: { dry_run: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { name: "instance-000187" } }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 2
+        dry_run: "true"
+        body:
+          nodes:
+            - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000188" }, processors: 16.0, memory: "128gb", storage: "1tb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+  - match: { dry_run: true }
+
+  - do:
+      _internal.get_desired_nodes: { }
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { name: "instance-000187" } }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
+---
+"Test validation works for dry run updates":
+  - do:
+      cluster.state: { }
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: { }
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        dry_run: "true"
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000245", "random_setting": -42 }, processors: 16.0, memory: "128gb", storage: "1tb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Nodes with ids [instance-000245] in positions [0] contain invalid settings" }
+  - match: { error.suppressed.0.reason: "unknown setting [random_setting] please check that any required plugins are installed, or check the breaking changes documentation for removed settings" }
+
+
+---
+"Test misspelled dry run":
+  - do:
+      cluster.state: { }
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: { }
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: param
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        diy_run: "true"
+        body:
+          nodes:
+            - { settings: { "node.name": "instance-000187" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }

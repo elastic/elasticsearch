@@ -78,7 +78,7 @@ public class SnapshotInfoTestUtils {
         while (result.size() < size) {
             result.put(
                 randomAlphaOfLengthBetween(5, 10),
-                new SnapshotInfo.IndexSnapshotDetails(between(1, 10), new ByteSizeValue(between(0, Integer.MAX_VALUE)), between(1, 100))
+                new SnapshotInfo.IndexSnapshotDetails(between(1, 10), ByteSizeValue.ofBytes(between(0, Integer.MAX_VALUE)), between(1, 100))
             );
         }
         return result;

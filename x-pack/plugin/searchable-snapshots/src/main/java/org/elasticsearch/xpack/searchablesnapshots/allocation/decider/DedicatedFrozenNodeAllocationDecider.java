@@ -31,7 +31,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
     private static final Decision YES_IS_PARTIAL_SEARCHABLE_SNAPSHOT = Decision.single(
         Decision.Type.YES,
         NAME,
-        "this index is a frozen searchable snapshot so it can be assigned to this dedicated frozen node"
+        "this index is a partially mounted index so it can be assigned to this dedicated frozen node"
     );
 
     private static final Decision NO = Decision.single(
@@ -39,7 +39,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
         NAME,
         "this node's data roles are exactly ["
             + DATA_FROZEN_NODE_ROLE.roleName()
-            + "] so it may only hold shards from frozen searchable snapshots, but this index is not a frozen searchable snapshot"
+            + "] so it may only hold shards from partially mounted indices, but this index is not a partially mounted index"
     );
 
     @Override

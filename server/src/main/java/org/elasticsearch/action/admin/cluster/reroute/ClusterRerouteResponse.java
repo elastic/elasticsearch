@@ -13,17 +13,28 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Response returned after a cluster reroute request
  */
 public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXContentObject {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
+    public static final String STATE_FIELD_DEPRECATION_MESSAGE = "The [state] field in the response to the reroute API is deprecated "
+        + "and will be removed in a future version. Specify ?metric=none to adopt the future behaviour.";
+
+    /**
+     * To be removed when REST compatibility with {@link org.elasticsearch.Version#V_8_6_0} / {@link RestApiVersion#V_8} no longer needed
+     */
     private final ClusterState state;
     private final RoutingExplanations explanations;
 
@@ -59,11 +70,17 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
 
     @Override
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("state");
-        state.toXContent(builder, params);
-        builder.endObject();
+        if (Objects.equals(params.param("metric"), "none") == false) {
+            if (builder.getRestApiVersion() != RestApiVersion.V_7) {
+                deprecationLogger.critical(DeprecationCategory.API, "reroute_cluster_state", STATE_FIELD_DEPRECATION_MESSAGE);
+            }
+            builder.startObject("state");
+            state.toXContent(builder, params);
+            builder.endObject();
+        }
+
         if (params.paramAsBoolean("explain", false)) {
-            explanations.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            explanations.toXContent(builder, params);
         }
     }
 }

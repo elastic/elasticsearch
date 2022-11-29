@@ -12,7 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentTaskParamsTests;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<TrainedModelAssignment> {
+public class TrainedModelAssignmentTests extends AbstractXContentSerializingTestCase<TrainedModelAssignment> {
 
     public static TrainedModelAssignment randomInstance() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomParams());
@@ -257,6 +257,21 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
         assertThat(assignment.isSatisfied(Sets.newHashSet("node-1", "node-2", "node-3")), is(false));
     }
 
+    public void testMaxAssignedAllocations() {
+        TrainedModelAssignment assignment = TrainedModelAssignment.Builder.empty(randomTaskParams(10))
+            .addRoutingEntry("node-1", new RoutingInfo(1, 2, RoutingState.STARTED, ""))
+            .addRoutingEntry("node-2", new RoutingInfo(2, 1, RoutingState.STARTED, ""))
+            .addRoutingEntry("node-3", new RoutingInfo(3, 3, RoutingState.STARTING, ""))
+            .build();
+        assertThat(assignment.getMaxAssignedAllocations(), equalTo(6));
+
+        TrainedModelAssignment assignmentAfterRemovingNode = TrainedModelAssignment.Builder.fromAssignment(assignment)
+            .removeRoutingEntry("node-1")
+            .build();
+        assertThat(assignmentAfterRemovingNode.getMaxAssignedAllocations(), equalTo(6));
+        assertThat(assignmentAfterRemovingNode.totalCurrentAllocations(), equalTo(5));
+    }
+
     private void assertValueWithinPercentageOfExpectedRatio(long value, long totalCount, double ratio, double tolerance) {
         double expected = totalCount * ratio;
         double lowerBound = (1.0 - tolerance) * expected;
@@ -271,10 +286,11 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
         return new StartTrainedModelDeploymentAction.TaskParams(
             randomAlphaOfLength(10),
             modelSize,
-            randomIntBetween(1, 8),
             numberOfAllocations,
+            randomIntBetween(1, 8),
             randomIntBetween(1, 10000),
-            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(0, modelSize + 1))
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(0, modelSize + 1)),
+            randomFrom(Priority.values())
         );
     }
 

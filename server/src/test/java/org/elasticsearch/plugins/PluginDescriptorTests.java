@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.not;
 
 public class PluginDescriptorTests extends ESTestCase {
 
-    private static final Map<String, String> DESCRIPTOR_TEMPLATE = Map.of(
+    private static final Map<String, String> INTERNAL_DESCRIPTOR_TEMPLATE = Map.of(
         "name",
         "my_plugin",
         "description",
@@ -49,11 +50,42 @@ public class PluginDescriptorTests extends ESTestCase {
         "org.mymodule"
     );
 
-    PluginDescriptor mockDescriptor(String... additionalProps) throws IOException {
-        assert additionalProps.length % 2 == 0;
-        Map<String, String> propsMap = new HashMap<>(DESCRIPTOR_TEMPLATE);
-        for (int i = 0; i < additionalProps.length; i += 2) {
-            propsMap.put(additionalProps[i], additionalProps[i + 1]);
+    private static final Map<String, String> STABLE_DESCRIPTOR_TEMPLATE = Map.of(
+        "name",
+        "my_plugin",
+        "description",
+        "fake desc",
+        "version",
+        "1.0",
+        "elasticsearch.version",
+        Version.CURRENT.toString(),
+        "java.version",
+        System.getProperty("java.specification.version"),
+        "modular",
+        "true"
+    );
+
+    private interface PropertiesWriter {
+        void write(Path path, String... props) throws IOException;
+    }
+
+    private interface DescriptorWriter {
+        PluginDescriptor write(String... props) throws IOException;
+    }
+
+    static PluginDescriptor mockInternalDescriptor(String... additionalProps) throws IOException {
+        return mockDescriptor(INTERNAL_DESCRIPTOR_TEMPLATE, PluginTestUtil::writePluginProperties, additionalProps);
+    }
+
+    static PluginDescriptor mockStableDescriptor(String... additionalProps) throws IOException {
+        return mockDescriptor(STABLE_DESCRIPTOR_TEMPLATE, PluginTestUtil::writeStablePluginProperties, additionalProps);
+    }
+
+    static PluginDescriptor mockDescriptor(Map<String, String> template, PropertiesWriter writer, String... addProps) throws IOException {
+        assert addProps.length % 2 == 0;
+        Map<String, String> propsMap = new HashMap<>(template);
+        for (int i = 0; i < addProps.length; i += 2) {
+            propsMap.put(addProps[i], addProps[i + 1]);
         }
         String[] props = new String[propsMap.size() * 2];
         int i = 0;
@@ -64,93 +96,130 @@ public class PluginDescriptorTests extends ESTestCase {
         }
 
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(pluginDir, props);
+        writer.write(pluginDir, props);
         return PluginDescriptor.readFromProperties(pluginDir);
     }
 
-    public void testReadFromProperties() throws Exception {
-        PluginDescriptor info = mockDescriptor();
+    void assertBothDescriptors(Consumer<DescriptorWriter> assertions) {
+        assertions.accept(PluginDescriptorTests::mockInternalDescriptor);
+        assertions.accept(PluginDescriptorTests::mockStableDescriptor);
+    }
+
+    public void testReadInternalDescriptor() throws Exception {
+        PluginDescriptor info = mockInternalDescriptor();
         assertEquals("my_plugin", info.getName());
         assertEquals("fake desc", info.getDescription());
         assertEquals("1.0", info.getVersion());
         assertEquals("FakePlugin", info.getClassname());
         assertEquals("org.mymodule", info.getModuleName().orElseThrow());
+        assertThat(info.isModular(), is(true));
         assertThat(info.getExtendedPlugins(), empty());
     }
 
-    public void testReadFromPropertiesNameMissing() throws Exception {
-        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("name", null));
-        assertThat(e.getMessage(), containsString("property [name] is missing in"));
+    public void testReadStableDescriptor() throws Exception {
+        PluginDescriptor info = mockStableDescriptor();
+        assertEquals("my_plugin", info.getName());
+        assertEquals("fake desc", info.getDescription());
+        assertEquals("1.0", info.getVersion());
+        assertThat(info.isModular(), is(true));
+    }
 
-        e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("name", ""));
-        assertThat(e.getMessage(), containsString("property [name] is missing in"));
+    public void testReadFromPropertiesNameMissing() throws Exception {
+        assertBothDescriptors(writer -> {
+            var e = expectThrows(IllegalArgumentException.class, () -> writer.write("name", null));
+            assertThat(e.getMessage(), containsString("property [name] is missing"));
+
+            e = expectThrows(IllegalArgumentException.class, () -> writer.write("name", ""));
+            assertThat(e.getMessage(), containsString("property [name] is missing"));
+        });
     }
 
     public void testReadFromPropertiesDescriptionMissing() throws Exception {
-        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("description", null));
-        assertThat(e.getMessage(), containsString("[description] is missing"));
+        assertBothDescriptors(writer -> {
+            var e = expectThrows(IllegalArgumentException.class, () -> writer.write("description", null));
+            assertThat(e.getMessage(), containsString("[description] is missing"));
+        });
     }
 
     public void testReadFromPropertiesVersionMissing() throws Exception {
-        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("version", null));
-        assertThat(e.getMessage(), containsString("[version] is missing"));
+        assertBothDescriptors(writer -> {
+            var e = expectThrows(IllegalArgumentException.class, () -> writer.write("version", null));
+            assertThat(e.getMessage(), containsString("[version] is missing"));
+        });
     }
 
     public void testReadFromPropertiesElasticsearchVersionMissing() throws Exception {
-        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("elasticsearch.version", null));
-        assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));
+        assertBothDescriptors(writer -> {
+            var e = expectThrows(IllegalArgumentException.class, () -> writer.write("elasticsearch.version", null));
+            assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));
+        });
     }
 
     public void testReadFromPropertiesElasticsearchVersionEmpty() throws Exception {
-        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("elasticsearch.version", " "));
-        assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));
+        assertBothDescriptors(writer -> {
+            var e = expectThrows(IllegalArgumentException.class, () -> writer.write("elasticsearch.version", " "));
+            assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));
+        });
     }
 
     public void testReadFromPropertiesJavaVersionMissing() throws Exception {
-        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("java.version", null));
-        assertThat(e.getMessage(), containsString("[java.version] is missing"));
+        assertBothDescriptors(writer -> {
+            var e = expectThrows(IllegalArgumentException.class, () -> writer.write("java.version", null));
+            assertThat(e.getMessage(), containsString("[java.version] is missing"));
+        });
     }
 
     public void testReadFromPropertiesBadJavaVersionFormat() throws Exception {
-        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("java.version", "1.7.0_80"));
-        assertThat(e.getMessage(), equalTo("Invalid version string: '1.7.0_80'"));
+        assertBothDescriptors(writer -> {
+            var e = expectThrows(IllegalArgumentException.class, () -> writer.write("java.version", "1.7.0_80"));
+            assertThat(e.getMessage(), equalTo("Invalid version string: '1.7.0_80'"));
+        });
     }
 
     public void testReadFromPropertiesBogusElasticsearchVersion() throws Exception {
-        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("elasticsearch.version", "bogus"));
-        assertThat(e.getMessage(), containsString("version needs to contain major, minor, and revision"));
+        assertBothDescriptors(writer -> {
+            var e = expectThrows(IllegalArgumentException.class, () -> writer.write("elasticsearch.version", "bogus"));
+            assertThat(e.getMessage(), containsString("version needs to contain major, minor, and revision"));
+        });
     }
 
     public void testReadFromPropertiesJvmMissingClassname() throws Exception {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("classname", null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mockInternalDescriptor("classname", null));
         assertThat(e.getMessage(), containsString("property [classname] is missing"));
     }
 
     public void testReadFromPropertiesModulenameFallback() throws Exception {
-        PluginDescriptor info = mockDescriptor("modulename", null);
+        PluginDescriptor info = mockInternalDescriptor("modulename", null);
         assertThat(info.getModuleName().isPresent(), is(false));
+        assertThat(info.isModular(), is(false));
         assertThat(info.getExtendedPlugins(), empty());
     }
 
     public void testReadFromPropertiesModulenameEmpty() throws Exception {
-        PluginDescriptor info = mockDescriptor("modulename", " ");
+        PluginDescriptor info = mockInternalDescriptor("modulename", " ");
         assertThat(info.getModuleName().isPresent(), is(false));
+        assertThat(info.isModular(), is(false));
         assertThat(info.getExtendedPlugins(), empty());
     }
 
     public void testExtendedPluginsSingleExtension() throws Exception {
-        PluginDescriptor info = mockDescriptor("extended.plugins", "foo");
+        PluginDescriptor info = mockInternalDescriptor("extended.plugins", "foo");
         assertThat(info.getExtendedPlugins(), contains("foo"));
     }
 
     public void testExtendedPluginsMultipleExtensions() throws Exception {
-        PluginDescriptor info = mockDescriptor("extended.plugins", "foo,bar,baz");
+        PluginDescriptor info = mockInternalDescriptor("extended.plugins", "foo,bar,baz");
         assertThat(info.getExtendedPlugins(), contains("foo", "bar", "baz"));
     }
 
     public void testExtendedPluginsEmpty() throws Exception {
-        PluginDescriptor info = mockDescriptor("extended.plugins", "");
+        PluginDescriptor info = mockInternalDescriptor("extended.plugins", "");
         assertThat(info.getExtendedPlugins(), empty());
+    }
+
+    public void testIsModular() throws Exception {
+        PluginDescriptor info = mockStableDescriptor("modular", "false");
+        assertThat(info.isModular(), is(false));
     }
 
     public void testSerialize() throws Exception {
@@ -163,6 +232,8 @@ public class PluginDescriptorTests extends ESTestCase {
             "dummyclass",
             null,
             Collections.singletonList("foo"),
+            randomBoolean(),
+            randomBoolean(),
             randomBoolean(),
             randomBoolean()
         );
@@ -185,6 +256,8 @@ public class PluginDescriptorTests extends ESTestCase {
             "some.module",
             Collections.singletonList("foo"),
             randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
         BytesStreamOutput output = new BytesStreamOutput();
@@ -206,6 +279,8 @@ public class PluginDescriptorTests extends ESTestCase {
             null,
             List.of(),
             randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
     }
@@ -225,8 +300,10 @@ public class PluginDescriptorTests extends ESTestCase {
     }
 
     public void testUnknownProperties() throws Exception {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("extra", "property"));
-        assertThat(e.getMessage(), containsString("Unknown properties for plugin [my_plugin] in plugin descriptor"));
+        assertBothDescriptors(writer -> {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> writer.write("extra", "property"));
+            assertThat(e.getMessage(), containsString("Unknown properties for plugin [my_plugin] in plugin descriptor"));
+        });
     }
 
     /**
@@ -244,6 +321,8 @@ public class PluginDescriptorTests extends ESTestCase {
             null,
             Collections.singletonList("foo"),
             randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
         // everything but name is different from descriptor1
@@ -259,7 +338,9 @@ public class PluginDescriptorTests extends ESTestCase {
                 randomValueOtherThanMany(v -> descriptor1.getExtendedPlugins().contains(v), () -> randomAlphaOfLengthBetween(4, 12))
             ),
             descriptor1.hasNativeController() == false,
-            descriptor1.isLicensed() == false
+            descriptor1.isLicensed() == false,
+            descriptor1.isModular() == false,
+            descriptor1.isStable() == false
         );
         // only name is different from descriptor1
         PluginDescriptor descriptor3 = new PluginDescriptor(
@@ -272,7 +353,9 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.getModuleName().orElse(null),
             descriptor1.getExtendedPlugins(),
             descriptor1.hasNativeController(),
-            descriptor1.isLicensed()
+            descriptor1.isLicensed(),
+            descriptor1.isModular(),
+            descriptor1.isStable()
         );
 
         assertThat(descriptor1, equalTo(descriptor2));

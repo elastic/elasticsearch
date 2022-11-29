@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -185,7 +184,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
     private static List<SearchShard> createRandomIndices(Client client) {
         int numIndices = randomIntBetween(3, 20);
         for (int i = 0; i < numIndices; i++) {
-            String indexName = String.format(Locale.ROOT, "index-%03d", i);
+            String indexName = formatted("index-%03d", i);
             assertAcked(client.admin().indices().prepareCreate(indexName).get());
             client.prepareIndex(indexName).setSource("number", i, "foo", "bar").get();
         }

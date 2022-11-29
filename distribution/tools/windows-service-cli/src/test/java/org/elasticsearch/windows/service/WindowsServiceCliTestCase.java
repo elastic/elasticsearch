@@ -8,6 +8,8 @@
 
 package org.elasticsearch.windows.service;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cli.CommandTestCase;
 import org.junit.Before;
 
@@ -46,6 +48,15 @@ public abstract class WindowsServiceCliTestCase extends CommandTestCase {
     Path mgrExe;
     int mockProcessExit = 0;
     ProcessValidator mockProcessValidator = null;
+
+    @ParametersFactory
+    public static Iterable<Object[]> spaceInPathProvider() {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
+
+    protected WindowsServiceCliTestCase(boolean spaceInPath) {
+        super(spaceInPath);
+    }
 
     interface ProcessValidator {
         void validate(Map<String, String> env, ProcrunCall procrunCall);
@@ -106,16 +117,22 @@ public abstract class WindowsServiceCliTestCase extends CommandTestCase {
     private static final Pattern commandPattern = Pattern.compile("//([A-Z]{2})/([\\w-]+)");
 
     private static ProcrunCall parseProcrunCall(String unparsedArgs) {
+        // command/exe is quoted
+        assert unparsedArgs.charAt(0) == '"';
+        int idx = unparsedArgs.indexOf('"', 1);
+        String exe = unparsedArgs.substring(0, idx + 1);
+        // Strip the leading command/exe from the args
+        unparsedArgs = unparsedArgs.substring(idx + 1).stripLeading();
+
         String[] splitArgs = unparsedArgs.split(" ");
-        assertThat(unparsedArgs, splitArgs.length, greaterThanOrEqualTo(2));
+        assertThat(unparsedArgs, splitArgs.length, greaterThanOrEqualTo(1));
         Map<String, List<String>> args = new HashMap<>();
-        String exe = splitArgs[0];
-        Matcher commandMatcher = commandPattern.matcher(splitArgs[1]);
-        assertThat(splitArgs[1], commandMatcher.matches(), is(true));
+        Matcher commandMatcher = commandPattern.matcher(splitArgs[0]);
+        assertThat(splitArgs[0], commandMatcher.matches(), is(true));
         String command = commandMatcher.group(1);
         String serviceId = commandMatcher.group(2);
 
-        int i = 2;
+        int i = 1;
         while (i < splitArgs.length) {
             String arg = splitArgs[i];
             assertThat("procrun args begin with -- or ++", arg, anyOf(startsWith("--"), startsWith("++")));
@@ -165,8 +182,12 @@ public abstract class WindowsServiceCliTestCase extends CommandTestCase {
 
     protected abstract String getDefaultFailureMessage();
 
+    static String quote(String s) {
+        return '"' + s + '"';
+    }
+
     protected String getExe() {
-        return serviceExe.toString();
+        return quote(serviceExe.toString());
     }
 
     protected boolean includeLogsArgs() {

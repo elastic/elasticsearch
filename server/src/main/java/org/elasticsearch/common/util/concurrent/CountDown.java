@@ -35,16 +35,10 @@ public final class CountDown {
      */
     public boolean countDown() {
         assert originalCount > 0;
-        for (;;) {
-            final int current = countDown.get();
+        return countDown.getAndUpdate(current -> {
             assert current >= 0;
-            if (current == 0) {
-                return false;
-            }
-            if (countDown.compareAndSet(current, current - 1)) {
-                return current == 1;
-            }
-        }
+            return current == 0 ? 0 : current - 1;
+        }) == 1;
     }
 
     /**

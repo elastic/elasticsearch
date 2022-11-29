@@ -19,10 +19,10 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -30,7 +30,6 @@ import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Mapper that is used to map existing fields in legacy indices (older than N-1) that
@@ -254,7 +253,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException(fail("aggregation or sorts"));
         }
 

@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests;
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<SnapshotLifecyclePolicy> {
+public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTestCase<SnapshotLifecyclePolicy> {
 
     private String id;
 

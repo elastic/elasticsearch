@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -460,16 +461,17 @@ public class BulkRequestTests extends ESTestCase {
         );
     }
 
-    public void testUnsupportedAction() throws Exception {
-        String bulkAction = """
+    public void testUnsupportedAction() {
+        final var bulkRequest = new BulkRequest();
+        final var requestBytes = """
             { "get":{"_index":"test","_id":"1"} }
-            """;
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-
-        assertWarnings(
-            "Unsupported action: [get]. Supported values are [create], [delete], [index], and [update]. "
-                + "Unsupported actions are currently accepted but will be rejected in a future version."
+            """.getBytes(StandardCharsets.UTF_8);
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> bulkRequest.add(requestBytes, 0, requestBytes.length, null, XContentType.JSON)
+            ).getMessage(),
+            allOf(containsString("Malformed action/metadata line [1]"), containsString("found [get"))
         );
     }
 }

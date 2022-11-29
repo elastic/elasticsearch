@@ -19,10 +19,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -141,8 +143,10 @@ public final class DocumentParser {
         }
         SearchLookup searchLookup = new SearchLookup(
             context.mappingLookup().indexTimeLookup()::get,
-            (ft, lookup) -> ft.fielddataBuilder(context.indexSettings().getIndex().getName(), lookup)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+            (ft, lookup, fto) -> ft.fielddataBuilder(
+                new FieldDataContext(context.indexSettings().getIndex().getName(), lookup, context.mappingLookup()::sourcePaths, fto)
+            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            new SourceLookup.ReaderSourceProvider()
         );
         // field scripts can be called both by the loop at the end of this method and via
         // the document reader, so to ensure that we don't run them multiple times we
@@ -240,7 +244,7 @@ public final class DocumentParser {
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
-        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.ROOT);
+        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic()));
         root.fixRedundantIncludes();
         return context.mappingLookup().getMapping().mappingUpdate(root);
     }
@@ -306,6 +310,9 @@ public final class DocumentParser {
             switch (token) {
                 case FIELD_NAME:
                     currentFieldName = parser.currentName();
+                    if (currentFieldName.isEmpty()) {
+                        throw new IllegalArgumentException("Field name cannot be an empty string");
+                    }
                     if (currentFieldName.isBlank()) {
                         throwFieldNameBlank(context, currentFieldName);
                     }

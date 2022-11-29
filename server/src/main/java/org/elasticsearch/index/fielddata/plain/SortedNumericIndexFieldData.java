@@ -13,7 +13,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -30,8 +29,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -43,17 +40,28 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final NumericType numericType;
+        private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
         public Builder(String name, NumericType numericType, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
+            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory);
+        }
+
+        public Builder(
+            String name,
+            NumericType numericType,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ) {
             this.name = name;
             this.numericType = numericType;
+            this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedNumericIndexFieldData(name, numericType, toScriptFieldFactory);
+            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory);
         }
     }
 
@@ -65,12 +73,13 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     public SortedNumericIndexFieldData(
         String fieldName,
         NumericType numericType,
+        ValuesSourceType valuesSourceType,
         ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
     ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint() == false;
-        this.valuesSourceType = numericType.getValuesSourceType();
+        this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
@@ -231,11 +240,6 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
         }
 
         @Override

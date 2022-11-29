@@ -1,6 +1,0 @@
-pr: 88221
-summary: Propagate alias filters to significance aggs filters
-area: Aggregations
-type: bug
-issues:
- - 81585

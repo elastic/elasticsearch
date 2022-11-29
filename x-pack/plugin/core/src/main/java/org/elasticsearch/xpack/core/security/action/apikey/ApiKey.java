@@ -13,15 +13,20 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -39,6 +44,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
     private final String username;
     private final String realm;
     private final Map<String, Object> metadata;
+    @Nullable
+    private final List<RoleDescriptor> roleDescriptors;
+    @Nullable
+    private final RoleDescriptorsIntersection limitedBy;
 
     public ApiKey(
         String name,
@@ -48,7 +57,35 @@ public final class ApiKey implements ToXContentObject, Writeable {
         boolean invalidated,
         String username,
         String realm,
-        @Nullable Map<String, Object> metadata
+        @Nullable Map<String, Object> metadata,
+        @Nullable List<RoleDescriptor> roleDescriptors,
+        @Nullable List<RoleDescriptor> limitedByRoleDescriptors
+    ) {
+        this(
+            name,
+            id,
+            creation,
+            expiration,
+            invalidated,
+            username,
+            realm,
+            metadata,
+            roleDescriptors,
+            limitedByRoleDescriptors == null ? null : new RoleDescriptorsIntersection(List.of(Set.copyOf(limitedByRoleDescriptors)))
+        );
+    }
+
+    private ApiKey(
+        String name,
+        String id,
+        Instant creation,
+        Instant expiration,
+        boolean invalidated,
+        String username,
+        String realm,
+        @Nullable Map<String, Object> metadata,
+        @Nullable List<RoleDescriptor> roleDescriptors,
+        @Nullable RoleDescriptorsIntersection limitedBy
     ) {
         this.name = name;
         this.id = id;
@@ -61,6 +98,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.username = username;
         this.realm = realm;
         this.metadata = metadata == null ? Map.of() : metadata;
+        this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
+        // This assertion will need to be changed (or removed) when derived keys are properly supported
+        assert limitedBy == null || limitedBy.roleDescriptorsList().size() == 1 : "can only have one set of limited-by role descriptors";
+        this.limitedBy = limitedBy;
     }
 
     public ApiKey(StreamInput in) throws IOException {
@@ -79,6 +120,14 @@ public final class ApiKey implements ToXContentObject, Writeable {
             this.metadata = in.readMap();
         } else {
             this.metadata = Map.of();
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            final List<RoleDescriptor> roleDescriptors = in.readOptionalList(RoleDescriptor::new);
+            this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
+            this.limitedBy = in.readOptionalWriteable(RoleDescriptorsIntersection::new);
+        } else {
+            this.roleDescriptors = null;
+            this.limitedBy = null;
         }
     }
 
@@ -114,6 +163,14 @@ public final class ApiKey implements ToXContentObject, Writeable {
         return metadata;
     }
 
+    public List<RoleDescriptor> getRoleDescriptors() {
+        return roleDescriptors;
+    }
+
+    public RoleDescriptorsIntersection getLimitedBy() {
+        return limitedBy;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -130,6 +187,16 @@ public final class ApiKey implements ToXContentObject, Writeable {
             .field("username", username)
             .field("realm", realm)
             .field("metadata", (metadata == null ? Map.of() : metadata));
+        if (roleDescriptors != null) {
+            builder.startObject("role_descriptors");
+            for (var roleDescriptor : roleDescriptors) {
+                builder.field(roleDescriptor.getName(), roleDescriptor);
+            }
+            builder.endObject();
+        }
+        if (limitedBy != null) {
+            builder.field("limited_by", limitedBy);
+        }
         return builder;
     }
 
@@ -149,11 +216,15 @@ public final class ApiKey implements ToXContentObject, Writeable {
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeGenericMap(metadata);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            out.writeOptionalCollection(roleDescriptors);
+            out.writeOptionalWriteable(limitedBy);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata);
+        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata, roleDescriptors, limitedBy);
     }
 
     @Override
@@ -175,7 +246,9 @@ public final class ApiKey implements ToXContentObject, Writeable {
             && Objects.equals(invalidated, other.invalidated)
             && Objects.equals(username, other.username)
             && Objects.equals(realm, other.realm)
-            && Objects.equals(metadata, other.metadata);
+            && Objects.equals(metadata, other.metadata)
+            && Objects.equals(roleDescriptors, other.roleDescriptors)
+            && Objects.equals(limitedBy, other.limitedBy);
     }
 
     @SuppressWarnings("unchecked")
@@ -188,7 +261,9 @@ public final class ApiKey implements ToXContentObject, Writeable {
             (Boolean) args[4],
             (String) args[5],
             (String) args[6],
-            (args[7] == null) ? null : (Map<String, Object>) args[7]
+            (args[7] == null) ? null : (Map<String, Object>) args[7],
+            (List<RoleDescriptor>) args[8],
+            (RoleDescriptorsIntersection) args[9]
         );
     });
     static {
@@ -200,6 +275,16 @@ public final class ApiKey implements ToXContentObject, Writeable {
         PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareString(constructorArg(), new ParseField("realm"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
+            p.nextToken();
+            return RoleDescriptor.parse(n, p, false);
+        }, new ParseField("role_descriptors"));
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> RoleDescriptorsIntersection.fromXContent(p),
+            new ParseField("limited_by"),
+            ObjectParser.ValueType.OBJECT_ARRAY
+        );
     }
 
     public static ApiKey fromXContent(XContentParser parser) throws IOException {
@@ -224,6 +309,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
             + realm
             + ", metadata="
             + metadata
+            + ", role_descriptors="
+            + roleDescriptors
+            + ", limited_by="
+            + limitedBy
             + "]";
     }
 

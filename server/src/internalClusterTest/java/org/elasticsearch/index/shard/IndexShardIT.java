@@ -624,7 +624,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         recoverFromStore(newShard);
-        IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
+        IndexShardTestCase.updateRoutingEntry(
+            newShard,
+            newShard.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+        );
         return newShard;
     }
 
@@ -656,7 +659,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             () -> {},
             RetentionLeaseSyncer.EMPTY,
             cbs,
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER
+            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+            System::nanoTime
         );
     }
 

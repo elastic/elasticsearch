@@ -82,6 +82,10 @@ public class ClusterService extends AbstractLifecycleComponent {
         this.clusterApplierService = clusterApplierService;
     }
 
+    public ThreadPool threadPool() {
+        return clusterApplierService.threadPool();
+    }
+
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
         clusterApplierService.setNodeConnectionsService(nodeConnectionsService);
     }

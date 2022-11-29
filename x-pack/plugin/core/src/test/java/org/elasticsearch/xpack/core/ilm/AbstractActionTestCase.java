@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 
-public abstract class AbstractActionTestCase<T extends LifecycleAction> extends AbstractSerializingTestCase<T> {
+public abstract class AbstractActionTestCase<T extends LifecycleAction> extends AbstractXContentSerializingTestCase<T> {
 
     public abstract void testToSteps();
 

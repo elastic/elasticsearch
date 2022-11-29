@@ -10,6 +10,7 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.reservedstate.NonStateTransformResult;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 
@@ -48,10 +50,12 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     private final Collection<String> orderedHandlers;
     private final Consumer<ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
+    private final Collection<NonStateTransformResult> nonStateTransformResults;
 
     public ReservedStateUpdateTask(
         String namespace,
         ReservedStateChunk stateChunk,
+        Collection<NonStateTransformResult> nonStateTransformResults,
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
         Consumer<ErrorState> errorReporter,
@@ -59,6 +63,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     ) {
         this.namespace = namespace;
         this.stateChunk = stateChunk;
+        this.nonStateTransformResults = nonStateTransformResults;
         this.handlers = handlers;
         this.orderedHandlers = orderedHandlers;
         this.errorReporter = errorReporter;
@@ -79,10 +84,15 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         Map<String, Object> reservedState = stateChunk.state();
         ReservedStateVersion reservedStateVersion = stateChunk.metadata();
 
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
+            return currentState;
+        }
+
         var reservedMetadataBuilder = new ReservedStateMetadata.Builder(namespace).version(reservedStateVersion.version());
         List<String> errors = new ArrayList<>();
 
         ClusterState state = currentState;
+        // Transform the cluster state first
         for (var handlerName : orderedHandlers) {
             ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
             try {
@@ -95,33 +105,15 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             }
         }
 
-        if (errors.isEmpty() == false) {
-            // Check if we had previous error metadata with version information, don't spam with cluster state updates, if the
-            // version hasn't been updated.
-            logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
-            if (existingMetadata != null
-                && existingMetadata.errorMetadata() != null
-                && existingMetadata.errorMetadata().version() >= reservedStateVersion.version()) {
+        checkAndThrowOnError(errors, reservedStateVersion);
 
-                logger.info(
-                    () -> format(
-                        "Not updating error state because version [%s] is less or equal to the last state error version [%s]",
-                        reservedStateVersion.version(),
-                        existingMetadata.errorMetadata().version()
-                    )
-                );
-
-                return currentState;
-            }
-
-            errorReporter.accept(
-                new ErrorState(namespace, reservedStateVersion.version(), errors, ReservedStateErrorMetadata.ErrorKind.VALIDATION)
-            );
-
-            throw new IllegalStateException("Error processing state change request for " + namespace);
+        // Once we have set all of the handler state from the cluster state update tasks, we add the reserved keys
+        // from the non cluster state transforms.
+        for (var transform : nonStateTransformResults) {
+            reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(transform.handlerName(), transform.updatedKeys()));
         }
 
-        // remove the last error if we had previously encountered any
+        // Remove the last error if we had previously encountered any in prior processing of reserved state
         reservedMetadataBuilder.errorMetadata(null);
 
         ClusterState.Builder stateBuilder = new ClusterState.Builder(state);
@@ -130,11 +122,79 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return stateBuilder.metadata(metadataBuilder).build();
     }
 
-    private Set<String> keysForHandler(ReservedStateMetadata reservedStateMetadata, String handlerName) {
+    private void checkAndThrowOnError(List<String> errors, ReservedStateVersion reservedStateVersion) {
+        // Any errors should be discovered through validation performed in the transform calls
+        if (errors.isEmpty() == false) {
+            logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
+
+            var errorState = new ErrorState(
+                namespace,
+                reservedStateVersion.version(),
+                errors,
+                ReservedStateErrorMetadata.ErrorKind.VALIDATION
+            );
+
+            /*
+             * It doesn't matter this reporter needs to re-access the base state,
+             * any updates set by this task will just be discarded when the below exception is thrown,
+             * and we just need to set the error state once
+             */
+            errorReporter.accept(errorState);
+
+            throw new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState);
+        }
+    }
+
+    static Set<String> keysForHandler(ReservedStateMetadata reservedStateMetadata, String handlerName) {
         if (reservedStateMetadata == null || reservedStateMetadata.handlers().get(handlerName) == null) {
             return Collections.emptySet();
         }
 
         return reservedStateMetadata.handlers().get(handlerName).keys();
+    }
+
+    static boolean checkMetadataVersion(
+        String namespace,
+        ReservedStateMetadata existingMetadata,
+        ReservedStateVersion reservedStateVersion
+    ) {
+        if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
+            logger.warn(
+                () -> format(
+                    "Reserved cluster state version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
+                    reservedStateVersion.minCompatibleVersion(),
+                    namespace
+                )
+            );
+            return false;
+        }
+
+        // Version 0 is special, snapshot restores will reset to 0.
+        if (reservedStateVersion.version() <= 0L) {
+            logger.warn(
+                () -> format(
+                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal to 0",
+                    namespace,
+                    reservedStateVersion.version(),
+                    existingMetadata.version()
+                )
+            );
+            return false;
+        }
+
+        if (existingMetadata != null && existingMetadata.version() >= reservedStateVersion.version()) {
+            logger.warn(
+                () -> format(
+                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal"
+                        + " to the current metadata version [%s]",
+                    namespace,
+                    reservedStateVersion.version(),
+                    existingMetadata.version()
+                )
+            );
+            return false;
+        }
+
+        return true;
     }
 }

@@ -36,6 +36,8 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -161,7 +163,7 @@ public final class MockTransportService extends TransportService {
                 version
             ),
             clusterSettings,
-            createTaskManager(settings, threadPool, taskHeaders)
+            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP)
         );
     }
 
@@ -192,7 +194,7 @@ public final class MockTransportService extends TransportService {
                 settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID())
             ),
             clusterSettings,
-            createTaskManager(settings, threadPool, Set.of())
+            createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP)
         );
     }
 
@@ -219,7 +221,7 @@ public final class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            createTaskManager(settings, threadPool, taskHeaders)
+            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP)
         );
     }
 
@@ -238,7 +240,7 @@ public final class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            createTaskManager(settings, threadPool, Set.of())
+            createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP)
         );
     }
 
@@ -259,7 +261,8 @@ public final class MockTransportService extends TransportService {
             localNodeFactory,
             clusterSettings,
             new StubbableConnectionManager(new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())),
-            taskManager
+            taskManager,
+            Tracer.NOOP
         );
         this.original = transport.getDelegate();
     }
@@ -272,11 +275,11 @@ public final class MockTransportService extends TransportService {
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
     }
 
-    private static TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+    private static TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
             return new MockTaskManager(settings, threadPool, taskHeaders);
         } else {
-            return new TaskManager(settings, threadPool, taskHeaders);
+            return new TaskManager(settings, threadPool, taskHeaders, tracer);
         }
     }
 
@@ -500,10 +503,21 @@ public final class MockTransportService extends TransportService {
                 }
 
                 // poor mans request cloning...
-                RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
-                final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
+                final TransportRequest clonedRequest;
+                if (request instanceof BytesTransportRequest) {
+                    // Some request handlers read back a BytesTransportRequest
+                    // into a different class that cannot be re-serialized (i.e. JOIN_VALIDATE_ACTION_NAME),
+                    // in those cases we just copy the raw bytes back to a BytesTransportRequest.
+                    // This is only needed for the BwC for JOIN_VALIDATE_ACTION_NAME and can be removed in the next major
+                    assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
+                    clonedRequest = new BytesTransportRequest(bStream.bytes().streamInput());
+                } else {
+                    RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
+                    clonedRequest = reg.newRequest(bStream.bytes().streamInput());
+                }
+                assert clonedRequest.getClass().equals(request.getClass()) : clonedRequest + " vs " + request;
 
                 final RunOnce runnable = new RunOnce(new AbstractRunnable() {
                     @Override

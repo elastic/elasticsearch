@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,12 +66,15 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ActionClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -96,6 +101,8 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -437,6 +444,32 @@ public class CompositeRolesStoreTests extends ESTestCase {
         tryFailOnNonSuperuserRole(compositeRolesStore, throwableWithMessage(containsString("No privileges for you!")));
     }
 
+    public void testErrorForInvalidIndexNameRegex() {
+        final RoleDescriptor roleDescriptor = new RoleDescriptor(
+            "_mock_role",
+            null,
+            new IndicesPrivileges[] {
+                // invalid regex missing closing bracket
+                IndicesPrivileges.builder().indices("/~(([.]|ilm-history-).*/").privileges("read").build() },
+            null
+        );
+
+        final Consumer<ActionListener<RoleRetrievalResult>> rolesHandler = callback -> callback.onResponse(
+            RoleRetrievalResult.success(Set.of(roleDescriptor))
+        );
+        final Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler = callback -> callback.onResponse(
+            List.of()
+        );
+        final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
+
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        getRoleForRoleNames(compositeRolesStore, Set.of("_mock_role"), future);
+
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("The set of patterns [/~(([.]|ilm-history-).*/] is invalid"));
+        assertThat(e.getCause().getClass(), is(IllegalArgumentException.class));
+    }
+
     private CompositeRolesStore setupRolesStore(
         Consumer<ActionListener<RoleRetrievalResult>> rolesHandler,
         Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler
@@ -487,6 +520,19 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final Role role = future.actionGet();
         assertThat(role.names(), arrayContaining("superuser"));
         assertThat(role.application().getApplicationNames(), containsInAnyOrder("*"));
+        assertThat(
+            role.application()
+                .grants(
+                    ApplicationPrivilegeTests.createPrivilege(
+                        randomAlphaOfLengthBetween(2, 10),
+                        randomAlphaOfLengthBetween(2, 10),
+                        randomAlphaOfLengthBetween(2, 10)
+                    ),
+                    "*"
+                ),
+            is(true)
+        );
+
         assertThat(role.cluster().privileges(), containsInAnyOrder(ClusterPrivilegeResolver.ALL));
         assertThat(role.indices().check(SearchAction.NAME), Matchers.is(true));
         assertThat(role.indices().check(IndexAction.NAME), Matchers.is(true));
@@ -906,7 +952,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new ConfigurableClusterPrivilege[] { ccp1 },
             new String[] { "app-user-1" },
             null,
-            null
+            null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*", "remote").indices("abc-*", "xyz-*").privileges("read").build(),
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-1-*").privileges("read").build(), }
         );
 
         ConfigurableClusterPrivilege ccp2 = new MockConfigurableClusterPrivilege() {
@@ -930,7 +979,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new ConfigurableClusterPrivilege[] { ccp2 },
             new String[] { "app-user-2" },
             null,
-            null
+            null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("remote-idx-2-*").privileges("read").build(),
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-3-*").privileges("read").build() }
         );
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -983,6 +1035,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("abc")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("xyz")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("remote-idx-1-1")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("remote-idx-2-1")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("remote-idx-3-1")), equalTo(false));
 
         final Predicate<IndexAbstraction> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
         assertThat(allowedWrite.test(mockIndexAbstraction("abc-123")), equalTo(true));
@@ -994,10 +1049,278 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedWrite.test(mockIndexAbstraction("xyz")), equalTo(false));
         assertThat(allowedWrite.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
 
-        role.application().grants(new ApplicationPrivilege("app1", "app1-read", "write"), "user/joe");
-        role.application().grants(new ApplicationPrivilege("app1", "app1-read", "read"), "settings/hostname");
-        role.application().grants(new ApplicationPrivilege("app2a", "app2a-all", "all"), "user/joe");
-        role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app1", "app1-read", "write"), "user/joe");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app1", "app1-read", "read"), "settings/hostname");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app2a", "app2a-all", "all"), "user/joe");
+        role.application().grants(ApplicationPrivilegeTests.createPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
+
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("remote-*", "remote"), Set.of("*"), Set.of("remote-*"));
+        assertHasIndexGroupsForClusters(
+            role.remoteIndices(),
+            Set.of("remote-*"),
+            indexGroup("remote-idx-1-*"),
+            indexGroup("remote-idx-3-*")
+        );
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("remote-*", "remote"), indexGroup("xyz-*", "abc-*"));
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("*"), indexGroup("remote-idx-2-*"));
+
+        final RemoteIndicesPermission forRemote = role.remoteIndices().forCluster("remote");
+        assertHasIndexGroupsForClusters(forRemote, Set.of("remote-*", "remote"), indexGroup("xyz-*", "abc-*"));
+        assertHasIndexGroupsForClusters(forRemote, Set.of("*"), indexGroup("remote-idx-2-*"));
+    }
+
+    public void testBuildRoleWithSingleRemoteIndicesDefinition() {
+        final String clusterAlias = randomFrom("remote-1", "*");
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder(clusterAlias).indices("index-1").privileges("read").build() }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias));
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias), indexGroup("index-1"));
+    }
+
+    public void testBuildRoleWithFlsAndDlsInRemoteIndicesDefinition() {
+        String clusterAlias = randomFrom("remote-1", "*");
+        Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder(clusterAlias)
+                        .indices("index-1")
+                        .privileges("read")
+                        .query("{\"match\":{\"field\":\"a\"}}")
+                        .grantedFields("field")
+                        .build() }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias));
+        assertHasIndexGroupsForClusters(
+            role.remoteIndices(),
+            Set.of(clusterAlias),
+            indexGroup(
+                IndexPrivilege.READ,
+                false,
+                "{\"match\":{\"field\":\"a\"}}",
+                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null),
+                "index-1"
+            )
+        );
+
+        role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder(clusterAlias)
+                        .indices("index-1")
+                        .privileges("read")
+                        .query("{\"match\":{\"field\":\"a\"}}")
+                        .grantedFields("field")
+                        .build() }
+            ),
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder(clusterAlias)
+                        .indices("index-1")
+                        .privileges("read")
+                        .query("{\"match\":{\"field\":\"b\"}}")
+                        .grantedFields("other")
+                        .build() }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias));
+        assertHasIndexGroupsForClusters(
+            role.remoteIndices(),
+            Set.of(clusterAlias),
+            indexGroup(
+                IndexPrivilege.READ,
+                false,
+                "{\"match\":{\"field\":\"a\"}}",
+                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null),
+                "index-1"
+            ),
+            indexGroup(
+                IndexPrivilege.READ,
+                false,
+                "{\"match\":{\"field\":\"b\"}}",
+                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "other" }, null),
+                "index-1"
+            )
+        );
+    }
+
+    public void testBuildRoleWithEmptyOrNoneRemoteIndices() {
+        Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("none").build() }
+            )
+        );
+        assertThat(role.remoteIndices().remoteIndicesGroups(), empty());
+
+        role = buildRole(roleDescriptorWithIndicesPrivileges("r1", new RoleDescriptor.RemoteIndicesPrivileges[] {}));
+        assertThat(role.remoteIndices().remoteIndicesGroups(), empty());
+    }
+
+    public void testBuildRoleWithSingleRemoteIndicesDefinitionWithAllowRestricted() {
+        final String clusterAlias = randomFrom("remote-1", "*");
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder(clusterAlias)
+                        .indices("index-1")
+                        .allowRestrictedIndices(true)
+                        .privileges("read")
+                        .build() }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias));
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of(clusterAlias), indexGroup(IndexPrivilege.READ, true, "index-1"));
+    }
+
+    public void testBuildRoleWithRemoteIndicesDoesNotMergeWhenNothingToMerge() {
+        Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("index-1").privileges("read").build(),
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build(), },
+                new IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder().indices("index-1").privileges("all").build() }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("remote-1"), Set.of("*"));
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("*"), indexGroup("index-1"));
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("remote-1"), indexGroup("index-1"));
+        final Predicate<IndexAbstraction> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
+        assertThat(allowedRead.test(mockIndexAbstraction("index-1")), equalTo(true));
+        assertThat(allowedRead.test(mockIndexAbstraction("foo")), equalTo(false));
+    }
+
+    public void testBuildRoleWithRemoteIndicesDoesNotCombineRemotesAndLocals() {
+        Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("index-1").privileges("read").build(),
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("index-1").privileges("read").build(), },
+                new IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("index-1").privileges("write").build(),
+                    RoleDescriptor.IndicesPrivileges.builder().indices("index-1").privileges("read").build(), }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("*"));
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("*"), indexGroup("index-1"));
+        final Predicate<IndexAbstraction> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
+        assertThat(allowedRead.test(mockIndexAbstraction("index-1")), equalTo(true));
+        final Predicate<IndexAbstraction> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
+        assertThat(allowedWrite.test(mockIndexAbstraction("index-1")), equalTo(true));
+    }
+
+    public void testBuildRoleWithRemoteIndicesDoesNotMergeRestrictedAndNonRestricted() {
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1")
+                        .indices("index-1")
+                        .privileges("read")
+                        .allowRestrictedIndices(false)
+                        .build() }
+            ),
+            roleDescriptorWithIndicesPrivileges(
+                "r2",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1")
+                        .indices("index-1")
+                        .privileges("read")
+                        .allowRestrictedIndices(true)
+                        .build() }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("remote-1"));
+        assertHasIndexGroupsForClusters(
+            role.remoteIndices(),
+            Set.of("remote-1"),
+            indexGroup(IndexPrivilege.READ, true, "index-1"),
+            indexGroup("index-1")
+        );
+    }
+
+    public void testBuildRoleWithMultipleRemoteMergedAcrossPrivilegesAndDescriptors() {
+        Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1", "index-2").privileges("read").build(),
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1", "remote-2")
+                        .indices("index-1", "index-2")
+                        .privileges("read")
+                        .build(), }
+            ),
+            roleDescriptorWithIndicesPrivileges(
+                "r2",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build() }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("remote-1"), Set.of("remote-1", "remote-2"));
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("remote-1"), indexGroup("index-1", "index-2"), indexGroup("index-1"));
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("remote-1", "remote-2"), indexGroup("index-1", "index-2"));
+
+        role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build(),
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build(),
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("*").privileges("read").build(), }
+            ),
+            roleDescriptorWithIndicesPrivileges(
+                "r2",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build(),
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("*").privileges("read").build(), }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("remote-1"), Set.of("*"));
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("remote-1"), indexGroup("index-1"));
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("*"), indexGroup("*"));
+
+        role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build(), }
+            ),
+            roleDescriptorWithIndicesPrivileges(
+                "r2",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("none").build(), }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("remote-1"));
+        assertHasIndexGroupsForClusters(role.remoteIndices(), Set.of("remote-1"), indexGroup("index-1"));
+
+        role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("none").build(),
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build(), }
+            )
+        );
+        assertHasRemoteGroupsForClusters(role.remoteIndices(), Set.of("remote-1"));
+        assertHasIndexGroupsForClusters(
+            role.remoteIndices(),
+            Set.of("remote-1"),
+            indexGroup(IndexPrivilege.get(Set.of("read")), false, "index-1"),
+            indexGroup(IndexPrivilege.get(Set.of("none")), false, "index-1")
+        );
     }
 
     public void testCustomRolesProviderFailures() throws Exception {
@@ -1604,7 +1927,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Collections.singletonList(new RoleDescriptor("key_role_" + randomAlphaOfLength(8), new String[] { "monitor" }, null, null)),
             version
         );
-        final String apiKeyId = (String) authentication.getMetadata().get(API_KEY_ID_KEY);
+        final String apiKeyId = (String) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ID_KEY);
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRole(authentication.getEffectiveSubject(), roleFuture);
@@ -1614,23 +1937,23 @@ public class CompositeRolesStoreTests extends ESTestCase {
         if (version == Version.CURRENT) {
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
-                (BytesReference) authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
+                (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.ASSIGNED
             );
             verify(apiKeyService).parseRoleDescriptorsBytes(
                 apiKeyId,
-                (BytesReference) authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                (BytesReference) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.LIMITED_BY
             );
         } else {
             verify(apiKeyService).parseRoleDescriptors(
                 apiKeyId,
-                (Map<String, Object>) authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
+                (Map<String, Object>) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.ASSIGNED
             );
             verify(apiKeyService).parseRoleDescriptors(
                 apiKeyId,
-                (Map<String, Object>) authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                (Map<String, Object>) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
                 RoleReference.ApiKeyRoleType.LIMITED_BY
             );
         }
@@ -2303,5 +2626,117 @@ public class CompositeRolesStoreTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private static <T> Set<T> isASet() {
         return isA(Set.class);
+    }
+
+    private RoleDescriptor roleDescriptorWithIndicesPrivileges(final String name, final RoleDescriptor.RemoteIndicesPrivileges[] rips) {
+        return roleDescriptorWithIndicesPrivileges(name, rips, null);
+    }
+
+    private RoleDescriptor roleDescriptorWithIndicesPrivileges(
+        final String name,
+        final RoleDescriptor.RemoteIndicesPrivileges[] rips,
+        final IndicesPrivileges[] ips
+    ) {
+        return new RoleDescriptor(name, null, ips, null, null, null, null, null, rips);
+    }
+
+    private Role buildRole(final RoleDescriptor... roleDescriptors) {
+        final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            Sets.newHashSet(roleDescriptors),
+            cache,
+            privilegeStore,
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            future
+        );
+        return future.actionGet();
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    private void assertHasRemoteGroupsForClusters(final RemoteIndicesPermission permission, final Set<String>... remoteClustersAliases) {
+        assertThat(
+            permission.remoteIndicesGroups().stream().map(RemoteIndicesPermission.RemoteIndicesGroup::remoteClusterAliases).toList(),
+            containsInAnyOrder(remoteClustersAliases)
+        );
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    private void assertHasIndexGroupsForClusters(
+        final RemoteIndicesPermission permission,
+        final Set<String> remoteClustersAliases,
+        final Matcher<IndicesPermission.Group>... matchers
+    ) {
+        assertThat(
+            permission.remoteIndicesGroups()
+                .stream()
+                .filter(it -> it.remoteClusterAliases().equals(remoteClustersAliases))
+                .findFirst()
+                .get()
+                .indicesPermissionGroups(),
+            containsInAnyOrder(matchers)
+        );
+    }
+
+    private static Matcher<IndicesPermission.Group> indexGroup(final String... indices) {
+        return indexGroup(IndexPrivilege.READ, false, indices);
+    }
+
+    private static Matcher<IndicesPermission.Group> indexGroup(
+        final IndexPrivilege privilege,
+        final boolean allowRestrictedIndices,
+        final String... indices
+    ) {
+        return indexGroup(
+            privilege,
+            allowRestrictedIndices,
+            null,
+            new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
+            indices
+        );
+    }
+
+    private static Matcher<IndicesPermission.Group> indexGroup(
+        final IndexPrivilege privilege,
+        final boolean allowRestrictedIndices,
+        @Nullable final String query,
+        final FieldPermissionsDefinition.FieldGrantExcludeGroup flsGroup,
+        final String... indices
+    ) {
+        return new BaseMatcher<>() {
+            @Override
+            public boolean matches(Object o) {
+                if (false == o instanceof IndicesPermission.Group) {
+                    return false;
+                }
+                final IndicesPermission.Group group = (IndicesPermission.Group) o;
+                return equalTo(query == null ? null : Set.of(new BytesArray(query))).matches(group.getQuery())
+                    && equalTo(privilege).matches(group.privilege())
+                    && equalTo(allowRestrictedIndices).matches(group.allowRestrictedIndices())
+                    && equalTo(new FieldPermissions(new FieldPermissionsDefinition(Set.of(flsGroup)))).matches(group.getFieldPermissions())
+                    && arrayContaining(indices).matches(group.indices());
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText(
+                    "IndicesPermission.Group with fields{"
+                        + "privilege="
+                        + privilege
+                        + ", allowRestrictedIndices="
+                        + allowRestrictedIndices
+                        + ", indices="
+                        + Strings.arrayToCommaDelimitedString(indices)
+                        + ", query="
+                        + query
+                        + ", fieldGrantExcludeGroup="
+                        + flsGroup
+                        + '}'
+                );
+            }
+        };
     }
 }

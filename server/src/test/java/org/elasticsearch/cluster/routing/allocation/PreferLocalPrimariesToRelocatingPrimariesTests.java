@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -66,7 +67,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
 
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         while (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).isEmpty() == false) {
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -109,7 +110,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node1", singletonMap("tag1", "value1"))))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         while (shardsWithState(clusterState.getRoutingNodes(), STARTED).size() < totalNumberOfShards) {
             int localInitializations = 0;

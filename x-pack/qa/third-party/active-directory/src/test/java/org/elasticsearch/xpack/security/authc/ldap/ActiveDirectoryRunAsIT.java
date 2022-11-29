@@ -64,10 +64,12 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
 
     public void testRunAs() throws Exception {
         String avenger = realmConfig.loginWithCommonName ? "Natasha Romanoff" : "blackwidow";
-        final AuthenticateRequest request = new AuthenticateRequest(avenger);
-        final ActionFuture<AuthenticateResponse> future = runAsClient(avenger).execute(AuthenticateAction.INSTANCE, request);
+        final ActionFuture<AuthenticateResponse> future = runAsClient(avenger).execute(
+            AuthenticateAction.INSTANCE,
+            AuthenticateRequest.INSTANCE
+        );
         final AuthenticateResponse response = future.get(30, TimeUnit.SECONDS);
-        assertThat(response.authentication().getUser().principal(), Matchers.equalTo(avenger));
+        assertThat(response.authentication().getEffectiveSubject().getUser().principal(), Matchers.equalTo(avenger));
     }
 
     protected Client runAsClient(String user) {

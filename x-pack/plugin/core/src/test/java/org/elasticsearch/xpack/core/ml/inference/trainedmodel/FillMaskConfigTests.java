@@ -22,6 +22,15 @@ public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskCon
         return true;
     }
 
+    public static FillMaskConfig mutateForVersion(FillMaskConfig instance, Version version) {
+        return new FillMaskConfig(
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getNumTopClasses(),
+            instance.getResultsField()
+        );
+    }
+
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> field.isEmpty() == false;
@@ -44,7 +53,7 @@ public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskCon
 
     @Override
     protected FillMaskConfig mutateInstanceForVersion(FillMaskConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static FillMaskConfig createRandom() {

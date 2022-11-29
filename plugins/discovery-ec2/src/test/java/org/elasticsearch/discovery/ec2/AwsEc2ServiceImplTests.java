@@ -20,12 +20,17 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AwsEc2ServiceImplTests extends ESTestCase {
+
+    // we need our own ES logger, rather than log4j logging
+    private static final Logger logger = LogManager.getLogger(AwsEc2ServiceImplTests.class);
 
     public void testAWSCredentialsWithSystemProviders() {
         final AWSCredentialsProvider credentialsProvider = AwsEc2ServiceImpl.buildCredentials(

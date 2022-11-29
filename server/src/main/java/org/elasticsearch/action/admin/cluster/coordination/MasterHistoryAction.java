@@ -34,7 +34,7 @@ import java.util.Objects;
 public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response> {
 
     public static final MasterHistoryAction INSTANCE = new MasterHistoryAction();
-    public static final String NAME = "cluster:internal/master_history/get";
+    public static final String NAME = "internal:cluster/master_history/get";
 
     private MasterHistoryAction() {
         super(NAME, MasterHistoryAction.Response::new);

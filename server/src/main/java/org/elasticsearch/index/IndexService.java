@@ -45,11 +45,13 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -205,7 +207,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
                     .buildIndexSort(
                         mapperService::fieldType,
-                        (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, indexFieldData.index().getName(), searchLookup)
+                        (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, FieldDataContext.noRuntimeFields("index sort"))
                     );
             } else {
                 this.indexSortSupplier = () -> null;
@@ -240,11 +242,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.readerWrapper = wrapperFactory.apply(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
-        // kick off async ops for the first shard in this index
-        this.refreshTask = new AsyncRefreshTask(this);
-        this.trimTranslogTask = new AsyncTrimTranslogTask(this);
-        this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
-        this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+            // kick off async ops for the first shard in this index
+            this.refreshTask = new AsyncRefreshTask(this);
+            this.trimTranslogTask = new AsyncTrimTranslogTask(this);
+            this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
+            this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        }
         updateFsyncTaskIfNecessary();
     }
 
@@ -293,6 +297,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             throw new ShardNotFoundException(new ShardId(index(), shardId));
         }
         return indexShard;
+    }
+
+    public NodeMappingStats getNodeMappingStats() {
+        if (mapperService == null) {
+            return null;
+        }
+        long totalCount = mapperService().mappingLookup().getTotalFieldsCount();
+        long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
+        NodeMappingStats indexNodeMappingStats = new NodeMappingStats(totalCount, totalEstimatedOverhead);
+        return indexNodeMappingStats;
     }
 
     public Set<Integer> shardIds() {
@@ -501,7 +515,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
                 circuitBreakerService,
-                snapshotCommitSupplier
+                snapshotCommitSupplier,
+                System::nanoTime
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

@@ -186,6 +186,8 @@ public class InternalEngine extends Engine {
     @Nullable
     private volatile String forceMergeUUID;
 
+    private final LongSupplier relativeTimeInNanosSupplier;
+
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
@@ -193,6 +195,7 @@ public class InternalEngine extends Engine {
     InternalEngine(EngineConfig engineConfig, int maxDocs, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
         this.maxDocs = maxDocs;
+        this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.mayHaveBeenIndexedBefore = engineConfig.buildMayHaveBeenIndexedBefore(this::assertPrimaryCanOptimizeAddDocument);
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
@@ -261,7 +264,10 @@ public class InternalEngine extends Engine {
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
             if (localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
                 try (Searcher searcher = acquireSearcher("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL)) {
-                    restoreVersionMapAndCheckpointTracker(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
+                    restoreVersionMapAndCheckpointTracker(
+                        Lucene.wrapAllDocsLive(searcher.getDirectoryReader()),
+                        engineConfig.getIndexSettings().getIndexVersionCreated()
+                    );
                 } catch (IOException e) {
                     throw new EngineCreationFailureException(
                         config().getShardId(),
@@ -989,7 +995,7 @@ public class InternalEngine extends Engine {
                     assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                     localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
                 }
-                indexResult.setTook(System.nanoTime() - index.startTime());
+                indexResult.setTook(relativeTimeInNanosSupplier.getAsLong() - index.startTime());
                 indexResult.freeze();
                 return indexResult;
             } finally {
@@ -1836,7 +1842,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -1849,7 +1855,8 @@ public class InternalEngine extends Engine {
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing == false) {
-                    return;
+                    logger.trace("detected an in-flight flush, not blocking to wait for it's completion");
+                    return false;
                 }
                 logger.trace("waiting for in-flight flush to finish");
                 flushLock.lock();
@@ -1901,6 +1908,7 @@ public class InternalEngine extends Engine {
                 throw ex;
             } finally {
                 flushLock.unlock();
+                logger.trace("released flush lock");
             }
         }
         // We don't have to do this here; we do it defensively to make sure that even if wall clock time is misbehaving
@@ -1908,6 +1916,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
+        return true;
     }
 
     private void refreshLastCommittedSegmentInfos() {
@@ -2704,7 +2713,12 @@ public class InternalEngine extends Engine {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL)) {
-            return LuceneChangesSnapshot.countOperations(searcher, fromSeqNo, toSeqNo);
+            return LuceneChangesSnapshot.countOperations(
+                searcher,
+                fromSeqNo,
+                toSeqNo,
+                config().getIndexSettings().getIndexVersionCreated()
+            );
         } catch (Exception e) {
             try {
                 maybeFailEngine("count changes", e);
@@ -2735,7 +2749,8 @@ public class InternalEngine extends Engine {
                 toSeqNo,
                 requiredFullRange,
                 singleConsumer,
-                accessStats
+                accessStats,
+                config().getIndexSettings().getIndexVersionCreated()
             );
             searcher = null;
             return snapshot;
@@ -2840,7 +2855,7 @@ public class InternalEngine extends Engine {
         }
 
         void updateRefreshedCheckpoint(long checkpoint) {
-            refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
+            refreshedCheckpoint.accumulateAndGet(checkpoint, Math::max);
             assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
         }
     }
@@ -2866,7 +2881,7 @@ public class InternalEngine extends Engine {
             assert false : "max_seq_no_of_updates on primary is unassigned";
             throw new IllegalArgumentException("max_seq_no_of_updates on primary is unassigned");
         }
-        this.maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, maxSeqNoOfUpdatesOnPrimary));
+        this.maxSeqNoOfUpdatesOrDeletes.accumulateAndGet(maxSeqNoOfUpdatesOnPrimary, Math::max);
     }
 
     private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {
@@ -2893,14 +2908,14 @@ public class InternalEngine extends Engine {
      * after the local checkpoint in the safe commit. This step ensures the live version map and checkpoint tracker
      * are in sync with the Lucene commit.
      */
-    private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader) throws IOException {
+    private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader, Version indexVersionCreated) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
         final Query query = new BooleanQuery.Builder().add(
             LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getPersistedLocalCheckpoint() + 1, Long.MAX_VALUE),
             BooleanClause.Occur.MUST
         )
-            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested documents
+            .add(Queries.newNonNestedFilter(indexVersionCreated), BooleanClause.Occur.MUST) // exclude non-root nested documents
             .build();
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         for (LeafReaderContext leaf : directoryReader.leaves()) {

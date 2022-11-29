@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -24,7 +25,7 @@ import java.util.List;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Http request trace logger. See {@link #maybeTraceRequest(RestRequest, Exception)} for details.
+ * Http request trace logger. See {@link #maybeLogRequest(RestRequest, Exception)} for details.
  */
 class HttpTracer {
 
@@ -32,6 +33,11 @@ class HttpTracer {
 
     private volatile String[] tracerLogInclude;
     private volatile String[] tracerLogExclude;
+
+    // for testing
+    HttpTracer() {
+        tracerLogInclude = tracerLogExclude = new String[0];
+    }
 
     HttpTracer(Settings settings, ClusterSettings clusterSettings) {
 
@@ -49,20 +55,23 @@ class HttpTracer {
      *
      * @param restRequest Rest request to trace
      * @param e           Exception when handling the request or {@code null} if none
-     * @return            This instance to use for logging the response via {@link #traceResponse} to this request if it was logged or
+     * @return            This instance to use for logging the response via {@link #logResponse} to this request if it was logged or
      *                    {@code null} if the request wasn't logged
      */
     @Nullable
-    HttpTracer maybeTraceRequest(RestRequest restRequest, @Nullable Exception e) {
+    HttpTracer maybeLogRequest(RestRequest restRequest, @Nullable Exception e) {
         if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
+            // trace.id in the response log is included from threadcontext, which isn't set at request log time
+            // so include it here as part of the message
             logger.trace(
                 () -> format(
-                    "[%s][%s][%s][%s] received request from [%s]",
+                    "[%s][%s][%s][%s] received request from [%s]%s",
                     restRequest.getRequestId(),
                     restRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
                     restRequest.method(),
                     restRequest.uri(),
-                    restRequest.getHttpChannel()
+                    restRequest.getHttpChannel(),
+                    RestUtils.extractTraceId(restRequest.header(Task.TRACE_PARENT_HTTP_HEADER)).map(t -> " trace.id: " + t).orElse("")
                 ),
                 e
             );
@@ -72,7 +81,7 @@ class HttpTracer {
     }
 
     /**
-     * Logs the response to a request that was logged by {@link #maybeTraceRequest(RestRequest, Exception)}.
+     * Logs the response to a request that was logged by {@link #maybeLogRequest(RestRequest, Exception)}.
      *
      * @param restResponse  RestResponse
      * @param httpChannel   HttpChannel the response was sent on
@@ -81,7 +90,7 @@ class HttpTracer {
      * @param requestId     Request id as returned by {@link RestRequest#getRequestId()}
      * @param success       Whether the response was successfully sent
      */
-    void traceResponse(
+    void logResponse(
         RestResponse restResponse,
         HttpChannel httpChannel,
         String contentLength,
@@ -89,6 +98,7 @@ class HttpTracer {
         long requestId,
         boolean success
     ) {
+        // trace id is included in the ThreadContext for the response
         logger.trace(
             () -> format(
                 "[%s][%s][%s][%s][%s] sent response to [%s] success [%s]",

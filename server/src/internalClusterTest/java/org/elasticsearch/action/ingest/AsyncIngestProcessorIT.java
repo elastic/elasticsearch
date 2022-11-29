@@ -14,6 +14,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,6 +30,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -95,7 +97,9 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer,
+            AllocationDeciders allocationDeciders
         ) {
             this.threadPool = threadPool;
             return List.of();

@@ -1020,7 +1020,7 @@ public class OperatorTests extends ESTestCase {
         Driver driver = new Driver(
             List.of(
                 new SequenceLongBlockSourceOperator(inputValues, randomIntBetween(1, 1000)),
-                new TopNOperator(0, ascendingOrder, limit),
+                new TopNOperator(0, ascendingOrder, limit, true),
                 new PageConsumerOperator(page -> {
                     Block block = page.getBlock(0);
                     for (int i = 0; i < block.getPositionCount(); i++) {

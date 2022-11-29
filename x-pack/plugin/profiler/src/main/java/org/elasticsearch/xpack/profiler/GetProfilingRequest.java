@@ -70,9 +70,6 @@ public class GetProfilingRequest extends ActionRequest implements IndicesRequest
     }
 
     public void parseXContent(XContentParser parser) throws IOException {
-        if (parser == null) {
-            return;
-        }
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {

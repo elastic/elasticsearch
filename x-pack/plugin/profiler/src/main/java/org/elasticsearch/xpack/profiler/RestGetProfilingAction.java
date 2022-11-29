@@ -27,7 +27,7 @@ public class RestGetProfilingAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         GetProfilingRequest getProfilingRequest = new GetProfilingRequest();
-        request.withContentOrSourceParamParserOrNull(getProfilingRequest::parseXContent);
+        request.applyContentParser(getProfilingRequest::parseXContent);
 
         return channel -> {
             RestStatusToXContentListener<GetProfilingResponse> listener = new RestStatusToXContentListener<>(channel);

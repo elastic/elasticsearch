@@ -8,8 +8,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
@@ -30,8 +28,6 @@ public final class Pipeline {
     public static final String VERSION_KEY = "version";
     public static final String ON_FAILURE_KEY = "on_failure";
     public static final String META_KEY = "_meta";
-
-    private static final Logger logger = LogManager.getLogger(Pipeline.class);
 
     private final String id;
     @Nullable

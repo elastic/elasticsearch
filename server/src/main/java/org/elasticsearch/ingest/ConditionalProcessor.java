@@ -8,8 +8,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.script.DynamicMap;
@@ -46,8 +44,6 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         );
         return value;
     });
-
-    private static final Logger logger = LogManager.getLogger(ConditionalProcessor.class);
 
     static final String TYPE = "conditional";
 

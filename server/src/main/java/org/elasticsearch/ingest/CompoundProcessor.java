@@ -8,8 +8,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Tuple;
 
@@ -29,8 +27,6 @@ public class CompoundProcessor implements Processor {
     public static final String ON_FAILURE_PROCESSOR_TYPE_FIELD = "on_failure_processor_type";
     public static final String ON_FAILURE_PROCESSOR_TAG_FIELD = "on_failure_processor_tag";
     public static final String ON_FAILURE_PIPELINE_FIELD = "on_failure_pipeline";
-
-    private static final Logger logger = LogManager.getLogger(CompoundProcessor.class);
 
     private final boolean ignoreFailure;
     private final List<Processor> processors;

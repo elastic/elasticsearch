@@ -17,6 +17,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
+import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.spi.BarPlugin;
 import org.elasticsearch.plugins.spi.BarTestService;
 import org.elasticsearch.plugins.spi.TestService;
@@ -823,6 +825,23 @@ public class PluginsServiceTests extends ESTestCase {
             assertThat(pluginInfos.get(0).descriptor().getName(), equalTo("stable-plugin"));
             assertThat(pluginInfos.get(0).descriptor().isStable(), is(true));
 
+            // check ubermodule classloader usage
+            Collection<PluginInfo> stablePluginInfos = pluginService.getStablePluginRegistry()
+                .getPluginInfosForExtensible("org.elasticsearch.plugin.analysis.api.CharFilterFactory");
+            assertThat(stablePluginInfos, hasSize(1));
+            ClassLoader stablePluginClassLoader = stablePluginInfos.stream().findFirst().orElseThrow().loader();
+            assertThat(stablePluginClassLoader, instanceOf(UberModuleClassLoader.class));
+
+            if (CharFilterFactory.class.getModule().isNamed() == false) {
+                // test frameworks run with stable api classes on classpath, so we
+                // have no choice but to let our class read the unnamed module that
+                // owns the stable api classes
+                ((UberModuleClassLoader) stablePluginClassLoader).addReadsSystemClassLoaderUnnamedModule();
+            }
+
+            Class<?> stableClass = stablePluginClassLoader.loadClass("p.A");
+            assertThat(stableClass.getModule().getName(), equalTo("synthetic.stable.plugin"));
+
             // TODO should we add something to pluginInfos.get(0).pluginApiInfo() ?
         } finally {
             closePluginLoaders(pluginService);
@@ -836,6 +855,20 @@ public class PluginsServiceTests extends ESTestCase {
         );
         var loader = PrivilegedOperations.supplierWithCreateClassLoader(() -> new Loader(this.getClass().getClassLoader()));
         assertEquals(this.getClass().getClassLoader(), loader.getParent());
+    }
+
+    public void testToModuleName() {
+        assertThat(PluginsService.toModuleName("module.name"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("module-name"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("module-name1"), equalTo("module.name1"));
+        assertThat(PluginsService.toModuleName("1module-name"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("module-name!"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("module!@#name!"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("!module-name!"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("module_name"), equalTo("module_name"));
+        assertThat(PluginsService.toModuleName("-module-name-"), equalTo("module.name"));
+        assertThat(PluginsService.toModuleName("_module_name"), equalTo("_module_name"));
+        assertThat(PluginsService.toModuleName("_"), equalTo("_"));
     }
 
     static final class Loader extends ClassLoader {

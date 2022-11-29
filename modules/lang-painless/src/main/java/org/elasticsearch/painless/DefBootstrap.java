@@ -388,7 +388,7 @@ public final class DefBootstrap {
                 } else {
                     // case 3: check both receiver and argument
                     MethodType testType = MethodType.methodType(boolean.class, type);
-                    MethodHandle binaryTest = CHECK_BOTH.bindTo(clazz0).bindTo(clazz1);
+                    MethodHandle binaryTest = MethodHandles.insertArguments(CHECK_BOTH, 0, clazz0, clazz1);
                     test = binaryTest.asType(testType);
                     nullCheck = BOTH_NON_NULL.asType(testType);
                 }

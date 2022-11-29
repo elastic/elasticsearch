@@ -158,7 +158,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     public void testToChunkedXContent() {
         DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomRoutingTable());
-        var toXContentChunked = response.toXContentChunked();
+        var toXContentChunked = response.toXContentChunked(ToXContent.EMPTY_PARAMS);
         int chunks = 0;
         while (toXContentChunked.hasNext()) {
             toXContentChunked.next();

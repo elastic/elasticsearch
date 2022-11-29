@@ -22,6 +22,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+
 public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<GetMappingsResponse> {
 
     public void testCheckEqualsAndHashCode() {
@@ -73,7 +75,7 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
                 .mapToObj(i -> "index-" + i)
                 .collect(Collectors.toUnmodifiableMap(Function.identity(), k -> createMappingsForIndex()))
         );
-        final var chunks = response.toXContentChunked();
+        final var chunks = response.toXContentChunked(EMPTY_PARAMS);
         int chunkCount = 0;
         while (chunks.hasNext()) {
             chunks.next();

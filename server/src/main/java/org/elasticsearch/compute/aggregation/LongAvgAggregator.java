@@ -49,7 +49,7 @@ class LongAvgAggregator implements AggregatorFunction {
         for (int i = 0; i < block.getPositionCount(); i++) {
             state.value = Math.addExact(state.value, block.getLong(i));
         }
-        state.count += block.getPositionCount();
+        state.count += block.validPositionCount();
     }
 
     @Override

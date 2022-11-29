@@ -17,7 +17,6 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
@@ -35,7 +34,6 @@ import java.util.Set;
 
 public class TransportGetProfilingAction extends HandledTransportAction<GetProfilingRequest, GetProfilingResponse> {
     private final NodeClient nodeClient;
-    private final ThreadContext threadContext;
     private final TransportService transportService;
 
     @Inject
@@ -43,32 +41,29 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         super(GetProfilingAction.NAME, transportService, actionFilters, GetProfilingRequest::new);
         this.nodeClient = nodeClient;
         this.transportService = transportService;
-        this.threadContext = transportService.getThreadPool().getThreadContext();
     }
 
     @Override
     protected void doExecute(Task submitTask, GetProfilingRequest request, ActionListener<GetProfilingResponse> submitListener) {
-        try (var ignored = threadContext.newTraceContext()) {
-            Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
-            EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
-            client.prepareSearch(mediumDownsampled.getName())
-                .setSize(0)
-                .setQuery(request.getQuery())
-                .setTrackTotalHits(true)
-                .execute(new ActionListener<>() {
-                    @Override
-                    public void onResponse(SearchResponse searchResponse) {
-                        long sampleCount = searchResponse.getHits().getTotalHits().value;
-                        EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
-                        searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
-                    }
+        Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
+        EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
+        client.prepareSearch(mediumDownsampled.getName())
+            .setSize(0)
+            .setQuery(request.getQuery())
+            .setTrackTotalHits(true)
+            .execute(new ActionListener<>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    long sampleCount = searchResponse.getHits().getTotalHits().value;
+                    EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
+                    searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        submitListener.onFailure(e);
-                    }
-                });
-        }
+                @Override
+                public void onFailure(Exception e) {
+                    submitListener.onFailure(e);
+                }
+            });
     }
 
     private void searchEventGroupByStackTrace(

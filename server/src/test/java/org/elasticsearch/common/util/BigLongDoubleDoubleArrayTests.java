@@ -18,51 +18,54 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
 
     /** Basic test with trivial small input. If this fails, then all is lost! */
     public void testTrivial() {
-        LongDoubleDoubleArray array = new BigLongDoubleDoubleArray(3, bigArrays, false);
+        try (LongDoubleDoubleArray array = new BigLongDoubleDoubleArray(3, bigArrays, false)) {
 
-        array.set(0, 1, 2, 3);
-        array.set(1, 9, 8, 7);
-        array.set(2, 4, 5, 6);
+            array.set(0, 1, 2, 3);
+            array.set(1, 9, 8, 7);
+            array.set(2, 4, 5, 6);
 
-        assertEquals(1L, array.getLong0(0));
-        assertEquals(2d, array.getDouble0(0), 0.0d);
-        assertEquals(3d, array.getDouble1(0), 0.0d);
+            assertEquals(1L, array.getLong0(0));
+            assertEquals(2d, array.getDouble0(0), 0.0d);
+            assertEquals(3d, array.getDouble1(0), 0.0d);
 
-        assertEquals(9L, array.getLong0(1));
-        assertEquals(8d, array.getDouble0(1), 0.0d);
-        assertEquals(7d, array.getDouble1(1), 0.0d);
+            assertEquals(9L, array.getLong0(1));
+            assertEquals(8d, array.getDouble0(1), 0.0d);
+            assertEquals(7d, array.getDouble1(1), 0.0d);
 
-        assertEquals(4L, array.getLong0(2));
-        assertEquals(5d, array.getDouble0(2), 0.0d);
-        assertEquals(6d, array.getDouble1(2), 0.0d);
+            assertEquals(4L, array.getLong0(2));
+            assertEquals(5d, array.getDouble0(2), 0.0d);
+            assertEquals(6d, array.getDouble1(2), 0.0d);
+        }
     }
 
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
     public void testSetGet() {
         final int size = randomIntBetween(1, 1_000_000);
         final long startLong = randomIntBetween(1, 1000);
         final double startDouble = randomIntBetween(1, 1000);
 
-        LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(size, randomBoolean());
-        long longValue = startLong;
-        double doubleValue = startDouble;
-        for (int i = 0; i < size; i++) {
-            array.set(i, longValue++, doubleValue++, doubleValue++);
-        }
+        try (LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(size, randomBoolean())) {
+            long longValue = startLong;
+            double doubleValue = startDouble;
+            for (int i = 0; i < size; i++) {
+                array.set(i, longValue++, doubleValue++, doubleValue++);
+            }
 
-        for (int i = size - 1; i >= 0; i--) {
-            assertEquals(--doubleValue, array.getDouble1(i), 0.0d);
-            assertEquals(--doubleValue, array.getDouble0(i), 0.0d);
-            assertEquals(--longValue, array.getLong0(i));
+            for (int i = size - 1; i >= 0; i--) {
+                assertEquals(--doubleValue, array.getDouble1(i), 0.0d);
+                assertEquals(--doubleValue, array.getDouble0(i), 0.0d);
+                assertEquals(--longValue, array.getLong0(i));
+            }
+            assertEquals(startLong, longValue);
+            assertEquals(startDouble, doubleValue, 0.0d);
         }
-        assertEquals(startLong, longValue);
-        assertEquals(startDouble, doubleValue, 0.0d);
     }
 
-    @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
     public void testLongDoubleDoubleArrayGrowth() {
         final int totalLen = randomIntBetween(1, 1_000_000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
+
         LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(startLen, randomBoolean());
         long[] longRef = new long[totalLen];
         double[] doubleRef0 = new double[totalLen];
@@ -83,23 +86,30 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
     }
 
     /** Tests the estimated ram byte used. For now, always 16K increments, even for small sizes  */
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
     public void testRamBytesUsed() {
-        LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(1, randomBoolean());
-        assertEquals(1 << 14, array.ramBytesUsed());  // expect 16k
+        try (LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(1, randomBoolean())) {
+            assertEquals(1 << 14, array.ramBytesUsed());  // expect 16k
+        }
 
-        array = bigArrays.newLongDoubleDoubleArray(512, randomBoolean());
-        assertEquals(1 << 14, array.ramBytesUsed());  // expect 16k
+        try (LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(512, randomBoolean())) {
+            assertEquals(1 << 14, array.ramBytesUsed());  // expect 16k
+        }
 
-        array = bigArrays.newLongDoubleDoubleArray(512 + 1, randomBoolean());
-        assertEquals(1 << 15, array.ramBytesUsed());  // expect 32k
+        try (LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(512 + 1, randomBoolean())) {
+            assertEquals(1 << 15, array.ramBytesUsed());  // expect 32k
+        }
 
-        array = bigArrays.newLongDoubleDoubleArray(512 + 511, randomBoolean());
-        assertEquals(1 << 15, array.ramBytesUsed());  // expect 32k
+        try (LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(512 + 511, randomBoolean())) {
+            assertEquals(1 << 15, array.ramBytesUsed());  // expect 32k
+        }
 
-        array = bigArrays.newLongDoubleDoubleArray(512 + 512, randomBoolean());
-        assertEquals(1 << 15, array.ramBytesUsed());  // expect 32k
+        try (LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(512 + 512, randomBoolean())) {
+            assertEquals(1 << 15, array.ramBytesUsed());  // expect 32k
+        }
 
-        array = bigArrays.newLongDoubleDoubleArray(512 + 512 + 1, randomBoolean());
-        assertEquals(48 * 1024, array.ramBytesUsed());  // expect 48k (32K + 16k)
+        try (LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(512 + 512 + 1, randomBoolean())) {
+            assertEquals(48 * 1024, array.ramBytesUsed());  // expect 48k (32K + 16k)
+        }
     }
 }

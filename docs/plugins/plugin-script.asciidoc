@@ -189,6 +189,7 @@ This can option can be used after a plugin is removed to remove any lingering
 configuration files.
 
 [discrete]
+[[removing-multiple-plugins]]
 === Removing multiple plugins
 
 Multiple plugins can be removed in one invocation as follows:

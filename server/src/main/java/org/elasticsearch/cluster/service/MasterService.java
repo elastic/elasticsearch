@@ -140,36 +140,7 @@ public class MasterService extends AbstractLifecycleComponent {
             queuesByPriorityBuilder.put(priority, queue);
         }
         this.queuesByPriority = Collections.unmodifiableMap(queuesByPriorityBuilder);
-        this.unbatchedExecutor = getUnbatchedExecutor();
-    }
-
-    private static ClusterStateTaskExecutor<ClusterStateUpdateTask> getUnbatchedExecutor() {
-        return new ClusterStateTaskExecutor<>() {
-            @Override
-            @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
-            public ClusterState execute(BatchExecutionContext<ClusterStateUpdateTask> batchExecutionContext) throws Exception {
-                final var currentState = batchExecutionContext.initialState();
-                final var taskContexts = batchExecutionContext.taskContexts();
-                assert taskContexts.size() == 1 : "this only supports a single task but received " + taskContexts;
-                final var taskContext = taskContexts.get(0);
-                final var task = taskContext.getTask();
-                final ClusterState newState;
-                try (var ignored = taskContext.captureResponseHeaders()) {
-                    newState = task.execute(currentState);
-                }
-                if (task instanceof ClusterStateAckListener ackListener) {
-                    taskContext.success(publishedState -> task.clusterStateProcessed(currentState, publishedState), ackListener);
-                } else {
-                    taskContext.success(publishedState -> task.clusterStateProcessed(currentState, publishedState));
-                }
-                return newState;
-            }
-
-            @Override
-            public String describeTasks(List<ClusterStateUpdateTask> tasks) {
-                return ""; // only one task, so its source is enough
-            }
-        };
+        this.unbatchedExecutor = new UnbatchedExecutor();
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -650,6 +621,33 @@ public class MasterService extends AbstractLifecycleComponent {
                 return true;
             }
         });
+    }
+
+    private static class UnbatchedExecutor implements ClusterStateTaskExecutor<ClusterStateUpdateTask> {
+        @Override
+        @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
+        public ClusterState execute(BatchExecutionContext<ClusterStateUpdateTask> batchExecutionContext) throws Exception {
+            final var currentState = batchExecutionContext.initialState();
+            final var taskContexts = batchExecutionContext.taskContexts();
+            assert taskContexts.size() == 1 : "this only supports a single task but received " + taskContexts;
+            final var taskContext = taskContexts.get(0);
+            final var task = taskContext.getTask();
+            final ClusterState newState;
+            try (var ignored = taskContext.captureResponseHeaders()) {
+                newState = task.execute(currentState);
+            }
+            if (task instanceof ClusterStateAckListener ackListener) {
+                taskContext.success(publishedState -> task.clusterStateProcessed(currentState, publishedState), ackListener);
+            } else {
+                taskContext.success(publishedState -> task.clusterStateProcessed(currentState, publishedState));
+            }
+            return newState;
+        }
+
+        @Override
+        public String describeTasks(List<ClusterStateUpdateTask> tasks) {
+            return ""; // only one task, so its source is enough
+        }
     }
 
     /**

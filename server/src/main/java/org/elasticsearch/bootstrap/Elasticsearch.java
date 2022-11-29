@@ -109,6 +109,7 @@ class Elasticsearch {
                 }
             });
             LogConfigurator.registerErrorListener();
+            LogConfigurator.registerContextDataProviders();
 
             BootstrapInfo.init();
 

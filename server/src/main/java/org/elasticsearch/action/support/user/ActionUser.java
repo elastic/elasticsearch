@@ -24,10 +24,7 @@ public interface ActionUser {
          */
         String toString();
 
-        /**
-         * A Map representation of this user, suitable for turning into JSON
-         */
-        Map<String, Object> asMap();
+        Map<String, String> toEcsMap(String prefix);
     }
 
     Id identifier();

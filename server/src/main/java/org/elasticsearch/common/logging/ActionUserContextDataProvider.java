@@ -8,17 +8,30 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
+import org.apache.logging.log4j.core.util.ContextDataProvider;
+import org.apache.logging.log4j.util.StringMap;
 import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.action.support.user.ActionUserContext;
 
+import java.util.Map;
 import java.util.Optional;
 
-public abstract class ActionUserConverter extends LogEventPatternConverter {
+public class ActionUserContextDataProvider implements ContextDataProvider {
 
-    public ActionUserConverter(String name) {
-        super(name, name);
+    @Override
+    public Map<String, String> supplyContextData() {
+        // return Map.of("user.name", "@TEST");
+        return getActionUser().map(this::supplyContextData).orElse(Map.of());
+    }
+
+    @Override
+    public StringMap supplyStringMap() {
+        return ContextDataProvider.super.supplyStringMap();
+    }
+
+    private Map<String, String> supplyContextData(ActionUser actionUser) {
+        Map<String, String> data = actionUser.identifier().toEcsMap("user");
+        return data;
     }
 
     private static Optional<ActionUser> getActionUser() {
@@ -29,10 +42,4 @@ public abstract class ActionUserConverter extends LogEventPatternConverter {
             .findFirst();
     }
 
-    @Override
-    public void format(LogEvent event, StringBuilder toAppendTo) {
-        getActionUser().ifPresent(user -> doFormat(user, event, toAppendTo));
-    }
-
-    protected abstract void doFormat(ActionUser user, LogEvent event, StringBuilder toAppendTo);
 }

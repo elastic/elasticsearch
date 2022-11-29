@@ -75,52 +75,35 @@ public class Subject {
     public ActionUser.Id identifier() {
         // TODO Cleanup this implementation
         return switch (getType()) {
-            case SERVICE_ACCOUNT -> new ActionUser.Id() {
+            case SERVICE_ACCOUNT, USER -> new ActionUser.Id() {
                 @Override
-                public Map<String, Object> asMap() {
-                    return Map.ofEntries(Map.entry("type", getType()), Map.entry("username", getUser().principal()));
-                }
-
-                @Override
-                public String toString() {
-                    return getUser().principal() + " (" + type.name() + ")";
-                }
-            };
-            case USER -> new ActionUser.Id() {
-                @Override
-                public Map<String, Object> asMap() {
+                public Map<String, String> toEcsMap(String prefix) {
                     return Map.ofEntries(
-                        Map.entry("type", getType()),
-                        Map.entry("username", getUser().principal()),
-                        Map.entry("realm", getRealm().getType() + "." + getRealm().getName()),
-                        Map.entry("roles", getUser().roles())
+                        Map.entry(prefix + ".type", getType().name()),
+                        Map.entry(prefix + ".name", getUser().principal()),
+                        Map.entry(prefix + ".realm", getRealm().getName())
                     );
                 }
 
                 @Override
                 public String toString() {
-                    return getUser().principal() + " (" + type.name() + " in " + getRealm().getType() + "." + getRealm().getName() + ")";
+                    return type.name() + ":" + getUser().principal();
                 }
             };
             case API_KEY -> new ActionUser.Id() {
                 @Override
-                public Map<String, Object> asMap() {
+                public Map<String, String> toEcsMap(String prefix) {
                     return Map.ofEntries(
-                        Map.entry("type", getType()),
-                        Map.entry("apikey_id", getMetadata().get(AuthenticationField.API_KEY_ID_KEY)),
-                        Map.entry("username", getUser().principal()),
-                        Map.entry("realm", getRealm().getType() + "." + getRealm().getName())
+                        Map.entry(prefix + ".type", getType().name()),
+                        Map.entry(prefix + ".name", getUser().principal()),
+                        Map.entry(prefix + ".realm", String.valueOf(getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME))),
+                        Map.entry(prefix + ".apikey.id", String.valueOf(getMetadata().get(AuthenticationField.API_KEY_ID_KEY)))
                     );
                 }
 
                 @Override
                 public String toString() {
-                    return getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
-                        + " ("
-                        + type.name()
-                        + " created-by "
-                        + getUser().principal()
-                        + ")";
+                    return type.name() + ":" + getUser().principal() + ":" + getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
                 }
             };
         };

@@ -26,6 +26,7 @@ import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationBuilder;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
+import org.apache.logging.log4j.core.impl.ThreadContextDataInjector;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusListener;
@@ -86,6 +87,10 @@ public class LogConfigurator {
     public static void registerErrorListener() {
         error.set(false);
         StatusLogger.getLogger().registerListener(ERROR_LISTENER);
+    }
+
+    public static void registerContextDataProviders() {
+        ThreadContextDataInjector.contextDataProviders.add(new ActionUserContextDataProvider());
     }
 
     /**

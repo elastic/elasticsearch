@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
@@ -37,6 +38,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -119,6 +122,15 @@ public class MasterServiceTests extends ESTestCase {
     }
 
     private MasterService createMasterService(boolean makeMaster, TaskManager taskManager) {
+        return createMasterService(makeMaster, taskManager, threadPool, null);
+    }
+
+    private MasterService createMasterService(
+        boolean makeMaster,
+        TaskManager taskManager,
+        ThreadPool threadPool,
+        PrioritizedEsThreadPoolExecutor threadPoolExecutor
+    ) {
         final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
@@ -134,7 +146,16 @@ public class MasterServiceTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
             taskManager
-        );
+        ) {
+            @Override
+            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                if (threadPoolExecutor == null) {
+                    return super.createThreadPoolExecutor();
+                } else {
+                    return threadPoolExecutor;
+                }
+            }
+        };
         final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
             .nodes(
                 DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(makeMaster ? localNode.getId() : null)
@@ -1872,6 +1893,175 @@ public class MasterServiceTests extends ESTestCase {
         } finally {
             Loggers.removeAppender(masterServiceLogger, mockAppender);
             mockAppender.stop();
+        }
+    }
+
+    public void testPendingTasksReporting() {
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var threadPoolExecutor = deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
+
+        try (var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)) {
+
+            final var actionCount = new AtomicInteger();
+
+            class BatchedTask implements ClusterStateTaskListener {
+                final int queueIndex;
+                final int taskIndex;
+                final Priority priority;
+                final long insertionTimeMillis;
+                final TimeValue timeout;
+                boolean isComplete;
+
+                BatchedTask(int queueIndex, int taskIndex, Priority priority, long insertionTimeMillis, TimeValue timeout) {
+                    this.queueIndex = queueIndex;
+                    this.taskIndex = taskIndex;
+                    this.priority = priority;
+                    this.insertionTimeMillis = insertionTimeMillis;
+                    this.timeout = timeout;
+                }
+
+                void assertPendingTaskEntry(boolean expectExecuting) {
+                    assertFalse(isComplete);
+                    final var pendingTaskEntry = getPendingTasks().stream()
+                        .filter(t -> t.getInsertOrder() == taskIndex)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("task not found"));
+
+                    assertEquals(getSource(), pendingTaskEntry.getSource().string());
+                    assertEquals(expectExecuting, pendingTaskEntry.isExecuting());
+                    assertEquals(priority, pendingTaskEntry.getPriority());
+                    assertEquals(
+                        deterministicTaskQueue.getCurrentTimeMillis() - insertionTimeMillis,
+                        pendingTaskEntry.getTimeInQueueInMillis()
+                    );
+                }
+
+                private List<PendingClusterTask> getPendingTasks() {
+                    final var pendingTasks = masterService.pendingTasks();
+                    assertEquals(pendingTasks.size(), masterService.numberOfPendingTasks());
+                    return pendingTasks;
+                }
+
+                void assertNoPendingTaskEntry() {
+                    assertTrue(isComplete);
+                    assertTrue(getPendingTasks().stream().noneMatch(t -> t.getInsertOrder() == taskIndex));
+                }
+
+                void onExecute() {
+                    assertPendingTaskEntry(true);
+                    actionCount.incrementAndGet();
+                }
+
+                void onSuccess() {
+                    assertPendingTaskEntry(true);
+                    actionCount.incrementAndGet();
+                    isComplete = true;
+                }
+
+                String getSource() {
+                    return "task-" + (queueIndex < 0 ? "unbatched" : Integer.toString(queueIndex)) + "-" + taskIndex;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(ProcessClusterEventTimeoutException.class));
+                    assertThat(e.getMessage(), equalTo("failed to process cluster event (" + getSource() + ") within " + timeout));
+                    assertFalse(isComplete);
+                    isComplete = true;
+                    assertNoPendingTaskEntry();
+                    actionCount.incrementAndGet();
+                    actionCount.incrementAndGet();
+                }
+
+            }
+
+            final var batchingPriorities = new ArrayList<Priority>();
+            final var taskQueues = new ArrayList<MasterServiceTaskQueue<BatchedTask>>();
+            for (int i = 0; i < 3; i++) {
+                final var batchingPriority = randomFrom(Priority.values());
+                batchingPriorities.add(batchingPriority);
+                taskQueues.add(masterService.getTaskQueue("queue-" + i, batchingPriority, batchExecutionContext -> {
+                    for (final var taskContext : batchExecutionContext.taskContexts()) {
+                        final var task = taskContext.getTask();
+                        task.onExecute();
+                        taskContext.success(() -> {
+                            deterministicTaskQueue.scheduleNow(task::assertNoPendingTaskEntry);
+                            task.onSuccess();
+                        });
+                    }
+                    return batchExecutionContext.initialState();
+                }));
+            }
+
+            final var taskCount = between(1, 10);
+            final var tasks = new ArrayList<BatchedTask>(taskCount);
+            for (int i = 1; i <= taskCount; i++) {
+
+                if (randomBoolean()) {
+                    var targetTime = deterministicTaskQueue.getCurrentTimeMillis() + between(1, 30000);
+                    deterministicTaskQueue.scheduleAt(targetTime, () -> {});
+
+                    while (deterministicTaskQueue.getCurrentTimeMillis() < targetTime) {
+                        deterministicTaskQueue.advanceTime();
+                    }
+                }
+
+                final var queueIndex = between(-1, taskQueues.size() - 1);
+                final var priority = queueIndex == -1 ? randomFrom(Priority.values()) : batchingPriorities.get(queueIndex);
+
+                final var task = new BatchedTask(
+                    queueIndex,
+                    i,
+                    priority,
+                    deterministicTaskQueue.getCurrentTimeMillis(),
+                    TimeValue.timeValueMillis(between(0, 30000))
+                );
+                tasks.add(task);
+
+                if (queueIndex == -1) {
+                    masterService.submitUnbatchedStateUpdateTask(task.getSource(), new ClusterStateUpdateTask(priority, task.timeout) {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            task.onExecute();
+                            return currentState;
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                            task.onSuccess();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            task.onFailure(e);
+                        }
+                    });
+                } else {
+                    taskQueues.get(queueIndex).submitTask(task.getSource(), task, task.timeout);
+                }
+            }
+
+            for (final var task : tasks) {
+                task.assertPendingTaskEntry(false);
+            }
+
+            while (deterministicTaskQueue.hasDeferredTasks()) {
+                deterministicTaskQueue.advanceTime();
+            }
+
+            for (final var task : tasks) {
+                task.assertPendingTaskEntry(false);
+            }
+
+            threadPool.getThreadContext().markAsSystemContext();
+            deterministicTaskQueue.runAllTasks();
+            assertThat(actionCount.get(), equalTo(taskCount * 2));
+            for (final var task : tasks) {
+                task.assertNoPendingTaskEntry();
+            }
         }
     }
 

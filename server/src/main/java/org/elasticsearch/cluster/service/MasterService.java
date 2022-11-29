@@ -556,15 +556,14 @@ public class MasterService extends AbstractLifecycleComponent {
             @Override
             public Stream<PendingClusterTask> getPending(long currentTimeMillis) {
                 if (isTimedOut()) {
-                    // TODO test that task is not shown pending after timeout
                     return Stream.of();
                 }
                 return Stream.of(
                     new PendingClusterTask(
-                        insertionIndex, // TODO tests for insertion index of unbatched tasks
+                        insertionIndex,
                         updateTask.priority(),
                         new Text(source),
-                        currentTimeMillis - insertionTime, // TODO tests for insertion time of unbatched tasks
+                        currentTimeMillis - insertionTime,
                         executed.get()
                     )
                 );
@@ -572,7 +571,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
             @Override
             public int getPendingCount() {
-                // TODO test that task is not counted after timeout
                 return isTimedOut() ? 0 : 1;
             }
 
@@ -1662,14 +1660,13 @@ public class MasterService extends AbstractLifecycleComponent {
                             )
                         ),
                     queue.stream()
-                        // TODO test that timed-out entries are not returned
                         .filter(entry -> entry.executed().get() == false)
                         .map(
                             entry -> new PendingClusterTask(
-                                entry.insertionIndex(), // TODO tests for insertion indices
+                                entry.insertionIndex(),
                                 countedQueue.priority(),
                                 new Text(entry.source()),
-                                currentTimeMillis - entry.insertionTimeMillis(), // TODO tests for insertion times
+                                currentTimeMillis - entry.insertionTimeMillis(),
                                 false
                             )
                         )
@@ -1681,7 +1678,6 @@ public class MasterService extends AbstractLifecycleComponent {
                 int count = executing.size();
                 for (final var entry : queue) {
                     if (entry.executed().get() == false) {
-                        // TODO test that timed-out entries are not counted
                         count += 1;
                     }
                 }

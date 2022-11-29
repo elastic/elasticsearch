@@ -214,13 +214,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     /**
      * Determine the number of shards with a specific state
-     * @param states set of states which should be counted
+     * @param state which should be counted
      * @return number of shards
      */
-    public int numberOfShardsWithState(ShardRoutingState... states) {
-        return Stream.of(states).mapToInt(this::numberOfShardsWithState).sum();
-    }
-
     public int numberOfShardsWithState(ShardRoutingState state) {
         return internalGetShardsWithState(state).size();
     }

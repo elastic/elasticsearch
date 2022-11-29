@@ -236,8 +236,9 @@ public class LocalExecutionPlanner {
                             throw new UnsupportedOperationException();
                         }
                     } else if (aggregate.groupings().contains(e) == false) {
+                        var u = e instanceof Alias ? ((Alias) e).child() : e;
                         throw new UnsupportedOperationException(
-                            "expected an aggregate function, but got [" + e + "] of type [" + e.getClass().getSimpleName() + "]"
+                            "expected an aggregate function, but got [" + u + "] of type [" + u.nodeName() + "]"
                         );
                     }
                 }

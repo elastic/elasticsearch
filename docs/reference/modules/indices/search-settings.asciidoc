@@ -10,7 +10,7 @@ deprecated:[8.0.0]
 (<<static-cluster-setting,Static>>, integer)
 This deprecated setting has no effect.
 +
-Elasticsearch will now dynamically set the maximum number of allowed clauses in a query, using
+{es} will now dynamically set the maximum number of allowed clauses in a query, using
 a heuristic based on the size of the search thread pool and the size of the heap allocated to
 the JVM. This limit has a minimum value of 1024 and will in most cases be larger (for example,
 a node with 30Gb RAM and 48 CPUs will have a maximum clause count of around 27,000). Larger
@@ -18,7 +18,7 @@ heaps lead to higher values, and larger thread pools result in lower values.
 +
 Queries with many clauses should be avoided whenever possible. If you previously bumped this
 setting to accommodate heavy queries, you might need to increase the amount of memory available
-to Elasticsearch, or to reduce the size of your search thread pool so that more memory is
+to {es}, or to reduce the size of your search thread pool so that more memory is
 available to each concurrent search.
 +
 In previous versions of Lucene you could get around this limit by nesting boolean queries

@@ -281,10 +281,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         float weight(Balancer balancer, ModelNode node, String index) {
             final var tier = balancer.indexTier(index);
-            final float weightShard = node.numShards() - balancer.avgShardsPerNodeInTier(tier);
+            final var tierStats = balancer.getStatsForTier(tier);
+            final float weightShard = node.numShards() - tierStats.avgShardSize();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-            final float ingestLoad = (float) (node.writeLoad() - balancer.avgWriteLoadPerNodeInTier(tier));
-            final float diskUsage = (float) (node.diskUsageInBytes() - balancer.avgDiskUsageInBytesPerNodeInTier(tier));
+            final float ingestLoad = (float) (node.writeLoad() - tierStats.avgWriteLoad());
+            final float diskUsage = (float) (node.diskUsageInBytes() - tierStats.avgDiskUsageInBytes());
             return theta0 * weightShard + theta1 * weightIndex + theta2 * ingestLoad + theta3 * diskUsage;
         }
 
@@ -294,7 +295,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 
-    static final class TierAllocationStats {
+    public static final class TierAllocationStats {
         private final DiscoveryNodeRole tier;
         private final int numberOfNodes;
 
@@ -352,9 +353,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final double avgWriteLoadPerNode;
         private final double avgDiskUsageInBytesPerNode;
         private final NodeSorter sorter;
-        private final Map<DiscoveryNodeRole, Float> avgShardsPerNodeInTier;
-        private final Map<DiscoveryNodeRole, Double> avgWriteLoadPerNodeInTier;
-        private final Map<DiscoveryNodeRole, Double> avgDiskUsagePerNodeInTier;
+        private final Map<DiscoveryNodeRole, TierAllocationStats> statsPerTier;
 
         public Balancer(WriteLoadForecaster writeLoadForecaster, RoutingAllocation allocation, WeightFunction weight, float threshold) {
             this.writeLoadForecaster = writeLoadForecaster;
@@ -363,18 +362,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.threshold = threshold;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
-
-            final Map<DiscoveryNodeRole, TierAllocationStats> statsPerTier = computeAllocationStatsPerTier(writeLoadForecaster, allocation);
-
-            avgShardsPerNodeInTier = statsPerTier.values()
-                .stream()
-                .collect(Collectors.toMap(TierAllocationStats::getTier, TierAllocationStats::avgShardSize));
-            avgWriteLoadPerNodeInTier = statsPerTier.values()
-                .stream()
-                .collect(Collectors.toMap(TierAllocationStats::getTier, TierAllocationStats::avgWriteLoad));
-            avgDiskUsagePerNodeInTier = statsPerTier.values()
-                .stream()
-                .collect(Collectors.toMap(TierAllocationStats::getTier, TierAllocationStats::avgDiskUsageInBytes));
+            this.statsPerTier = computeAllocationStatsPerTier(writeLoadForecaster, allocation);
             avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
             avgWriteLoadPerNode = getTotalWriteLoad(writeLoadForecaster, metadata) / routingNodes.size();
             avgDiskUsageInBytesPerNode = ((double) getTotalDiskUsageInBytes(allocation.clusterInfo(), metadata) / routingNodes.size());
@@ -500,24 +488,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return DiscoveryNodeRole.getRoleFromRoleName(metadata.index(index).getTierPreference().get(0));
         }
 
-        public float avgShardsPerNodeInTier(DiscoveryNodeRole tier) {
-            return avgShardsPerNodeInTier.get(tier);
-        }
-
-        public double avgWriteLoadPerNode() {
-            return avgWriteLoadPerNode;
-        }
-
-        public double avgWriteLoadPerNodeInTier(DiscoveryNodeRole tier) {
-            return avgWriteLoadPerNodeInTier.get(tier);
-        }
-
-        public double avgDiskUsageInBytesPerNode() {
-            return avgDiskUsageInBytesPerNode;
-        }
-
-        public double avgDiskUsageInBytesPerNodeInTier(DiscoveryNodeRole tier) {
-            return avgDiskUsagePerNodeInTier.get(tier);
+        public TierAllocationStats getStatsForTier(DiscoveryNodeRole tier) {
+            return statsPerTier.get(tier);
         }
 
         public double diskUsageInBytesPerShard(String index) {

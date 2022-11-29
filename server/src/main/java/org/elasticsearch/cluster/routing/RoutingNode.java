@@ -341,7 +341,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("-----node_id[").append(nodeId).append("][").append(node == null ? "X" : "V").append("]\n");
-        for (ShardRouting entry : shards.values()) {
+        for (ShardRouting entry : this) {
             sb.append("--------").append(entry.shortSummary()).append('\n');
         }
         return sb.toString();

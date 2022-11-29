@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -28,6 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.AbstractCollection;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -1328,10 +1328,10 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
      */
     public Iterator<ShardRouting> nodeInterleavedShardIterator() {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodesToShards.size());
-        for (final var routingNode : nodesToShards.values()) {
+        for (final var routingNode : this) {
             final var shards = routingNode.copyShards();
             if (shards.length > 0) {
-                queue.add(Iterators.forArray(shards));
+                queue.add(Arrays.stream(shards).sorted(Comparator.comparing(ShardRouting::shardId)).iterator());
             }
         }
         return new Iterator<>() {

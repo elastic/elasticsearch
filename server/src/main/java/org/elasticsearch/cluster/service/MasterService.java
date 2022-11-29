@@ -537,7 +537,6 @@ public class MasterService extends AbstractLifecycleComponent {
         final Scheduler.Cancellable timeoutCancellable;
         final var timeout = updateTask.timeout();
         if (timeout != null && timeout.millis() > 0) {
-            // TODO needs tests for timeout behaviour
             timeoutCancellable = threadPool.schedule(
                 new TaskTimeoutHandler(timeout, source, executed, updateTask),
                 timeout,
@@ -1559,7 +1558,6 @@ public class MasterService extends AbstractLifecycleComponent {
             final var executed = new AtomicBoolean(false);
             final Scheduler.Cancellable timeoutCancellable;
             if (timeout != null && timeout.millis() > 0) {
-                // TODO needs tests for timeout behaviour
                 timeoutCancellable = threadPool.schedule(
                     new TaskTimeoutHandler(timeout, source, executed, task),
                     timeout,

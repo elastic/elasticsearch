@@ -357,12 +357,13 @@ public class DeterministicTaskQueue {
                 final int STARTED = 1;
                 final int CANCELLED = 2;
                 final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
+                final Runnable contextPreservingRunnable = getThreadContext().preserveContext(command);
 
                 scheduleAt(currentTimeMillis + delay.millis(), runnableWrapper.apply(new Runnable() {
                     @Override
                     public void run() {
                         if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
-                            command.run();
+                            contextPreservingRunnable.run();
                         }
                     }
 

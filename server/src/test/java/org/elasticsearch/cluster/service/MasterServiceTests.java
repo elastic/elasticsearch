@@ -80,9 +80,11 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -2229,6 +2231,106 @@ public class MasterServiceTests extends ESTestCase {
             threadPool.getThreadContext().markAsSystemContext();
             deterministicTaskQueue.runAllTasks();
             assertEquals(4, actionCount.get());
+        }
+    }
+
+    public void testTimeoutBehaviour() {
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var threadPoolExecutor = deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
+
+        try (var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)) {
+
+            final var actionCount = new AtomicInteger();
+            final var testHeader = "test-header";
+
+            class BlockingTask extends ClusterStateUpdateTask {
+                BlockingTask() {
+                    super(Priority.IMMEDIATE);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    var targetTime = deterministicTaskQueue.getCurrentTimeMillis() + between(1, 1000);
+                    deterministicTaskQueue.scheduleAt(targetTime, () -> {});
+
+                    while (deterministicTaskQueue.getCurrentTimeMillis() < targetTime) {
+                        deterministicTaskQueue.advanceTime();
+                    }
+
+                    return currentState;
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                    if (actionCount.get() < 2) {
+                        masterService.submitUnbatchedStateUpdateTask("blocker", BlockingTask.this);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            }
+
+            masterService.submitUnbatchedStateUpdateTask("blocker", new BlockingTask());
+
+            class TestTask implements ClusterStateTaskListener {
+                private final String expectedHeader = threadPool.getThreadContext().getHeader(testHeader);
+                private final TimeValue timeout;
+
+                TestTask(TimeValue timeout) {
+                    this.timeout = timeout;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
+                    assertThat(deterministicTaskQueue.getCurrentTimeMillis(), greaterThanOrEqualTo(timeout.millis()));
+                    assertThat(e, instanceOf(ProcessClusterEventTimeoutException.class));
+                    assertThat(
+                        e.getMessage(),
+                        allOf(containsString("failed to process cluster event"), containsString(timeout.toString()))
+                    );
+                    actionCount.incrementAndGet();
+                }
+            }
+
+            final var queue = masterService.getTaskQueue(
+                "queue",
+                Priority.NORMAL,
+                batchExecutionContext -> { throw new AssertionError("should not execute batch"); }
+            );
+
+            try (var ignored = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
+                final var testTask = new TestTask(TimeValue.timeValueMillis(between(1, 30000)));
+                queue.submitTask("batched", testTask, testTask.timeout);
+            }
+
+            try (var ignored = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
+                final var innerTask = new TestTask(TimeValue.timeValueMillis(between(1, 30000)));
+                masterService.submitUnbatchedStateUpdateTask("unbatched", new ClusterStateUpdateTask(innerTask.timeout) {
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        throw new AssertionError("should not execute task");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        innerTask.onFailure(e);
+                    }
+                });
+            }
+
+            threadPool.getThreadContext().markAsSystemContext();
+            deterministicTaskQueue.runAllTasks();
+            assertEquals(2, actionCount.get());
         }
     }
 

@@ -92,7 +92,8 @@ public class Subject {
                     return Map.ofEntries(
                         Map.entry("type", getType()),
                         Map.entry("username", getUser().principal()),
-                        Map.entry("realm", getRealm().getType() + "." + getRealm().getName())
+                        Map.entry("realm", getRealm().getType() + "." + getRealm().getName()),
+                        Map.entry("roles", getUser().roles())
                     );
                 }
 
@@ -107,7 +108,8 @@ public class Subject {
                     return Map.ofEntries(
                         Map.entry("type", getType()),
                         Map.entry("apikey_id", getMetadata().get(AuthenticationField.API_KEY_ID_KEY)),
-                        Map.entry("username", getUser().principal())
+                        Map.entry("username", getUser().principal()),
+                        Map.entry("realm", getRealm().getType() + "." + getRealm().getName())
                     );
                 }
 

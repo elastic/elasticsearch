@@ -9,28 +9,16 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.config.plugins.Plugin;
-import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
-import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.action.support.user.ActionUserContext;
 
 import java.util.Optional;
 
-@Plugin(category = PatternConverter.CATEGORY, name = "ActionUserConverter")
-@ConverterKeys({ "action_user" })
-public final class ActionUserConverter extends LogEventPatternConverter {
+public abstract class ActionUserConverter extends LogEventPatternConverter {
 
-    /**
-     * Called by log4j2 to initialize this converter.
-     */
-    public static ActionUserConverter newInstance(@SuppressWarnings("unused") final String[] options) {
-        return new ActionUserConverter();
-    }
-
-    public ActionUserConverter() {
-        super("action_user", "action_user");
+    public ActionUserConverter(String name) {
+        super(name, name);
     }
 
     private static Optional<ActionUser> getActionUser() {
@@ -43,7 +31,8 @@ public final class ActionUserConverter extends LogEventPatternConverter {
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        getActionUser().ifPresent(user -> toAppendTo.append(user.identifier()));
+        getActionUser().ifPresent(user -> doFormat(user, event, toAppendTo));
     }
 
+    protected abstract void doFormat(ActionUser user, LogEvent event, StringBuilder toAppendTo);
 }

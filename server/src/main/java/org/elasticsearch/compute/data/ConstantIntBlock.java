@@ -16,7 +16,7 @@ public class ConstantIntBlock extends Block {
     private final int value;
 
     public ConstantIntBlock(int value, int positionCount) {
-        super(positionCount);
+        super(positionCount, null);
         this.value = value;
     }
 

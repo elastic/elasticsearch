@@ -33,11 +33,39 @@ a:integer | b:integer | c:integer
 1 | 2 | 3
 ;
 
+evalRowWithNull
+row a = 1, b = 2, c = null | eval z = c+b+a;
+
+a:integer | b:integer | c:null | z:integer
+1 | 2 | null | null
+;
+
+evalRowWithNull2
+row a = 1, null, b = 2, c = null, null | eval z = a+b;
+
+a:integer | null:null | b:integer | c:null | null:null | z:integer
+1 | null | 2 | null | null | 3
+;
+
+evalRowWithNull3
+row a = 1, b = 2, x = round(null) | eval z = a+b+x;
+
+a:integer | b:integer | x:null | z:integer
+1 | 2 | null | null
+;
+
 evalRowWithRound
 row a = 1, b = 2 | eval y = round(-123.5);
 
 a:integer | b:integer | y:double
 1 | 2 | -124.0
+;
+
+evalRowWithRoundNullDecimals
+row a = 1, b = 2 | eval y = round(-123.5, null);
+
+a:integer | b:integer | y:double
+1 | 2 | null
 ;
 
 evalRowWithComplexRound
@@ -72,4 +100,46 @@ filterRow2
 row a = 1 | where a > 10;
 
 a:integer
+;
+
+evalRowWithNulls
+row a = 1, b = 2 | eval y = null;
+
+a:integer | b:integer | y:null
+1 | 2 | null
+;
+
+evalRowWithNullsInRound
+row a = 1, b = 2 | eval y = round(null, 3) + ROUND(a + b / 2);
+
+a:integer | b:integer | y:integer
+1 | 2 | null
+;
+
+evalRowWithNullsInArithmethicOp
+row a = 1, b = 2 | eval y = null + 3;
+
+a:integer | b:integer | y:integer
+1 | 2 | null
+;
+
+rowWithNullsInCount
+row a = 1.5, b = 2.6, c = null | eval s = null + a + b | stats c = count(s);
+
+c:long
+0
+;
+
+rowWithNullsInAvg
+row a = 1.5, b = 2.6, c = null | eval s = null + a + b | stats c = avg(s);
+
+c:double
+NaN
+;
+
+rowWithNullsInAvg2
+row a = 1.5, b = 2.6, c = null | eval s = a - b * c | stats avg(s);
+
+avg(s):double
+NaN
 ;

@@ -152,7 +152,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         if (indexResponses.size() > 0) {
             throw new IllegalStateException("cannot serialize non-merged response");
         }

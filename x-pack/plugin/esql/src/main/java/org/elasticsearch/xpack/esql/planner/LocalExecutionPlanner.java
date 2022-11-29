@@ -77,8 +77,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -323,7 +322,12 @@ public class LocalExecutionPlanner {
             }
 
             return new PhysicalOperation(
-                new TopNOperatorFactory(sortByChannel, order.direction() == Order.OrderDirection.ASC, limit),
+                new TopNOperatorFactory(
+                    sortByChannel,
+                    order.direction() == Order.OrderDirection.ASC,
+                    limit,
+                    order.nullsPosition().equals(Order.NullsPosition.FIRST)
+                ),
                 source.layout,
                 source
             );
@@ -454,22 +458,14 @@ public class LocalExecutionPlanner {
     }
 
     private ExpressionEvaluator toEvaluator(Expression exp, Map<Object, Integer> layout) {
-        if (exp instanceof Add add) {
-            ExpressionEvaluator e1 = toEvaluator(add.left(), layout);
-            ExpressionEvaluator e2 = toEvaluator(add.right(), layout);
-            if (add.dataType().isRational()) {
-                return (page, pos) -> ((Number) e1.computeRow(page, pos)).doubleValue() + ((Number) e2.computeRow(page, pos)).doubleValue();
-            } else {
-                return (page, pos) -> ((Number) e1.computeRow(page, pos)).longValue() + ((Number) e2.computeRow(page, pos)).longValue();
-            }
-        } else if (exp instanceof Div div) {
-            ExpressionEvaluator e1 = toEvaluator(div.left(), layout);
-            ExpressionEvaluator e2 = toEvaluator(div.right(), layout);
-            if (div.dataType().isRational()) {
-                return (page, pos) -> ((Number) e1.computeRow(page, pos)).doubleValue() / ((Number) e2.computeRow(page, pos)).doubleValue();
-            } else {
-                return (page, pos) -> ((Number) e1.computeRow(page, pos)).longValue() / ((Number) e2.computeRow(page, pos)).longValue();
-            }
+        if (exp instanceof ArithmeticOperation ao) {
+            ExpressionEvaluator leftEval = toEvaluator(ao.left(), layout);
+            ExpressionEvaluator rightEval = toEvaluator(ao.right(), layout);
+            return (page, pos) -> {
+                Number left = (Number) leftEval.computeRow(page, pos);
+                Number right = (Number) rightEval.computeRow(page, pos);
+                return ao.function().apply(left, right);
+            };
         } else if (exp instanceof GreaterThan gt) {
             ExpressionEvaluator e1 = toEvaluator(gt.left(), layout);
             ExpressionEvaluator e2 = toEvaluator(gt.right(), layout);
@@ -482,7 +478,9 @@ public class LocalExecutionPlanner {
             int channel = layout.get(attr.id());
             return (page, pos) -> page.getBlock(channel).getObject(pos);
         } else if (exp instanceof Literal lit) {
-            if (exp.dataType().isRational()) {
+            if (lit.value() == null) { // NULL, the literal
+                return (page, pos) -> null;
+            } else if (exp.dataType().isRational()) {
                 double d = Double.parseDouble(lit.value().toString());
                 return (page, pos) -> d;
             } else {

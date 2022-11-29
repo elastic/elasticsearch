@@ -16,8 +16,10 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -53,6 +55,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         Batch operators = new Batch(
             "Operator Optimization",
             new CombineProjections(),
+            new FoldNull(),
             new ConstantFolding(),
             // boolean
             new BooleanSimplification(),
@@ -138,6 +141,23 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         private static Expression trimAliases(Expression e) {
             return e.transformDown(Alias.class, Alias::child);
+        }
+    }
+
+    static class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
+
+        FoldNull() {
+            super(OptimizerRules.TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof Alias == false
+                && e.nullable() == Nullability.TRUE
+                && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+                return Literal.of(e, null);
+            }
+            return e;
         }
     }
 

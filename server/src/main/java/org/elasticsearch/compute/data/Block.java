@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.core.Nullable;
+
+import java.util.BitSet;
 
 /**
  * A Block is a columnar data representation. It has a position (row) count, and various data
@@ -26,10 +29,22 @@ import org.elasticsearch.compute.Experimental;
 public abstract class Block {
 
     private final int positionCount;
+    @Nullable
+    final BitSet nullsMask;
 
     protected Block(int positionCount) {
+        this(positionCount, new BitSet(positionCount));
+    }
+
+    /**
+     * @param positionCount the number of values in this block
+     * @param nullsMask a {@link BitSet} indicating which values of this block are null (a set bit value
+     *                  represents a null value). A null nullsMask indicates this block cannot have null values.
+     */
+    protected Block(int positionCount, BitSet nullsMask) {
         assert positionCount >= 0;
         this.positionCount = positionCount;
+        this.nullsMask = nullsMask;
     }
 
     /**
@@ -95,6 +110,44 @@ public abstract class Block {
      */
     public Object getObject(int position) {
         throw new UnsupportedOperationException(getClass().getName());
+    }
+
+    /**
+     * Returns true if the value stored at the given position is null, false otherwise.
+     *
+     * @param position the position
+     * @return true or false
+     */
+    public final boolean isNull(int position) {
+        return mayHaveNull() && nullsMask.get(position);
+    }
+
+    /**
+     * @return false if all values of this block are not null, true otherwise.
+     */
+    public boolean mayHaveNull() {
+        return nullsMask != null;
+    }
+
+    /**
+     * @return the number of null values in this block.
+     */
+    public int nullValuesCount() {
+        return mayHaveNull() ? nullsMask.cardinality() : 0;
+    }
+
+    /**
+     * @return the number of non-null values in this block.
+     */
+    public int validPositionCount() {
+        return positionCount - nullValuesCount();
+    }
+
+    /**
+     * @return true if all values in this block are null.
+     */
+    public boolean areAllValuesNull() {
+        return mayHaveNull() ? nullsMask.cardinality() == positionCount : false;
     }
 
     protected final boolean assertPosition(int position) {

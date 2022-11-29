@@ -13,6 +13,8 @@ import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 
+import java.util.BitSet;
+
 @Experimental
 public class EvalOperator implements Operator {
 
@@ -47,18 +49,32 @@ public class EvalOperator implements Operator {
             return null;
         }
         Page lastPage;
+        int rowsCount = lastInput.getPositionCount();
+        BitSet nulls = new BitSet(rowsCount);
         if (dataType.equals(Long.TYPE)) {
-            long[] newBlock = new long[lastInput.getPositionCount()];
-            for (int i = 0; i < lastInput.getPositionCount(); i++) {
-                newBlock[i] = ((Number) evaluator.computeRow(lastInput, i)).longValue();
+            long[] newBlock = new long[rowsCount];
+            for (int i = 0; i < rowsCount; i++) {
+                Number result = (Number) evaluator.computeRow(lastInput, i);
+                if (result == null) {
+                    nulls.set(i);
+                    newBlock[i] = 0L;
+                } else {
+                    newBlock[i] = result.longValue();
+                }
             }
-            lastPage = lastInput.appendBlock(new LongArrayBlock(newBlock, lastInput.getPositionCount()));
+            lastPage = lastInput.appendBlock(new LongArrayBlock(newBlock, rowsCount, nulls));
         } else if (dataType.equals(Double.TYPE)) {
-            double[] newBlock = new double[lastInput.getPositionCount()];
+            double[] newBlock = new double[rowsCount];
             for (int i = 0; i < lastInput.getPositionCount(); i++) {
-                newBlock[i] = ((Number) evaluator.computeRow(lastInput, i)).doubleValue();
+                Number result = (Number) evaluator.computeRow(lastInput, i);
+                if (result == null) {
+                    nulls.set(i);
+                    newBlock[i] = 0.0d;
+                } else {
+                    newBlock[i] = result.doubleValue();
+                }
             }
-            lastPage = lastInput.appendBlock(new DoubleArrayBlock(newBlock, lastInput.getPositionCount()));
+            lastPage = lastInput.appendBlock(new DoubleArrayBlock(newBlock, rowsCount, nulls));
         } else {
             throw new UnsupportedOperationException();
         }

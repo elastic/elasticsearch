@@ -11,6 +11,9 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.BitSet;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
@@ -43,6 +46,12 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(pos, is(block.getInt(pos)));
             assertThat((long) pos, is(block.getLong(pos)));
             assertThat((double) pos, is(block.getDouble(pos)));
+
+            assertNullValues(
+                positionCount,
+                nulls -> new IntArrayBlock(values, positionCount, nulls),
+                (randomNonNullPosition, b) -> { assertThat((int) randomNonNullPosition, is(b.getInt(randomNonNullPosition.intValue()))); }
+            );
         }
     }
 
@@ -69,6 +78,12 @@ public class BasicBlockTests extends ESTestCase {
             int pos = (int) block.getLong(randomIntBetween(0, positionCount - 1));
             assertThat((long) pos, is(block.getLong(pos)));
             assertThat((double) pos, is(block.getDouble(pos)));
+
+            assertNullValues(
+                positionCount,
+                nulls -> new LongArrayBlock(values, positionCount, nulls),
+                (randomNonNullPosition, b) -> { assertThat((long) randomNonNullPosition, is(b.getLong(randomNonNullPosition.intValue()))); }
+            );
         }
     }
 
@@ -96,6 +111,14 @@ public class BasicBlockTests extends ESTestCase {
             assertThat((double) pos, is(block.getDouble(pos)));
             expectThrows(UOE, () -> block.getInt(pos));
             expectThrows(UOE, () -> block.getLong(pos));
+
+            assertNullValues(
+                positionCount,
+                nulls -> new DoubleArrayBlock(values, positionCount, nulls),
+                (randomNonNullPosition, b) -> {
+                    assertThat((double) randomNonNullPosition, is(b.getDouble(randomNonNullPosition.intValue())));
+                }
+            );
         }
     }
 
@@ -190,6 +213,19 @@ public class BasicBlockTests extends ESTestCase {
             bytes = block.getBytesRef(randomIntBetween(1, positionCount - 1), bytes);
             assertThat(bytes, is(value));
         }
+    }
+
+    private void assertNullValues(int positionCount, Function<BitSet, Block> blockConstructor, BiConsumer<Integer, Block> asserter) {
+        int randomNullPosition = randomIntBetween(0, positionCount - 1);
+        int randomNonNullPosition = randomValueOtherThan(randomNullPosition, () -> randomIntBetween(0, positionCount - 1));
+        BitSet nullsMask = new BitSet(positionCount);
+        nullsMask.set(randomNullPosition);
+
+        Block block = blockConstructor.apply(nullsMask);
+        assertThat(positionCount, is(block.getPositionCount()));
+        asserter.accept(randomNonNullPosition, block);
+        assertTrue(block.isNull(randomNullPosition));
+        assertFalse(block.isNull(randomNonNullPosition));
     }
 
     static final Class<UnsupportedOperationException> UOE = UnsupportedOperationException.class;

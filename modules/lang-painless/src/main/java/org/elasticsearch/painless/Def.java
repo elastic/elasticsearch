@@ -744,9 +744,7 @@ public final class Def {
                 throw new IllegalArgumentException("type must be an array");
             }
             MethodHandle iterator = ARRAY_TYPE_MH_MAPPING.get(arrayType);
-            return iterator != null
-                ? iterator
-                : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+            return iterator != null ? iterator : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
         }
 
         private ArrayIteratorHelper() {}
@@ -1521,9 +1519,7 @@ public final class Def {
                 throw new IllegalArgumentException("type must be an array");
             }
             MethodHandle handle = ARRAY_TYPE_MH_MAPPING.get(arrayType);
-            return handle != null
-                ? handle
-                : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+            return handle != null ? handle : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
         }
 
         private ArrayIndexNormalizeHelper() {}

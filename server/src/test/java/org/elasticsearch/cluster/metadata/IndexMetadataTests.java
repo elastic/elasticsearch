@@ -498,16 +498,30 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testIndexAndAliasWithSameName() {
-        final IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexMetadata.builder("index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .putAlias(AliasMetadata.builder("index").build())
-                .build(randomBoolean())
-        );
-        assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
+        {
+            final IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("index").build())
+                    .build(randomBoolean())
+            );
+            assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
+        }
+        {
+            final IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("index").build())
+                    .build(false)
+            );
+            assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
+        }
     }
 
     public void testRepairIndexAndAliasWithSameName() {

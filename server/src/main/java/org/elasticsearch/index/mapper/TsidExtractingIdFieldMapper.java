@@ -31,7 +31,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 /**
  * A mapper for the {@code _id} field that builds the {@code _id} from the

@@ -398,6 +398,6 @@ public final class EngineConfig {
     }
 
     public MayHaveBeenIndexedBefore buildMayHaveBeenIndexedBefore(Consumer<Engine.Index> assertPrimaryCanOptimizeAddDocument) {
-        return indexSettings.getMode().buildNoFieldDataIdFieldMapper().buildMayHaveBeenIndexedBefore(assertPrimaryCanOptimizeAddDocument);
+        return indexSettings.getMode().idFieldMapperWithoutFieldData().buildMayHaveBeenIndexedBefore(assertPrimaryCanOptimizeAddDocument);
     }
 }

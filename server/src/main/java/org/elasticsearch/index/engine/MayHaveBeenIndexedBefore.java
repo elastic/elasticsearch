@@ -140,9 +140,9 @@ public interface MayHaveBeenIndexedBefore {
 
         private void updateAutoIdTimestamp(long newTimestamp, boolean unsafe) {
             assert newTimestamp >= -1 : "invalid timestamp [" + newTimestamp + "]";
-            maxSeenAutoIdTimestamp.updateAndGet(curr -> Math.max(curr, newTimestamp));
+            maxSeenAutoIdTimestamp.accumulateAndGet(newTimestamp, Math::max);
             if (unsafe) {
-                maxUnsafeAutoIdTimestamp.updateAndGet(curr -> Math.max(curr, newTimestamp));
+                maxUnsafeAutoIdTimestamp.accumulateAndGet(newTimestamp, Math::max);
             }
             assert maxUnsafeAutoIdTimestamp.get() <= maxSeenAutoIdTimestamp.get();
         }

@@ -49,7 +49,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 /**
  * A mapper for the {@code _id} field that reads the from the

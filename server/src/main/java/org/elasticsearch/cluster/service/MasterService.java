@@ -532,7 +532,7 @@ public class MasterService extends AbstractLifecycleComponent {
     @Deprecated
     public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
         // TODO reject if not STARTED
-        final var summary = new BatchSummary(source);
+        final var summary = new BatchSummary(() -> source);
         final var restorableContext = threadPool.getThreadContext().newRestorableContext(true);
         final var executed = new AtomicBoolean(false);
         final Scheduler.Cancellable timeoutCancellable;
@@ -1610,16 +1610,17 @@ public class MasterService extends AbstractLifecycleComponent {
                 if (taskCount == 0) {
                     return;
                 }
-                final var tasks = new ArrayList<ExecutionResult<T>>(taskCount);
+                final var finalTaskCount = taskCount;
+                final var tasks = new ArrayList<ExecutionResult<T>>(finalTaskCount);
                 final var tasksBySource = new HashMap<String, List<T>>();
                 for (final var entry : executing) {
                     tasks.add(new ExecutionResult<>(entry.task(), threadPool.getThreadContext(), entry.storedContextSupplier()));
                     tasksBySource.computeIfAbsent(entry.source(), ignored -> new ArrayList<>()).add(entry.task());
                 }
                 try {
-                    batchConsumer.runBatch(executor, tasks, new BatchSummary(buildTasksDescription(taskCount, tasksBySource)));
+                    batchConsumer.runBatch(executor, tasks, new BatchSummary(() -> buildTasksDescription(finalTaskCount, tasksBySource)));
                 } finally {
-                    assert executing.size() == taskCount;
+                    assert executing.size() == finalTaskCount;
                     executing.clear();
                 }
             }
@@ -1628,7 +1629,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
             private String buildTasksDescription(int taskCount, Map<String, List<T>> processTasksBySource) {
                 // TODO test for how the description is grouped by source, and the behaviour when it gets too long
-                // TODO make this lazy
                 final var output = new StringBuilder();
                 Strings.collectionToDelimitedStringWithLimit(
                     (Iterable<String>) () -> processTasksBySource.entrySet().stream().map(entry -> {

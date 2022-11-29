@@ -10,14 +10,16 @@ package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.common.util.LazyInitializable;
 
+import java.util.function.Supplier;
+
 public class BatchSummary {
 
     static final int MAX_TASK_DESCRIPTION_CHARS = 8 * 1024;
 
     private final LazyInitializable<String, RuntimeException> lazyDescription;
 
-    public BatchSummary(String string) {
-        lazyDescription = new LazyInitializable<>(() -> string);
+    public BatchSummary(Supplier<String> stringSupplier) {
+        lazyDescription = new LazyInitializable<>(stringSupplier::get);
     }
 
     @Override

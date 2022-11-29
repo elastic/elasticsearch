@@ -152,7 +152,7 @@ A `RestClient` instance can be built through the corresponding
 `RestClientBuilder` class, created via `RestClient#builder(HttpHost...)`
 static method. The only required argument is one or more hosts that the
 client will communicate with, provided as instances of
-https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpHost.html[HttpHost]
+https://hc.apache.org/httpcomponents-core-5.2.x/current/httpcore5/apidocs/org/apache/hc/core5/http/HttpHost.html[HttpHost]
  as follows:
 
 ["source","java",subs="attributes,callouts,macros"]

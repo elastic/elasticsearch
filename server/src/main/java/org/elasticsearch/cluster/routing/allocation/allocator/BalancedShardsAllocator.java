@@ -101,7 +101,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
     public static final Setting<Float> DISK_USAGE_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.disk_usage",
-        0.0f,
+        5e-11f,
         0.0f,
         Property.Dynamic,
         Property.NodeScope

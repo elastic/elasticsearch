@@ -22,7 +22,6 @@ public class IndexRecoveryWithSnapshotsIT extends AbstractIndexRecoveryIntegTest
         return CollectionUtils.appendToCopy(super.nodePlugins(), ConfigurableMockSnapshotBasedRecoveriesPlugin.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91087")
     public void testTransientErrorsDuringRecoveryAreRetried() throws Exception {
         checkTransientErrorsDuringRecoveryAreRetried(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT);
     }

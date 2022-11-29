@@ -1,0 +1,6 @@
+pr: 91917
+summary: ML stats failures should not stop the usage API working
+area: Machine Learning
+type: bug
+issues:
+ - 91893

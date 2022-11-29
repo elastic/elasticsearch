@@ -15,7 +15,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
-public final class BigLongDoubleDoubleArray extends AbstractBigArray implements LongDoubleDoubleArray {
+final class BigLongDoubleDoubleArray extends AbstractBigArray implements LongDoubleDoubleArray {
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
@@ -33,7 +33,7 @@ public final class BigLongDoubleDoubleArray extends AbstractBigArray implements 
     // 512 elements per page (accounting for the extra 8 bytes padding)
 
     /** Constructor. */
-    public BigLongDoubleDoubleArray(long numberOfElements, BigArrays bigArrays, boolean clearOnResize) {
+    BigLongDoubleDoubleArray(long numberOfElements, BigArrays bigArrays, boolean clearOnResize) {
         super(ELEMENTS_PER_PAGE, bigArrays, clearOnResize);
         this.size = numberOfElements;
         pages = new byte[numPages(size)][];
@@ -77,12 +77,7 @@ public final class BigLongDoubleDoubleArray extends AbstractBigArray implements 
         // ignore padding - should be 0
     }
 
-    @Override
-    protected int numBytesPerElement() {
-        return ELEMENT_SIZE_IN_BYTES;
-    }
-
-    /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
+    /** Changes the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
     @Override
     public void resize(long newSize) {
         final int numPages = numPages(newSize);
@@ -97,5 +92,15 @@ public final class BigLongDoubleDoubleArray extends AbstractBigArray implements 
             releasePage(i);
         }
         this.size = newSize;
+    }
+
+    @Override
+    protected int numBytesPerElement() {
+        return ELEMENT_SIZE_IN_BYTES;
+    }
+
+    /** Estimates the number of bytes that would be consumed by an array of the given size. */
+    public static long estimateRamBytes(final long size) {
+        return ESTIMATOR.ramBytesEstimated(size);
     }
 }

@@ -702,27 +702,6 @@ public class BigArrays {
         return resize(array, newSize);
     }
 
-    /** Resize the array to the exact provided size. */
-    public LongDoubleDoubleArray resize(LongDoubleDoubleArray array, long size) {
-        if (array instanceof LongDoubleDoubleArray) {
-            return resizeInPlace((BigLongDoubleDoubleArray) array, size);
-        } else {
-            throw new UnsupportedOperationException();
-        }
-    }
-
-    public LongDoubleDoubleArray grow(LongDoubleDoubleArray array, long minSize) {
-        if (minSize <= array.size()) {
-            return array;
-        }
-        final long newSize = overSize(
-            minSize,
-            PageCacheRecycler.LONG_DOUBLE_DOUBLE_PAGE_SIZE,
-            BigLongDoubleDoubleArray.ELEMENT_SIZE_IN_BYTES
-        );
-        return resize(array, newSize);
-    }
-
     /**
      * Allocate a new {@link DoubleArray}.
      * @param size          the initial length of the array
@@ -884,6 +863,44 @@ public class BigArrays {
 
     protected boolean shouldCheckBreaker() {
         return checkBreaker;
+    }
+
+    /**
+     * Allocates a new {@link LongDoubleDoubleArray}.
+     * @param size           the initial length of the array
+     * @param clearOnResize  whether to clear on resize, or not
+     */
+    public LongDoubleDoubleArray newLongDoubleDoubleArray(long size, boolean clearOnResize) {
+        // if (size > PageCacheRecycler.LONG_DOUBLE_DOUBLE_PAGE_SIZE || (size >= PageCacheRecycler.LONG_DOUBLE_DOUBLE_PAGE_SIZE / 2 &&
+        // recycler != null)) {
+        // when allocating big arrays, we want to first ensure we have the capacity by
+        // checking with the circuit breaker before attempting to allocate
+        adjustBreaker(BigLongDoubleDoubleArray.estimateRamBytes(size), false);
+        return new BigLongDoubleDoubleArray(size, this, clearOnResize);
+        // } else {
+        // return validate(new ByteLongDoubleDoubleArrayWrapper(this, size, clearOnResize));
+        // }
+    }
+
+    /** Resize the array to the exact provided size. */
+    public LongDoubleDoubleArray resize(LongDoubleDoubleArray array, long size) {
+        if (array instanceof LongDoubleDoubleArray) {
+            return resizeInPlace((BigLongDoubleDoubleArray) array, size);
+        } else {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    public LongDoubleDoubleArray grow(LongDoubleDoubleArray array, long minSize) {
+        if (minSize <= array.size()) {
+            return array;
+        }
+        final long newSize = overSize(
+            minSize,
+            PageCacheRecycler.LONG_DOUBLE_DOUBLE_PAGE_SIZE,
+            BigLongDoubleDoubleArray.ELEMENT_SIZE_IN_BYTES
+        );
+        return resize(array, newSize);
     }
 
 }

@@ -43,7 +43,7 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
         final long startLong = randomIntBetween(1, 1000);
         final double startDouble = randomIntBetween(1, 1000);
 
-        LongDoubleDoubleArray array = new BigLongDoubleDoubleArray(size, bigArrays, false);
+        LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(size, randomBoolean());
         long longValue = startLong;
         double doubleValue = startDouble;
         for (int i = 0; i < size; i++) {
@@ -59,11 +59,11 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
         assertEquals(startDouble, doubleValue, 0.0d);
     }
 
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
+    @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
     public void testLongDoubleDoubleArrayGrowth() {
         final int totalLen = randomIntBetween(1, 1_000_000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
-        LongDoubleDoubleArray array = new BigLongDoubleDoubleArray(startLen, bigArrays, randomBoolean());
+        LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(startLen, randomBoolean());
         long[] longRef = new long[totalLen];
         double[] doubleRef0 = new double[totalLen];
         double[] doubleRef1 = new double[totalLen];
@@ -84,23 +84,22 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
 
     /** Tests the estimated ram byte used. For now, always 16K increments, even for small sizes  */
     public void testRamBytesUsed() {
-        BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-        LongDoubleDoubleArray array = new BigLongDoubleDoubleArray(1, bigArrays, false);
+        LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(1, randomBoolean());
         assertEquals(1 << 14, array.ramBytesUsed());  // expect 16k
 
-        array = new BigLongDoubleDoubleArray(512, bigArrays, false);
+        array = bigArrays.newLongDoubleDoubleArray(512, randomBoolean());
         assertEquals(1 << 14, array.ramBytesUsed());  // expect 16k
 
-        array = new BigLongDoubleDoubleArray(512 + 1, bigArrays, false);
+        array = bigArrays.newLongDoubleDoubleArray(512 + 1, randomBoolean());
         assertEquals(1 << 15, array.ramBytesUsed());  // expect 32k
 
-        array = new BigLongDoubleDoubleArray(512 + 511, bigArrays, false);
+        array = bigArrays.newLongDoubleDoubleArray(512 + 511, randomBoolean());
         assertEquals(1 << 15, array.ramBytesUsed());  // expect 32k
 
-        array = new BigLongDoubleDoubleArray(512 + 512, bigArrays, false);
+        array = bigArrays.newLongDoubleDoubleArray(512 + 512, randomBoolean());
         assertEquals(1 << 15, array.ramBytesUsed());  // expect 32k
 
-        array = new BigLongDoubleDoubleArray(512 + 512 + 1, bigArrays, false);
+        array = bigArrays.newLongDoubleDoubleArray(512 + 512 + 1, randomBoolean());
         assertEquals(48 * 1024, array.ramBytesUsed());  // expect 48k (32K + 16k)
     }
 }

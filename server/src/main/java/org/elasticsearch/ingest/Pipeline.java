@@ -17,7 +17,6 @@ import org.elasticsearch.script.ScriptService;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
@@ -119,20 +118,14 @@ public final class Pipeline {
          * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
          * is only executed once.
          */
-        final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
         metrics.preIngest();
         compoundProcessor.execute(ingestDocument, (result, e) -> {
-            if (listenerHasBeenCalled.getAndSet(true)) {
-                logger.warn("A listener was unexpectedly called more than once", new RuntimeException(e));
-                assert false : "A listener was unexpectedly called more than once";
-            } else {
-                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
-                metrics.postIngest(ingestTimeInNanos);
-                if (e != null) {
-                    metrics.ingestFailed();
-                }
-                handler.accept(result, e);
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            metrics.postIngest(ingestTimeInNanos);
+            if (e != null) {
+                metrics.ingestFailed();
             }
+            handler.accept(result, e);
         });
     }
 

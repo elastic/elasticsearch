@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -125,27 +124,15 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
 
         if (matches) {
             final long startTimeInNanos = relativeTimeProvider.getAsLong();
-            /*
-             * Our assumption is that the listener passed to the processor is only ever called once. However, there is no way to enforce
-             * that in all processors and all of the code that they call. If the listener is called more than once it causes problems
-             * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
-             * is only executed once.
-             */
-            final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
             metric.preIngest();
             processor.execute(ingestDocument, (result, e) -> {
-                if (listenerHasBeenCalled.getAndSet(true)) {
-                    logger.warn("A listener was unexpectedly called more than once", new RuntimeException(e));
-                    assert false : "A listener was unexpectedly called more than once";
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
+                if (e != null) {
+                    metric.ingestFailed();
+                    handler.accept(null, e);
                 } else {
-                    long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
-                    metric.postIngest(ingestTimeInNanos);
-                    if (e != null) {
-                        metric.ingestFailed();
-                        handler.accept(null, e);
-                    } else {
-                        handler.accept(result, null);
-                    }
+                    handler.accept(result, null);
                 }
             });
         } else {

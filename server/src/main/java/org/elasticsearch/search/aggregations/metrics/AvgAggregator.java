@@ -9,8 +9,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.LongDoubleDoubleArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -30,9 +29,8 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource.Numeric valuesSource;
 
-    LongArray counts;
-    DoubleArray sums;
-    DoubleArray compensations;
+    LongDoubleDoubleArray array;
+
     DocValueFormat format;
 
     AvgAggregator(
@@ -48,9 +46,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
-            counts = bigArrays.newLongArray(1, true);
-            sums = bigArrays.newDoubleArray(1, true);
-            compensations = bigArrays.newDoubleArray(1, true);
+            array = bigArrays.newLongDoubleDoubleArray(1, true);
         }
     }
 
@@ -70,17 +66,14 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays().grow(counts, bucket + 1);
-                sums = bigArrays().grow(sums, bucket + 1);
-                compensations = bigArrays().grow(compensations, bucket + 1);
+                array = bigArrays().grow(array, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();
-                    counts.increment(bucket, valueCount);
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
-                    double sum = sums.get(bucket);
-                    double compensation = compensations.get(bucket);
+                    final double sum = getSum(array, bucket);
+                    final double compensation = getDelta(array, bucket);
 
                     kahanSummation.reset(sum, compensation);
 
@@ -88,9 +81,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
                         double value = values.nextValue();
                         kahanSummation.add(value);
                     }
-
-                    sums.set(bucket, kahanSummation.value());
-                    compensations.set(bucket, kahanSummation.delta());
+                    array.set(bucket, getCount(array, bucket) + valueCount, kahanSummation.value(), kahanSummation.delta());
                 }
             }
         };
@@ -98,18 +89,18 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= sums.size()) {
+        if (valuesSource == null || owningBucketOrd >= array.size()) {
             return Double.NaN;
         }
-        return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+        return getSum(array, owningBucketOrd) / getCount(array, owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= sums.size()) {
+        if (valuesSource == null || bucket >= array.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), format, metadata());
+        return new InternalAvg(name, getSum(array, bucket), getCount(array, bucket), format, metadata());
     }
 
     @Override
@@ -119,7 +110,20 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public void doClose() {
-        Releasables.close(counts, sums, compensations);
+        Releasables.close(array);
+    }
+
+    // -- Convenience helpers that improve readability of array access.
+    private static long getCount(LongDoubleDoubleArray array, long index) {
+        return array.getLong0(index);
+    }
+
+    private static double getSum(LongDoubleDoubleArray array, long index) {
+        return array.getDouble0(index);
+    }
+
+    private static double getDelta(LongDoubleDoubleArray array, long index) {
+        return array.getDouble1(index);
     }
 
 }

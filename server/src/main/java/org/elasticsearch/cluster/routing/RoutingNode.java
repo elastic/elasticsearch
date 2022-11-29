@@ -222,7 +222,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     public int numberOfShardsWithState(ShardRoutingState state) {
-        return getShardsWithState(state).size();
+        return internalGetShardsWithState(state).size();
     }
 
     /**
@@ -231,7 +231,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
      * @return List of shards
      */
     public List<ShardRouting> shardsWithState(ShardRoutingState state) {
-        return new ArrayList<>(getShardsWithState(state));
+        return new ArrayList<>(internalGetShardsWithState(state));
     }
 
     private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
@@ -260,7 +260,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     public List<ShardRouting> shardsWithState(String index, ShardRoutingState state) {
         var shards = new ArrayList<ShardRouting>();
-        for (ShardRouting shardEntry : getShardsWithState(state)) {
+        for (ShardRouting shardEntry : internalGetShardsWithState(state)) {
             if (shardEntry.getIndexName().equals(index)) {
                 shards.add(shardEntry);
             }
@@ -268,7 +268,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return shards;
     }
 
-    private LinkedHashSet<ShardRouting> getShardsWithState(ShardRoutingState state) {
+    private LinkedHashSet<ShardRouting> internalGetShardsWithState(ShardRoutingState state) {
         return switch (state) {
             case UNASSIGNED -> throw new IllegalArgumentException("Unassigned shards are not linked to a routing node");
             case INITIALIZING -> initializingShards;

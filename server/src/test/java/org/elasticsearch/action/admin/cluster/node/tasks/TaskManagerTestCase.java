@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -182,7 +183,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
                 taskManager = new MockTaskManager(settings, threadPool, emptySet());
             } else {
-                taskManager = new TaskManager(settings, threadPool, emptySet());
+                taskManager = new TaskManager(settings, threadPool, new FakeActionUserContext(threadPool), emptySet());
             }
             transportService = new TransportService(
                 settings,

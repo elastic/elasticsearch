@@ -13,6 +13,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.user.ActionUserContext;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -123,11 +125,12 @@ public class ClusterServiceUtils {
 
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode, ClusterSettings clusterSettings) {
         Settings settings = Settings.builder().put("node.name", "test").put("cluster.name", "ClusterServiceTests").build();
+        ActionUserContext actionUserContext = new FakeActionUserContext(threadPool);
         ClusterService clusterService = new ClusterService(
             settings,
             clusterSettings,
             threadPool,
-            new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP)
+            new TaskManager(settings, threadPool, actionUserContext, Collections.emptySet(), Tracer.NOOP)
         );
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))

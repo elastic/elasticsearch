@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.ActionUserContext;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
@@ -25,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -64,7 +66,12 @@ public class FakeThreadPoolMasterService extends MasterService {
         String serviceName,
         Consumer<Runnable> onTaskAvailableToRun
     ) {
-        super(settings, clusterSettings, threadPool, new TaskManager(settings, threadPool, Set.of()));
+        super(
+            settings,
+            clusterSettings,
+            threadPool,
+            new TaskManager(settings, threadPool, new ActionUserContext(tc -> Optional.empty(), threadPool.getThreadContext()), Set.of())
+        );
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;
     }

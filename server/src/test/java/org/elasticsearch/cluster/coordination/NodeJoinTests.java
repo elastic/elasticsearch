@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -147,7 +148,7 @@ public class NodeJoinTests extends ESTestCase {
             settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            new TaskManager(settings, threadPool, Set.of())
+            new TaskManager(settings, threadPool, new FakeActionUserContext(threadPool), Set.of())
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {

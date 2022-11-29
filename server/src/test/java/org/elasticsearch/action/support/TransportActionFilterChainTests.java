@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -75,7 +76,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(
             actionName,
             actionFilters,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
+            new TaskManager(Settings.EMPTY, threadPool, new FakeActionUserContext(threadPool), Collections.emptySet())
         ) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
@@ -160,7 +161,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(
             actionName,
             actionFilters,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
+            new TaskManager(Settings.EMPTY, threadPool, new FakeActionUserContext(threadPool), Collections.emptySet())
         ) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {

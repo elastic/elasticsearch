@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.user.ActionUserContext;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -85,7 +87,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 "xpack.ml.utility_thread_pool"
             )
         );
-        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        ActionUserContext actionUserContext = new FakeActionUserContext(threadPool);
+        taskManager = new TaskManager(Settings.EMPTY, threadPool, actionUserContext, Collections.emptySet());
         deploymentManager = mock(DeploymentManager.class);
         doAnswer(invocationOnMock -> {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];

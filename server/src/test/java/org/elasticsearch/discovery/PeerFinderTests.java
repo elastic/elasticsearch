@@ -14,6 +14,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -236,7 +237,7 @@ public class PeerFinderTests extends ESTestCase {
             boundTransportAddress -> localNode,
             null,
             connectionManager,
-            new TaskManager(settings, threadPool, emptySet()),
+            new TaskManager(settings, threadPool, new FakeActionUserContext(threadPool), emptySet()),
             Tracer.NOOP
         );
 

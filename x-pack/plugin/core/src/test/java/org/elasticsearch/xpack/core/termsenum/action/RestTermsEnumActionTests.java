@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.user.ActionUserContext;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -70,7 +72,8 @@ public class RestTermsEnumActionTests extends ESTestCase {
      */
     @BeforeClass
     public static void stubTermEnumAction() {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        ActionUserContext actionUserContext = new FakeActionUserContext(threadPool);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, actionUserContext, Collections.emptySet());
 
         final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
             TermsEnumAction.NAME,

@@ -17,6 +17,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -126,7 +127,7 @@ public class MasterServiceTests extends ESTestCase {
             .build();
 
         if (taskManager == null) {
-            taskManager = new TaskManager(settings, threadPool, emptySet());
+            taskManager = new TaskManager(settings, threadPool, new FakeActionUserContext(threadPool), emptySet());
         }
 
         final MasterService masterService = new MasterService(
@@ -1142,7 +1143,7 @@ public class MasterServiceTests extends ESTestCase {
                 settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool,
-                new TaskManager(settings, threadPool, emptySet())
+                new TaskManager(settings, threadPool, new FakeActionUserContext(threadPool), emptySet())
             )
         ) {
             final DiscoveryNode localNode = new DiscoveryNode(
@@ -1324,7 +1325,7 @@ public class MasterServiceTests extends ESTestCase {
                 settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool,
-                new TaskManager(settings, threadPool, emptySet())
+                new TaskManager(settings, threadPool, new FakeActionUserContext(threadPool), emptySet())
             )
         ) {
 

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -72,7 +73,12 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
      */
     @Before
     public void stubValidateQueryAction() {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        final TaskManager taskManager = new TaskManager(
+            Settings.EMPTY,
+            threadPool,
+            new FakeActionUserContext(threadPool),
+            Collections.emptySet()
+        );
 
         final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
             ValidateQueryAction.NAME,

@@ -10,6 +10,7 @@ package org.elasticsearch.test.disruption;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.ActionUserContext;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -78,6 +79,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
     ) {
+        ActionUserContext actionUserContext = new ActionUserContext(tc -> Optional.empty(), threadPool.getThreadContext());
         return new TransportService(
             settings,
             this,
@@ -85,7 +87,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            new TaskManager(settings, threadPool, taskHeaders),
+            new TaskManager(settings, threadPool, actionUserContext, taskHeaders),
             Tracer.NOOP
         );
     }

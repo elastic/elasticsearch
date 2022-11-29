@@ -151,7 +151,6 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
@@ -159,7 +158,6 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.SecurityActionUser;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -357,7 +355,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -1736,13 +1733,7 @@ public class Security extends Plugin
 
     @Override
     public ActionUserContext.Resolver getResolver() {
-        return t -> {
-            if (securityContext.get() == null) {
-                // Too early in the bootstrap process
-                return Optional.empty();
-            }
-            final Authentication authentication = securityContext.get().getAuthentication();
-            return Optional.ofNullable(authentication).map(Authentication::getEffectiveSubject).map(SecurityActionUser::new);
-        };
+        return new SecurityUserResolver(this.securityContext::get);
     }
+
 }

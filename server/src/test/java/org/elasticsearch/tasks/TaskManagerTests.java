@@ -18,6 +18,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.ActionUserContext;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -96,7 +98,13 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testTrackingChannelTask() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final TaskManager taskManager = new TaskManager(
+            Settings.EMPTY,
+            threadPool,
+            new FakeActionUserContext(threadPool),
+            Set.of(),
+            Tracer.NOOP
+        );
         Set<Task> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
@@ -146,7 +154,13 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testTrackingTaskAndCloseChannelConcurrently() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final TaskManager taskManager = new TaskManager(
+            Settings.EMPTY,
+            threadPool,
+            new FakeActionUserContext(threadPool),
+            Set.of(),
+            Tracer.NOOP
+        );
         Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
@@ -205,7 +219,13 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testRemoveBansOnChannelDisconnects() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final TaskManager taskManager = new TaskManager(
+            Settings.EMPTY,
+            threadPool,
+            new FakeActionUserContext(threadPool),
+            Set.of(),
+            Tracer.NOOP
+        );
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
         taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
@@ -252,7 +272,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testTaskAccounting() {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, new FakeActionUserContext(threadPool), Set.of());
 
         final Task task1 = taskManager.register("transport", "test", new CancellableRequest("thread 1"));
         final Task task2 = taskManager.register("transport", "test", new CancellableRequest("thread 2"));
@@ -282,7 +302,8 @@ public class TaskManagerTests extends ESTestCase {
      */
     public void testRegisterTaskStartsTracing() {
         final Tracer mockTracer = Mockito.mock(Tracer.class);
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+        final ActionUserContext actionUserContext = new FakeActionUserContext(threadPool);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, actionUserContext, Set.of(), mockTracer);
 
         final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
 
@@ -303,7 +324,8 @@ public class TaskManagerTests extends ESTestCase {
      */
     public void testUnregisterTaskStopsTracing() {
         final Tracer mockTracer = Mockito.mock(Tracer.class);
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+        final ActionUserContext actionUserContext = new FakeActionUserContext(threadPool);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, actionUserContext, Set.of(), mockTracer);
 
         final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
 
@@ -326,7 +348,8 @@ public class TaskManagerTests extends ESTestCase {
      */
     public void testRegisterAndExecuteStartsAndStopsTracing() {
         final Tracer mockTracer = Mockito.mock(Tracer.class);
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+        final ActionUserContext actionUserContext = new FakeActionUserContext(threadPool);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, actionUserContext, Set.of(), mockTracer);
 
         final Task task = taskManager.registerAndExecute(
             "testType",
@@ -359,7 +382,8 @@ public class TaskManagerTests extends ESTestCase {
 
     public void testRegisterWithEnabledDisabledTracing() {
         final Tracer mockTracer = Mockito.mock(Tracer.class);
-        final TaskManager taskManager = spy(new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer));
+        final ActionUserContext actionUserContext = new FakeActionUserContext(threadPool);
+        final TaskManager taskManager = spy(new TaskManager(Settings.EMPTY, threadPool, actionUserContext, Set.of(), mockTracer));
 
         taskManager.register("type", "action", makeTaskRequest(true, 123), false);
         verify(taskManager, times(0)).startTrace(any(), any());

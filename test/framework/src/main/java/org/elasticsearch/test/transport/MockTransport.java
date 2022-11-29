@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.action.support.user.ActionUserContext;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
@@ -36,6 +37,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -64,6 +66,7 @@ public class MockTransport extends StubbableTransport {
         );
         connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> false);
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
+        ActionUserContext actionUserContext = new ActionUserContext(tc -> Optional.empty(), threadPool.getThreadContext());
         return new TransportService(
             settings,
             this,
@@ -72,7 +75,7 @@ public class MockTransport extends StubbableTransport {
             localNodeFactory,
             clusterSettings,
             connectionManager,
-            new TaskManager(settings, threadPool, taskHeaders),
+            new TaskManager(settings, threadPool, actionUserContext, taskHeaders),
             Tracer.NOOP
         );
     }

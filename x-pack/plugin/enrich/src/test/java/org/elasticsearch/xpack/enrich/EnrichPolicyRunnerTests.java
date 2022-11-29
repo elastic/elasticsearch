@@ -34,6 +34,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.ActionUserContext;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -98,7 +100,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     @BeforeClass
     public static void beforeCLass() {
         testThreadPool = new TestThreadPool("EnrichPolicyRunnerTests");
-        testTaskManager = new TaskManager(Settings.EMPTY, testThreadPool, Collections.emptySet());
+        ActionUserContext actionUserContext = new FakeActionUserContext(testThreadPool);
+        testTaskManager = new TaskManager(Settings.EMPTY, testThreadPool, actionUserContext, Collections.emptySet());
     }
 
     @AfterClass

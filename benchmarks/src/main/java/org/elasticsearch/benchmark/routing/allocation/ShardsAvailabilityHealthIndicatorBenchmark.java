@@ -9,6 +9,7 @@
 package org.elasticsearch.benchmark.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.user.ActionUserContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -46,6 +47,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -164,11 +166,12 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
         Settings settings = Settings.builder().put("node.name", ShardsAvailabilityHealthIndicatorBenchmark.class.getSimpleName()).build();
         ThreadPool threadPool = new ThreadPool(settings);
 
+        ActionUserContext actionUserContext = new ActionUserContext(tc -> Optional.empty(), threadPool.getThreadContext());
         ClusterService clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
+            new TaskManager(Settings.EMPTY, threadPool, actionUserContext, Collections.emptySet())
         );
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
         indicatorService = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService);

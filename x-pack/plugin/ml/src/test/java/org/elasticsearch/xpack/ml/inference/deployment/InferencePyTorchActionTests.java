@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.ActionUserContext;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -189,7 +191,8 @@ public class InferencePyTorchActionTests extends ESTestCase {
         when(processContext.getResultProcessor()).thenReturn(resultProcessor);
         AtomicInteger timeoutCount = new AtomicInteger();
         when(processContext.getTimeoutCount()).thenReturn(timeoutCount);
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, tp, Set.of());
+        ActionUserContext actionUserContext = new FakeActionUserContext(tp);
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, tp, actionUserContext, Set.of());
         TestListenerCounter listener = new TestListenerCounter();
         CancellableTask cancellableTask = (CancellableTask) taskManager.register("test_task", "testAction", new TaskAwareRequest() {
             @Override

@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
@@ -618,7 +619,12 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         // Update the cluster state with a block so the request waits until it's unblocked
         setState(clusterService, stateWithBlock);
 
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TaskManager taskManager = new TaskManager(
+            Settings.EMPTY,
+            threadPool,
+            new FakeActionUserContext(threadPool),
+            Collections.emptySet()
+        );
 
         Request request = new Request();
         final CancellableTask task = (CancellableTask) taskManager.register("type", "internal:testAction", request);
@@ -665,7 +671,12 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     }
 
     public void testTaskCancellationOnceActionItIsDispatchedToMaster() throws Exception {
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TaskManager taskManager = new TaskManager(
+            Settings.EMPTY,
+            threadPool,
+            new FakeActionUserContext(threadPool),
+            Collections.emptySet()
+        );
 
         Request request = new Request();
         final CancellableTask task = (CancellableTask) taskManager.register("type", "internal:testAction", request);

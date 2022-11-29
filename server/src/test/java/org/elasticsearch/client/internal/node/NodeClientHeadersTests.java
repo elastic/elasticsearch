@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.client.internal.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,7 +36,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     @Override
     protected Client buildClient(Settings headersSettings, ActionType<?>[] testedActions) {
         Settings settings = HEADER_SETTINGS;
-        TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
+        TaskManager taskManager = new TaskManager(settings, threadPool, new FakeActionUserContext(threadPool), Collections.emptySet());
         Actions actions = new Actions(testedActions, taskManager);
         NodeClient client = new NodeClient(settings, threadPool);
         client.initialize(

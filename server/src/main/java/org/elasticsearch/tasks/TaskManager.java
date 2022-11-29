@@ -73,9 +73,11 @@ public class TaskManager implements ClusterStateApplier {
 
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
+    private final ThreadPool threadPool;
+    private ActionUserContext actionUserContext;
+
     /** Rest headers that are copied to the task */
     private final String[] taskHeaders;
-    private final ThreadPool threadPool;
 
     private final Map<Long, Task> tasks = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
@@ -98,12 +100,19 @@ public class TaskManager implements ClusterStateApplier {
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
     // For testing
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        this(settings, threadPool, taskHeaders, Tracer.NOOP);
+    public TaskManager(Settings settings, ThreadPool threadPool, ActionUserContext actionUserContext, Set<String> taskHeaders) {
+        this(settings, threadPool, actionUserContext, taskHeaders, Tracer.NOOP);
     }
 
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
+    public TaskManager(
+        Settings settings,
+        ThreadPool threadPool,
+        ActionUserContext actionUserContext,
+        Set<String> taskHeaders,
+        Tracer tracer
+    ) {
         this.threadPool = threadPool;
+        this.actionUserContext = actionUserContext;
         this.taskHeaders = taskHeaders.toArray(Strings.EMPTY_ARRAY);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.tracer = tracer;
@@ -148,7 +157,7 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
-        final ActionUser owner = ActionUserContext.getEffectiveUser(threadContext).orElse(null);
+        final ActionUser owner = actionUserContext.getEffectiveUser().orElse(null);
         final Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), owner, headers);
         Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";

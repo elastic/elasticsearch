@@ -74,6 +74,7 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.ActionUserContextDataProvider;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -435,7 +436,11 @@ public class Node implements Closeable {
             HeaderWarning.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
 
-            ActionUserContext.setActionUserResolver(getActionUserResolver(pluginsService));
+            ActionUserContext actionUserContext = new ActionUserContext(
+                getActionUserResolver(pluginsService),
+                threadPool.getThreadContext()
+            );
+            ActionUserContextDataProvider.setContext(actionUserContext);
 
             final Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
@@ -444,7 +449,7 @@ public class Node implements Closeable {
 
             final Tracer tracer = getTracer(pluginsService, settings);
 
-            final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
+            final TaskManager taskManager = new TaskManager(settings, threadPool, actionUserContext, taskHeaders, tracer);
 
             // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
             final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.flatMap(Plugin::getSettings).toList());

@@ -35,6 +35,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeActionUtils;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -168,7 +169,7 @@ public class ClusterStateChanges {
             SETTINGS,
             clusterSettings,
             threadPool,
-            new TaskManager(SETTINGS, threadPool, Collections.emptySet())
+            new TaskManager(SETTINGS, threadPool, new FakeActionUserContext(threadPool), Collections.emptySet())
         ) {
             @Override
             protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {

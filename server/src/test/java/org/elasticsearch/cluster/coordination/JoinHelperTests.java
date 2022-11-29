@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -62,7 +63,7 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode,
             null,
             new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
-            new TaskManager(Settings.EMPTY, threadPool, Set.of()),
+            new TaskManager(Settings.EMPTY, threadPool, new FakeActionUserContext(threadPool), Set.of()),
             Tracer.NOOP
         );
         JoinHelper joinHelper = new JoinHelper(

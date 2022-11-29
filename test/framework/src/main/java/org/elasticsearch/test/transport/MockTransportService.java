@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.ActionUserContext;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
@@ -59,6 +60,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -279,7 +281,8 @@ public final class MockTransportService extends TransportService {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
             return new MockTaskManager(settings, threadPool, taskHeaders);
         } else {
-            return new TaskManager(settings, threadPool, taskHeaders, tracer);
+            ActionUserContext actionUserContext = new ActionUserContext(tc -> Optional.empty(), threadPool.getThreadContext());
+            return new TaskManager(settings, threadPool, actionUserContext, taskHeaders, tracer);
         }
     }
 

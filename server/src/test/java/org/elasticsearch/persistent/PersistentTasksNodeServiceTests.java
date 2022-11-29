@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -115,7 +116,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             threadPool,
             persistentTasksService,
             registry,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            new TaskManager(Settings.EMPTY, threadPool, new FakeActionUserContext(threadPool), Collections.emptySet()),
             executor
         );
 
@@ -235,7 +236,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             threadPool,
             persistentTasksService,
             registry,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            new TaskManager(Settings.EMPTY, threadPool, new FakeActionUserContext(threadPool), Collections.emptySet()),
             executor
         );
 
@@ -294,7 +295,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         int nonLocalNodesCount = randomInt(10);
         MockExecutor executor = new MockExecutor();
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TaskManager taskManager = new TaskManager(
+            Settings.EMPTY,
+            threadPool,
+            new FakeActionUserContext(threadPool),
+            Collections.emptySet()
+        );
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
             threadPool,
             persistentTasksService,
@@ -390,7 +396,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         int nonLocalNodesCount = randomInt(10);
         MockExecutor executor = new MockExecutor();
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TaskManager taskManager = new TaskManager(
+            Settings.EMPTY,
+            threadPool,
+            new FakeActionUserContext(threadPool),
+            Collections.emptySet()
+        );
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
             threadPool,
             persistentTasksService,
@@ -502,7 +513,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             mockThreadPool,
             persistentTasksService,
             registry,
-            new TaskManager(Settings.EMPTY, mockThreadPool, Collections.emptySet()),
+            new TaskManager(Settings.EMPTY, mockThreadPool, new FakeActionUserContext(threadPool), Collections.emptySet()),
             executor
         );
 

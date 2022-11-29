@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -61,7 +62,7 @@ public class InboundHandlerTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        taskManager = new TaskManager(Settings.EMPTY, threadPool, new FakeActionUserContext(threadPool), Collections.emptySet());
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final boolean ignoreDeserializationErrors = true; // suppress assertions to test production error-handling

@@ -10,6 +10,7 @@ package org.elasticsearch.test.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.support.user.ActionUserContext;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 
 import java.util.Collection;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -41,7 +43,7 @@ public class MockTaskManager extends TaskManager {
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 
     public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        super(settings, threadPool, taskHeaders, Tracer.NOOP);
+        super(settings, threadPool, new ActionUserContext(tc -> Optional.empty(), threadPool.getThreadContext()), taskHeaders, Tracer.NOOP);
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -241,7 +242,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             settings,
             clusterSettings,
             threadPool,
-            new TaskManager(settings, threadPool, Set.of())
+            new TaskManager(settings, threadPool, new FakeActionUserContext(threadPool), Set.of())
         ) {
             @Override
             protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {

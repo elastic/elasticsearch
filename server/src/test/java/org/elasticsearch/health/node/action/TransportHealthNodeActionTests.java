@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -72,7 +73,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        taskManager = new TaskManager(Settings.EMPTY, threadPool, new FakeActionUserContext(threadPool), Collections.emptySet());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = transport.createTransportService(

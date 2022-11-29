@@ -40,6 +40,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.user.ActionUserContext;
+import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -144,7 +146,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest = new DummyAbstractBulkByScrollRequest(new SearchRequest());
         listener = new PlainActionFuture<>();
         scrollId = null;
-        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        ActionUserContext actionUserContext = new FakeActionUserContext(threadPool);
+        taskManager = new TaskManager(Settings.EMPTY, threadPool, actionUserContext, Collections.emptySet());
         testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();

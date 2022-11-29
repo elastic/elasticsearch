@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.user.ActionUserContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -51,6 +52,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -228,7 +230,13 @@ public class TransportService extends AbstractLifecycleComponent
             localNodeFactory,
             clusterSettings,
             new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
-            new TaskManager(settings, threadPool, taskHeaders),
+            new TaskManager(
+                settings,
+                threadPool,
+                // TODO should we always runs this with a null ActionUser ?
+                new ActionUserContext(tc -> Optional.empty(), threadPool.getThreadContext()),
+                taskHeaders
+            ),
             tracer
         );
     }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support.user;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Optional;
@@ -19,7 +18,13 @@ public class ActionUserContext {
         Optional<ActionUser> resolve(ThreadContext context);
     };
 
-    private static final SetOnce<Resolver> RESOLVER = new SetOnce<>();
+    private final Resolver resolver;
+    private final ThreadContext threadContext;
+
+    public ActionUserContext(Resolver resolver, ThreadContext threadContext) {
+        this.resolver = resolver;
+        this.threadContext = threadContext;
+    }
 
     /**
      * Retrieves the current effective user for the given thread context.
@@ -28,16 +33,8 @@ public class ActionUserContext {
      * not be an authenticated user - for example this may be a background action executing as an
      * internal system user).
      */
-    public static Optional<ActionUser> getEffectiveUser(ThreadContext threadContext) {
-        Resolver r = RESOLVER.get();
-        if (r == null) {
-            return Optional.empty();
-        }
-        return r.resolve(threadContext);
-    }
-
-    public static void setActionUserResolver(Resolver resolver) {
-        RESOLVER.set(resolver);
+    public Optional<ActionUser> getEffectiveUser() {
+        return this.resolver.resolve(threadContext);
     }
 
 }

@@ -18,10 +18,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.explain.ExplainRequest;
@@ -29,10 +25,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -41,11 +34,8 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.GetSourceRequest;
-import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.internal.Requests;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -55,15 +45,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
-import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -78,9 +63,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -335,10 +318,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request ping() {
-        return new Request(HttpHead.METHOD_NAME, "/");
-    }
-
     static Request update(UpdateRequest updateRequest) throws IOException {
         String endpoint = endpoint(updateRequest.index(), "_update", updateRequest.id());
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
@@ -439,31 +418,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
-        Request request = new Request(HttpDelete.METHOD_NAME, "/_search/scroll");
-        request.setEntity(createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request openPointInTime(OpenPointInTimeRequest openRequest) {
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint(openRequest.indices(), "_pit"));
-        Params params = new Params();
-        if (OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS.equals(openRequest.indicesOptions()) == false) {
-            params.withIndicesOptions(openRequest.indicesOptions());
-        }
-        params.withRouting(openRequest.routing());
-        params.withPreference(openRequest.preference());
-        params.putParam("keep_alive", openRequest.keepAlive());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request closePointInTime(ClosePointInTimeRequest closeRequest) throws IOException {
-        Request request = new Request(HttpDelete.METHOD_NAME, "/_pit");
-        request.setEntity(createEntity(closeRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
     static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_msearch");
 
@@ -476,41 +430,6 @@ final class RequestConverters {
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
         request.addParameters(params.asMap());
-        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
-        return request;
-    }
-
-    static Request searchTemplate(SearchTemplateRequest searchTemplateRequest) throws IOException {
-        Request request;
-
-        if (searchTemplateRequest.isSimulate()) {
-            request = new Request(HttpGet.METHOD_NAME, "_render/template");
-        } else {
-            SearchRequest searchRequest = searchTemplateRequest.getRequest();
-            String endpoint = endpoint(searchRequest.indices(), "_search/template");
-            request = new Request(HttpPost.METHOD_NAME, endpoint);
-
-            Params params = new Params();
-            addSearchRequestParams(params, searchRequest);
-            request.addParameters(params.asMap());
-        }
-
-        request.setEntity(createEntity(searchTemplateRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request multiSearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, "/_msearch/template");
-
-        Params params = new Params();
-        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
-        if (multiSearchTemplateRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
-            params.putParam("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
-        }
-        request.addParameters(params.asMap());
-
-        XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
-        byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
         request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
@@ -562,29 +481,8 @@ final class RequestConverters {
         return request;
     }
 
-    static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval"));
-
-        Params params = new Params();
-        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(rankEvalRequest.indicesOptions()) == false) {
-            params.withIndicesOptions(rankEvalRequest.indicesOptions());
-        }
-        params.putParam("search_type", rankEvalRequest.searchType().name().toLowerCase(Locale.ROOT));
-        request.addParameters(params.asMap());
-        request.setEntity(createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
         return prepareReindexRequest(reindexRequest, true);
-    }
-
-    static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
-        return prepareDeleteByQueryRequest(deleteByQueryRequest, true);
-    }
-
-    static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
-        return prepareUpdateByQueryRequest(updateByQueryRequest, true);
     }
 
     private static Request prepareReindexRequest(ReindexRequest reindexRequest, boolean waitForCompletion) throws IOException {
@@ -604,109 +502,6 @@ final class RequestConverters {
 
         request.addParameters(params.asMap());
         request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    private static Request prepareDeleteByQueryRequest(DeleteByQueryRequest deleteByQueryRequest, boolean waitForCompletion)
-        throws IOException {
-        String endpoint = endpoint(deleteByQueryRequest.indices(), "_delete_by_query");
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params().withRouting(deleteByQueryRequest.getRouting())
-            .withRefresh(deleteByQueryRequest.isRefresh())
-            .withTimeout(deleteByQueryRequest.getTimeout())
-            .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
-            .withRequestsPerSecond(deleteByQueryRequest.getRequestsPerSecond())
-            .withWaitForCompletion(waitForCompletion)
-            .withSlices(deleteByQueryRequest.getSlices());
-
-        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(deleteByQueryRequest.indicesOptions()) == false) {
-            params = params.withIndicesOptions(deleteByQueryRequest.indicesOptions());
-        }
-
-        if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
-            params.putParam("conflicts", "proceed");
-        }
-        if (deleteByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
-            params.putParam("scroll_size", Integer.toString(deleteByQueryRequest.getBatchSize()));
-        }
-        if (deleteByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
-            params.putParam("scroll", deleteByQueryRequest.getScrollTime());
-        }
-        if (deleteByQueryRequest.getMaxDocs() > 0) {
-            params.putParam("max_docs", Integer.toString(deleteByQueryRequest.getMaxDocs()));
-        }
-        request.addParameters(params.asMap());
-        request.setEntity(createEntity(deleteByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request prepareUpdateByQueryRequest(UpdateByQueryRequest updateByQueryRequest, boolean waitForCompletion) throws IOException {
-        String endpoint = endpoint(updateByQueryRequest.indices(), "_update_by_query");
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params().withRouting(updateByQueryRequest.getRouting())
-            .withPipeline(updateByQueryRequest.getPipeline())
-            .withRefresh(updateByQueryRequest.isRefresh())
-            .withTimeout(updateByQueryRequest.getTimeout())
-            .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
-            .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
-            .withWaitForCompletion(waitForCompletion)
-            .withSlices(updateByQueryRequest.getSlices());
-        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(updateByQueryRequest.indicesOptions()) == false) {
-            params = params.withIndicesOptions(updateByQueryRequest.indicesOptions());
-        }
-        if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
-            params.putParam("conflicts", "proceed");
-        }
-        if (updateByQueryRequest.getBatchSize() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE) {
-            params.putParam("scroll_size", Integer.toString(updateByQueryRequest.getBatchSize()));
-        }
-        if (updateByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
-            params.putParam("scroll", updateByQueryRequest.getScrollTime());
-        }
-        if (updateByQueryRequest.getMaxDocs() > 0) {
-            params.putParam("max_docs", Integer.toString(updateByQueryRequest.getMaxDocs()));
-        }
-        request.addParameters(params.asMap());
-        request.setEntity(createEntity(updateByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request rethrottleReindex(RethrottleRequest rethrottleRequest) {
-        return rethrottle(rethrottleRequest, "_reindex");
-    }
-
-    static Request rethrottleUpdateByQuery(RethrottleRequest rethrottleRequest) {
-        return rethrottle(rethrottleRequest, "_update_by_query");
-    }
-
-    static Request rethrottleDeleteByQuery(RethrottleRequest rethrottleRequest) {
-        return rethrottle(rethrottleRequest, "_delete_by_query");
-    }
-
-    private static Request rethrottle(RethrottleRequest rethrottleRequest, String firstPathPart) {
-        String endpoint = new EndpointBuilder().addPathPart(firstPathPart)
-            .addPathPart(rethrottleRequest.getTaskId().toString())
-            .addPathPart("_rethrottle")
-            .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params().withRequestsPerSecond(rethrottleRequest.getRequestsPerSecond());
-        // we set "group_by" to "none" because this is the response format we can parse back
-        params.putParam("group_by", "none");
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request putScript(PutStoredScriptRequest putStoredScriptRequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(putStoredScriptRequest.id()).build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params();
-        params.withTimeout(putStoredScriptRequest.timeout());
-        params.withMasterTimeout(putStoredScriptRequest.masterNodeTimeout());
-        if (Strings.hasText(putStoredScriptRequest.context())) {
-            params.putParam("context", putStoredScriptRequest.context());
-        }
-        request.addParameters(params.asMap());
-        request.setEntity(createEntity(putStoredScriptRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -730,32 +525,6 @@ final class RequestConverters {
         params.withRealtime(tvrequest.getRealtime());
         request.addParameters(params.asMap());
         request.setEntity(createEntity(tvrequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request mtermVectors(MultiTermVectorsRequest mtvrequest) throws IOException {
-        String endpoint = "_mtermvectors";
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(mtvrequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        Params params = new Params();
-        params.withMasterTimeout(getStoredScriptRequest.masterNodeTimeout());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request deleteScript(DeleteStoredScriptRequest deleteStoredScriptRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(deleteStoredScriptRequest.id()).build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        Params params = new Params();
-        params.withTimeout(deleteStoredScriptRequest.timeout());
-        params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
-        request.addParameters(params.asMap());
         return request;
     }
 
@@ -783,10 +552,6 @@ final class RequestConverters {
         return new EndpointBuilder().addPathPart(index, type, id).addPathPartAsIs(endpoint).build();
     }
 
-    static String endpoint(String[] indices) {
-        return new EndpointBuilder().addCommaSeparatedPathParts(indices).build();
-    }
-
     static String endpoint(String[] indices, String endpoint) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).build();
     }
@@ -796,13 +561,6 @@ final class RequestConverters {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices)
             .addCommaSeparatedPathParts(types)
             .addPathPartAsIs(endpoint)
-            .build();
-    }
-
-    static String endpoint(String[] indices, String endpoint, String[] suffixes) {
-        return new EndpointBuilder().addCommaSeparatedPathParts(indices)
-            .addPathPartAsIs(endpoint)
-            .addCommaSeparatedPathParts(suffixes)
             .build();
     }
 
@@ -876,10 +634,6 @@ final class RequestConverters {
                 return putParam("fields", String.join(",", fields));
             }
             return this;
-        }
-
-        Params withMasterTimeout(TimeValue masterTimeout) {
-            return putParam("master_timeout", masterTimeout);
         }
 
         Params withPipeline(String pipeline) {
@@ -1050,101 +804,8 @@ final class RequestConverters {
             return this;
         }
 
-        Params withHuman(boolean human) {
-            if (human) {
-                putParam("human", Boolean.toString(human));
-            }
-            return this;
-        }
-
-        Params withLocal(boolean local) {
-            if (local) {
-                putParam("local", Boolean.toString(local));
-            }
-            return this;
-        }
-
-        Params withIncludeDefaults(boolean includeDefaults) {
-            if (includeDefaults) {
-                return putParam("include_defaults", Boolean.TRUE.toString());
-            }
-            return this;
-        }
-
-        Params withPreserveExisting(boolean preserveExisting) {
-            if (preserveExisting) {
-                return putParam("preserve_existing", Boolean.TRUE.toString());
-            }
-            return this;
-        }
-
-        Params withDetailed(boolean detailed) {
-            if (detailed) {
-                return putParam("detailed", Boolean.TRUE.toString());
-            }
-            return this;
-        }
-
         Params withWaitForCompletion(Boolean waitForCompletion) {
             return putParam("wait_for_completion", waitForCompletion.toString());
-        }
-
-        Params withNodes(String[] nodes) {
-            return withNodes(Arrays.asList(nodes));
-        }
-
-        Params withNodes(List<String> nodes) {
-            if (nodes != null && nodes.size() > 0) {
-                return putParam("nodes", String.join(",", nodes));
-            }
-            return this;
-        }
-
-        Params withActions(String[] actions) {
-            return withActions(Arrays.asList(actions));
-        }
-
-        Params withActions(List<String> actions) {
-            if (actions != null && actions.size() > 0) {
-                return putParam("actions", String.join(",", actions));
-            }
-            return this;
-        }
-
-        Params withWaitForStatus(ClusterHealthStatus status) {
-            if (status != null) {
-                return putParam("wait_for_status", status.name().toLowerCase(Locale.ROOT));
-            }
-            return this;
-        }
-
-        Params withWaitForNoRelocatingShards(boolean waitNoRelocatingShards) {
-            if (waitNoRelocatingShards) {
-                return putParam("wait_for_no_relocating_shards", Boolean.TRUE.toString());
-            }
-            return this;
-        }
-
-        Params withWaitForNoInitializingShards(boolean waitNoInitShards) {
-            if (waitNoInitShards) {
-                return putParam("wait_for_no_initializing_shards", Boolean.TRUE.toString());
-            }
-            return this;
-        }
-
-        Params withWaitForNodes(String waitForNodes) {
-            return putParam("wait_for_nodes", waitForNodes);
-        }
-
-        Params withLevel(ClusterHealthRequest.Level level) {
-            return putParam("level", level.name().toLowerCase(Locale.ROOT));
-        }
-
-        Params withWaitForEvents(Priority waitForEvents) {
-            if (waitForEvents != null) {
-                return putParam("wait_for_events", waitForEvents.name().toLowerCase(Locale.ROOT));
-            }
-            return this;
         }
     }
 
@@ -1195,11 +856,6 @@ final class RequestConverters {
         }
 
         EndpointBuilder addCommaSeparatedPathParts(String[] parts) {
-            addPathPart(String.join(",", parts));
-            return this;
-        }
-
-        EndpointBuilder addCommaSeparatedPathParts(List<String> parts) {
             addPathPart(String.join(",", parts));
             return this;
         }

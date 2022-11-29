@@ -168,7 +168,7 @@ public class SSLConfigurationSettings {
     );
 
     public static final SslSetting<List<X509Field>> TRUST_RESTRICTIONS_X509_FIELDS = SslSetting.setting(
-        "trust_restrictions.x509_fields",
+        SslConfigurationKeys.TRUST_RESTRICTIONS_X509_FIELDS,
         TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE
     );
 

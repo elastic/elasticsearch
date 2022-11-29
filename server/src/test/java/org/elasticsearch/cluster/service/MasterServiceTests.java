@@ -86,6 +86,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MasterServiceTests extends ESTestCase {
 
@@ -1940,6 +1941,7 @@ public class MasterServiceTests extends ESTestCase {
                         deterministicTaskQueue.getCurrentTimeMillis() - insertionTimeMillis,
                         pendingTaskEntry.getTimeInQueueInMillis()
                     );
+                    assertThat(pendingTaskEntry.getTimeInQueueInMillis(), lessThanOrEqualTo(masterService.getMaxTaskWaitTime().millis()));
                 }
 
                 private List<PendingClusterTask> getPendingTasks() {
@@ -2001,6 +2003,7 @@ public class MasterServiceTests extends ESTestCase {
 
             final var taskCount = between(1, 10);
             final var tasks = new ArrayList<BatchedTask>(taskCount);
+            long firstTaskInsertTimeMillis = 0L;
             for (int i = 1; i <= taskCount; i++) {
 
                 if (randomBoolean()) {
@@ -2010,6 +2013,9 @@ public class MasterServiceTests extends ESTestCase {
                     while (deterministicTaskQueue.getCurrentTimeMillis() < targetTime) {
                         deterministicTaskQueue.advanceTime();
                     }
+                }
+                if (i == 1) {
+                    firstTaskInsertTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
                 }
 
                 final var queueIndex = between(-1, taskQueues.size() - 1);
@@ -2045,6 +2051,11 @@ public class MasterServiceTests extends ESTestCase {
                 } else {
                     taskQueues.get(queueIndex).submitTask(task.getSource(), task, task.timeout);
                 }
+
+                assertThat(
+                    masterService.getMaxTaskWaitTime().millis(),
+                    equalTo(deterministicTaskQueue.getCurrentTimeMillis() - firstTaskInsertTimeMillis)
+                );
             }
 
             for (final var task : tasks) {
@@ -2065,6 +2076,7 @@ public class MasterServiceTests extends ESTestCase {
             for (final var task : tasks) {
                 task.assertNoPendingTaskEntry();
             }
+            assertThat(masterService.getMaxTaskWaitTime(), equalTo(TimeValue.ZERO));
         }
     }
 

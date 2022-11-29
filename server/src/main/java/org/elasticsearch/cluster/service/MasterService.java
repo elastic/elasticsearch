@@ -573,6 +573,11 @@ public class MasterService extends AbstractLifecycleComponent {
                 return isTimedOut() ? 0 : 1;
             }
 
+            @Override
+            public long getCreationTimeMillis() {
+                return isTimedOut() ? Long.MAX_VALUE : insertionTime;
+            }
+
             private boolean isTimedOut() {
                 return executed.get() && isRunning == false;
             }
@@ -680,8 +685,16 @@ public class MasterService extends AbstractLifecycleComponent {
      * @return A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
      */
     public TimeValue getMaxTaskWaitTime() {
-        // TODO AwaitsFix this doesn't give accurate answers any more
-        return threadPoolExecutor.getMaxTaskWaitTime();
+        final var oldestTaskTimeMillis = Stream.concat(
+            Stream.ofNullable(currentlyExecutingBatch),
+            Arrays.stream(queues).flatMap(q -> q.queue.stream())
+        ).mapToLong(Batch::getCreationTimeMillis).min().orElse(Long.MAX_VALUE);
+
+        if (oldestTaskTimeMillis == Long.MAX_VALUE) {
+            return TimeValue.ZERO;
+        }
+
+        return TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - oldestTaskTimeMillis);
     }
 
     private void logExecutionTime(TimeValue executionTime, String activity, BatchSummary summary) {
@@ -1408,8 +1421,8 @@ public class MasterService extends AbstractLifecycleComponent {
             queue.add(runner);
             if (totalQueueSize.getAndIncrement() == 0) {
                 forkQueueProcessor();
-                // temporary fix to make sure queue remains nonempty until all tasks processed, so that getMaxTaskWaitTime and starvation
-                // logging still work TODO AwaitsFix shouldn't be necessary, get rid of this
+                // temporary fix to make sure queue remains nonempty until all tasks processed, so that starvation logging still works
+                // TODO AwaitsFix shouldn't be necessary, get rid of this
                 try {
                     threadPoolExecutor.execute(new PrioritizedRunnable(Priority.LANGUID) {
                         @Override
@@ -1432,9 +1445,6 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private interface Batch {
-        Stream<PendingClusterTask> getPending(long currentTimeMillis);
-
-        int getPendingCount();
 
         void run();
 
@@ -1447,6 +1457,21 @@ public class MasterService extends AbstractLifecycleComponent {
          */
         // Should really be a NodeClosedException instead, but this exception type doesn't trigger retries today.
         void onRejection(FailedToCommitClusterStateException e);
+
+        /**
+         * @return number of tasks in this batch if the batch is pending, or {@code 0} if the batch is not pending.
+         */
+        int getPendingCount();
+
+        /**
+         * @return the tasks in this batch if the batch is pending, or an empty stream if the batch is not pending.
+         */
+        Stream<PendingClusterTask> getPending(long currentTimeMillis);
+
+        /**
+         * @return the earliest insertion time of the tasks in this batch if the batch is pending, or {@link Long#MAX_VALUE} otherwise.
+         */
+        long getCreationTimeMillis();
     }
 
     /**
@@ -1694,6 +1719,14 @@ public class MasterService extends AbstractLifecycleComponent {
                     }
                 }
                 return count;
+            }
+
+            @Override
+            public long getCreationTimeMillis() {
+                return Stream.concat(executing.stream(), queue.stream().filter(entry -> entry.executed().get() == false))
+                    .mapToLong(Entry::insertionTimeMillis)
+                    .min()
+                    .orElse(Long.MAX_VALUE);
             }
 
             @Override

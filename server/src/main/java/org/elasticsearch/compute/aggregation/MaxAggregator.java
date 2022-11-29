@@ -53,8 +53,12 @@ final class MaxAggregator implements AggregatorFunction {
     static double maxFromBlock(Block block) {
         double max = Double.MIN_VALUE;
         int len = block.getPositionCount();
-        for (int i = 0; i < len; i++) {
-            max = Math.max(max, block.getDouble(i));
+        if (block.areAllValuesNull() == false) {
+            for (int i = 0; i < len; i++) {
+                if (block.isNull(i) == false) {
+                    max = Math.max(max, block.getDouble(i));
+                }
+            }
         }
         return max;
     }
@@ -62,19 +66,14 @@ final class MaxAggregator implements AggregatorFunction {
     static double maxFromLongBlock(LongArrayBlock block) {
         double max = Double.NEGATIVE_INFINITY;
         long[] values = block.getRawLongArray();
-        for (int i = 0; i < block.getPositionCount(); i++) {
-            max = Math.max(max, values[i]);
+        if (block.areAllValuesNull() == false) {
+            for (int i = 0; i < block.getPositionCount(); i++) {
+                if (block.isNull(i) == false) {
+                    max = Math.max(max, values[i]);
+                }
+            }
         }
         return max;
-    }
-
-    static double maxFromLongBlockl(LongArrayBlock block) {
-        long max = Long.MIN_VALUE;
-        long[] values = block.getRawLongArray();
-        for (int i = 0; i < values.length; i++) {
-            max = Math.max(max, values[i]);
-        }
-        return (double) max;
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.ConstantBytesRefBlock;
 import org.elasticsearch.compute.data.ConstantDoubleBlock;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.ConstantLongBlock;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -77,6 +78,8 @@ public class RowOperator implements Operator {
                 blocks[i] = new ConstantDoubleBlock(doubleVal, 1);
             } else if (object instanceof String stringVal) {
                 blocks[i] = new ConstantBytesRefBlock(new BytesRef(stringVal), 1);
+            } else if (object == null) {
+                blocks[i] = new ConstantNullBlock(1);
             } else {
                 throw new UnsupportedOperationException();
             }

@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.data;
 
 import java.util.Arrays;
+import java.util.BitSet;
 
 /**
  * Block implementation that stores an array of double values.
@@ -22,9 +23,15 @@ public final class DoubleArrayBlock extends Block {
         this.values = values;
     }
 
+    public DoubleArrayBlock(double[] values, int positionCount, BitSet nulls) {
+        super(positionCount, nulls);
+        this.values = values;
+    }
+
     @Override
     public double getDouble(int position) {
         assert assertPosition(position);
+        assert isNull(position) == false;
         return values[position];
     }
 

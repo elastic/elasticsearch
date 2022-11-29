@@ -526,42 +526,46 @@ public class DefMath {
     }
 
     private static boolean eq(Object left, Object right) {
-        if (left != null && right != null) {
-            if (left instanceof Double dl) {
+        if (left == right) {
+            return true;
+        } else if (left != null && right != null) {
+            if (left.getClass() == right.getClass()) {
+                return left.equals(right);
+            } else if (left instanceof Double dl) {
                 if (right instanceof Number r) {
                     return dl == r.doubleValue();
                 } else if (right instanceof Character cr) {
-                    return (double)dl == cr;
+                    return (double) dl == cr;
                 }
             } else if (right instanceof Double dr) {
                 if (left instanceof Number l) {
                     return l.doubleValue() == dr;
                 } else if (left instanceof Character cl) {
-                    return cl == (double)dr;
+                    return cl == (double) dr;
                 }
             } else if (left instanceof Float fl) {
                 if (right instanceof Number r) {
                     return fl == r.floatValue();
                 } else if (right instanceof Character cr) {
-                    return (float)fl == cr;
+                    return (float) fl == cr;
                 }
             } else if (right instanceof Float fr) {
                 if (left instanceof Number l) {
                     return l.floatValue() == fr;
                 } else if (left instanceof Character cl) {
-                    return cl == (float)fr;
+                    return cl == (float) fr;
                 }
             } else if (left instanceof Long ll) {
                 if (right instanceof Number r) {
                     return ll == r.longValue();
                 } else if (right instanceof Character cr) {
-                    return (long)ll == cr;
+                    return (long) ll == cr;
                 }
             } else if (right instanceof Long lr) {
                 if (left instanceof Number l) {
                     return l.longValue() == lr;
                 } else if (left instanceof Character cl) {
-                    return cl == (long)lr;
+                    return cl == (long) lr;
                 }
             } else if (left instanceof Number l) {
                 if (right instanceof Number r) {
@@ -578,7 +582,7 @@ public class DefMath {
             return left.equals(right);
         }
 
-        return left == null && right == null;
+        return false;
     }
 
     // comparison operators: applicable for any numeric type

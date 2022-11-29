@@ -257,6 +257,7 @@ public class Constants {
         "cluster:monitor/fetch/health/info",
         "cluster:monitor/health",
         "cluster:monitor/health_api",
+        "cluster:monitor/health_api/stats",
         "cluster:monitor/update/health/info",
         "cluster:monitor/ingest/geoip/stats",
         "cluster:monitor/main",
@@ -487,6 +488,7 @@ public class Constants {
         "internal:cluster/master_history/get",
         "internal:cluster/coordination_diagnostics/info",
         "internal:cluster/formation/info",
-        "internal:gateway/local/started_shards"
+        "internal:gateway/local/started_shards",
+        "internal:admin/indices/prevalidate_shard_path"
     );
 }

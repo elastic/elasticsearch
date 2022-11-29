@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -81,6 +82,10 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                 .orElseThrow(() -> new NoSuchElementException("Indicator [" + name + "] is not found"));
         }
 
+        public List<HealthIndicatorResult> getIndicatorResults() {
+            return indicators;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
@@ -88,7 +93,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         @SuppressWarnings("unchecked")
-        public Iterator<? extends ToXContent> toXContentChunked() {
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
                 builder.startObject();
                 if (status != null) {
@@ -106,7 +111,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                                 // indicators however the affected resources which are the O(indices) fields are
                                 // flat mapped over all diagnoses within the indicator
                                 Iterators.single((ToXContent) (builder, params) -> builder.field(indicator.name())),
-                                indicator.toXContentChunked()
+                                indicator.toXContentChunked(outerParams)
                             )
                         )
                         .toArray(Iterator[]::new)
@@ -169,6 +174,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         private final ClusterService clusterService;
         private final HealthService healthService;
         private final NodeClient client;
+        private final HealthApiStats healthApiStats;
 
         @Inject
         public TransportAction(
@@ -176,29 +182,24 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             TransportService transportService,
             ClusterService clusterService,
             HealthService healthService,
-            NodeClient client
+            NodeClient client,
+            HealthApiStats healthApiStats
         ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.clusterService = clusterService;
             this.healthService = healthService;
             this.client = client;
+            this.healthApiStats = healthApiStats;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> responseListener) {
             assert task instanceof CancellableTask;
-            healthService.getHealth(
-                client,
-                request.indicatorName,
-                request.verbose,
-                responseListener.map(
-                    healthIndicatorResults -> new Response(
-                        clusterService.getClusterName(),
-                        healthIndicatorResults,
-                        request.indicatorName == null
-                    )
-                )
-            );
+            healthService.getHealth(client, request.indicatorName, request.verbose, responseListener.map(healthIndicatorResults -> {
+                Response response = new Response(clusterService.getClusterName(), healthIndicatorResults, request.indicatorName == null);
+                healthApiStats.track(request.verbose, response);
+                return response;
+            }));
         }
     }
 }

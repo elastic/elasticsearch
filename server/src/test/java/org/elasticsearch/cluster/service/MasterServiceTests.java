@@ -1808,14 +1808,14 @@ public class MasterServiceTests extends ESTestCase {
             final var smallBatchQueue = masterService.getTaskQueue("small-batch", Priority.NORMAL, smallBatchExecutor);
             for (int source = 0; source < 2; source++) {
                 for (int task = 0; task < 2; task++) {
-                    smallBatchQueue.submitTask("source-" + source, new Task("task-" + task), null);
+                    smallBatchQueue.submitTask("source-" + source, new Task("task-" + source + "-" + task), null);
                 }
                 mockAppender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(
                         "mention of tasks source-" + source,
                         MasterService.class.getCanonicalName(),
                         Level.DEBUG,
-                        "executing cluster state update for [*source-" + source + "[task-0, task-1]*"
+                        "executing cluster state update for [*source-" + source + "[task-" + source + "-0, task-" + source + "-1]*"
                     )
                 );
             }

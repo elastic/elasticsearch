@@ -1632,7 +1632,6 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             private String buildTasksDescription(List<ExecutionResult<T>> tasks) {
-                // TODO test for how the description is grouped by source, and the behaviour when it gets too long
                 final var tasksBySource = new HashMap<String, List<T>>();
                 for (final var entry : tasks) {
                     tasksBySource.computeIfAbsent(entry.getSource(), ignored -> new ArrayList<>()).add(entry.getTask());

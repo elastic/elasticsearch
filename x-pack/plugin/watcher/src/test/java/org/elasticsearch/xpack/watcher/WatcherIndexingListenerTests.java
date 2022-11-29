@@ -330,7 +330,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         boolean emptyShards = randomBoolean();
 
         if (emptyShards) {
-            when(routingNode.shardsWithState(eq(newActiveWatchIndex), any())).thenReturn(Collections.emptyList());
+            when(routingNode.shardsWithState(eq(newActiveWatchIndex), any(ShardRoutingState[].class))).thenReturn(Collections.emptyList());
         } else {
             Index index = new Index(newActiveWatchIndex, "uuid");
             ShardId shardId = new ShardId(index, 0);

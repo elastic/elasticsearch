@@ -1363,9 +1363,10 @@ public class ApiKeyService {
             listener.onFailure(new ElasticsearchSecurityException("No api key ids provided for invalidation"));
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            final long invalidationTime = clock.instant().toEpochMilli();
             for (String apiKeyId : apiKeyIds) {
                 UpdateRequest request = client.prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
-                    .setDoc(Collections.singletonMap("api_key_invalidated", true))
+                    .setDoc(Map.of("api_key_invalidated", true, "invalidation_time", invalidationTime))
                     .request();
                 bulkRequestBuilder.add(request);
             }

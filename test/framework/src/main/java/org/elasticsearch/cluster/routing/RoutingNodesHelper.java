@@ -21,11 +21,12 @@ public final class RoutingNodesHelper {
 
     public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState state) {
         List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : routingNodes) {
-            shards.addAll(routingNode.shardsWithState(state));
-        }
         if (state == ShardRoutingState.UNASSIGNED) {
             routingNodes.unassigned().forEach(shards::add);
+        } else {
+            for (RoutingNode routingNode : routingNodes) {
+                shards.addAll(routingNode.shardsWithState(state));
+            }
         }
         return shards;
     }
@@ -64,7 +65,6 @@ public final class RoutingNodesHelper {
         for (ShardRouting shardRouting : shards) {
             routingNode.add(shardRouting);
         }
-
         return routingNode;
     }
 }

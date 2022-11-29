@@ -623,26 +623,29 @@ public class MasterService extends AbstractLifecycleComponent {
         @Override
         @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
         public ClusterState execute(BatchExecutionContext<ClusterStateUpdateTask> batchExecutionContext) throws Exception {
-            final var currentState = batchExecutionContext.initialState();
-            final var taskContexts = batchExecutionContext.taskContexts();
-            assert taskContexts.size() == 1 : "this only supports a single task but received " + taskContexts;
-            final var taskContext = taskContexts.get(0);
+            assert batchExecutionContext.taskContexts().size() == 1
+                : "this only supports a single task but received " + batchExecutionContext.taskContexts();
+            final var taskContext = batchExecutionContext.taskContexts().get(0);
             final var task = taskContext.getTask();
             final ClusterState newState;
             try (var ignored = taskContext.captureResponseHeaders()) {
-                newState = task.execute(currentState);
+                newState = task.execute(batchExecutionContext.initialState());
             }
+            final Consumer<ClusterState> publishListener = publishedState -> task.clusterStateProcessed(
+                batchExecutionContext.initialState(),
+                publishedState
+            );
             if (task instanceof ClusterStateAckListener ackListener) {
-                taskContext.success(publishedState -> task.clusterStateProcessed(currentState, publishedState), ackListener);
+                taskContext.success(publishListener, ackListener);
             } else {
-                taskContext.success(publishedState -> task.clusterStateProcessed(currentState, publishedState));
+                taskContext.success(publishListener);
             }
             return newState;
         }
 
         @Override
         public String describeTasks(List<ClusterStateUpdateTask> tasks) {
-            return ""; // only one task, so its source is enough
+            return ""; // one task, so the source is enough
         }
     }
 
@@ -1164,18 +1167,18 @@ public class MasterService extends AbstractLifecycleComponent {
         // accesses of these mutable fields are synchronized (on this)
         private long lastLogMillis;
         private long nonemptySinceMillis;
-        private boolean queueIsEmpty = true;
+        private boolean isEmpty = true;
 
-        private synchronized void onEmptyQueue() {
-            queueIsEmpty = true;
+        synchronized void onEmptyQueue() {
+            isEmpty = true;
         }
 
-        private void onNonemptyQueue() {
+        void onNonemptyQueue() {
             final long nowMillis = threadPool.relativeTimeInMillis();
             final long nonemptyDurationMillis;
             synchronized (this) {
-                if (queueIsEmpty) {
-                    queueIsEmpty = false;
+                if (isEmpty) {
+                    isEmpty = false;
                     nonemptySinceMillis = nowMillis;
                     lastLogMillis = nowMillis;
                     return;

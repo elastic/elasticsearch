@@ -40,7 +40,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -118,6 +117,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private final LongSupplier insertionIndexSupplier = new AtomicLong()::incrementAndGet;
 
     private final ClusterStateUpdateStatsTracker clusterStateUpdateStatsTracker = new ClusterStateUpdateStatsTracker();
+    private final StarvationWatcher starvationWatcher = new StarvationWatcher();
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
@@ -167,12 +167,7 @@ public class MasterService extends AbstractLifecycleComponent {
             nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
             daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            new MasterServiceStarvationWatcher(
-                starvationLoggingThreshold.getMillis(),
-                threadPool::relativeTimeInMillis,
-                () -> threadPoolExecutor
-            )
+            threadPool.scheduler()
         );
     }
 
@@ -1165,45 +1160,28 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class MasterServiceStarvationWatcher implements PrioritizedEsThreadPoolExecutor.StarvationWatcher {
-
-        private final long warnThreshold;
-        private final LongSupplier nowMillisSupplier;
-        private final Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorSupplier;
-
+    private class StarvationWatcher {
         // accesses of these mutable fields are synchronized (on this)
         private long lastLogMillis;
         private long nonemptySinceMillis;
-        private boolean isEmpty = true;
+        private boolean queueIsEmpty = true;
 
-        MasterServiceStarvationWatcher(
-            long warnThreshold,
-            LongSupplier nowMillisSupplier,
-            Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorSupplier
-        ) {
-            this.nowMillisSupplier = nowMillisSupplier;
-            this.threadPoolExecutorSupplier = threadPoolExecutorSupplier;
-            this.warnThreshold = warnThreshold;
+        private synchronized void onEmptyQueue() {
+            queueIsEmpty = true;
         }
 
-        @Override
-        public synchronized void onEmptyQueue() {
-            isEmpty = true;
-        }
-
-        @Override
-        public void onNonemptyQueue() {
-            final long nowMillis = nowMillisSupplier.getAsLong();
+        private void onNonemptyQueue() {
+            final long nowMillis = threadPool.relativeTimeInMillis();
             final long nonemptyDurationMillis;
             synchronized (this) {
-                if (isEmpty) {
-                    isEmpty = false;
+                if (queueIsEmpty) {
+                    queueIsEmpty = false;
                     nonemptySinceMillis = nowMillis;
                     lastLogMillis = nowMillis;
                     return;
                 }
 
-                if (nowMillis - lastLogMillis < warnThreshold) {
+                if (nowMillis - lastLogMillis < starvationLoggingThreshold.millis()) {
                     return;
                 }
 
@@ -1211,15 +1189,14 @@ public class MasterService extends AbstractLifecycleComponent {
                 nonemptyDurationMillis = nowMillis - nonemptySinceMillis;
             }
 
-            final PrioritizedEsThreadPoolExecutor threadPoolExecutor = threadPoolExecutorSupplier.get();
-            final TimeValue maxTaskWaitTime = threadPoolExecutor.getMaxTaskWaitTime();
+            final TimeValue maxTaskWaitTime = getMaxTaskWaitTime();
             logger.warn(
                 "pending task queue has been nonempty for [{}/{}ms] which is longer than the warn threshold of [{}ms];"
                     + " there are currently [{}] pending tasks, the oldest of which has age [{}/{}ms]",
                 TimeValue.timeValueMillis(nonemptyDurationMillis),
                 nonemptyDurationMillis,
-                warnThreshold,
-                threadPoolExecutor.getNumberOfPendingTasks(),
+                starvationLoggingThreshold.millis(),
+                numberOfPendingTasks(),
                 maxTaskWaitTime,
                 maxTaskWaitTime.millis()
             );
@@ -1335,7 +1312,10 @@ public class MasterService extends AbstractLifecycleComponent {
             } finally {
                 currentlyExecutingBatch = null;
                 if (totalQueueSize.decrementAndGet() > 0) {
+                    starvationWatcher.onNonemptyQueue();
                     forkQueueProcessor();
+                } else {
+                    starvationWatcher.onEmptyQueue();
                 }
             }
         }
@@ -1419,22 +1399,8 @@ public class MasterService extends AbstractLifecycleComponent {
         void execute(Batch runner) {
             queue.add(runner);
             if (totalQueueSize.getAndIncrement() == 0) {
+                starvationWatcher.onEmptyQueue();
                 forkQueueProcessor();
-                // temporary fix to make sure queue remains nonempty until all tasks processed, so that starvation logging still works
-                // TODO AwaitsFix shouldn't be necessary, get rid of this
-                try {
-                    threadPoolExecutor.execute(new PrioritizedRunnable(Priority.LANGUID) {
-                        @Override
-                        public void run() {}
-
-                        @Override
-                        public String toString() {
-                            return "awaitsfix thread keepalive";
-                        }
-                    });
-                } catch (Exception e) {
-                    // rejected, nbd
-                }
             }
         }
 

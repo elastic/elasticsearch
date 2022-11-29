@@ -2095,8 +2095,7 @@ public class MasterServiceTests extends ESTestCase {
             TimeUnit.SECONDS,
             r -> { throw new AssertionError("should not create new threads"); },
             null,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            null
         ) {
             @Override
             public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {

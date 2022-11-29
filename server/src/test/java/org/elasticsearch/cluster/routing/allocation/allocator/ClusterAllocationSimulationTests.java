@@ -222,8 +222,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             TimeUnit.SECONDS,
             r -> { throw new AssertionError("should not create new threads"); },
             null,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            null
         ) {
 
             @Override

@@ -58,8 +58,7 @@ public class TaskExecutorTests extends ESTestCase {
             getClass().getName() + "/" + getTestName(),
             daemonThreadFactory(Settings.EMPTY, "test_thread"),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            threadPool.scheduler()
         );
     }
 

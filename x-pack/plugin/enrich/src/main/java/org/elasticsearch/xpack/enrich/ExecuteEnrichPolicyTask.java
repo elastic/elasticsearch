@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
@@ -22,9 +24,10 @@ public class ExecuteEnrichPolicyTask extends CancellableTask {
         String action,
         String description,
         TaskId parentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
-        super(id, type, action, description, parentTask, headers);
+        super(id, type, action, description, parentTask, owner, headers);
     }
 
     @Override

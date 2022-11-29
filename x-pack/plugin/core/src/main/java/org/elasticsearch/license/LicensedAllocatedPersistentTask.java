@@ -7,6 +7,8 @@
 
 package org.elasticsearch.license;
 
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
@@ -28,12 +30,13 @@ public class LicensedAllocatedPersistentTask extends AllocatedPersistentTask {
         String action,
         String description,
         TaskId parentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         LicensedFeature.Persistent feature,
         String featureContext,
         XPackLicenseState licenseState
     ) {
-        super(id, type, action, description, parentTask, headers);
+        super(id, type, action, description, parentTask, owner, headers);
         this.licensedFeature = feature;
         this.featureContext = featureContext;
         this.licenseState = licenseState;

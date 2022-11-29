@@ -8,6 +8,8 @@
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.action.support.user.ActionUser;
+
 import java.util.Map;
 
 /**
@@ -35,8 +37,8 @@ public interface TaskAwareRequest {
     /**
      * Returns the task object that should be used to keep track of the processing of the request.
      */
-    default Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new Task(id, type, action, getDescription(), parentTaskId, headers);
+    default Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser user, Map<String, String> headers) {
+        return new Task(id, type, action, getDescription(), parentTaskId, user, headers);
     }
 
     /**

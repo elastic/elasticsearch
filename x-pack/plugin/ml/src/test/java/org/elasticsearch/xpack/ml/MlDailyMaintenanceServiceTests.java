@@ -169,6 +169,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             true,
             false,
             new TaskId("test", 456),
+            null,
             Collections.emptyMap()
         );
 

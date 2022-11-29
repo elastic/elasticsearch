@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -118,9 +119,10 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         String action,
         TaskId parentTaskId,
         PersistentTasksCustomMetadata.PersistentTask<HealthNodeTaskParams> taskInProgress,
+        ActionUser owner,
         Map<String, String> headers
     ) {
-        return new HealthNode(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
+        return new HealthNode(id, type, action, getDescription(taskInProgress), parentTaskId, owner, headers);
     }
 
     /**

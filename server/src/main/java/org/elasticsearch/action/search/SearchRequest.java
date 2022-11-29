@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -808,8 +809,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     @Override
-    public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers);
+    public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, owner, headers);
     }
 
     public final String buildDescription() {

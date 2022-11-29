@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -44,9 +45,10 @@ public class AllocatedPersistentTask extends CancellableTask {
         String action,
         String description,
         TaskId parentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
-        super(id, type, action, description, parentTask, headers);
+        super(id, type, action, description, parentTask, owner, headers);
         this.state = new AtomicReference<>(State.STARTED);
     }
 

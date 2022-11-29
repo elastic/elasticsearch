@@ -33,11 +33,13 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MapperService;
@@ -1786,8 +1788,15 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                return new ExecuteEnrichPolicyTask(id, type, action, getDescription(), parentTaskId, headers);
+            public Task createTask(
+                long id,
+                String type,
+                String action,
+                TaskId parentTaskId,
+                @Nullable ActionUser owner,
+                Map<String, String> headers
+            ) {
+                return new ExecuteEnrichPolicyTask(id, type, action, getDescription(), parentTaskId, owner, headers);
             }
 
             @Override
@@ -2031,8 +2040,15 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                return new ExecuteEnrichPolicyTask(id, type, action, getDescription(), parentTaskId, headers);
+            public Task createTask(
+                long id,
+                String type,
+                String action,
+                TaskId parentTaskId,
+                @Nullable ActionUser owner,
+                Map<String, String> headers
+            ) {
+                return new ExecuteEnrichPolicyTask(id, type, action, getDescription(), parentTaskId, owner, headers);
             }
 
             @Override

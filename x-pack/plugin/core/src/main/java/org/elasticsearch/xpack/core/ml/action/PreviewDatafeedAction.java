@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -205,8 +206,8 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, format("preview_datafeed[%s]", datafeedId), parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("preview_datafeed[%s]", datafeedId), parentTaskId, owner, headers);
         }
 
         public static class Builder {

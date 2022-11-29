@@ -27,7 +27,7 @@ public class CancelTasksRequestTests extends ESTestCase {
                 + "targetParentTaskId[node1:0], nodes[node1, node2], actions[action1, action2]",
             cancelTasksRequest.getDescription()
         );
-        Task task = cancelTasksRequest.createTask(1, "type", "action", null, Collections.emptyMap());
+        Task task = cancelTasksRequest.createTask(1, "type", "action", null, null, Collections.emptyMap());
         assertEquals(cancelTasksRequest.getDescription(), task.getDescription());
     }
 }

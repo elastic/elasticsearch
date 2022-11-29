@@ -889,7 +889,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     static Task newRandomParentTask() {
-        return new Task(0, "type", "action", randomAlphaOfLength(10), TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        return new Task(0, "type", "action", randomAlphaOfLength(10), TaskId.EMPTY_TASK_ID, null, Collections.emptyMap());
     }
 
     private ClusterState newClusterState(Metadata metadata, DiscoveryNodes discoveryNodes) {

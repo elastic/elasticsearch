@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,8 +27,16 @@ import static java.util.Objects.requireNonNull;
 public class ReplicationTask extends Task {
     private volatile String phase = "starting";
 
-    public ReplicationTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
-        super(id, type, action, description, parentTaskId, headers);
+    public ReplicationTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTaskId,
+        ActionUser owner,
+        Map<String, String> headers
+    ) {
+        super(id, type, action, description, parentTaskId, owner, headers);
     }
 
     /**

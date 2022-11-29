@@ -11,6 +11,7 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -92,8 +93,8 @@ public class ShardFetchRequest extends TransportRequest {
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, owner, headers);
     }
 
     @Override

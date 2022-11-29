@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -102,8 +103,8 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, owner, headers);
         }
 
         @Override

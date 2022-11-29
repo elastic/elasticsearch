@@ -9,6 +9,7 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Map;
@@ -23,8 +24,16 @@ public class CancellableTask extends Task {
     private volatile boolean isCancelled;
     private final ConcurrentLinkedQueue<CancellationListener> listeners = new ConcurrentLinkedQueue<>();
 
-    public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
-        super(id, type, action, description, parentTaskId, headers);
+    public CancellableTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTaskId,
+        @Nullable ActionUser owner,
+        Map<String, String> headers
+    ) {
+        super(id, type, action, description, parentTaskId, owner, headers);
     }
 
     /**

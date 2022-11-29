@@ -15,12 +15,14 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.license.XPackLicenseState;
@@ -602,9 +604,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         String action,
         TaskId parentTaskId,
         PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
-        return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers, licenseState);
+        return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, owner, headers, licenseState);
     }
 
     public static Optional<ElasticsearchException> checkAssignmentState(

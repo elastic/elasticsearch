@@ -12,12 +12,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -262,6 +264,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         String type,
         String action,
         TaskId parentTaskId,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         Map<String, String> originHeaders,
         AsyncExecutionId asyncExecutionId
@@ -272,6 +275,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             action,
             request.getDescription(),
             parentTaskId,
+            owner,
             headers,
             originHeaders,
             asyncExecutionId,

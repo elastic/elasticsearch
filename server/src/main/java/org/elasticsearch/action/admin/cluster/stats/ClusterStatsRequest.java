@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -36,8 +37,8 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, owner, headers);
     }
 
     @Override

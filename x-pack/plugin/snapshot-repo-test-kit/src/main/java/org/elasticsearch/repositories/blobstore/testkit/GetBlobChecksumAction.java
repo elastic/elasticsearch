@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -282,8 +283,8 @@ public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Resp
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, owner, headers) {
                 @Override
                 public boolean shouldCancelChildrenOnCancellation() {
                     return false; // no children

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -305,12 +307,20 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             }
 
             @Override
-            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            public Task createTask(
+                long id,
+                String type,
+                String action,
+                TaskId parentTaskId,
+                @Nullable ActionUser owner,
+                Map<String, String> headers
+            ) {
                 return new TrainedModelDeploymentTask(
                     id,
                     type,
                     action,
                     parentTaskId,
+                    owner,
                     headers,
                     params,
                     trainedModelAssignmentNodeService,

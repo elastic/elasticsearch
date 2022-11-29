@@ -51,6 +51,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
             true,
             false,
             new TaskId("node1", 0),
+            "a.user",
             Collections.singletonMap("foo", "bar")
         );
         ListTasksResponse tasksResponse = new ListTasksResponse(singletonList(info), emptyList(), emptyList());
@@ -70,6 +71,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                   "cancellable" : true,
                   "cancelled" : false,
                   "parent_task_id" : "node1:0",
+                  "owner" : "a.user",
                   "headers" : {
                     "foo" : "bar"
                   }

@@ -20,7 +20,9 @@ import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -91,13 +93,14 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         Supplier<String> descriptionSupplier,
         TimeValue keepAlive,
         Map<String, String> originHeaders,
+        @Nullable ActionUser owner,
         Map<String, String> taskHeaders,
         AsyncExecutionId searchId,
         Client client,
         ThreadPool threadPool,
         Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory
     ) {
-        super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
+        super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, owner, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.originHeaders = originHeaders;
         this.searchId = searchId;

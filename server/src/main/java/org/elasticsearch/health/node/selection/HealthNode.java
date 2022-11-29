@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health.node.selection;
 
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
@@ -24,8 +25,8 @@ public class HealthNode extends AllocatedPersistentTask {
 
     public static final String TASK_NAME = "health-node";
 
-    HealthNode(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
-        super(id, type, action, description, parentTask, headers);
+    HealthNode(long id, String type, String action, String description, TaskId parentTask, ActionUser owner, Map<String, String> headers) {
+        super(id, type, action, description, parentTask, owner, headers);
     }
 
     @Override

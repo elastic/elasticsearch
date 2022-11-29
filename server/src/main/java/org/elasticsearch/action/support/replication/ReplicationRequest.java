@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshActio
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -216,8 +217,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new ReplicationTask(id, type, action, getDescription(), parentTaskId, headers);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+        return new ReplicationTask(id, type, action, getDescription(), parentTaskId, owner, headers);
     }
 
     @Override

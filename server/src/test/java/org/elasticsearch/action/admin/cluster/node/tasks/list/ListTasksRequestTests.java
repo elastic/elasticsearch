@@ -55,6 +55,7 @@ public class ListTasksRequestTests extends ESTestCase {
             action,
             description,
             new TaskId("test_node", randomNonNegativeLong()),
+            null,
             Collections.emptyMap()
         );
     }

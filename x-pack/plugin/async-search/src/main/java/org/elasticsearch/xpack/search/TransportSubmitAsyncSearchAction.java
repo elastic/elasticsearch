@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -154,7 +156,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         );
         SearchRequest searchRequest = new SearchRequest(request.getSearchRequest()) {
             @Override
-            public AsyncSearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {
+            public AsyncSearchTask createTask(
+                long id,
+                String type,
+                String action,
+                TaskId parentTaskId,
+                @Nullable ActionUser owner,
+                Map<String, String> taskHeaders
+            ) {
                 AsyncExecutionId searchId = new AsyncExecutionId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
                 Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory =
                     isCancelled -> () -> requestToAggReduceContextBuilder.apply(isCancelled, request.getSearchRequest());
@@ -166,6 +175,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                     this::buildDescription,
                     keepAlive,
                     originHeaders,
+                    owner,
                     taskHeaders,
                     searchId,
                     store.getClientWithOrigin(),

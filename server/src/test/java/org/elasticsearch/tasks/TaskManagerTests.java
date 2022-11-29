@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTes
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -385,8 +386,8 @@ public class TaskManagerTests extends ESTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "request-" + requestId, parentTaskId, headers) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "request-" + requestId, parentTaskId, owner, headers) {
                 @Override
                 public boolean shouldCancelChildrenOnCancellation() {
                     return false;
@@ -477,9 +478,16 @@ public class TaskManagerTests extends ESTestCase {
             }
 
             @Override
-            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            public Task createTask(
+                long id,
+                String type,
+                String action,
+                TaskId parentTaskId,
+                ActionUser owner,
+                Map<String, String> headers
+            ) {
                 if (cancellable) {
-                    return new CancellableTask(id, type, action, "request-" + id, parentTaskId, headers) {
+                    return new CancellableTask(id, type, action, "request-" + id, parentTaskId, owner, headers) {
                         @Override
                         public boolean shouldCancelChildrenOnCancellation() {
                             return false;
@@ -492,7 +500,7 @@ public class TaskManagerTests extends ESTestCase {
                     };
                 }
 
-                return new Task(id, type, action, "request-" + id, parentTaskId, headers);
+                return new Task(id, type, action, "request-" + id, parentTaskId, owner, headers);
             }
         };
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -609,8 +610,8 @@ public abstract class TransportBroadcastByNodeAction<
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return indicesLevelRequest.createTask(id, type, action, parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return indicesLevelRequest.createTask(id, type, action, parentTaskId, owner, headers);
         }
     }
 

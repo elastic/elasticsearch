@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -95,7 +96,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
             return new RollupTask(
                 id,
                 type,
@@ -103,6 +104,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
                 parentTaskId,
                 rollupRequest.getTargetIndex(),
                 rollupRequest.getDownsampleConfig(),
+                owner,
                 headers
             );
         }

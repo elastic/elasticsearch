@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -121,8 +122,8 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, format("get_datafeed_stats[%s]", datafeedId), parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_datafeed_stats[%s]", datafeedId), parentTaskId, owner, headers);
         }
     }
 

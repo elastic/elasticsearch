@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.sql;
 
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -31,6 +33,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -99,12 +102,14 @@ public final class SqlTestUtils {
     }
 
     public static SqlQueryTask randomTask(long taskId, Mode mode, SqlVersion sqlVersion) {
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 12)) : null;
         return new SqlQueryTask(
             taskId,
             "transport",
             SqlQueryAction.NAME,
             "",
             null,
+            owner,
             emptyMap(),
             emptyMap(),
             new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),

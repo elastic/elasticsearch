@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -91,8 +92,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, owner, headers) {
                 @Override
                 public boolean shouldCancelChildrenOnCancellation() {
                     return false;
@@ -126,8 +127,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, owner, headers);
         }
     }
 
@@ -608,7 +609,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     }
 
     public void testEnsureNotCancelled() throws Exception {
-        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, null, emptyMap());
         task.ensureNotCancelled(); // does not throw
         TaskCancelHelper.cancel(task, "simulated");
         assertThat(
@@ -618,7 +619,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     }
 
     public void testNotifyIfCancelled() throws Exception {
-        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, null, emptyMap());
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         task.notifyIfCancelled(future);

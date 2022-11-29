@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -69,8 +70,8 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, owner, headers);
     }
 
     @Override

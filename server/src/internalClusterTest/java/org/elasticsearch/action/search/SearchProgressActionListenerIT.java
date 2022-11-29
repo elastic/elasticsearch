@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -161,8 +162,15 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         };
         client.executeLocally(SearchAction.INSTANCE, new SearchRequest(request) {
             @Override
-            public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                SearchTask task = super.createTask(id, type, action, parentTaskId, headers);
+            public SearchTask createTask(
+                long id,
+                String type,
+                String action,
+                TaskId parentTaskId,
+                ActionUser user,
+                Map<String, String> headers
+            ) {
+                SearchTask task = super.createTask(id, type, action, parentTaskId, user, headers);
                 task.setProgressListener(listener);
                 return task;
             }

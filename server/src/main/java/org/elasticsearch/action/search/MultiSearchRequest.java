@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -375,8 +376,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, owner, headers) {
             @Override
             public String getDescription() {
                 return "requests["

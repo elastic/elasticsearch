@@ -10,6 +10,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskId;
@@ -145,9 +147,10 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
             String action,
             TaskId parentTaskId,
             PersistentTasksCustomMetadata.PersistentTask<FailingInitializationTaskParams> taskInProgress,
+            @Nullable ActionUser owner,
             Map<String, String> headers
         ) {
-            return new AllocatedPersistentTask(id, type, action, "", parentTaskId, headers) {
+            return new AllocatedPersistentTask(id, type, action, "", parentTaskId, owner, headers) {
                 @Override
                 protected void init(
                     PersistentTasksService persistentTasksService,

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -45,11 +47,13 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
             return null;
         }).when(nodeService).stopDeploymentAndNotify(taskCaptor.capture(), reasonCaptur.capture(), any());
 
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLength(8)) : null;
         TrainedModelDeploymentTask task = new TrainedModelDeploymentTask(
             0,
             TRAINED_MODEL_ASSIGNMENT_TASK_TYPE,
             TRAINED_MODEL_ASSIGNMENT_TASK_ACTION,
             TaskId.EMPTY_TASK_ID,
+            owner,
             Map.of(),
             new StartTrainedModelDeploymentAction.TaskParams(
                 modelId,
@@ -94,11 +98,13 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
             randomFrom(Priority.values())
         );
 
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         TrainedModelDeploymentTask task = new TrainedModelDeploymentTask(
             0,
             TRAINED_MODEL_ASSIGNMENT_TASK_TYPE,
             TRAINED_MODEL_ASSIGNMENT_TASK_ACTION,
             TaskId.EMPTY_TASK_ID,
+            owner,
             Map.of(),
             initialParams,
             mock(TrainedModelAssignmentNodeService.class),

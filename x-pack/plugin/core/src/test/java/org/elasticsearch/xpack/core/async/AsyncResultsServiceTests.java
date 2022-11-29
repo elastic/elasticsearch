@@ -11,9 +11,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -55,9 +57,10 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
             String action,
             String description,
             TaskId parentTaskId,
+            @Nullable ActionUser owner,
             Map<String, String> headers
         ) {
-            super(id, type, action, description, parentTaskId, headers);
+            super(id, type, action, description, parentTaskId, owner, headers);
             this.executionId = executionId;
         }
 
@@ -120,12 +123,12 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
             AsyncExecutionId asyncExecutionId = new AsyncExecutionId(
                 randomAlphaOfLength(10),
                 new TaskId(clusterService.localNode().getId(), id)
             );
-            return new TestTask(asyncExecutionId, id, type, action, string, parentTaskId, headers);
+            return new TestTask(asyncExecutionId, id, type, action, string, parentTaskId, owner, headers);
         }
     }
 

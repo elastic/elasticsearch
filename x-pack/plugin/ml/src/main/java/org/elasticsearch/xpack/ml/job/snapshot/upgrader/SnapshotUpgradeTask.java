@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.LicensedAllocatedPersistentTask;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskId;
@@ -34,6 +36,7 @@ public class SnapshotUpgradeTask extends LicensedAllocatedPersistentTask {
         String type,
         String action,
         TaskId parentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         XPackLicenseState licenseState
     ) {
@@ -43,6 +46,7 @@ public class SnapshotUpgradeTask extends LicensedAllocatedPersistentTask {
             action,
             MlTasks.snapshotUpgradeTaskId(jobId, snapshotId),
             parentTask,
+            owner,
             headers,
             MachineLearning.ML_ANOMALY_JOBS_FEATURE,
             MlTasks.snapshotUpgradeTaskId(jobId, snapshotId),

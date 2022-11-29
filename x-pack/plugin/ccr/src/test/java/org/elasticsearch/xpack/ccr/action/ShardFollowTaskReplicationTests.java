@@ -581,6 +581,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             ShardFollowTask.NAME,
             "description",
             null,
+            null,
             Collections.emptyMap(),
             params,
             scheduler,

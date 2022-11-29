@@ -10,6 +10,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -283,16 +284,16 @@ public class TransportActionProxyTests extends ESTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
             if (cancellable) {
-                return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+                return new CancellableTask(id, type, action, "", parentTaskId, owner, headers) {
                     @Override
                     public boolean shouldCancelChildrenOnCancellation() {
                         return randomBoolean();
                     }
                 };
             } else {
-                return super.createTask(id, type, action, parentTaskId, headers);
+                return super.createTask(id, type, action, parentTaskId, owner, headers);
             }
         }
     }

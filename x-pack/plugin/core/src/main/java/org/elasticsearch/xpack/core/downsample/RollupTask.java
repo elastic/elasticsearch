@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.downsample;
 
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -29,9 +31,10 @@ public class RollupTask extends CancellableTask {
         TaskId parentTask,
         String rollupIndex,
         DownsampleConfig config,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
-        super(id, type, action, RollupField.NAME + "_" + rollupIndex, parentTask, headers);
+        super(id, type, action, RollupField.NAME + "_" + rollupIndex, parentTask, owner, headers);
         this.rollupIndex = rollupIndex;
         this.config = config;
     }

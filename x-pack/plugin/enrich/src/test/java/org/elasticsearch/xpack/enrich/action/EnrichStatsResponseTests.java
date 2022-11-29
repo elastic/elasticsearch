@@ -79,6 +79,7 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
             cancellable,
             cancelled,
             parentTaskId,
+            null,
             headers
         );
     }

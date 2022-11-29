@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
@@ -77,12 +80,14 @@ public final class EqlTestUtils {
     }
 
     public static EqlSearchTask randomTask() {
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 12)) : null;
         return new EqlSearchTask(
             randomLong(),
             "transport",
             EqlSearchAction.NAME,
             "",
             null,
+            owner,
             emptyMap(),
             emptyMap(),
             new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),

@@ -14,6 +14,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -110,6 +111,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         String action,
         TaskId parentTaskId,
         PersistentTasksCustomMetadata.PersistentTask<GeoIpTaskParams> taskInProgress,
+        ActionUser owner,
         Map<String, String> headers
     ) {
         return new GeoIpDownloader(
@@ -123,6 +125,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             action,
             getDescription(taskInProgress),
             parentTaskId,
+            owner,
             headers
         );
     }

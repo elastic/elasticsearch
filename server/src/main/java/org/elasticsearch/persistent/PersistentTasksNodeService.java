@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Strings;
@@ -181,8 +182,15 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             }
 
             @Override
-            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                return executor.createTask(id, type, action, parentTaskId, taskInProgress, headers);
+            public Task createTask(
+                long id,
+                String type,
+                String action,
+                TaskId parentTaskId,
+                ActionUser owner,
+                Map<String, String> headers
+            ) {
+                return executor.createTask(id, type, action, parentTaskId, taskInProgress, owner, headers);
             }
         };
 

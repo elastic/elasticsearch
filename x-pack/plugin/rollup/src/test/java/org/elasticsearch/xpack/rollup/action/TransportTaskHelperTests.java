@@ -6,7 +6,10 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -82,6 +85,7 @@ public class TransportTaskHelperTests extends ESTestCase {
         Map<Long, Task> tasks = Maps.newMapWithExpectedSize(num);
         for (int i = 0; i < num; i++) {
             Long taskId = randomLongBetween(10, Long.MAX_VALUE);
+            final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 16)) : null;
             tasks.put(
                 taskId,
                 new TestTask(
@@ -90,6 +94,7 @@ public class TransportTaskHelperTests extends ESTestCase {
                     "test_action",
                     "test_description",
                     new TaskId("node:123"),
+                    owner,
                     Collections.emptyMap()
                 )
             );
@@ -98,8 +103,16 @@ public class TransportTaskHelperTests extends ESTestCase {
     }
 
     private static class TestTask extends Task {
-        TestTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
-            super(id, type, action, description, parentTask, headers);
+        TestTask(
+            long id,
+            String type,
+            String action,
+            String description,
+            TaskId parentTask,
+            @Nullable ActionUser owner,
+            Map<String, String> headers
+        ) {
+            super(id, type, action, description, parentTask, owner, headers);
         }
     }
 }

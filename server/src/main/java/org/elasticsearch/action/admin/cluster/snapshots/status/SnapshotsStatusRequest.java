@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -84,8 +85,8 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, owner, headers);
     }
 
     /**

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.eql.action;
 
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -21,12 +23,13 @@ public class EqlSearchTask extends StoredAsyncTask<EqlSearchResponse> {
         String action,
         String description,
         TaskId parentTaskId,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         Map<String, String> originHeaders,
         AsyncExecutionId asyncExecutionId,
         TimeValue keepAlive
     ) {
-        super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);
+        super(id, type, action, description, parentTaskId, owner, headers, originHeaders, asyncExecutionId, keepAlive);
     }
 
     @Override

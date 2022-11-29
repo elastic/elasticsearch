@@ -60,7 +60,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
 
     @Override
     protected TaskInfo mutateInstance(TaskInfo info) {
-        switch (between(0, 9)) {
+        switch (between(0, 10)) {
             case 0:
                 TaskId taskId = new TaskId(info.taskId().getNodeId() + randomAlphaOfLength(5), info.taskId().getId());
                 return new TaskInfo(
@@ -74,6 +74,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
+                    info.ownerId(),
                     info.headers()
                 );
             case 1:
@@ -88,6 +89,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
+                    info.ownerId(),
                     info.headers()
                 );
             case 2:
@@ -102,6 +104,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
+                    info.ownerId(),
                     info.headers()
                 );
             case 3:
@@ -116,6 +119,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
+                    info.ownerId(),
                     info.headers()
                 );
             case 4:
@@ -131,6 +135,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
+                    info.ownerId(),
                     info.headers()
                 );
             case 5:
@@ -145,6 +150,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
+                    info.ownerId(),
                     info.headers()
                 );
             case 6:
@@ -159,6 +165,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
+                    info.ownerId(),
                     info.headers()
                 );
             case 7:
@@ -184,6 +191,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     isNowCancellable,
                     isNowCancelled,
                     info.parentTaskId(),
+                    info.ownerId(),
                     info.headers()
                 );
             case 8:
@@ -199,9 +207,27 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     parentId,
+                    info.ownerId(),
                     info.headers()
                 );
             case 9:
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.ownerId() == null ? randomAlphaOfLengthBetween(1, 16)
+                        : randomBoolean() ? info.ownerId() + randomAlphaOfLengthBetween(1, 4)
+                        : null,
+                    info.headers()
+                );
+            case 10:
                 Map<String, String> headers = info.headers();
                 if (headers == null) {
                     headers = Maps.newMapWithExpectedSize(1);
@@ -220,6 +246,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
                     info.cancellable(),
                     info.cancelled(),
                     info.parentTaskId(),
+                    info.ownerId(),
                     headers
                 );
             default:
@@ -238,6 +265,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable && randomBoolean();
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
+        final String ownerId = randomBoolean() ? randomAlphaOfLengthBetween(2, 6) : null;
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
@@ -252,6 +280,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
             cancellable,
             cancelled,
             parentTaskId,
+            ownerId,
             headers
         );
     }

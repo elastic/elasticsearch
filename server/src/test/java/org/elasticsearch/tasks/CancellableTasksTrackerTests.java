@@ -162,6 +162,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                     randomAlphaOfLength(5),
                     randomAlphaOfLength(5),
                     rarely() ? TaskId.EMPTY_TASK_ID : randomFrom(parentTaskIds),
+                    null,
                     Collections.emptyMap()
                 ),
                 "item-" + i,

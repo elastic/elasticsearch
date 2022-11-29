@@ -7,6 +7,7 @@
 
 package org.elasticsearch.license;
 
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -26,12 +27,14 @@ public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
     void assertTrackingComplete(Consumer<LicensedAllocatedPersistentTask> method) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         LicensedFeature.Persistent feature = LicensedFeature.persistent("family", "somefeature", License.OperationMode.PLATINUM);
+        final MockActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         var task = new LicensedAllocatedPersistentTask(
             0,
             "type",
             "action",
             "description",
             TaskId.EMPTY_TASK_ID,
+            owner,
             Map.of(),
             feature,
             "context",
@@ -64,6 +67,7 @@ public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
     public void testDoOverrides() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         LicensedFeature.Persistent feature = LicensedFeature.persistent("family", "somefeature", License.OperationMode.PLATINUM);
+        final MockActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
 
         AtomicBoolean completedCalled = new AtomicBoolean();
         AtomicBoolean cancelledCalled = new AtomicBoolean();
@@ -75,6 +79,7 @@ public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
             "action",
             "description",
             TaskId.EMPTY_TASK_ID,
+            owner,
             Map.of(),
             feature,
             "context",

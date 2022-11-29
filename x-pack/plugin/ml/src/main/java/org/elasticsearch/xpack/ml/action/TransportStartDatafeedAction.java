@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -559,9 +560,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             String action,
             TaskId parentTaskId,
             PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
+            @Nullable ActionUser owner,
             Map<String, String> headers
         ) {
-            return new DatafeedTask(id, type, action, parentTaskId, persistentTask.getParams(), headers);
+            return new DatafeedTask(id, type, action, parentTaskId, persistentTask.getParams(), owner, headers);
         }
     }
 
@@ -589,9 +591,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             String action,
             TaskId parentTaskId,
             StartDatafeedAction.DatafeedParams params,
+            ActionUser owner,
             Map<String, String> headers
         ) {
-            super(id, type, action, "datafeed-" + params.getDatafeedId(), parentTaskId, headers);
+            super(id, type, action, "datafeed-" + params.getDatafeedId(), parentTaskId, owner, headers);
             this.datafeedId = params.getDatafeedId();
             this.startTime = params.getStartTime();
             this.endTime = params.getEndTime();

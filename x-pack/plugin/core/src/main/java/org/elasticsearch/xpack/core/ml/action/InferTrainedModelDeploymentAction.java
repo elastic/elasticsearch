@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -243,8 +244,16 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, format("infer_trained_model_deployment[%s]", modelId), parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new CancellableTask(
+                id,
+                type,
+                action,
+                format("infer_trained_model_deployment[%s]", modelId),
+                parentTaskId,
+                owner,
+                headers
+            );
         }
 
         public static class Builder {

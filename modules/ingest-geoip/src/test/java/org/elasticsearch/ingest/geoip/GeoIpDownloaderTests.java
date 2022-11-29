@@ -98,6 +98,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
+            null,
             Collections.emptyMap()
         );
     }
@@ -252,6 +253,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
+            null,
             Collections.emptyMap()
         ) {
             @Override
@@ -298,6 +300,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
+            null,
             Collections.emptyMap()
         ) {
             @Override
@@ -346,6 +349,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
+            null,
             Collections.emptyMap()
         ) {
             @Override
@@ -387,6 +391,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
+            null,
             Collections.emptyMap()
         ) {
             @Override
@@ -414,6 +419,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
+            null,
             Collections.emptyMap()
         ) {
             @Override
@@ -451,6 +457,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
+            null,
             Collections.emptyMap()
         ) {
             @Override

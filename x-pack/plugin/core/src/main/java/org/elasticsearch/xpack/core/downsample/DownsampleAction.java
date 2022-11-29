@@ -13,6 +13,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -66,8 +67,8 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new RollupTask(id, type, action, parentTaskId, targetIndex, downsampleConfig, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new RollupTask(id, type, action, parentTaskId, targetIndex, downsampleConfig, owner, headers);
         }
 
         @Override

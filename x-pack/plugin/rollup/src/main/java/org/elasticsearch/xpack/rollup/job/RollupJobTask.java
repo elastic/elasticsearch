@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.core.Nullable;
@@ -89,6 +90,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
             String action,
             TaskId parentTaskId,
             PersistentTasksCustomMetadata.PersistentTask<RollupJob> persistentTask,
+            @Nullable ActionUser owner,
             Map<String, String> headers
         ) {
             return new RollupJobTask(
@@ -101,6 +103,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 client,
                 schedulerEngine,
                 threadPool,
+                owner,
                 headers
             );
         }
@@ -215,9 +218,10 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         Client client,
         SchedulerEngine schedulerEngine,
         ThreadPool threadPool,
+        ActionUser owner,
         Map<String, String> headers
     ) {
-        super(id, type, action, RollupField.NAME + "_" + job.getConfig().getId(), parentTask, headers);
+        super(id, type, action, RollupField.NAME + "_" + job.getConfig().getId(), parentTask, owner, headers);
         this.job = job;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;

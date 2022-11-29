@@ -13,12 +13,14 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ListenerTimeouts;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -71,6 +73,7 @@ public class AsyncTaskManagementService<
             String type,
             String action,
             TaskId parentTaskId,
+            @Nullable ActionUser owner,
             Map<String, String> headers,
             Map<String, String> originHeaders,
             AsyncExecutionId asyncExecutionId
@@ -108,7 +111,14 @@ public class AsyncTaskManagementService<
         }
 
         @Override
-        public Task createTask(long id, String type, String actionName, TaskId parentTaskId, Map<String, String> headers) {
+        public Task createTask(
+            long id,
+            String type,
+            String actionName,
+            TaskId parentTaskId,
+            ActionUser owner,
+            Map<String, String> headers
+        ) {
             Map<String, String> originHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
                 threadPool.getThreadContext(),
                 clusterService.state()
@@ -119,6 +129,7 @@ public class AsyncTaskManagementService<
                 type,
                 actionName,
                 parentTaskId,
+                owner,
                 headers,
                 originHeaders,
                 new AsyncExecutionId(doc, new TaskId(node, id))

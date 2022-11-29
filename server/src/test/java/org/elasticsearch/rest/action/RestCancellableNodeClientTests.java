@@ -171,7 +171,14 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                 case CancelTasksAction.NAME -> {
                     CancelTasksRequest cancelTasksRequest = (CancelTasksRequest) request;
                     assertTrue("tried to cancel the same task more than once", cancelledTasks.add(cancelTasksRequest.getTargetTaskId()));
-                    Task task = request.createTask(counter.getAndIncrement(), "cancel_task", action.name(), null, Collections.emptyMap());
+                    Task task = request.createTask(
+                        counter.getAndIncrement(),
+                        "cancel_task",
+                        action.name(),
+                        null,
+                        null,
+                        Collections.emptyMap()
+                    );
                     if (randomBoolean()) {
                         listener.onResponse(null);
                     } else {
@@ -182,7 +189,14 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                 }
                 case SearchAction.NAME -> {
                     searchRequests.incrementAndGet();
-                    Task searchTask = request.createTask(counter.getAndIncrement(), "search", action.name(), null, Collections.emptyMap());
+                    Task searchTask = request.createTask(
+                        counter.getAndIncrement(),
+                        "search",
+                        action.name(),
+                        null,
+                        null,
+                        Collections.emptyMap()
+                    );
                     if (timeout == false) {
                         if (rarely()) {
                             // make sure that search is sometimes also called from the same thread before the task is returned

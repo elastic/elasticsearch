@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -140,7 +141,8 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
 
     public void testCreateTask() {
         Request request = createTestInstance();
-        Task task = request.createTask(123, "type", "action", TaskId.EMPTY_TASK_ID, Map.of());
+        final MockActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
+        Task task = request.createTask(123, "type", "action", TaskId.EMPTY_TASK_ID, owner, Map.of());
         assertThat(task, is(instanceOf(CancellableTask.class)));
         assertThat(task.getDescription(), is(equalTo("preview_transform[transform-preview]")));
     }

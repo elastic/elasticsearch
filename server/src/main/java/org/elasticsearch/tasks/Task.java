@@ -9,8 +9,10 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
@@ -73,6 +75,9 @@ public class Task {
 
     private final TaskId parentTask;
 
+    @Nullable
+    private final ActionUser owner;
+
     private final Map<String, String> headers;
 
     /**
@@ -85,8 +90,8 @@ public class Task {
      */
     private final long startTimeNanos;
 
-    public Task(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
-        this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime(), headers);
+    public Task(long id, String type, String action, String description, TaskId parentTask, ActionUser owner, Map<String, String> headers) {
+        this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime(), owner, headers);
     }
 
     public Task(
@@ -97,6 +102,7 @@ public class Task {
         TaskId parentTask,
         long startTime,
         long startTimeNanos,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
         this.id = id;
@@ -106,6 +112,7 @@ public class Task {
         this.parentTask = parentTask;
         this.startTime = startTime;
         this.startTimeNanos = startTimeNanos;
+        this.owner = owner;
         this.headers = headers;
     }
 
@@ -144,6 +151,7 @@ public class Task {
             this instanceof CancellableTask,
             this instanceof CancellableTask && ((CancellableTask) this).isCancelled(),
             parentTask,
+            owner == null ? null : owner.identifier().toString(),
             headers
         );
     }
@@ -223,6 +231,8 @@ public class Task {
             + startTime
             + ", startTimeNanos="
             + startTimeNanos
+            + ", owner="
+            + owner
             + '}';
     }
 
@@ -239,6 +249,11 @@ public class Task {
      * they are used by systems like Kibana.
      */
     public interface Status extends ToXContentObject, NamedWriteable {}
+
+    @Nullable
+    public ActionUser getOwner() {
+        return owner;
+    }
 
     /**
      * Returns stored task header associated with the task

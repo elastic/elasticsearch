@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -148,13 +149,20 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                     }
 
                     @Override
-                    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                    public Task createTask(
+                        long id,
+                        String type,
+                        String action,
+                        TaskId parentTaskId,
+                        ActionUser owner,
+                        Map<String, String> headers
+                    ) {
                         String description = "executing enrich policy ["
                             + request.getName()
                             + "] creating new enrich index ["
                             + request.getEnrichIndexName()
                             + "]";
-                        return new ExecuteEnrichPolicyTask(id, type, action, description, parentTaskId, headers);
+                        return new ExecuteEnrichPolicyTask(id, type, action, description, parentTaskId, owner, headers);
                     }
                 });
 

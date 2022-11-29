@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,7 +63,7 @@ public final class TransportActionProxy {
         }
 
         private static boolean assertConsistentTaskType(Task proxyTask, TransportRequest wrapped) {
-            final Task targetTask = wrapped.createTask(0, proxyTask.getType(), proxyTask.getAction(), TaskId.EMPTY_TASK_ID, Map.of());
+            final Task targetTask = wrapped.createTask(0, proxyTask.getType(), proxyTask.getAction(), TaskId.EMPTY_TASK_ID, null, Map.of());
             assert targetTask instanceof CancellableTask == proxyTask instanceof CancellableTask
                 : "Cancellable property of proxy action ["
                     + proxyTask.getAction()
@@ -141,8 +142,8 @@ public final class TransportActionProxy {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, owner, headers) {
                 @Override
                 public String getDescription() {
                     return "proxy task [" + wrapped.getDescription() + "]";

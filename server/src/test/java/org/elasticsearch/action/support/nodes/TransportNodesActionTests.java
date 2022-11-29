@@ -97,7 +97,7 @@ public class TransportNodesActionTests extends ESTestCase {
     public void testNewResponseNullArray() throws Exception {
         TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
         final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
-        action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), new TestNodesRequest(), null, future);
+        action.newResponse(new Task(1, "test", "test", "", null, null, emptyMap()), new TestNodesRequest(), null, future);
         expectThrows(NullPointerException.class, future::actionGet);
     }
 
@@ -123,7 +123,7 @@ public class TransportNodesActionTests extends ESTestCase {
         NodeResponseTracker nodeResponseCollector = new NodeResponseTracker(allResponses);
 
         final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
-        action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), request, nodeResponseCollector, future);
+        action.newResponse(new Task(1, "test", "test", "", null, null, emptyMap()), request, nodeResponseCollector, future);
         TestNodesResponse response = future.actionGet();
 
         assertSame(request, response.request);
@@ -155,7 +155,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
         TestNodesRequest request = new TestNodesRequest(nodeIds.toArray(new String[0]));
         PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
-        CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, null, emptyMap());
         TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse>.AsyncAction asyncAction =
             action.new AsyncAction(cancellableTask, request, listener);
         asyncAction.start();

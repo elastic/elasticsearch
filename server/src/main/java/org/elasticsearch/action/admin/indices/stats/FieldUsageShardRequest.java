@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -41,8 +42,8 @@ public class FieldUsageShardRequest extends BroadcastShardRequest {
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, owner, headers) {
             @Override
             public String getDescription() {
                 return FieldUsageShardRequest.this.getDescription();

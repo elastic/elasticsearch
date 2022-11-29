@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -255,12 +256,14 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
     }
 
     public void testStatusEquals() throws IOException {
+        final MockActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         PrimaryReplicaSyncer.ResyncTask task = new PrimaryReplicaSyncer.ResyncTask(
             0,
             "type",
             "action",
             "desc",
             null,
+            owner,
             Collections.emptyMap()
         );
         task.setPhase(randomAlphaOfLength(10));
@@ -285,12 +288,14 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
     }
 
     public void testStatusReportsCorrectNumbers() throws IOException {
+        final MockActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         PrimaryReplicaSyncer.ResyncTask task = new PrimaryReplicaSyncer.ResyncTask(
             0,
             "type",
             "action",
             "desc",
             null,
+            owner,
             Collections.emptyMap()
         );
         task.setPhase(randomAlphaOfLength(10));

@@ -24,6 +24,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -279,6 +281,7 @@ public class CircuitBreakerTests extends ESTestCase {
     }
 
     private QueryClient buildQueryClient(ESMockClient esClient, CircuitBreaker eqlCircuitBreaker) {
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         EqlConfiguration eqlConfiguration = new EqlConfiguration(
             new String[] { "test" },
             org.elasticsearch.xpack.ql.util.DateUtils.UTC,
@@ -298,6 +301,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 EqlSearchAction.NAME,
                 "",
                 null,
+                owner,
                 emptyMap(),
                 emptyMap(),
                 new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),

@@ -15,6 +15,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -80,6 +82,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -90,6 +93,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         );
         task.init(null, mock(TaskManager.class), taskId.toString(), 123);
@@ -105,6 +109,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -115,6 +120,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         );
         task.init(null, mock(TaskManager.class), taskId.toString(), 123);
@@ -130,6 +136,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -140,6 +147,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         );
         task.init(null, mock(TaskManager.class), taskId.toString(), 123);
@@ -155,6 +163,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -165,6 +174,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         );
         task.init(null, mock(TaskManager.class), taskId.toString(), 123);
@@ -180,6 +190,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -190,6 +201,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         );
         task.init(null, mock(TaskManager.class), taskId.toString(), 123);
@@ -205,6 +217,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -215,6 +228,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         );
         task.init(null, mock(TaskManager.class), taskId.toString(), 123);
@@ -229,6 +243,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -239,6 +254,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         );
         task.init(null, mock(TaskManager.class), taskId.toString(), 123);
@@ -253,6 +269,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -263,6 +280,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         );
         task.init(null, mock(TaskManager.class), taskId.toString(), 123);
@@ -296,6 +314,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             AtomicInteger counter = new AtomicInteger(0);
             TaskId taskId = new TaskId("node", 123);
+            final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
             RollupJobTask task = new RollupJobTask(
                 1,
                 "type",
@@ -306,6 +325,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 client,
                 schedulerEngine,
                 pool,
+                owner,
                 Collections.emptyMap()
             ) {
                 @Override
@@ -407,6 +427,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -417,6 +438,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         ) {
             @Override
@@ -466,6 +488,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -476,6 +499,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         ) {
             @Override
@@ -528,6 +552,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.threadPool()).thenReturn(pool);
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -538,6 +563,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         ) {
             @Override
@@ -622,6 +648,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -632,6 +659,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         ) {
             @Override
@@ -731,6 +759,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -741,6 +770,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         ) {
             @Override
@@ -842,6 +872,7 @@ public class RollupJobTaskTests extends ESTestCase {
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, null);
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -852,6 +883,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         ) {
             @Override
@@ -914,6 +946,7 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         SchedulerEngine schedulerEngine = new SchedulerEngine(SETTINGS, Clock.systemUTC());
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -924,6 +957,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         );
         task.init(null, mock(TaskManager.class), taskId.toString(), 123);
@@ -954,6 +988,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             AtomicInteger counter = new AtomicInteger(0);
             TaskId taskId = new TaskId("node", 123);
+            final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
             RollupJobTask task = new RollupJobTask(
                 1,
                 "type",
@@ -964,6 +999,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 client,
                 schedulerEngine,
                 pool,
+                owner,
                 Collections.emptyMap()
             ) {
                 @Override
@@ -1070,6 +1106,7 @@ public class RollupJobTaskTests extends ESTestCase {
         // just in case, we can override markAsCompleted so it's a no-op and test how stop
         // handles the situation
         TaskId taskId = new TaskId("node", 123);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         RollupJobTask task = new RollupJobTask(
             1,
             "type",
@@ -1080,6 +1117,7 @@ public class RollupJobTaskTests extends ESTestCase {
             client,
             schedulerEngine,
             pool,
+            owner,
             Collections.emptyMap()
         ) {
             @Override

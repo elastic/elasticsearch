@@ -274,6 +274,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             MultiTermVectorsAction.NAME,
             "description",
             new TaskId(randomLong() + ":" + randomLong()),
+            null,
             emptyMap()
         );
     }

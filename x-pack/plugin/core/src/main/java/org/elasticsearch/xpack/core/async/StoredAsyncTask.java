@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -31,12 +33,13 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
         String action,
         String description,
         TaskId parentTaskId,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         Map<String, String> originHeaders,
         AsyncExecutionId asyncExecutionId,
         TimeValue keepAlive
     ) {
-        super(id, type, action, description, parentTaskId, headers);
+        super(id, type, action, description, parentTaskId, owner, headers);
         this.asyncExecutionId = asyncExecutionId;
         this.originHeaders = originHeaders;
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();

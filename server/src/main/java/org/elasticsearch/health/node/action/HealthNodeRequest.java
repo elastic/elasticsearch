@@ -9,6 +9,7 @@
 package org.elasticsearch.health.node.action;
 
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -29,7 +30,7 @@ public abstract class HealthNodeRequest extends ActionRequest {
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, owner, headers);
     }
 }

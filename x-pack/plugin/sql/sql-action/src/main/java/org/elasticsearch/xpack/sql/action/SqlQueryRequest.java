@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -269,13 +270,14 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
         return new SqlQueryTask(
             id,
             type,
             action,
             getDescription(),
             parentTaskId,
+            owner,
             headers,
             null,
             null,

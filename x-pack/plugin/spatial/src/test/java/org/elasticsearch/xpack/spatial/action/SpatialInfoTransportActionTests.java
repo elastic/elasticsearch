@@ -67,7 +67,7 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
             mockClient()
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        Task task = new Task(1L, "_type", "_action", "_description", null, Collections.emptyMap());
+        Task task = new Task(1L, "_type", "_action", "_description", null, null, Collections.emptyMap());
         usageAction.masterOperation(task, null, clusterService.state(), future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.available(), is(true));

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -115,6 +117,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         String type,
         String action,
         TaskId parentTaskId,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         Map<String, String> originHeaders,
         AsyncExecutionId asyncExecutionId
@@ -125,6 +128,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             action,
             request.getDescription(),
             parentTaskId,
+            owner,
             headers,
             originHeaders,
             asyncExecutionId,

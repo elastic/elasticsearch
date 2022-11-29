@@ -126,6 +126,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             ShardFollowTask.NAME,
             "description",
             null,
+            null,
             Collections.emptyMap(),
             params,
             scheduler,

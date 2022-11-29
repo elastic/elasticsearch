@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -697,7 +699,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessManager manager = createSpyManager();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         AtomicBoolean markCalled = new AtomicBoolean();
-        JobTask jobTask = new JobTask("foo", 0, "type", "action", TaskId.EMPTY_TASK_ID, Map.of(), licenseState) {
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLength(6)) : null;
+        JobTask jobTask = new JobTask("foo", 0, "type", "action", TaskId.EMPTY_TASK_ID, owner, Map.of(), licenseState) {
             @Override
             protected void doMarkAsCompleted() {
                 markCalled.set(true);

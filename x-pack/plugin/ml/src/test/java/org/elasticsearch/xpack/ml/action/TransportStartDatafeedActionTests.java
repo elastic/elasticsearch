@@ -175,6 +175,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             action,
             parentTaskId,
             params,
+            null,
             Collections.emptyMap()
         );
         assertThat(task.setDatafeedRunner(datafeedRunner), is(TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolated.NEITHER));

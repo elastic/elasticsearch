@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -200,8 +201,15 @@ public class InferencePyTorchActionTests extends ESTestCase {
             }
 
             @Override
-            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+            public Task createTask(
+                long id,
+                String type,
+                String action,
+                TaskId parentTaskId,
+                ActionUser owner,
+                Map<String, String> headers
+            ) {
+                return new CancellableTask(id, type, action, getDescription(), parentTaskId, owner, headers);
             }
         });
         InferencePyTorchAction action = new InferencePyTorchAction(

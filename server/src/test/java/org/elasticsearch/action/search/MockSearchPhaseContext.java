@@ -66,7 +66,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public SearchTask getTask() {
-        return new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        return new SearchTask(0, "n/a", "n/a", () -> "test", null, null, Collections.emptyMap());
     }
 
     @Override

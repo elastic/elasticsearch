@@ -26,6 +26,7 @@ public class TaskTests extends ESTestCase {
         long runningTime = randomNonNegativeLong();
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable && randomBoolean();
+        final String ownerId = randomBoolean() ? randomAlphaOfLengthBetween(3, 16) : null;
         TaskInfo taskInfo = new TaskInfo(
             new TaskId(nodeId, taskId),
             "test_type",
@@ -37,6 +38,7 @@ public class TaskTests extends ESTestCase {
             cancellable,
             cancelled,
             TaskId.EMPTY_TASK_ID,
+            ownerId,
             Collections.singletonMap("foo", "bar")
         );
         String taskInfoString = taskInfo.toString();
@@ -53,6 +55,7 @@ public class TaskTests extends ESTestCase {
         } else {
             assertFalse(map.containsKey("cancelled"));
         }
+        assertEquals(map.get("owner"), ownerId);
         assertEquals(map.get("headers"), Collections.singletonMap("foo", "bar"));
     }
 

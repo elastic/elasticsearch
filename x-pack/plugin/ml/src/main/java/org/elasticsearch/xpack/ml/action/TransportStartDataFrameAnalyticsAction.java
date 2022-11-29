@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.License;
@@ -672,6 +674,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             String action,
             TaskId parentTaskId,
             PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask,
+            @Nullable ActionUser owner,
             Map<String, String> headers
         ) {
             return new DataFrameAnalyticsTask(
@@ -679,6 +682,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 type,
                 action,
                 parentTaskId,
+                owner,
                 headers,
                 client,
                 manager,

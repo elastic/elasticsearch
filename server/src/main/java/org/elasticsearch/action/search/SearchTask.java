@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 
@@ -28,9 +30,10 @@ public class SearchTask extends CancellableTask {
         String action,
         Supplier<String> descriptionSupplier,
         TaskId parentTaskId,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
-        super(id, type, action, null, parentTaskId, headers);
+        super(id, type, action, null, parentTaskId, owner, headers);
         this.descriptionSupplier = descriptionSupplier;
     }
 

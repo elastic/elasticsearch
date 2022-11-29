@@ -10,10 +10,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -92,12 +94,13 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             String action,
             String description,
             TaskId parentTaskId,
+            @Nullable ActionUser owner,
             Map<String, String> headers,
             Map<String, String> originHeaders,
             AsyncExecutionId asyncExecutionId,
             TimeValue keepAlive
         ) {
-            super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);
+            super(id, type, action, description, parentTaskId, owner, headers, originHeaders, asyncExecutionId, keepAlive);
         }
 
         @Override
@@ -115,6 +118,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             String type,
             String action,
             TaskId parentTaskId,
+            @Nullable ActionUser owner,
             Map<String, String> headers,
             Map<String, String> originHeaders,
             AsyncExecutionId asyncExecutionId
@@ -125,6 +129,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
                 action,
                 request.getDescription(),
                 parentTaskId,
+                owner,
                 headers,
                 originHeaders,
                 asyncExecutionId,

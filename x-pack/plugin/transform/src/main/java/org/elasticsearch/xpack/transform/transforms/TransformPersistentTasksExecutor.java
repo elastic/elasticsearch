@@ -15,6 +15,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -399,6 +400,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         String action,
         TaskId parentTaskId,
         PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> persistentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
         return new TransformTask(
@@ -412,6 +414,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             transformServices.getScheduler(),
             auditor,
             threadPool,
+            owner,
             headers
         );
     }

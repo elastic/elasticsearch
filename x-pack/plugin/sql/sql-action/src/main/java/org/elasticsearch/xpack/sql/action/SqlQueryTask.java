@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.sql.action;
 
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -30,6 +32,7 @@ public class SqlQueryTask extends StoredAsyncTask<SqlQueryResponse> {
         String action,
         String description,
         TaskId parentTaskId,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         Map<String, String> originHeaders,
         AsyncExecutionId asyncExecutionId,
@@ -38,7 +41,7 @@ public class SqlQueryTask extends StoredAsyncTask<SqlQueryResponse> {
         SqlVersion sqlVersion,
         boolean columnar
     ) {
-        super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);
+        super(id, type, action, description, parentTaskId, owner, headers, originHeaders, asyncExecutionId, keepAlive);
         this.mode = mode;
         this.sqlVersion = sqlVersion;
         this.columnar = columnar;

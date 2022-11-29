@@ -15,6 +15,8 @@ import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -67,6 +69,7 @@ public class PITFailureTests extends ESTestCase {
     public void testHandlingPitFailure() {
         try (ESMockClient esClient = new ESMockClient();) {
 
+            final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
             EqlConfiguration eqlConfiguration = new EqlConfiguration(
                 new String[] { "test" },
                 org.elasticsearch.xpack.ql.util.DateUtils.UTC,
@@ -86,6 +89,7 @@ public class PITFailureTests extends ESTestCase {
                     EqlSearchAction.NAME,
                     "",
                     null,
+                    owner,
                     emptyMap(),
                     emptyMap(),
                     new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),

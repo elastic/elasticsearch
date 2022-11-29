@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
@@ -21,8 +23,16 @@ import java.util.Map;
  */
 public class SearchShardTask extends CancellableTask {
 
-    public SearchShardTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
-        super(id, type, action, description, parentTaskId, headers);
+    public SearchShardTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTaskId,
+        @Nullable ActionUser owner,
+        Map<String, String> headers
+    ) {
+        super(id, type, action, description, parentTaskId, owner, headers);
     }
 
     @Override

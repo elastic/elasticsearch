@@ -8,6 +8,7 @@
 
 package org.elasticsearch.persistent;
 
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
@@ -97,9 +98,10 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
         String action,
         TaskId parentTaskId,
         PersistentTask<Params> taskInProgress,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
-        return new AllocatedPersistentTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
+        return new AllocatedPersistentTask(id, type, action, getDescription(taskInProgress), parentTaskId, owner, headers);
     }
 
     /**

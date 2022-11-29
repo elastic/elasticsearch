@@ -14,6 +14,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -126,12 +128,14 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         testIndices = testIndicesList.toArray(new String[0]);
         clusterStateWithIndex = ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards);
 
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         transformTask = new Task(
             1L,
             "persistent",
             "action",
             TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + "the_id",
             TaskId.EMPTY_TASK_ID,
+            owner,
             Collections.emptyMap()
         );
         getCheckpointAction = new TestTransportGetCheckpointAction();

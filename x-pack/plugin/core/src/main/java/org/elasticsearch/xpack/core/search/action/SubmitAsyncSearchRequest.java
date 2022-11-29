@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.search.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -157,8 +158,8 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, null, parentTaskId, headers) {
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, null, parentTaskId, owner, headers) {
             @Override
             public String getDescription() {
                 // generating description in a lazy way since source can be quite big

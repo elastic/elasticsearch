@@ -98,7 +98,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         TransportAnalyzeIndexDiskUsageAction transportAction = createTransportAction(clusterService, transportService, groupShardRoutings);
         int maxConcurrentRequests = randomIntBetween(1, 5);
         PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = new PlainActionFuture<>();
-        Task task = new Task(randomLong(), "transport", "action", "", null, emptyMap());
+        Task task = new Task(randomLong(), "transport", "action", "", null, null, emptyMap());
         TransportAnalyzeIndexDiskUsageAction.LimitingRequestPerNodeBroadcastAction broadcastAction =
             transportAction.new LimitingRequestPerNodeBroadcastAction(task, randomDiskUsageRequest(), future, maxConcurrentRequests);
         broadcastAction.start();
@@ -199,7 +199,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         handlingThread.start();
         ClusterService clusterService = mockClusterService(ClusterState.builder(ClusterState.EMPTY_STATE).nodes(nodes).build());
         TransportAnalyzeIndexDiskUsageAction transportAction = createTransportAction(clusterService, transportService, shardToRoutings);
-        Task task = new Task(randomLong(), "transport", "action", "", null, emptyMap());
+        Task task = new Task(randomLong(), "transport", "action", "", null, null, emptyMap());
         TransportAnalyzeIndexDiskUsageAction.LimitingRequestPerNodeBroadcastAction broadcastAction =
             transportAction.new LimitingRequestPerNodeBroadcastAction(task, randomDiskUsageRequest(), requestFuture, maxConcurrentRequests);
         broadcastAction.start();
@@ -254,7 +254,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         TransportAnalyzeIndexDiskUsageAction transportAction = createTransportAction(clusterService, transportService, shardToRoutings);
         int maxConcurrentRequests = randomIntBetween(1, 16);
         PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = new PlainActionFuture<>();
-        Task task = new Task(randomLong(), "transport", "action", "", null, emptyMap());
+        Task task = new Task(randomLong(), "transport", "action", "", null, null, emptyMap());
         TransportAnalyzeIndexDiskUsageAction.LimitingRequestPerNodeBroadcastAction broadcastAction =
             transportAction.new LimitingRequestPerNodeBroadcastAction(task, randomDiskUsageRequest(), future, maxConcurrentRequests);
         broadcastAction.start();

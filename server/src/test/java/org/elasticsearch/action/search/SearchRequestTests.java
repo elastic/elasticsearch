@@ -288,7 +288,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     private String toDescription(SearchRequest request) {
-        return request.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
+        return request.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, null, emptyMap()).getDescription();
     }
 
     public void testForceSyntheticUnsupported() {

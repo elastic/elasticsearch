@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
@@ -38,7 +40,8 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
 
     @Before
     public void createTask() {
-        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
+        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, owner, Collections.emptyMap());
         task.setWorker(Float.POSITIVE_INFINITY, null);
         workerState = task.getWorkerState();
     }

@@ -109,7 +109,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                     new BatchSummary("test"),
                     clusterState,
                     unserializableClusterState,
-                    new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, emptyMap()),
+                    new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, null, emptyMap()),
                     0L,
                     0L
                 )
@@ -291,7 +291,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                         new BatchSummary("test"),
                         prevClusterState,
                         nextClusterState,
-                        new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, emptyMap()),
+                        new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, null, emptyMap()),
                         0L,
                         0L
                     )

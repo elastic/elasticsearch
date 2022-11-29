@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -45,7 +47,8 @@ public class TransportRethrottleActionTests extends ESTestCase {
     @Before
     public void createTask() {
         slices = between(2, 50);
-        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 12)) : null;
+        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, owner, Collections.emptyMap());
         task.setWorkerCount(slices);
     }
 
@@ -97,6 +100,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<BulkByScrollTask.StatusOrException> sliceStatuses = new ArrayList<>(slices);
         for (int i = 0; i < slices; i++) {
             BulkByScrollTask.Status status = believeableInProgressStatus(i);
+            final String ownerId = randomBoolean() ? randomAlphaOfLengthBetween(4, 8) : null;
             tasks.add(
                 new TaskInfo(
                     new TaskId("test", 123),
@@ -109,6 +113,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
                     true,
                     false,
                     new TaskId("test", task.getId()),
+                    ownerId,
                     Collections.emptyMap()
                 )
             );
@@ -132,6 +137,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         }
         List<TaskInfo> tasks = new ArrayList<>();
         for (int i = succeeded; i < slices; i++) {
+            final String ownerId = randomBoolean() ? randomAlphaOfLengthBetween(4, 8) : null;
             BulkByScrollTask.Status status = believeableInProgressStatus(i);
             tasks.add(
                 new TaskInfo(
@@ -145,6 +151,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
                     true,
                     false,
                     new TaskId("test", task.getId()),
+                    ownerId,
                     Collections.emptyMap()
                 )
             );

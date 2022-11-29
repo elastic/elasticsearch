@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.core.Nullable;
@@ -71,6 +72,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
         String type,
         String action,
         TaskId parentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         Client client,
         DataFrameAnalyticsManager analyticsManager,
@@ -84,6 +86,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             action,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(),
             parentTask,
+            owner,
             headers,
             MachineLearning.ML_ANALYTICS_JOBS_FEATURE,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(),

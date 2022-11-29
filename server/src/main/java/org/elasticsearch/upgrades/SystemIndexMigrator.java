@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsCluster
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -92,6 +94,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         String action,
         TaskId parentTask,
         SystemIndexMigrationTaskParams params,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         ClusterService clusterService,
         SystemIndices systemIndices,
@@ -99,7 +102,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         MetadataCreateIndexService metadataCreateIndexService,
         IndexScopedSettings indexScopedSettings
     ) {
-        super(id, type, action, "system-index-migrator", parentTask, headers);
+        super(id, type, action, "system-index-migrator", parentTask, owner, headers);
         this.baseClient = new ParentTaskAssigningClient(client, parentTask);
         this.clusterService = clusterService;
         this.systemIndices = systemIndices;

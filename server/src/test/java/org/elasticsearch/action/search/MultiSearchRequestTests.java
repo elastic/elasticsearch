@@ -503,7 +503,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         request.add(new SearchRequest().routing("r").preference("xyz"));
         request.add(new SearchRequest().indices("index-1"));
 
-        String description = request.createTask(0, "type", "action", TaskId.EMPTY_TASK_ID, Map.of()).getDescription();
+        String description = request.createTask(0, "type", "action", TaskId.EMPTY_TASK_ID, null, Map.of()).getDescription();
         assertThat(
             description,
             equalTo(

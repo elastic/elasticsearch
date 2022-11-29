@@ -9,6 +9,8 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -32,7 +34,8 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
     @Before
     public void createTask() {
         slices = between(2, 50);
-        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
+        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, owner, Collections.emptyMap());
         task.setWorkerCount(slices);
         taskState = task.getLeaderState();
     }

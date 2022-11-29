@@ -167,7 +167,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         }
         searchRequest.allowPartialSearchResults(false);
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
             searchRequest,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -295,7 +295,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null);
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
             searchRequest,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -436,7 +436,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             }
         };
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
             searchRequest,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -578,7 +578,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             }
         };
         SearchPhaseController controller = new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
-        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
             searchRequest,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,

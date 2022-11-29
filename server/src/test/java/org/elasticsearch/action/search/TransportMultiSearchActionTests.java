@@ -80,7 +80,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 multiSearchRequest.add(new SearchRequest());
             }
             AtomicInteger counter = new AtomicInteger(0);
-            Task task = multiSearchRequest.createTask(randomLong(), "type", "action", null, Collections.emptyMap());
+            Task task = multiSearchRequest.createTask(randomLong(), "type", "action", null, null, Collections.emptyMap());
             NodeClient client = new NodeClient(settings, threadPool) {
                 @Override
                 public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {

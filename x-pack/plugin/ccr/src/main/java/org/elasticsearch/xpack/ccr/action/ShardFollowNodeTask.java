@@ -17,11 +17,13 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -116,12 +118,13 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         String action,
         String description,
         TaskId parentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         ShardFollowTask params,
         BiConsumer<TimeValue, Runnable> scheduler,
         final LongSupplier relativeTimeProvider
     ) {
-        super(id, type, action, description, parentTask, headers);
+        super(id, type, action, description, parentTask, owner, headers);
         this.params = params;
         this.scheduler = scheduler;
         this.relativeTimeProvider = relativeTimeProvider;

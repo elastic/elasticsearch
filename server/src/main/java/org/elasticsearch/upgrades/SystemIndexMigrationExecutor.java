@@ -8,6 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -75,6 +76,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         String action,
         TaskId parentTaskId,
         PersistentTasksCustomMetadata.PersistentTask<SystemIndexMigrationTaskParams> taskInProgress,
+        ActionUser owner,
         Map<String, String> headers
     ) {
         return new SystemIndexMigrator(
@@ -84,6 +86,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
             action,
             parentTaskId,
             taskInProgress.getParams(),
+            owner,
             headers,
             clusterService,
             systemIndices,

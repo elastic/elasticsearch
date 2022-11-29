@@ -24,6 +24,12 @@ public interface ActionUser {
          */
         String toString();
 
+        /**
+         * A representation of the identifier suitable for logging in ECS
+         * @param prefix The parent field under which the fields should be logged.
+         *               For example, <code>"user"</code>.
+         *               Should not end with a <code>.</code>
+         */
         Map<String, String> toEcsMap(String prefix);
     }
 

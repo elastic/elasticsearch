@@ -9,6 +9,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,8 +65,16 @@ public class BulkByScrollTask extends CancellableTask {
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
 
-    public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
-        super(id, type, action, description, parentTaskId, headers);
+    public BulkByScrollTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTaskId,
+        @Nullable ActionUser owner,
+        Map<String, String> headers
+    ) {
+        super(id, type, action, description, parentTaskId, owner, headers);
     }
 
     @Override

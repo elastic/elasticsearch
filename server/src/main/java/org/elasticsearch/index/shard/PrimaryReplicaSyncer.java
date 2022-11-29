@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.tasks.Task;
@@ -381,8 +383,8 @@ public class PrimaryReplicaSyncer {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new ResyncTask(id, type, action, getDescription(), parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new ResyncTask(id, type, action, getDescription(), parentTaskId, owner, headers);
         }
 
         @Override
@@ -407,8 +409,16 @@ public class PrimaryReplicaSyncer {
         private volatile int resyncedOperations;
         private volatile int skippedOperations;
 
-        public ResyncTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
-            super(id, type, action, description, parentTaskId, headers);
+        public ResyncTask(
+            long id,
+            String type,
+            String action,
+            String description,
+            TaskId parentTaskId,
+            @Nullable ActionUser owner,
+            Map<String, String> headers
+        ) {
+            super(id, type, action, description, parentTaskId, owner, headers);
         }
 
         /**

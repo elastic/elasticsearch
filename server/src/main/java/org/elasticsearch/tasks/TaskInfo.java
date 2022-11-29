@@ -8,12 +8,14 @@
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -48,6 +50,7 @@ public record TaskInfo(
     boolean cancellable,
     boolean cancelled,
     TaskId parentTaskId,
+    @Nullable String ownerId,
     Map<String, String> headers
 ) implements Writeable, ToXContentFragment {
 
@@ -72,6 +75,7 @@ public record TaskInfo(
             in.readBoolean(),
             in.readBoolean(),
             TaskId.readFromStream(in),
+            in.getVersion().onOrAfter(Version.V_8_7_0) ? in.readOptionalString() : null,
             in.readMap(StreamInput::readString, StreamInput::readString)
         );
     }
@@ -88,6 +92,9 @@ public record TaskInfo(
         out.writeBoolean(cancellable);
         out.writeBoolean(cancelled);
         parentTaskId.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            out.writeOptionalString(ownerId);
+        }
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
@@ -122,6 +129,9 @@ public record TaskInfo(
         if (parentTaskId.isSet()) {
             builder.field("parent_task_id", parentTaskId.toString());
         }
+        if (Strings.hasText(ownerId)) {
+            builder.field("owner", ownerId);
+        }
         builder.startObject("headers");
         for (Map.Entry<String, String> attribute : headers.entrySet()) {
             builder.field(attribute.getKey(), attribute.getValue());
@@ -146,6 +156,7 @@ public record TaskInfo(
         boolean cancellable = (Boolean) a[i++];
         boolean cancelled = a[i++] == Boolean.TRUE;
         String parentTaskIdString = (String) a[i++];
+        String owner = (String) a[i++];
         @SuppressWarnings("unchecked")
         Map<String, String> headers = (Map<String, String>) a[i++];
         if (headers == null) {
@@ -165,6 +176,7 @@ public record TaskInfo(
             cancellable,
             cancelled,
             parentTaskId,
+            owner,
             headers
         );
     });
@@ -182,6 +194,7 @@ public record TaskInfo(
         PARSER.declareBoolean(constructorArg(), new ParseField("cancellable"));
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField("cancelled"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("owner"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), new ParseField("headers"));
     }
 

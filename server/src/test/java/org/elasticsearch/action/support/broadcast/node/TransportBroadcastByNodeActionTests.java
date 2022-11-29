@@ -537,7 +537,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     public void testNoResultAggregationIfTaskCancelled() {
         Request request = new Request(new String[] { TEST_INDEX });
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", null, null, emptyMap());
         TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult>.AsyncAction asyncAction =
             action.new AsyncAction(task, request, listener);
         asyncAction.start();
@@ -558,7 +558,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     private static Task cancelledTask() {
-        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", null, null, emptyMap());
         TaskCancelHelper.cancel(task, "simulated");
         return task;
     }

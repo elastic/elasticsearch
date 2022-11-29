@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -145,6 +147,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         String action,
         TaskId parentTaskId,
         PersistentTasksCustomMetadata.PersistentTask<ShardFollowTask> taskInProgress,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
         ShardFollowTask params = taskInProgress.getParams();
@@ -162,6 +165,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             action,
             getDescription(taskInProgress),
             parentTaskId,
+            owner,
             headers,
             params,
             scheduler,

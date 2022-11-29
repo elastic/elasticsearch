@@ -58,6 +58,8 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -115,7 +117,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard, searcher);
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(0);
-        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap()));
         final boolean rescore = QueryPhase.executeInternal(context);
         assertFalse(rescore);
 
@@ -196,7 +198,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         IndexReader reader = DirectoryReader.open(dir);
         TestSearchContext context = new TestSearchContext(null, indexShard, newEarlyTerminationContextSearcher(reader, 0));
-        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
         QueryPhase.executeInternal(context);
@@ -224,7 +226,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         IndexReader reader = DirectoryReader.open(dir);
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
-        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.terminateAfter(1);
         context.setSize(10);
@@ -251,7 +253,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard, newEarlyTerminationContextSearcher(reader, 0));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
-        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap()));
         QueryPhase.executeInternal(context);
         assertEquals(1, context.queryResult().topDocs().topDocs.totalHits.value);
 
@@ -273,7 +275,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         w.close();
         IndexReader reader = DirectoryReader.open(dir);
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
-        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
         QueryPhase.executeInternal(context);
@@ -302,7 +304,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         scrollContext.lastEmittedDoc = null;
         scrollContext.maxScore = Float.NaN;
         scrollContext.totalHits = null;
-        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap()));
         int size = randomIntBetween(2, 5);
         context.setSize(size);
 
@@ -351,7 +353,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             return total;
         };
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
-        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
         context.terminateAfter(numDocs);
@@ -491,7 +493,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(1);
-        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap()));
         context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
 
         QueryPhase.executeInternal(context);
@@ -571,7 +573,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             scrollContext.lastEmittedDoc = null;
             scrollContext.maxScore = Float.NaN;
             scrollContext.totalHits = null;
-            context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            context.setTask(new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap()));
             context.setSize(10);
             context.sort(searchSortAndFormat);
 
@@ -626,7 +628,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         IndexReader reader = DirectoryReader.open(dir);
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
-        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap()));
         Query q = new SpanNearQuery.Builder("title", true).addClause(new SpanTermQuery(new Term("title", "foo")))
             .addClause(new SpanTermQuery(new Term("title", "bar")))
             .build();
@@ -700,7 +702,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         Query q = LongPoint.newRangeQuery(fieldNameLong, startLongValue, startLongValue + numDocs);
         final ParsedQuery query = new ParsedQuery(q);
-        final SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        final SearchShardTask task = new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap());
 
         // 1. Test sort optimization on long field
         {
@@ -901,7 +903,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             )
         );
         context.minimumScore(0.01f);
-        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, null, Collections.emptyMap()));
         context.setSize(1);
         context.trackTotalHitsUpTo(5);
 
@@ -928,7 +930,16 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"));
                 prefixQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
                 context.parsedQuery(new ParsedQuery(prefixQuery));
-                SearchShardTask task = new SearchShardTask(randomLong(), "transport", "", "", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+                final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
+                SearchShardTask task = new SearchShardTask(
+                    randomLong(),
+                    "transport",
+                    "",
+                    "",
+                    TaskId.EMPTY_TASK_ID,
+                    owner,
+                    Collections.emptyMap()
+                );
                 TaskCancelHelper.cancel(task, "simulated");
                 context.setTask(task);
                 context.searcher().addQueryCancellation(task::ensureNotCancelled);

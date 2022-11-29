@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.TaskManagerTestCase;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
@@ -132,8 +133,15 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
                 ThreadPool.Names.MANAGEMENT, // busy-wait for cancellation but not on a transport thread
                 (StreamInput in) -> new TransportRequest.Empty(in) {
                     @Override
-                    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+                    public Task createTask(
+                        long id,
+                        String type,
+                        String action,
+                        TaskId parentTaskId,
+                        ActionUser owner,
+                        Map<String, String> headers
+                    ) {
+                        return new CancellableTask(id, type, action, "", parentTaskId, owner, headers);
                     }
                 },
                 (request, channel, task) -> {
@@ -208,8 +216,8 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, owner, headers);
         }
     }
 

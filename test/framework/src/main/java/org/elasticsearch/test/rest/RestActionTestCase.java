@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.ActionUserContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
@@ -157,12 +159,14 @@ public abstract class RestActionTestCase extends ESTestCase {
         ) {
             @SuppressWarnings("unchecked") // Callers are responsible for lining this up
             Response response = (Response) executeLocallyVerifier.get().apply(action, request);
+            ActionUser owner = ActionUserContext.getEffectiveUser(threadPool().getThreadContext()).orElse(null);
             listener.onResponse(response);
             return request.createTask(
                 taskIdGenerator.incrementAndGet(),
                 "transport",
                 action.name(),
                 request.getParentTask(),
+                owner,
                 Collections.emptyMap()
             );
         }

@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -106,9 +108,10 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         String action,
         String description,
         TaskId parentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
-        super(id, type, action, description, parentTask, headers);
+        super(id, type, action, description, parentTask, owner, headers);
         this.httpClient = httpClient;
         this.client = client;
         this.clusterService = clusterService;

@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.diskusage;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -57,8 +58,8 @@ public class AnalyzeIndexDiskUsageRequest extends BroadcastRequest<AnalyzeIndexD
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, AnalyzeIndexDiskUsageAction.NAME, type, "", parentTaskId, headers) {
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+        return new CancellableTask(id, AnalyzeIndexDiskUsageAction.NAME, type, "", parentTaskId, owner, headers) {
             @Override
             public String getDescription() {
                 return AnalyzeIndexDiskUsageRequest.this.getDescription();

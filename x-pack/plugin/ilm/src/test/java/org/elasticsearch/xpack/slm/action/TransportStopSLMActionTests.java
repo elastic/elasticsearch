@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -41,12 +43,14 @@ public class TransportStopSLMActionTests extends ESTestCase {
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)
         );
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         Task task = new Task(
             randomLong(),
             "transport",
             StopILMAction.NAME,
             "description",
             new TaskId(randomLong() + ":" + randomLong()),
+            owner,
             emptyMap()
         );
         StopSLMAction.Request request = new StopSLMAction.Request();

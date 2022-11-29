@@ -13,11 +13,13 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -80,9 +82,10 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         TransformScheduler transformScheduler,
         TransformAuditor auditor,
         ThreadPool threadPool,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
-        super(id, type, action, TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
+        super(id, type, action, TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, owner, headers);
         this.parentTaskClient = new ParentTaskAssigningClient(client, parentTask);
         this.transform = transform;
         this.transformScheduler = transformScheduler;

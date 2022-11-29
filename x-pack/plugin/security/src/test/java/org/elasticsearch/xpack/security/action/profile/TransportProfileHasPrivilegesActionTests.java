@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.SecurityActionUser;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -256,7 +259,16 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
 
         final AtomicInteger cancelCountDown = new AtomicInteger(randomIntBetween(1, profileUids.size() + 1));
         final boolean taskActuallyCancelled = cancelCountDown.get() <= profileUids.size();
-        final CancellableTask cancellableTask = new CancellableTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID, Map.of());
+        final ActionUser owner = new SecurityActionUser(AuthenticationTestHelper.builder().serviceAccount().build().getEffectiveSubject());
+        final CancellableTask cancellableTask = new CancellableTask(
+            0,
+            "type",
+            "action",
+            "description",
+            TaskId.EMPTY_TASK_ID,
+            owner,
+            Map.of()
+        );
 
         if (cancelCountDown.decrementAndGet() == 0) {
             TaskCancelHelper.cancel(cancellableTask, "reason");

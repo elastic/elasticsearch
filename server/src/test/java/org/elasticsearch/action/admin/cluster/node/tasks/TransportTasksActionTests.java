@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -97,8 +98,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return super.createTask(id, type, action, parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser user, Map<String, String> headers) {
+            return super.createTask(id, type, action, parentTaskId, user, headers);
         }
     }
 
@@ -127,8 +128,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return super.createTask(id, type, action, parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser user, Map<String, String> headers) {
+            return super.createTask(id, type, action, parentTaskId, user, headers);
         }
     }
 
@@ -183,8 +184,15 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestTasksRequest() {}
 
         @Override
-        public CancellableTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "testTasksRequest", parentTaskId, headers);
+        public CancellableTask createTask(
+            long id,
+            String type,
+            String action,
+            TaskId parentTaskId,
+            ActionUser owner,
+            Map<String, String> headers
+        ) {
+            return new CancellableTask(id, type, action, "testTasksRequest", parentTaskId, owner, headers);
         }
     }
 

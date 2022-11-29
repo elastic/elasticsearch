@@ -13,6 +13,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -202,6 +204,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             "type",
             "action",
             null,
+            null,
             Map.of(),
             client,
             analyticsManager,
@@ -289,11 +292,13 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         IndexResponse indexResponse = mock(IndexResponse.class);
         doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
 
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         DataFrameAnalyticsTask task = new DataFrameAnalyticsTask(
             123,
             "type",
             "action",
             null,
+            owner,
             Map.of(),
             client,
             analyticsManager,

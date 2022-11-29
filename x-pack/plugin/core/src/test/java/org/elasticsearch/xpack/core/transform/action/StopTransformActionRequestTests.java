@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -61,12 +62,14 @@ public class StopTransformActionRequestTests extends AbstractWireSerializingTest
     public void testMatch() {
         String transformId = "transform-id";
 
+        final MockActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         Task transformTask = new Task(
             1L,
             "persistent",
             "action",
             TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transformId,
             TaskId.EMPTY_TASK_ID,
+            owner,
             Collections.emptyMap()
         );
 
@@ -84,6 +87,7 @@ public class StopTransformActionRequestTests extends AbstractWireSerializingTest
             "action",
             "some other task, say monitoring",
             TaskId.EMPTY_TASK_ID,
+            owner,
             Collections.emptyMap()
         );
         assertFalse(matchingRequest.match(notATransformTask));

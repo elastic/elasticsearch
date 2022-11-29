@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -96,8 +98,16 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         private volatile boolean blocked = true;
 
-        TestTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
-            super(id, type, action, description, parentTaskId, headers);
+        TestTask(
+            long id,
+            String type,
+            String action,
+            String description,
+            TaskId parentTaskId,
+            @Nullable ActionUser owner,
+            Map<String, String> headers
+        ) {
+            super(id, type, action, description, parentTaskId, owner, headers);
         }
 
         @Override
@@ -184,8 +194,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new TestTask(id, type, action, this.getDescription(), parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new TestTask(id, type, action, this.getDescription(), parentTaskId, owner, headers);
         }
     }
 
@@ -248,8 +258,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, ActionUser owner, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, owner, headers);
         }
     }
 

@@ -32,6 +32,8 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -341,6 +343,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     try {
                         PlainActionFuture<SearchPhaseResult> result = new PlainActionFuture<>();
                         final boolean useScroll = randomBoolean();
+                        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
                         service.executeQueryPhase(
                             new ShardSearchRequest(
                                 OriginalIndices.NONE,
@@ -353,7 +356,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 -1,
                                 null
                             ),
-                            new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()),
+                            new SearchShardTask(123L, "", "", "", null, owner, Collections.emptyMap()),
                             result
                         );
                         SearchPhaseResult searchPhaseResult = result.get();
@@ -361,7 +364,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         intCursors.add(0);
                         ShardFetchRequest req = new ShardFetchRequest(searchPhaseResult.getContextId(), intCursors, null/* not a scroll */);
                         PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
-                        service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()), listener);
+                        service.executeFetchPhase(
+                            req,
+                            new SearchShardTask(123L, "", "", "", null, owner, Collections.emptyMap()),
+                            listener
+                        );
                         listener.get();
                         if (useScroll) {
                             // have to free context since this test does not remove the index from IndicesService.
@@ -415,6 +422,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         // the scrolls are not explicitly freed, but should all be gone when the test finished.
         // for completeness, we also randomly test the regular search path.
         final boolean useScroll = randomBoolean();
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         PlainActionFuture<SearchPhaseResult> result = new PlainActionFuture<>();
         service.executeQueryPhase(
             new ShardSearchRequest(
@@ -428,7 +436,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 -1,
                 null
             ),
-            new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()),
+            new SearchShardTask(123L, "", "", "", null, owner, Collections.emptyMap()),
             result
         );
 
@@ -989,7 +997,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
 
         CountDownLatch latch = new CountDownLatch(1);
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, owner, Collections.emptyMap());
         assertEquals(8, numWrapInvocations.get());
         service.executeQueryPhase(request, task, new ActionListener<SearchPhaseResult>() {
             @Override
@@ -1287,7 +1296,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             0,
             null
         );
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, owner, Collections.emptyMap());
 
         {
             CountDownLatch latch = new CountDownLatch(1);
@@ -1496,7 +1506,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
 
         CountDownLatch latch1 = new CountDownLatch(1);
-        SearchShardTask task = new SearchShardTask(1, "", "", "", TaskId.EMPTY_TASK_ID, emptyMap());
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
+        SearchShardTask task = new SearchShardTask(1, "", "", "", TaskId.EMPTY_TASK_ID, owner, emptyMap());
         service.executeQueryPhase(request, task, new ActionListener<>() {
             @Override
             public void onResponse(SearchPhaseResult searchPhaseResult) {
@@ -1609,8 +1620,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             .get()
             .getScrollId();
         searchContextCreated.set(false);
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         service.setOnCheckCancelled(t -> {
-            SearchShardTask task = new SearchShardTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+            SearchShardTask task = new SearchShardTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, owner, emptyMap());
             TaskCancelHelper.cancel(task, "simulated");
             return task;
         });
@@ -1654,7 +1666,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final IndexResponse response = client().prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, owner, Collections.emptyMap());
         PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -1687,7 +1700,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final IndexResponse response = client().prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, owner, Collections.emptyMap());
         PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -1723,7 +1737,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final IndexResponse response = client().prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, owner, Collections.emptyMap());
         PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -1760,7 +1775,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final IndexResponse response = client().prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        final ActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, owner, Collections.emptyMap());
         PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,

@@ -131,6 +131,7 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(clock, threadPool, Settings.EMPTY),
             auditor,
             threadPool,
+            null,
             Collections.emptyMap()
         );
 
@@ -209,6 +210,7 @@ public class TransformTaskTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY),
             auditor,
             threadPool,
+            null,
             Collections.emptyMap()
         );
 

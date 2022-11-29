@@ -87,7 +87,7 @@ public class Subject {
 
                 @Override
                 public String toString() {
-                    return type.name() + ":" + getUser().principal();
+                    return getType().name() + ":" + getUser().principal();
                 }
             };
             case API_KEY -> new ActionUser.Id() {
@@ -103,7 +103,7 @@ public class Subject {
 
                 @Override
                 public String toString() {
-                    return type.name() + ":" + getUser().principal() + ":" + getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+                    return getType().name() + ":" + getUser().principal() + ":" + getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
                 }
             };
         };

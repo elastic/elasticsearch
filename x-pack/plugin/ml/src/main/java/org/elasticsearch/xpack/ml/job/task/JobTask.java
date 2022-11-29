@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.job.task;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.LicensedAllocatedPersistentTask;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskId;
@@ -44,10 +46,22 @@ public class JobTask extends LicensedAllocatedPersistentTask implements OpenJobA
         String type,
         String action,
         TaskId parentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         XPackLicenseState licenseState
     ) {
-        super(id, type, action, "job-" + jobId, parentTask, headers, MachineLearning.ML_ANOMALY_JOBS_FEATURE, "job-" + jobId, licenseState);
+        super(
+            id,
+            type,
+            action,
+            "job-" + jobId,
+            parentTask,
+            owner,
+            headers,
+            MachineLearning.ML_ANOMALY_JOBS_FEATURE,
+            "job-" + jobId,
+            licenseState
+        );
         this.jobId = jobId;
     }
 

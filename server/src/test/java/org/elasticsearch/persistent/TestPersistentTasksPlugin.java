@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -412,9 +414,10 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             String action,
             TaskId parentTaskId,
             PersistentTask<TestParams> task,
+            @Nullable ActionUser owner,
             Map<String, String> headers
         ) {
-            return new TestTask(id, type, action, getDescription(task), parentTaskId, headers);
+            return new TestTask(id, type, action, getDescription(task), parentTaskId, owner, headers);
         }
     }
 
@@ -431,8 +434,16 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     public static class TestTask extends AllocatedPersistentTask {
         private volatile String operation;
 
-        public TestTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
-            super(id, type, action, description, parentTask, headers);
+        public TestTask(
+            long id,
+            String type,
+            String action,
+            String description,
+            TaskId parentTask,
+            @Nullable ActionUser owner,
+            Map<String, String> headers
+        ) {
+            super(id, type, action, description, parentTask, owner, headers);
         }
 
         public String getOperation() {

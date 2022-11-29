@@ -12,12 +12,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -230,6 +232,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
         String action,
         TaskId parentTaskId,
         PersistentTasksCustomMetadata.PersistentTask<SnapshotUpgradeTaskParams> persistentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers
     ) {
         return new SnapshotUpgradeTask(
@@ -239,6 +242,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             type,
             action,
             parentTaskId,
+            owner,
             headers,
             licenseState
         );

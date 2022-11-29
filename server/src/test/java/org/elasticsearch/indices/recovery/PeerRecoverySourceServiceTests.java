@@ -63,6 +63,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             START_RECOVERY,
             "",
             TaskId.EMPTY_TASK_ID,
+            null,
             Collections.emptyMap()
         );
 

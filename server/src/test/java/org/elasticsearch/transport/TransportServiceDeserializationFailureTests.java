@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -131,8 +132,15 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 }
 
                 @Override
-                public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                    return new CancellableTask(id, type, action, "", parentTaskId, headers);
+                public Task createTask(
+                    long id,
+                    String type,
+                    String action,
+                    TaskId parentTaskId,
+                    ActionUser owner,
+                    Map<String, String> headers
+                ) {
+                    return new CancellableTask(id, type, action, "", parentTaskId, owner, headers);
                 }
             });
 

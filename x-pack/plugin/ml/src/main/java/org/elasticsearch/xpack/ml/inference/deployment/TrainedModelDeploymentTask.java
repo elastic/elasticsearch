@@ -13,6 +13,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.user.ActionUser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -51,13 +53,14 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         String type,
         String action,
         TaskId parentTask,
+        @Nullable ActionUser owner,
         Map<String, String> headers,
         TaskParams taskParams,
         TrainedModelAssignmentNodeService trainedModelAssignmentNodeService,
         XPackLicenseState licenseState,
         LicensedFeature.Persistent licensedFeature
     ) {
-        super(id, type, action, MlTasks.trainedModelAssignmentTaskDescription(taskParams.getModelId()), parentTask, headers);
+        super(id, type, action, MlTasks.trainedModelAssignmentTaskDescription(taskParams.getModelId()), parentTask, owner, headers);
         this.params = Objects.requireNonNull(taskParams);
         this.trainedModelAssignmentNodeService = ExceptionsHelper.requireNonNull(
             trainedModelAssignmentNodeService,

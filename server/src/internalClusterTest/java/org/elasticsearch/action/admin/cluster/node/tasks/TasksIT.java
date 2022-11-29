@@ -904,6 +904,7 @@ public class TasksIT extends ESIntegTestCase {
                     false,
                     false,
                     TaskId.EMPTY_TASK_ID,
+                    null,
                     Collections.emptyMap()
                 ),
                 new RuntimeException("test")

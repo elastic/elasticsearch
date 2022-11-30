@@ -56,12 +56,13 @@ The MacOS archive for {es} v{version} can be downloaded and installed as follows
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz.sha512
-shasum -a 512 -c elasticsearch-{version}-darwin-x86_64.tar.gz.sha512 <1>
+curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
+curl https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz.sha512 | shasum -a 512 -c - <1>
 tar -xzf elasticsearch-{version}-darwin-x86_64.tar.gz
 cd elasticsearch-{version}/ <2>
 --------------------------------------------
+// NOTCONSOLE
+
 <1> Compares the SHA of the downloaded `.tar.gz` archive and the published checksum, which should output
     `elasticsearch-{version}-darwin-x86_64.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
@@ -80,7 +81,7 @@ endif::include-xpack[]
 [[targz-running]]
 include::targz-start.asciidoc[]
 
-:es-conf:       $ES_PATH_CONF
+:es-conf:      $ES_HOME/config
 :slash:        /
 
 include::check-running.asciidoc[]

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -25,6 +24,7 @@ import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -87,11 +88,20 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private final SecurityIndexManager securityIndex;
 
-    public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex) {
+    private final ClusterService clusterService;
+
+    public NativeRolesStore(
+        Settings settings,
+        Client client,
+        XPackLicenseState licenseState,
+        SecurityIndexManager securityIndex,
+        ClusterService clusterService
+    ) {
         this.settings = settings;
         this.client = client;
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -211,13 +221,25 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
-        } else {
-            innerPutRole(request, role, listener);
-        }
+        } else if (role.hasRemoteIndicesPrivileges()
+            && clusterService.state().nodes().getMinNodeVersion().before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "all nodes must have version ["
+                            + RoleDescriptor.VERSION_REMOTE_INDICES
+                            + "] or higher to support remote indices privileges"
+                    )
+                );
+            } else {
+                innerPutRole(request, role, listener);
+            }
     }
 
     // pkg-private for testing
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
+        final String roleName = role.getName();
+        assert NativeRealmValidationUtil.validateRoleName(roleName, false) == null : "Role name was invalid or reserved: " + roleName;
+
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
@@ -227,7 +249,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 return;
             }
             final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
-                .setId(getIdForRole(role.getName()))
+                .setId(getIdForRole(roleName))
                 .setSource(xContentBuilder)
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .request();
@@ -240,12 +262,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     public void onResponse(IndexResponse indexResponse) {
                         final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                         logger.trace("Created role: [{}]", indexRequest);
-                        clearRoleCache(role.getName(), listener, created);
+                        clearRoleCache(roleName, listener, created);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error(new ParameterizedMessage("failed to put role [{}]", request.name()), e);
+                        logger.error(() -> "failed to put role [" + roleName + "]", e);
                         listener.onFailure(e);
                     }
                 },
@@ -388,7 +410,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("unable to clear cache for role [{}]", role), e);
+                logger.error(() -> "unable to clear cache for role [" + role + "]", e);
                 ElasticsearchException exception = new ElasticsearchException(
                     "clearing the cache for [" + role + "] failed. please clear the role cache manually",
                     e
@@ -442,7 +464,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 return roleDescriptor;
             }
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("error in the format of data for role [{}]", name), e);
+            logger.error(() -> "error in the format of data for role [" + name + "]", e);
             return null;
         }
     }

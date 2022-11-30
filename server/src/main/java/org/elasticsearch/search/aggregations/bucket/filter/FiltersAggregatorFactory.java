@@ -22,7 +22,7 @@ import java.util.Map;
 
 public class FiltersAggregatorFactory extends AggregatorFactory {
 
-    private final List<QueryToFilterAdapter<?>> filters;
+    private final List<QueryToFilterAdapter> filters;
     private final boolean keyed;
     private final boolean otherBucket;
     private final String otherBucketKey;

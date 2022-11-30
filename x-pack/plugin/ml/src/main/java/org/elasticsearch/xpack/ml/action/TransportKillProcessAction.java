@@ -70,16 +70,19 @@ public class TransportKillProcessAction extends TransportTasksAction<
         List<FailedNodeException> failedNodeExceptions
     ) {
         org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(
-            taskOperationFailures.stream()
-                .map(t -> org.elasticsearch.ExceptionsHelper.convertToElastic(t.getCause()))
-                .collect(Collectors.toList())
+            taskOperationFailures.stream().map(ExceptionsHelper::taskOperationFailureToStatusException).collect(Collectors.toList())
         );
         org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(failedNodeExceptions);
         return new KillProcessAction.Response(true);
     }
 
     @Override
-    protected void taskOperation(KillProcessAction.Request request, JobTask jobTask, ActionListener<KillProcessAction.Response> listener) {
+    protected void taskOperation(
+        Task actionTask,
+        KillProcessAction.Request request,
+        JobTask jobTask,
+        ActionListener<KillProcessAction.Response> listener
+    ) {
         logger.info("[{}] Killing job", jobTask.getJobId());
         auditor.info(jobTask.getJobId(), Messages.JOB_AUDIT_KILLING);
         try {

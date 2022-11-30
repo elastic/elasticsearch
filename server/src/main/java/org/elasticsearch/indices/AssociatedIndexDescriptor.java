@@ -10,20 +10,22 @@ package org.elasticsearch.indices;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.lucene.RegExp;
 
 import java.util.List;
 import java.util.Objects;
 
 /**
- * An "associated index" is an index that is related to or derived from a system
- * index, but should not be considered a system index, usually because it is
- * meant to be visible to users. However, if it goes out of sync with its
- * related system indices, it may become unreliable or useless. Hence, when
- * taking a snapshot of a feature, we want the associated index to be included
- * in the snapshot, and, likewise, we want an associated index to be restored
- * when a feature snapshot is restored.
+ * Describes an index that is part of the state of a {@link SystemIndices.Feature}, but is not protected or managed by the system.
+ *
+ * <p>An “associated index” is often meant to be visible to users. For example, it might contain the results of a feature’s operations,
+ * which users could then query. However, if the associated index goes out of sync with the state of the feature, it may become
+ * unreliable or useless. Hence, indices matching an AssociatedIndexDescriptor will be included in snapshots of feature state, and
+ * will be restored when that feature state is restored.
+ *
+ * <p>The format for associated index patterns is the same mangled regex that we use in SystemIndexDescriptor. See
+ * {@linkplain SystemIndexDescriptor that class’s javadoc} for more details.
  */
 public class AssociatedIndexDescriptor implements IndexPatternMatcher {
     /** A pattern, either with a wildcard or simple regex.*/

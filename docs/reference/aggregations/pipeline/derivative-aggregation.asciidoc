@@ -29,7 +29,9 @@ A `derivative` aggregation looks like this in isolation:
  details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional |`skip` 
- |`format` |format to apply to the output value of this aggregation |Optional | `null` 
+ |`format` |{javadoc}/java.base/java/text/DecimalFormat.html[DecimalFormat pattern] for the
+output value. If specified, the formatted value is returned in the aggregation's
+`value_as_string` property |Optional | `null` 
 |===
 
 

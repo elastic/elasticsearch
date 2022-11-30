@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -91,6 +92,15 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
+        return buildNewExtractor(start, end, parsedQuery);
+    }
+
+    @Override
+    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
+        return buildNewExtractor(start, end, QueryBuilders.boolQuery().filter(parsedQuery).filter(queryBuilder));
+    }
+
+    private DataExtractor buildNewExtractor(long start, long end, QueryBuilder queryBuilder) {
         CompositeAggregationBuilder compositeAggregationBuilder = new CompositeAggregationBuilder(
             compositeAggName,
             compositeValuesSourceBuilders
@@ -104,7 +114,7 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
             job.getDataDescription().getTimeField(),
             job.getAnalysisConfig().analysisFields(),
             datafeedConfig.getIndices(),
-            parsedQuery,
+            queryBuilder,
             compositeAggregationBuilder,
             this.dateHistogramGroupSourceName,
             Intervals.alignToCeil(start, histogramInterval),

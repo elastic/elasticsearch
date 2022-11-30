@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -145,7 +144,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // an old timestamp so the `1h` wait threshold we configured using LIFECYCLE_STEP_WAIT_TIME_THRESHOLD is breached and a new
         // shrink cycle is started
         LongSupplier nowWayBackInThePastSupplier = () -> 1234L;
-        clusterService.submitStateUpdateTask("testing-move-to-step-to-manipulate-step-time", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("testing-move-to-step-to-manipulate-step-time", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 return new MoveToNextStepUpdateTask(
@@ -163,7 +162,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
 
         String[] secondCycleShrinkIndexName = new String[1];
         assertBusy(() -> {

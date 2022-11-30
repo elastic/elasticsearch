@@ -2,7 +2,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.test-with-ssl'
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   onlyIf {
     // Do not attempt to form a cluster in a FIPS JVM, as doing so with a JKS keystore will fail.
     // TODO Revisit this when SQL CLI client can handle key/certificate instead of only Keystores.
@@ -11,7 +11,7 @@ tasks.named("integTest").configure {
   }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   // The setup that we actually want
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.http.ssl.enabled', 'true'

@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
@@ -139,7 +138,7 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
             .getMappings(new GetMappingsRequest().indices(INDEX_NAME))
             .actionGet();
 
-        final ImmutableOpenMap<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
+        final Map<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
         assertThat(
             "Expected mappings to contain a key for [" + PRIMARY_INDEX_NAME + "], but found: " + mappings.toString(),
             mappings.containsKey(PRIMARY_INDEX_NAME),

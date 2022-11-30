@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.BiFunction;
@@ -20,9 +21,11 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SetsTests extends ESTestCase {
 
@@ -74,6 +77,27 @@ public class SetsTests extends ESTestCase {
             .filter(i -> (sets.v1().contains(i) && sets.v2().contains(i)))
             .collect(Collectors.toSet());
         assertThat(intersection, containsInAnyOrder(expectedIntersection.toArray(new Integer[0])));
+    }
+
+    public void testNewHashSetWithExpectedSize() {
+        assertEquals(HashSet.class, Sets.newHashSetWithExpectedSize(randomIntBetween(0, 1_000_000)).getClass());
+    }
+
+    public void testNewLinkedHashSetWithExpectedSize() {
+        assertEquals(LinkedHashSet.class, Sets.newLinkedHashSetWithExpectedSize(randomIntBetween(0, 1_000_000)).getClass());
+    }
+
+    public void testCapacityIsEnoughForSetToNotBeResized() {
+        for (int i = 0; i < 1000; i++) {
+            int size = randomIntBetween(0, 1_000_000);
+            int capacity = Sets.capacity(size);
+            assertThat(size, lessThanOrEqualTo((int) (capacity * 0.75f)));
+        }
+    }
+
+    public void testAddToCopy() {
+        assertThat(addToCopy(Set.of("a", "b"), "c"), containsInAnyOrder("a", "b", "c"));
+        assertThat(addToCopy(Set.of("a", "b"), "c", "d"), containsInAnyOrder("a", "b", "c", "d"));
     }
 
     /**

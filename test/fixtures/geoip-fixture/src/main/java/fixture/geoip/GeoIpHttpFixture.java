@@ -10,6 +10,7 @@ package fixture.geoip;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.geoip.GeoIpCli;
 
@@ -84,7 +85,8 @@ public class GeoIpHttpFixture {
 
         new GeoIpCli().main(
             new String[] { "-s", source.toAbsolutePath().toString(), "-t", target.toAbsolutePath().toString() },
-            Terminal.DEFAULT
+            Terminal.DEFAULT,
+            ProcessInfo.fromSystem()
         );
     }
 

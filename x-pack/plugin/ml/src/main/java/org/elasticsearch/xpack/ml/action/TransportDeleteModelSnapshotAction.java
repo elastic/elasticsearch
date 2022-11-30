@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -28,6 +27,8 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportDeleteModelSnapshotAction extends HandledTransportAction<DeleteModelSnapshotAction.Request, AcknowledgedResponse> {
 
@@ -57,7 +58,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
     @Override
     protected void doExecute(Task task, DeleteModelSnapshotAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         // Verify the snapshot exists
-        jobResultsProvider.modelSnapshots(request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(), page -> {
+        jobResultsProvider.modelSnapshots(request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(), null, page -> {
             List<ModelSnapshot> deleteCandidates = page.results();
             if (deleteCandidates.size() > 1) {
                 logger.warn(
@@ -101,7 +102,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
                     );
 
                     auditor.info(request.getJobId(), msg);
-                    logger.debug(() -> new ParameterizedMessage("[{}] {}", request.getJobId(), msg));
+                    logger.debug(() -> format("[%s] %s", request.getJobId(), msg));
                     // We don't care about the bulk response, just that it succeeded
                     l.onResponse(AcknowledgedResponse.TRUE);
                 }));

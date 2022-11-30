@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -35,7 +36,8 @@ public class GatewayServiceTests extends ESTestCase {
         final ClusterService clusterService = new ClusterService(
             Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null
+            null,
+            (TaskManager) null
         );
         return new GatewayService(settings.build(), (reason, priority, listener) -> fail("should not reroute"), clusterService, null);
     }

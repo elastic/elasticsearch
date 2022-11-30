@@ -90,12 +90,12 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
 
         assertFalse(assertSameContainedFilters(originalTokenFilters, current.get("reloadableAnalyzer")));
         assertFalse(
-            assertSameContainedFilters(originalTokenFilters, mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer())
+            assertSameContainedFilters(originalTokenFilters, mapperService.fieldType("field").getTextSearchInfo().searchAnalyzer())
         );
         assertFalse(
             assertSameContainedFilters(
                 originalTokenFilters,
-                mapperService.fieldType("otherField").getTextSearchInfo().getSearchQuoteAnalyzer()
+                mapperService.fieldType("otherField").getTextSearchInfo().searchQuoteAnalyzer()
             )
         );
     }

@@ -1,6 +1,0 @@
-pr: 85340
-summary: Strengthen elasticsearch plugin version check
-area: Infra/Plugins
-type: bug
-issues:
- - 85336

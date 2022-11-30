@@ -18,7 +18,7 @@ public class SimpleAnalyzerProvider extends AbstractIndexAnalyzerProvider<Simple
     private final SimpleAnalyzer simpleAnalyzer;
 
     public SimpleAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.simpleAnalyzer = new SimpleAnalyzer();
     }
 

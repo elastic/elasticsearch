@@ -70,6 +70,7 @@ This pipeline will insert these named captures as new fields within the document
       "doc": {
         "_index": "_index",
         "_id": "_id",
+        "_version": "-3",
         "_source" : {
           "duration" : 0.043,
           "request" : "/index.html",
@@ -166,6 +167,7 @@ response:
       "doc": {
         "_index": "_index",
         "_id": "_id",
+        "_version": "-3",
         "_source": {
           "message": "I love burmese cats!",
           "pet": "burmese"
@@ -225,6 +227,7 @@ POST _ingest/pipeline/_simulate
       "doc": {
         "_index": "_index",
         "_id": "_id",
+        "_version": "-3",
         "_source": {
           "message": "I love burmese cats!",
           "pet": "burmese"

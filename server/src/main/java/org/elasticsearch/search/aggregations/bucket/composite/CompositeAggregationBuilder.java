@@ -16,7 +16,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -112,10 +112,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(sources.size());
-        for (CompositeValuesSourceBuilder<?> builder : sources) {
-            CompositeValuesSourceParserHelper.writeTo(builder, out);
-        }
+        out.writeCollection(sources, (o, v) -> CompositeValuesSourceParserHelper.writeTo(v, o));
         out.writeVInt(size);
         out.writeBoolean(after != null);
         if (after != null) {
@@ -178,7 +175,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         if (factory == null) {
             return null;
         } else if (factory instanceof NestedAggregatorFactory
-            || factory instanceof FilterAggregatorFactory
+            || factory instanceof FilterAggregationBuilder.FilterAggregatorFactory
             || factory instanceof RandomSamplerAggregatorFactory) {
                 return validateParentAggregations(factory.getParent());
             } else {

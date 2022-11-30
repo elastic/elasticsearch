@@ -57,6 +57,7 @@ public class VectorTileRequestTests extends ESTestCase {
             assertThat(vectorTileRequest.getGridType(), Matchers.equalTo(VectorTileRequest.Defaults.GRID_TYPE));
             assertThat(vectorTileRequest.getGridPrecision(), Matchers.equalTo(VectorTileRequest.Defaults.GRID_PRECISION));
             assertThat(vectorTileRequest.getExactBounds(), Matchers.equalTo(VectorTileRequest.Defaults.EXACT_BOUNDS));
+            assertThat(vectorTileRequest.getWithLabels(), Matchers.equalTo(VectorTileRequest.Defaults.WITH_LABELS));
             assertThat(vectorTileRequest.getRuntimeMappings(), Matchers.equalTo(VectorTileRequest.Defaults.RUNTIME_MAPPINGS));
             assertThat(vectorTileRequest.getQueryBuilder(), Matchers.equalTo(VectorTileRequest.Defaults.QUERY));
             assertThat(vectorTileRequest.getTrackTotalHitsUpTo(), Matchers.equalTo(VectorTileRequest.Defaults.TRACK_TOTAL_HITS_UP_TO));
@@ -150,6 +151,14 @@ public class VectorTileRequestTests extends ESTestCase {
         assertRestRequest(
             (builder) -> builder.field(VectorTileRequest.EXACT_BOUNDS_FIELD.getPreferredName(), exactBounds),
             (vectorTileRequest) -> assertThat(vectorTileRequest.getExactBounds(), Matchers.equalTo(exactBounds))
+        );
+    }
+
+    public void testWithLabels() throws IOException {
+        final boolean withLabels = randomBoolean();
+        assertRestRequest(
+            (builder) -> builder.field(VectorTileRequest.WITH_LABELS_FIELD.getPreferredName(), withLabels),
+            (vectorTileRequest) -> assertThat(vectorTileRequest.getWithLabels(), Matchers.equalTo(withLabels))
         );
     }
 

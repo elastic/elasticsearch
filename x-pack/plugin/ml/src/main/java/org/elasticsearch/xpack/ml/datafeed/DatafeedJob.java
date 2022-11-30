@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchWrapperException;
@@ -49,6 +48,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 class DatafeedJob {
@@ -135,6 +135,10 @@ class DatafeedJob {
 
     public Integer getMaxEmptySearches() {
         return maxEmptySearches;
+    }
+
+    public long numberOfSearchesIn24Hours() {
+        return (60_000 * 60 * 24) / frequencyMs;
     }
 
     public void finishReportingTimingStats() {
@@ -370,7 +374,7 @@ class DatafeedJob {
                 extractedData = result.data();
                 searchInterval = result.searchInterval();
             } catch (Exception e) {
-                LOGGER.error(new ParameterizedMessage("[{}] error while extracting data", jobId), e);
+                LOGGER.error(() -> "[" + jobId + "] error while extracting data", e);
                 // When extraction problems are encountered, we do not want to advance time.
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.
@@ -398,8 +402,8 @@ class DatafeedJob {
                 try (InputStream in = extractedData.get()) {
                     counts = postData(in, XContentType.JSON);
                     LOGGER.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}] Processed another {} records with latest timestamp [{}]",
+                        () -> format(
+                            "[%s] Processed another %s records with latest timestamp [%s]",
                             jobId,
                             counts.getProcessedRecordCount(),
                             counts.getLatestRecordTimeStamp()
@@ -413,7 +417,7 @@ class DatafeedJob {
                     if (isIsolated) {
                         return;
                     }
-                    LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
+                    LOGGER.error(() -> "[" + jobId + "] error while posting data", e);
 
                     // a conflict exception means the job state is not open any more.
                     // we should therefore stop the datafeed.

@@ -1,5 +1,0 @@
-pr: 58416
-summary: Avoid deserializing cluster states on master
-area: Cluster Coordination
-type: enhancement
-issues: []

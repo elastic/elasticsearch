@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authz.privilege.SystemPrivilege;
 
 import java.util.function.Predicate;
@@ -23,12 +24,11 @@ public class SystemUser extends User {
     private static final Predicate<String> PREDICATE = SystemPrivilege.INSTANCE.predicate();
 
     private SystemUser() {
-        super(NAME, ROLE_NAME);
+        super(NAME, Strings.EMPTY_ARRAY);
         // the following traits, and especially the run-as one, go with all the internal users
         // TODO abstract in a base `InternalUser` class
-        assert false == isRunAs() : "cannot run-as the system user";
         assert enabled();
-        assert roles() != null && roles().length == 1;
+        assert roles() != null && roles().length == 0;
     }
 
     @Override
@@ -43,10 +43,6 @@ public class SystemUser extends User {
 
     public static boolean is(User user) {
         return INSTANCE.equals(user);
-    }
-
-    public static boolean is(String principal) {
-        return NAME.equals(principal);
     }
 
     public static boolean isAuthorized(String action) {

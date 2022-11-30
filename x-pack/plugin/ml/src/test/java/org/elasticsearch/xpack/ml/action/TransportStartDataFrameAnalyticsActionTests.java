@@ -190,7 +190,14 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             "_node_name" + i,
             "_node_id" + i,
             new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i),
-            isMlNode ? Map.of("ml.machine_memory", String.valueOf(ByteSizeValue.ofGb(1).getBytes())) : Map.of(),
+            isMlNode
+                ? Map.of(
+                    "ml.machine_memory",
+                    String.valueOf(ByteSizeValue.ofGb(1).getBytes()),
+                    "ml.max_jvm_size",
+                    String.valueOf(ByteSizeValue.ofMb(400).getBytes())
+                )
+                : Map.of(),
             isMlNode
                 ? Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)
                 : Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),

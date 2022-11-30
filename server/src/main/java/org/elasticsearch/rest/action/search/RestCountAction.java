@@ -17,7 +17,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
@@ -103,7 +102,7 @@ public class RestCountAction extends BaseRestHandler {
                 );
 
                 builder.endObject();
-                return new BytesRestResponse(response.status(), builder);
+                return new RestResponse(response.status(), builder);
             }
         });
     }

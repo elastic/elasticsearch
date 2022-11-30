@@ -44,10 +44,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
 
     ZeroShotClassificationProcessor(NlpTokenizer tokenizer, ZeroShotClassificationConfig config) {
         super(tokenizer);
-        List<String> lowerCased = config.getClassificationLabels()
-            .stream()
-            .map(s -> s.toLowerCase(Locale.ROOT))
-            .collect(Collectors.toList());
+        List<String> lowerCased = config.getClassificationLabels().stream().map(s -> s.toLowerCase(Locale.ROOT)).toList();
         this.entailmentPos = lowerCased.indexOf("entailment");
         this.contraPos = lowerCased.indexOf("contradiction");
         if (entailmentPos == -1 || contraPos == -1) {
@@ -55,7 +52,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
                 "zero_shot_classification requires [entailment] and [contradiction] in classification_labels"
             );
         }
-        this.labels = Optional.ofNullable(config.getLabels()).orElse(List.of()).toArray(String[]::new);
+        this.labels = config.getLabels().orElse(List.of()).toArray(String[]::new);
         this.hypothesisTemplate = config.getHypothesisTemplate();
         this.isMultiLabel = config.isMultiLabel();
         this.resultsField = config.getResultsField();
@@ -70,7 +67,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
     public NlpTask.RequestBuilder getRequestBuilder(NlpConfig nlpConfig) {
         final String[] labelsValue;
         if (nlpConfig instanceof ZeroShotClassificationConfig zeroShotConfig) {
-            labelsValue = zeroShotConfig.getLabels().toArray(new String[0]);
+            labelsValue = zeroShotConfig.getLabels().orElse(List.of()).toArray(new String[0]);
         } else {
             labelsValue = this.labels;
         }
@@ -86,7 +83,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
         final boolean isMultiLabelValue;
         final String resultsFieldValue;
         if (nlpConfig instanceof ZeroShotClassificationConfig zeroShotConfig) {
-            labelsValue = zeroShotConfig.getLabels().toArray(new String[0]);
+            labelsValue = zeroShotConfig.getLabels().orElse(List.of()).toArray(new String[0]);
             isMultiLabelValue = zeroShotConfig.isMultiLabel();
             resultsFieldValue = zeroShotConfig.getResultsField();
         } else {

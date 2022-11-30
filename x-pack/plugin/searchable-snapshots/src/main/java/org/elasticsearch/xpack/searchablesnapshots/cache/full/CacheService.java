@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.full;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -24,8 +24,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.repositories.IndexId;
@@ -56,6 +56,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 /**
@@ -70,7 +71,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.cache.";
 
     public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
-    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = ByteSizeValue.ofBytes(Integer.MAX_VALUE);
 
     /**
      * If a search needs data from the repository then we expand it to a larger contiguous range whose size is determined by this setting,
@@ -140,7 +141,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue rangeSize;
     private final ByteSizeValue recoveryRangeSize;
-    private final Map<ShardEviction, Future<?>> pendingShardsEvictions;
+    private final Map<ShardEviction, PlainActionFuture<?>> pendingShardsEvictions;
     private final ReadWriteLock shardsEvictionsLock;
     private final Object shardsEvictionsMutex;
 
@@ -345,21 +346,22 @@ public class CacheService extends AbstractLifecycleComponent {
         synchronized (shardsEvictionsMutex) {
             if (allowShardsEvictions) {
                 final ShardEviction shardEviction = new ShardEviction(snapshotUUID, snapshotIndexName, shardId);
-                pendingShardsEvictions.computeIfAbsent(shardEviction, shard -> threadPool.generic().submit(new AbstractRunnable() {
-                    @Override
-                    protected void doRun() {
-                        processShardEviction(shardEviction);
-                    }
+                pendingShardsEvictions.computeIfAbsent(shardEviction, shard -> {
+                    final PlainActionFuture<?> future = PlainActionFuture.newFuture();
+                    threadPool.generic().execute(new AbstractRunnable() {
+                        @Override
+                        protected void doRun() {
+                            processShardEviction(shardEviction);
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn(
-                            () -> new ParameterizedMessage("failed to evict cache files associated with shard {}", shardEviction),
-                            e
-                        );
-                        assert false : e;
-                    }
-                }));
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn(() -> format("failed to evict cache files associated with shard %s", shardEviction), e);
+                            assert false : e;
+                        }
+                    });
+                    return future;
+                });
             }
         }
     }
@@ -373,7 +375,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param shardId           the {@link ShardId}
      */
     public void waitForCacheFilesEvictionIfNeeded(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
-        assert assertGenericThreadPool();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final Future<?> future;
         synchronized (shardsEvictionsMutex) {
             if (allowShardsEvictions == false) {
@@ -394,7 +396,7 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     private void processShardEviction(ShardEviction shardEviction) {
         assert isPendingShardEviction(shardEviction) : "shard is not marked as evicted: " + shardEviction;
-        assert assertGenericThreadPool();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         shardsEvictionsLock.readLock().lock();
         try {
@@ -414,7 +416,7 @@ public class CacheService extends AbstractLifecycleComponent {
                         try {
                             cache.invalidate(cacheFile.getCacheKey(), cacheFile);
                         } catch (RuntimeException e) {
-                            logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getCacheKey()), e);
+                            logger.warn(() -> format("failed to evict cache file %s", cacheFile.getCacheKey()), e);
                             assert false : e;
                         }
                     }
@@ -426,8 +428,8 @@ public class CacheService extends AbstractLifecycleComponent {
                 }
             } finally {
                 synchronized (shardsEvictionsMutex) {
-                    final Future<?> removedFuture = pendingShardsEvictions.remove(shardEviction);
-                    assert removedFuture != null;
+                    final PlainActionFuture<?> removedFuture = pendingShardsEvictions.remove(shardEviction);
+                    removedFuture.onResponse(null);
                 }
             }
         } finally {
@@ -586,10 +588,7 @@ public class CacheService extends AbstractLifecycleComponent {
                                         shouldPersist = true;
                                     } catch (Exception e) {
                                         if (cacheDirsSyncExceptionsLogs.putIfAbsent(cacheDir, startTimeNanos) == null) {
-                                            logger.warn(
-                                                () -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir),
-                                                e
-                                            );
+                                            logger.warn(() -> "failed to synchronize cache directory [" + cacheDir + "]", e);
                                         }
                                         assert e instanceof IOException : e;
                                         shouldPersist = false;
@@ -606,11 +605,7 @@ public class CacheService extends AbstractLifecycleComponent {
                 } catch (Exception e) {
                     if (cacheFilesSyncExceptionsLogs.putIfAbsent(cacheDir, startTimeNanos) == null) {
                         logger.warn(
-                            () -> new ParameterizedMessage(
-                                "failed to process [{}] for cache file [{}]",
-                                event.type,
-                                cacheFile.getFile().getFileName()
-                            ),
+                            () -> format("failed to process [%s] for cache file [%s]", event.type, cacheFile.getFile().getFileName()),
                             e
                         );
                     }
@@ -743,13 +738,6 @@ public class CacheService extends AbstractLifecycleComponent {
                 && Objects.equals(snapshotIndexName, cacheKey.getSnapshotIndexName())
                 && Objects.equals(shardId, cacheKey.getShardId());
         }
-    }
-
-    private static boolean assertGenericThreadPool() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.GENERIC + ']') || threadName.startsWith("TEST-")
-            : "expected generic thread pool but got " + threadName;
-        return true;
     }
 
     private enum CacheFileEventType {

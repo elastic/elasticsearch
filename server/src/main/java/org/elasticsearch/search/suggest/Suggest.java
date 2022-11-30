@@ -542,10 +542,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 out.writeText(text);
                 out.writeVInt(offset);
                 out.writeVInt(length);
-                out.writeVInt(options.size());
-                for (Option option : options) {
-                    option.writeTo(out);
-                }
+                out.writeCollection(options);
             }
 
             @Override

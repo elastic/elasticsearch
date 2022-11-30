@@ -30,7 +30,9 @@ A `percentiles_bucket` aggregation looks like this in isolation:
  details) |Required |
 |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional | `skip`
-|`format` |format to apply to the output value of this aggregation |Optional | `null`
+|`format` |{javadoc}/java.base/java/text/DecimalFormat.html[DecimalFormat pattern] for the
+output value. If specified, the formatted value is returned in the aggregation's
+`value_as_string` property |Optional | `null`
 |`percents` |The list of percentiles to calculate |Optional | `[ 1, 5, 25, 50, 75, 95, 99 ]`
 |`keyed` |Flag which returns the range as an hash instead of an array of key-value pairs |Optional | `true`
 |===

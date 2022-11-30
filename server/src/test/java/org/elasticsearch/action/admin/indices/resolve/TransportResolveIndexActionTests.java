@@ -63,7 +63,8 @@ public class TransportResolveIndexActionTests extends ESTestCase {
             ClusterService clusterService = new ClusterService(
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                null
             );
             ResolveIndexAction.TransportAction action = new ResolveIndexAction.TransportAction(
                 transportService,

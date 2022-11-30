@@ -6,3 +6,11 @@
  * Side Public License, v 1.
  */
 rootProject.name = 'build-conventions'
+
+dependencyResolutionManagement {
+    versionCatalogs {
+        buildLibs {
+            from(files("../gradle/build.versions.toml"))
+        }
+    }
+}

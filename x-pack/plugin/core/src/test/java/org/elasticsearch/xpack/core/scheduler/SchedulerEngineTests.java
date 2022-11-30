@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -27,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -75,7 +73,7 @@ public class SchedulerEngineTests extends ESTestCase {
                         // this happens after the listener has been notified, threw an exception, and then mock logged the exception
                         latch.countDown();
                         return null;
-                    }).when(mockLogger).warn(any(ParameterizedMessage.class), any(RuntimeException.class));
+                    }).when(mockLogger).warn(any(Supplier.class), any(RuntimeException.class));
                 }
                 listeners.add(Tuple.tuple(listener, trigger));
             }
@@ -216,13 +214,13 @@ public class SchedulerEngineTests extends ESTestCase {
     }
 
     private void assertFailedListenerLogMessage(Logger mockLogger, int times) {
-        final ArgumentCaptor<ParameterizedMessage> messageCaptor = ArgumentCaptor.forClass(ParameterizedMessage.class);
+        @SuppressWarnings("rawtypes")
+        final ArgumentCaptor<Supplier> messageCaptor = ArgumentCaptor.forClass(Supplier.class);
         final ArgumentCaptor<Throwable> throwableCaptor = ArgumentCaptor.forClass(Throwable.class);
         verify(mockLogger, times(times)).warn(messageCaptor.capture(), throwableCaptor.capture());
-        for (final ParameterizedMessage message : messageCaptor.getAllValues()) {
-            assertThat(message.getFormat(), equalTo("listener failed while handling triggered event [{}]"));
-            assertThat(message.getParameters(), arrayWithSize(1));
-            assertThat(message.getParameters()[0], equalTo(getTestName()));
+        for (@SuppressWarnings("rawtypes")
+        final Supplier supplier : messageCaptor.getAllValues()) {
+            assertThat(supplier.get().toString(), equalTo("listener failed while handling triggered event [" + getTestName() + "]"));
         }
         for (final Throwable throwable : throwableCaptor.getAllValues()) {
             assertThat(throwable, instanceOf(RuntimeException.class));
@@ -231,7 +229,7 @@ public class SchedulerEngineTests extends ESTestCase {
     }
 
     private static void verifyDebugLogging(Logger mockLogger) {
-        verify(mockLogger, atLeastOnce()).debug(any(MessageSupplier.class));
+        verify(mockLogger, atLeastOnce()).debug(any(Supplier.class));
     }
 
 }

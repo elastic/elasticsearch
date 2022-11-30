@@ -43,7 +43,8 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private volatile boolean active; // false;
     private volatile ServerSocketChannel serverChannel;
-    private CountDownLatch listenerThreadLatch;
+    // package private for testing
+    volatile CountDownLatch listenerThreadLatch = new CountDownLatch(0);
     final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
     private final Collection<BoundAddressListener> boundAddressListeners = new CopyOnWriteArrayList<>();
 
@@ -101,18 +102,26 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     // package private for testing
     ServerSocketChannel setupSocket() {
-        InetAddress localhost = InetAddress.getLoopbackAddress();
-        int portNumber = PORT.get(environment.settings());
+        var settings = environment.settings();
+        int portNumber = PORT.get(settings);
         assert portNumber >= 0;
+
+        var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
+            try {
+                return socketAddress(InetAddress.getByName("0"), portNumber);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to resolve readiness host address", e);
+            }
+        });
 
         try {
             serverChannel = ServerSocketChannel.open();
 
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {
-                    serverChannel.bind(socketAddress(localhost, portNumber));
+                    serverChannel.bind(socketAddress);
                 } catch (IOException e) {
-                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portNumber), e);
+                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
                 }
                 return null;
             });
@@ -128,7 +137,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 }
             }
         } catch (Exception e) {
-            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(localhost, portNumber), e);
+            throw new BindTransportException("Failed to open socket channel " + NetworkAddress.format(socketAddress), e);
         }
 
         return serverChannel;
@@ -152,7 +161,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         this.listenerThreadLatch = new CountDownLatch(1);
 
         new Thread(() -> {
-            assert serverChannel != null && listenerThreadLatch != null;
+            assert serverChannel != null;
             try {
                 while (serverChannel.isOpen()) {
                     AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -182,6 +191,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     synchronized void stopListener() {
         assert enabled(environment);
         try {
+            logger.info(
+                "stopping readiness service on channel {}",
+                (this.serverChannel == null) ? "None" : this.serverChannel.getLocalAddress()
+            );
             if (this.serverChannel != null) {
                 this.serverChannel.close();
                 listenerThreadLatch.await();

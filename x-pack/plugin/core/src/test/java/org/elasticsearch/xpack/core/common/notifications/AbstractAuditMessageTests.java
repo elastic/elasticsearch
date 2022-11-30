@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -43,8 +44,8 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
         }
 
         @Override
-        protected String getResourceField() {
-            return TEST_ID.getPreferredName();
+        protected Optional<String> getResourceField() {
+            return Optional.of(TEST_ID.getPreferredName());
         }
     }
 
@@ -55,7 +56,7 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
 
     public void testGetResourceField() {
         TestAuditMessage message = new TestAuditMessage(RESOURCE_ID, MESSAGE, Level.INFO, TIMESTAMP, NODE_NAME);
-        assertThat(message.getResourceField(), equalTo(TestAuditMessage.TEST_ID.getPreferredName()));
+        assertThat(message.getResourceField().get(), equalTo(TestAuditMessage.TEST_ID.getPreferredName()));
     }
 
     public void testGetJobType() {
@@ -104,8 +105,8 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
             }
 
             @Override
-            protected String getResourceField() {
-                return "unused";
+            protected Optional<String> getResourceField() {
+                return Optional.of("unused");
             }
         };
 

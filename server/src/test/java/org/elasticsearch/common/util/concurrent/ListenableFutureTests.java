@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -104,7 +103,7 @@ public class ListenableFutureTests extends ESTestCase {
                             numResponses.incrementAndGet();
                             listenersLatch.countDown();
                         }, e -> {
-                            logger.error(new ParameterizedMessage("listener {} caught unexpected exception", threadNum), e);
+                            logger.error(() -> "listener " + threadNum + " caught unexpected exception", e);
                             numExceptions.incrementAndGet();
                             listenersLatch.countDown();
                         }), executorService, threadContext);

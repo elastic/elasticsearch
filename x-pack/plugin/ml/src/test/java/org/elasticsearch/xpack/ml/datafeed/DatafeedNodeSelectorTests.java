@@ -727,7 +727,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             }
 
             shardRTBuilder.addShard(shardRouting);
-            rtBuilder.addIndexShard(shardRTBuilder.build());
+            rtBuilder.addIndexShard(shardRTBuilder);
             counter += 1;
         }
 

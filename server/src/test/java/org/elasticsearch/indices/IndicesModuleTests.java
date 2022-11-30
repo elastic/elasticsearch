@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -45,6 +46,7 @@ import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class IndicesModuleTests extends ESTestCase {
 
@@ -88,7 +90,7 @@ public class IndicesModuleTests extends ESTestCase {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
             Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
-            assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
+            assertThat(module.getMapperRegistry().getMapperParser("object", Version.CURRENT), instanceOf(ObjectMapper.TypeParser.class));
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry()
                 .getMetadataMapperParsers(version);
@@ -112,7 +114,8 @@ public class IndicesModuleTests extends ESTestCase {
         IndicesModule noPluginsModule = new IndicesModule(Collections.emptyList());
         IndicesModule module = new IndicesModule(fakePlugins);
         MapperRegistry registry = module.getMapperRegistry();
-        assertThat(registry.getMapperParsers().size(), greaterThan(noPluginsModule.getMapperRegistry().getMapperParsers().size()));
+        assertThat(registry.getMapperParser("fake-mapper", Version.CURRENT), instanceOf(FakeMapperParser.class));
+        assertNull(noPluginsModule.getMapperRegistry().getMapperParser("fake-mapper", Version.CURRENT));
         assertThat(
             registry.getMetadataMapperParsers(Version.CURRENT).size(),
             greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers(Version.CURRENT).size())

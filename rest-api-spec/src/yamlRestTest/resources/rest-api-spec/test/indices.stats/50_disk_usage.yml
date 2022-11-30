@@ -18,6 +18,7 @@ setup:
               genre:
                 type: keyword
                 doc_values: true
+
   - do:
       index:
         index: testindex
@@ -126,3 +127,52 @@ setup:
   - gt: { testindex.all_fields.doc_values_in_bytes: 0 }
   - gt: { testindex.all_fields.points_in_bytes: 0 }
   - match: { testindex.all_fields.term_vectors_in_bytes: 0 }
+
+---
+"Dense vectors":
+  - skip:
+      version: " - 8.3.99"
+      reason: dense vector support was added in 8.4
+
+  - do:
+      indices.put_mapping:
+        index: testindex
+        body:
+          properties:
+            vector:
+              type: dense_vector
+              dims: 3
+              index: true
+              similarity: l2_norm
+  - do:
+      index:
+        index: testindex
+        body: { "quantity": 0 }
+  - do:
+      index:
+        index: testindex
+        body: { "quantity": 99, "vector": [0.1, 0.2, 0.3] }
+  - do:
+      index:
+        index: testindex
+        body: { "quantity": 1000, "vector": [1.3, 0.2, 4.5] }
+
+  - do:
+      indices.disk_usage:
+        index: testindex
+        run_expensive_tasks: true
+
+  - gt: { testindex.store_size_in_bytes: 100 }
+
+  # all_fields
+  - gt: { testindex.all_fields.knn_vectors_in_bytes: 0 }
+
+  # quantity
+  - gt: { testindex.fields.quantity.total_in_bytes: 0 }
+  - gt: { testindex.fields.quantity.points_in_bytes: 0 }
+  - match: { testindex.fields.quantity.knn_vectors_in_bytes: 0 }
+
+  # vector
+  - gt: { testindex.fields.vector.total_in_bytes: 0 }
+  - match: { testindex.fields.vector.points_in_bytes: 0 }
+  - gt: { testindex.fields.vector.knn_vectors_in_bytes: 0 }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -59,7 +60,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
     public void testActionFiltersRequest() throws InterruptedException {
         int numFilters = randomInt(10);
-        Set<Integer> orders = new HashSet<>(numFilters);
+        Set<Integer> orders = Sets.newHashSetWithExpectedSize(numFilters);
         while (orders.size() < numFilters) {
             orders.add(randomInt(10));
         }

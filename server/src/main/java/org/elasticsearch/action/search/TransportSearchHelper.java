@@ -39,19 +39,18 @@ public final class TransportSearchHelper {
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeString(INCLUDE_CONTEXT_UUID);
             out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
-            out.writeVInt(searchPhaseResults.asList().size());
-            for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
-                out.writeString(searchPhaseResult.getContextId().getSessionId());
-                out.writeLong(searchPhaseResult.getContextId().getId());
+            out.writeCollection(searchPhaseResults.asList(), (o, searchPhaseResult) -> {
+                o.writeString(searchPhaseResult.getContextId().getSessionId());
+                o.writeLong(searchPhaseResult.getContextId().getId());
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {
-                    out.writeString(
+                    o.writeString(
                         RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId())
                     );
                 } else {
-                    out.writeString(searchShardTarget.getNodeId());
+                    o.writeString(searchShardTarget.getNodeId());
                 }
-            }
+            });
             return Base64.getUrlEncoder().encodeToString(out.copyBytes().array());
         } catch (IOException e) {
             throw new UncheckedIOException(e);

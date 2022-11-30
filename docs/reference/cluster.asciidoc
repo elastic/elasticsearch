@@ -82,6 +82,8 @@ include::cluster/get-settings.asciidoc[]
 
 include::cluster/health.asciidoc[]
 
+include::health/health.asciidoc[]
+
 include::cluster/reroute.asciidoc[]
 
 include::cluster/state.asciidoc[]
@@ -95,6 +97,8 @@ include::cluster/nodes-usage.asciidoc[]
 include::cluster/nodes-hot-threads.asciidoc[]
 
 include::cluster/nodes-info.asciidoc[]
+
+include::cluster/prevalidate-node-removal.asciidoc[]
 
 include::cluster/nodes-reload-secure-settings.asciidoc[]
 
@@ -113,3 +117,5 @@ include::cluster/update-desired-nodes.asciidoc[]
 include::cluster/get-desired-nodes.asciidoc[]
 
 include::cluster/delete-desired-nodes.asciidoc[]
+
+include::cluster/get-desired-balance.asciidoc[]

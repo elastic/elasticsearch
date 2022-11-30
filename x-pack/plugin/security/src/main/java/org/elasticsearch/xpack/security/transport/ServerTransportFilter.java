@@ -23,7 +23,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
-import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -94,7 +93,7 @@ final class ServerTransportFilter {
 
         if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel)) {
             TcpChannel tcpChannel = ((TcpTransportChannel) unwrappedChannel).getChannel();
-            if (tcpChannel instanceof Netty4TcpChannel || tcpChannel instanceof NioTcpChannel) {
+            if (tcpChannel instanceof Netty4TcpChannel) {
                 if (tcpChannel.isOpen()) {
                     SSLEngineUtils.extractClientCertificates(logger, threadContext, tcpChannel);
                 }
@@ -104,7 +103,8 @@ final class ServerTransportFilter {
         final Version version = transportChannel.getVersion();
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
-                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) && SystemUser.is(authentication.getUser()) == false) {
+                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
+                    && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
                     securityContext.executeAsSystemUser(version, original -> {
                         final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, listener);

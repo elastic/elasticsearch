@@ -35,7 +35,7 @@ GET /_search
 // TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 [discrete]
-==== Query Options
+==== Query options
 
 [cols="<,<",options="header",]
 |=======================================================================
@@ -48,10 +48,10 @@ or longitude, or `STRICT` (default is `STRICT`).
 |=======================================================================
 
 [discrete]
-==== Allowed Formats
+==== Allowed formats
 
 [discrete]
-===== Lat Long as Array
+===== Lat long as array
 
 Format as `[lon, lat]`
 
@@ -85,7 +85,7 @@ GET /_search
 // TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 [discrete]
-===== Lat Lon as String
+===== Lat lon as string
 
 Format in `lat,lon`.
 
@@ -151,7 +151,7 @@ The query *requires* the <<geo-point,`geo_point`>> type to be set on the
 relevant field.
 
 [discrete]
-==== Ignore Unmapped
+==== Ignore unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field
 and will not match any documents for this query. This can be useful when

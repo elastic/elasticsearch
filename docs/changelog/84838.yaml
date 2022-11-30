@@ -1,6 +1,0 @@
-pr: 84838
-summary: '`CompoundProcessor` should also catch exceptions when executing a processor'
-area: Ingest
-type: bug
-issues:
- - 84781

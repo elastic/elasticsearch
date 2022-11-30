@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support.broadcast.node;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
@@ -18,8 +17,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.NodeResponseTracker;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -54,6 +53,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Abstraction for transporting aggregated shard-level operations in a single request (NodeRequest) per-node
  * and executing the shard-level operations serially on the receiving node. Each shard-level operation can produce a
@@ -67,7 +68,7 @@ import java.util.function.Consumer;
  */
 public abstract class TransportBroadcastByNodeAction<
     Request extends BroadcastRequest<Request>,
-    Response extends BroadcastResponse,
+    Response extends BaseBroadcastResponse,
     ShardOperationResult extends Writeable> extends HandledTransportAction<Request, Response> {
 
     private final ClusterService clusterService;
@@ -383,7 +384,7 @@ public abstract class TransportBroadcastByNodeAction<
 
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
             String nodeId = node.getId();
-            logger.debug(new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
+            logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, nodeId), t);
             if (nodeResponseTracker.trackResponseAndCheckIfLast(
                 nodeIndex,
                 new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t)
@@ -525,22 +526,14 @@ public abstract class TransportBroadcastByNodeAction<
                 if (TransportActions.isShardNotAvailableException(e)) {
                     if (logger.isTraceEnabled()) {
                         logger.trace(
-                            new ParameterizedMessage(
-                                "[{}] failed to execute operation for shard [{}]",
-                                actionName,
-                                shardRouting.shortSummary()
-                            ),
+                            () -> format("[%s] failed to execute operation for shard [%s]", actionName, shardRouting.shortSummary()),
                             e
                         );
                     }
                 } else {
                     if (logger.isDebugEnabled()) {
                         logger.debug(
-                            new ParameterizedMessage(
-                                "[{}] failed to execute operation for shard [{}]",
-                                actionName,
-                                shardRouting.shortSummary()
-                            ),
+                            () -> format("[%s] failed to execute operation for shard [%s]", actionName, shardRouting.shortSummary()),
                             e
                         );
                     }
@@ -671,10 +664,7 @@ public abstract class TransportBroadcastByNodeAction<
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeId);
             out.writeVInt(totalShards);
-            out.writeVInt(results.size());
-            for (ShardOperationResult result : results) {
-                out.writeOptionalWriteable(result);
-            }
+            out.writeCollection(results, StreamOutput::writeOptionalWriteable);
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
                 out.writeList(exceptions);

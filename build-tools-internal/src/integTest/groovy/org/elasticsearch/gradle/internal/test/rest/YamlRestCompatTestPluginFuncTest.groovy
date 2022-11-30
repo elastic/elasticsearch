@@ -28,9 +28,15 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
     def READER = MAPPER.readerFor(ObjectNode.class)
     def WRITER = MAPPER.writerFor(ObjectNode.class)
 
+    def setup() {
+        // not cc compatible due to:
+        // 1. TestClustersPlugin not cc compatible due to listener registration
+        // 2. RestIntegTestTask not cc compatible due to
+        configurationCacheCompatible = false
+    }
     def "yamlRestTestVxCompatTest does nothing when there are no tests"() {
         given:
-        addSubProject(":distribution:bwc:maintenance") << """
+        subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -57,7 +63,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
 
-        addSubProject(":distribution:bwc:maintenance") << """
+        subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -135,8 +141,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestTestVxCompatTest is wired into check and checkRestCompat"() {
         given:
-
-        addSubProject(":distribution:bwc:maintenance") << """
+        withVersionCatalogue()
+        subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -180,7 +186,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
 
-        addSubProject(":distribution:bwc:maintenance") << """
+        subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))

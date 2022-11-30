@@ -29,11 +29,12 @@ public class MoveDecisionTests extends ESTestCase {
 
     public void testCachedDecisions() {
         // cached stay decision
-        MoveDecision stay1 = MoveDecision.stay(null);
-        MoveDecision stay2 = MoveDecision.stay(null);
+        MoveDecision stay1 = MoveDecision.stay(Decision.YES);
+        MoveDecision stay2 = MoveDecision.stay(Decision.YES);
         assertSame(stay1, stay2); // not in explain mode, so should use cached decision
-        stay1 = MoveDecision.stay(Decision.YES);
-        stay2 = MoveDecision.stay(Decision.YES);
+
+        stay1 = MoveDecision.stay(new Decision.Single(Type.YES, null, null, (Object[]) null));
+        stay2 = MoveDecision.stay(new Decision.Single(Type.YES, null, null, (Object[]) null));
         assertNotSame(stay1, stay2);
 
         // cached cannot move decision

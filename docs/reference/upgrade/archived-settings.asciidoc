@@ -66,20 +66,14 @@ GET */_settings?flat_settings=true&filter_path=**.settings.archived*
 ----
 // TEST[s/^/PUT my-index\n/]
 
-Removing an index's archived index settings requires a <<docs-reindex,reindex>>.
-Reindexing can be resource-intensive and  time-consuming. Before you start, test
-the reindex with a subset of the data to estimate your time requirements.
+To remove any archived index settings, use the following
+<<indices-update-settings,indices update settings>> request.
 
 [source,console]
 ----
-POST _reindex
+PUT /my-index/_settings
 {
-  "source": {
-    "index": "my-index"
-  },
-  "dest": {
-    "index": "reindexed-my-index"
-  }
+  "archived.*": null
 }
 ----
 // TEST[s/^/PUT my-index\n/]

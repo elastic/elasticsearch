@@ -326,7 +326,7 @@
                   field: population
                 sort:
                   _geo_distance:
-                    location: "35.7796, -78.6382"
+                    location: "POINT (-78.6382 35.7796)"
   - match: { aggregations.pop.top.0.metrics.population: 8623000 }
   - match: { aggregations.pop.top.0.sort: [681335.0456554737] }
 
@@ -343,7 +343,7 @@
                   field: population
                 sort:
                   _geo_distance:
-                    location: "35.7796, -78.6382"
+                    location: "POINT (-78.6382 35.7796)"
   - match: { aggregations.pop.top.0.metrics.population: 8623000 }
   - match: { aggregations.pop.top.0.sort: [681335.0456554737] }
   - match: { aggregations.pop.top.1.metrics.population: 2716000 }

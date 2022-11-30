@@ -55,6 +55,7 @@ public abstract class SessionFactory implements Closeable {
     private static final Pattern STARTS_WITH_LDAP = Pattern.compile("^ldap:.*", Pattern.CASE_INSENSITIVE);
 
     protected final Logger logger;
+    protected final DeprecationLogger deprecationLogger;
     protected final RealmConfig config;
     protected final TimeValue timeout;
     protected final SSLService sslService;
@@ -69,6 +70,7 @@ public abstract class SessionFactory implements Closeable {
     protected SessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         this.config = config;
         this.logger = LogManager.getLogger(getClass());
+        this.deprecationLogger = DeprecationLogger.getLogger(logger.getName());
         TimeValue searchTimeout = config.getSetting(
             SessionFactorySettings.TIMEOUT_LDAP_SETTING,
             () -> SessionFactorySettings.TIMEOUT_DEFAULT

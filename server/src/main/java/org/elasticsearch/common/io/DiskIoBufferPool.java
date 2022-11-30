@@ -13,7 +13,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 public class DiskIoBufferPool {
 
@@ -50,14 +49,15 @@ public class DiskIoBufferPool {
         return ioBuffer.clear();
     }
 
+    private static final String[] WRITE_OR_FLUSH_THREAD_NAMES = new String[] {
+        "[" + ThreadPool.Names.WRITE + "]",
+        "[" + ThreadPool.Names.FLUSH + "]",
+        "[" + ThreadPool.Names.SYSTEM_WRITE + "]",
+        "[" + ThreadPool.Names.SYSTEM_CRITICAL_WRITE + "]" };
+
     private static boolean isWriteOrFlushThread() {
         String threadName = Thread.currentThread().getName();
-        for (String s : Arrays.asList(
-            "[" + ThreadPool.Names.WRITE + "]",
-            "[" + ThreadPool.Names.FLUSH + "]",
-            "[" + ThreadPool.Names.SYSTEM_WRITE + "]",
-            "[" + ThreadPool.Names.SYSTEM_CRITICAL_WRITE + "]"
-        )) {
+        for (String s : WRITE_OR_FLUSH_THREAD_NAMES) {
             if (threadName.contains(s)) {
                 return true;
             }

@@ -11,8 +11,8 @@ package org.elasticsearch.rest.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 /**
@@ -52,7 +52,7 @@ public abstract class RestActionListener<Response> implements ActionListener<Res
     @Override
     public final void onFailure(Exception e) {
         try {
-            channel.sendResponse(new BytesRestResponse(channel, e));
+            channel.sendResponse(new RestResponse(channel, e));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error("failed to send failure response", inner);

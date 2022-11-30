@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -598,6 +599,23 @@ public class XContentHelper {
             out.writeVInt(xContentType.canonical().ordinal());
         } else {
             out.writeVInt(xContentType.ordinal());
+        }
+    }
+
+    /**
+     * Convenience method that creates a {@link XContentParser} from a content map so that it can be passed to
+     * existing REST based code for input parsing.
+     *
+     * @param config XContentParserConfiguration for this mapper
+     * @param source the operator content as a map
+     * @return
+     */
+    public static XContentParser mapToXContentParser(XContentParserConfiguration config, Map<String, ?> source) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.map(source);
+            return XContentFactory.xContent(builder.contentType()).createParser(config, Strings.toString(builder));
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 }

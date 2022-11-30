@@ -23,6 +23,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CATALOG_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CLIENT_ID_NAME;
@@ -238,6 +239,9 @@ public final class Payloads {
             generator.writeBooleanField(KEEP_ON_COMPLETION_NAME, request.keepOnCompletion());
         }
         writeIfValidAsString(generator, KEEP_ALIVE_NAME, request.keepAlive(), TimeValue::getStringRep);
+        if (request.allowPartialSearchResults()) {
+            generator.writeBooleanField(ALLOW_PARTIAL_SEARCH_RESULTS_NAME, request.allowPartialSearchResults());
+        }
 
         if (extraFields != null) {
             extraFields.accept(generator);

@@ -19,5 +19,9 @@ if pwd | grep -v -q ^/dev/shm ; then
    echo "Not running on a ramdisk, reducing number of workers"
    MAX_WORKERS=$(($MAX_WORKERS*2/3))
 fi
+
+# Export glibc version as environment variable since some BWC tests are incompatible with later versions
+export GLIBC_VERSION=$(ldd --version | grep '^ldd' | sed 's/.* \([1-9]\.[0-9]*\).*/\1/')
+
 set -e
 $GRADLEW -S --max-workers=$MAX_WORKERS $@

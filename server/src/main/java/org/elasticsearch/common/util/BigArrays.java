@@ -14,12 +14,14 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.BigDoubleArray.VH_PLATFORM_NATIVE_DOUBLE;
@@ -163,6 +165,13 @@ public class BigArrays {
         }
 
         @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            int intSize = (int) size();
+            out.writeVInt(intSize * 4);
+            out.write(array, 0, intSize * Integer.BYTES);
+        }
+
+        @Override
         public long ramBytesUsed() {
             return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
         }
@@ -252,6 +261,13 @@ public class BigArrays {
             assert index >= 0 && index < size();
             System.arraycopy(buf, offset << 3, array, (int) index << 3, len << 3);
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            int size = Math.toIntExact(size()) * Long.BYTES;
+            out.writeVInt(size);
+            out.write(array, 0, size);
+        }
     }
 
     private static class ByteArrayAsDoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
@@ -303,6 +319,13 @@ public class BigArrays {
             assert index >= 0 && index < size();
             System.arraycopy(buf, offset << 3, array, (int) index << 3, len << 3);
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            int size = (int) size();
+            out.writeVInt(size * 8);
+            out.write(array, 0, size * Double.BYTES);
+        }
     }
 
     private static class ByteArrayAsFloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {
@@ -331,14 +354,6 @@ public class BigArrays {
             assert index >= 0 && index < size();
             final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2);
             VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, value);
-            return ret;
-        }
-
-        @Override
-        public float increment(long index, float inc) {
-            assert index >= 0 && index < size();
-            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2) + inc;
-            VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, ret);
             return ret;
         }
 
@@ -845,4 +860,9 @@ public class BigArrays {
         final long newSize = overSize(minSize, PageCacheRecycler.OBJECT_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
         return resize(array, newSize);
     }
+
+    protected boolean shouldCheckBreaker() {
+        return checkBreaker;
+    }
+
 }

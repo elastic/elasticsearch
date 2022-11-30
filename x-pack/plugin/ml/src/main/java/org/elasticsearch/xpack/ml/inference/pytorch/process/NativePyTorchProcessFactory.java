@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -69,7 +69,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             true,
             true,
             true,
-            false
+            false // We do not need a persist pipe. This is also why we use 3 threads per model assignment in the pytorch thread pool.
         );
 
         executeProcess(processPipes, task);
@@ -99,12 +99,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     }
 
     private void executeProcess(ProcessPipes processPipes, TrainedModelDeploymentTask task) {
-        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(
-            nativeController,
-            processPipes,
-            task.getParams().getInferenceThreads(),
-            task.getParams().getModelThreads()
-        );
+        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(nativeController, processPipes, task.getParams());
         try {
             pyTorchBuilder.build();
         } catch (InterruptedException e) {

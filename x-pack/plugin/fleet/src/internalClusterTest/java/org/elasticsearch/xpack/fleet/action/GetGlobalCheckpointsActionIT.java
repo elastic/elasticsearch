@@ -31,6 +31,7 @@ import java.util.Comparator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -70,9 +71,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         );
         final GetGlobalCheckpointsAction.Response response = client().execute(GetGlobalCheckpointsAction.INSTANCE, request).get();
         long[] expected = new long[shards];
-        for (int i = 0; i < shards; ++i) {
-            expected[i] = -1;
-        }
+        Arrays.fill(expected, -1);
         assertArrayEquals(expected, response.globalCheckpoints());
 
         final int totalDocuments = shards * 3;
@@ -149,7 +148,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
     }
 
-    public void testPollGlobalCheckpointAdvancementTimeout() throws Exception {
+    public void testPollGlobalCheckpointAdvancementTimeout() {
         String indexName = "test_index";
         client().admin()
             .indices()
@@ -182,7 +181,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         assertEquals(29L, response.globalCheckpoints()[0]);
     }
 
-    public void testMustProvideCorrectNumberOfShards() throws Exception {
+    public void testMustProvideCorrectNumberOfShards() {
         String indexName = "test_index";
         client().admin()
             .indices()
@@ -214,7 +213,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         );
     }
 
-    public void testWaitForAdvanceOnlySupportsOneShard() throws Exception {
+    public void testWaitForAdvanceOnlySupportsOneShard() {
         String indexName = "test_index";
         client().admin()
             .indices()
@@ -305,7 +304,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         assertFalse(response.timedOut());
     }
 
-    public void testPrimaryShardsNotReadyNoWait() throws Exception {
+    public void testPrimaryShardsNotReadyNoWait() {
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
             "not-assigned",
             false,
@@ -333,7 +332,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         assertEquals("Primary shards were not active [shards=1, active=0]", exception.getMessage());
     }
 
-    public void testWaitOnPrimaryShardsReadyTimeout() throws Exception {
+    public void testWaitOnPrimaryShardsReadyTimeout() {
         TimeValue timeout = TimeValue.timeValueMillis(between(1, 100));
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
             "not-assigned",
@@ -395,6 +394,52 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
 
         GetGlobalCheckpointsAction.Response response = future.actionGet();
+        long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
+        assertThat(elapsed, lessThanOrEqualTo(TEN_SECONDS.seconds()));
+        assertThat(response.globalCheckpoints()[0], equalTo(0L));
+        assertFalse(response.timedOut());
+    }
+
+    public void testWaitOnPrimaryShardThrottled() throws Exception {
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 0).build()
+            )
+            .get();
+
+        String indexName = "throttled";
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setWaitForActiveShards(ActiveShardCount.NONE)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+            )
+            .get();
+
+        long start = System.nanoTime();
+        var future = client().execute(
+            GetGlobalCheckpointsAction.INSTANCE,
+            new GetGlobalCheckpointsAction.Request(indexName, true, true, EMPTY_ARRAY, TEN_SECONDS)
+        );
+        Thread.sleep(randomIntBetween(10, 100));
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey()).build()
+            )
+            .get();
+        client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
+
+        var response = future.actionGet();
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
         assertThat(elapsed, lessThanOrEqualTo(TEN_SECONDS.seconds()));
         assertThat(response.globalCheckpoints()[0], equalTo(0L));

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -16,7 +17,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -41,7 +41,11 @@ public class SearchLookup {
     private final Set<String> fieldChain;
     private final SourceLookup sourceLookup;
     private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
+    private final TriFunction<
+        MappedFieldType,
+        Supplier<SearchLookup>,
+        MappedFieldType.FielddataOperation,
+        IndexFieldData<?>> fieldDataLookup;
 
     /**
      * Create the top level field lookup for a search request. Provides a way to look up fields from  doc_values,
@@ -49,11 +53,12 @@ public class SearchLookup {
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
-        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
+        SourceLookup.SourceProvider sourceProvider
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
-        this.sourceLookup = new SourceLookup();
+        this.sourceLookup = new SourceLookup(sourceProvider);
         this.fieldDataLookup = fieldDataLookup;
     }
 
@@ -105,8 +110,8 @@ public class SearchLookup {
         return fieldTypeLookup.apply(fieldName);
     }
 
-    public IndexFieldData<?> getForField(MappedFieldType fieldType) {
-        return fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()));
+    public IndexFieldData<?> getForField(MappedFieldType fieldType, MappedFieldType.FielddataOperation options) {
+        return fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()), options);
     }
 
     public SourceLookup source() {

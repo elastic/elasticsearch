@@ -10,10 +10,12 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,14 +34,18 @@ public class TransportGetFiltersAction extends AbstractTransportGetResourcesActi
     GetFiltersAction.Request,
     GetFiltersAction.Response> {
 
+    private final ClusterService clusterService;
+
     @Inject
     public TransportGetFiltersAction(
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
+        ClusterService clusterService,
         NamedXContentRegistry xContentRegistry
     ) {
         super(GetFiltersAction.NAME, transportService, actionFilters, GetFiltersAction.Request::new, client, xContentRegistry);
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -47,6 +53,7 @@ public class TransportGetFiltersAction extends AbstractTransportGetResourcesActi
         request.setAllowNoResources(true);
         searchResources(
             request,
+            new TaskId(clusterService.localNode().getId(), task.getId()),
             ActionListener.wrap(filters -> listener.onResponse(new GetFiltersAction.Response(filters)), listener::onFailure)
         );
     }

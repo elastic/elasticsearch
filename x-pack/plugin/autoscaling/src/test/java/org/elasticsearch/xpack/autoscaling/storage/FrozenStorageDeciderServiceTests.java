@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
@@ -24,6 +23,9 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.util.FrozenUtilsTests;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -91,7 +93,7 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
 
     public Tuple<Long, ClusterInfo> sizeAndClusterInfo(IndexMetadata indexMetadata) {
         long totalSize = 0;
-        ImmutableOpenMap.Builder<ShardId, Long> sizesBuilder = ImmutableOpenMap.builder();
+        Map<ShardId, Long> sizes = new HashMap<>();
         Index index = indexMetadata.getIndex();
         Index otherIndex = randomValueOtherThan(index, () -> new Index(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         int shards = indexMetadata.getNumberOfShards();
@@ -99,15 +101,15 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
         for (int i = 0; i < shards; ++i) {
             long size = randomLongBetween(0, Integer.MAX_VALUE);
             totalSize += size * (replicas + 1);
-            sizesBuilder.put(new ShardId(index, i), size);
+            sizes.put(new ShardId(index, i), size);
             // add other index shards.
-            sizesBuilder.put(new ShardId(otherIndex, i), randomLongBetween(0, Integer.MAX_VALUE));
+            sizes.put(new ShardId(otherIndex, i), randomLongBetween(0, Integer.MAX_VALUE));
         }
         for (int i = shards; i < shards + between(0, 3); ++i) {
             // add irrelevant shards noise for completeness (should not happen IRL).
-            sizesBuilder.put(new ShardId(index, i), randomLongBetween(0, Integer.MAX_VALUE));
+            sizes.put(new ShardId(index, i), randomLongBetween(0, Integer.MAX_VALUE));
         }
-        ClusterInfo info = new ClusterInfo(null, null, null, sizesBuilder.build(), null, null);
+        ClusterInfo info = new ClusterInfo(Map.of(), Map.of(), Map.of(), sizes, Map.of(), Map.of());
         return Tuple.tuple(totalSize, info);
     }
 }

@@ -127,8 +127,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
               "term" : {
                 "exact_value" : {
                   "value" : "Quick Foxes!",
-                  "case_insensitive" : true,
-                  "boost" : 1.0
+                  "case_insensitive" : true
                 }
               }
             }""";
@@ -143,7 +142,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         SearchExecutionContext context = createSearchExecutionContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals(
-            "Geometry fields do not support exact searching, " + "use dedicated geometry queries instead: [mapped_geo_point]",
+            "Geometry fields do not support exact searching, use dedicated geometry queries instead: [mapped_geo_point]",
             e.getMessage()
         );
     }

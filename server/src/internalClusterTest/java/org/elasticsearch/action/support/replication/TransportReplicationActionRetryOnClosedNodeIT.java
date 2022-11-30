@@ -29,7 +29,6 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -224,7 +223,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
                 throw new AssertionError(e);
             }
         });
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
+        internalCluster().stopNode(primary);
 
         assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
         if (response.get() instanceof Exception) {

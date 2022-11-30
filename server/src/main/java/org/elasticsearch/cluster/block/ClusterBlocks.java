@@ -12,9 +12,9 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
@@ -31,20 +31,21 @@ import java.util.function.Predicate;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 /**
  * Represents current cluster level blocks to block dirty operations done against the cluster.
  */
 public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
-    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), ImmutableOpenMap.of());
+    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), Map.of());
 
     private final Set<ClusterBlock> global;
 
-    private final ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks;
+    private final Map<String, Set<ClusterBlock>> indicesBlocks;
 
     private final EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders;
 
-    ClusterBlocks(Set<ClusterBlock> global, ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks) {
+    ClusterBlocks(Set<ClusterBlock> global, Map<String, Set<ClusterBlock>> indicesBlocks) {
         this.global = global;
         this.indicesBlocks = indicesBlocks;
         levelHolders = generateLevelHolders(global, indicesBlocks);
@@ -54,7 +55,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
         return global;
     }
 
-    public ImmutableOpenMap<String, Set<ClusterBlock>> indices() {
+    public Map<String, Set<ClusterBlock>> indices() {
         return indicesBlocks;
     }
 
@@ -62,7 +63,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
         return levelHolders.get(level).global();
     }
 
-    public ImmutableOpenMap<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
+    public Map<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
         return levelHolders.get(level).indices();
     }
 
@@ -72,19 +73,18 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
 
     private static EnumMap<ClusterBlockLevel, ImmutableLevelHolder> generateLevelHolders(
         Set<ClusterBlock> global,
-        ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks
+        Map<String, Set<ClusterBlock>> indicesBlocks
     ) {
-
         EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders = new EnumMap<>(ClusterBlockLevel.class);
         for (final ClusterBlockLevel level : ClusterBlockLevel.values()) {
             Predicate<ClusterBlock> containsLevel = block -> block.contains(level);
-            Set<ClusterBlock> newGlobal = unmodifiableSet(global.stream().filter(containsLevel).collect(toSet()));
+            Set<ClusterBlock> newGlobal = global.stream().filter(containsLevel).collect(toUnmodifiableSet());
 
-            ImmutableOpenMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableOpenMap.builder();
+            Map<String, Set<ClusterBlock>> indicesBuilder = Maps.newMapWithExpectedSize(indicesBlocks.size());
             for (Map.Entry<String, Set<ClusterBlock>> entry : indicesBlocks.entrySet()) {
-                indicesBuilder.put(entry.getKey(), unmodifiableSet(entry.getValue().stream().filter(containsLevel).collect(toSet())));
+                indicesBuilder.put(entry.getKey(), entry.getValue().stream().filter(containsLevel).collect(toUnmodifiableSet()));
             }
-            levelHolders.put(level, new ImmutableLevelHolder(newGlobal, indicesBuilder.build()));
+            levelHolders.put(level, new ImmutableLevelHolder(newGlobal, Map.copyOf(indicesBuilder)));
         }
         return levelHolders;
     }
@@ -275,10 +275,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
 
     public static ClusterBlocks readFrom(StreamInput in) throws IOException {
         final Set<ClusterBlock> global = readBlockSet(in);
-        ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks = in.readImmutableMap(
-            i -> i.readString().intern(),
-            ClusterBlocks::readBlockSet
-        );
+        Map<String, Set<ClusterBlock>> indicesBlocks = in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
         if (global.isEmpty() && indicesBlocks.isEmpty()) {
             return EMPTY_CLUSTER_BLOCK;
         }
@@ -294,7 +291,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
         return SimpleDiffable.readDiffFrom(ClusterBlocks::readFrom, in);
     }
 
-    record ImmutableLevelHolder(Set<ClusterBlock> global, ImmutableOpenMap<String, Set<ClusterBlock>> indices) {}
+    record ImmutableLevelHolder(Set<ClusterBlock> global, Map<String, Set<ClusterBlock>> indices) {}
 
     public static Builder builder() {
         return new Builder();
@@ -418,11 +415,11 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
                 return EMPTY_CLUSTER_BLOCK;
             }
             // We copy the block sets here in case of the builder is modified after build is called
-            ImmutableOpenMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableOpenMap.builder(indices.size());
+            Map<String, Set<ClusterBlock>> indicesBuilder = new HashMap<>(indices.size());
             for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {
                 indicesBuilder.put(entry.getKey(), Set.copyOf(entry.getValue()));
             }
-            return new ClusterBlocks(Set.copyOf(global), indicesBuilder.build());
+            return new ClusterBlocks(Set.copyOf(global), Map.copyOf(indicesBuilder));
         }
     }
 }

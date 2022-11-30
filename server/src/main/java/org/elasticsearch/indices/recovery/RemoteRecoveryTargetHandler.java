@@ -14,7 +14,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -69,7 +69,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final AtomicLong requestSeqNoGenerator = new AtomicLong(0);
 
     private final Consumer<Long> onSourceThrottle;
-    private final boolean retriesSupported;
+    private final Task task;
     private volatile boolean isCancelled = false;
 
     public RemoteRecoveryTargetHandler(
@@ -78,7 +78,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         TransportService transportService,
         DiscoveryNode targetNode,
         RecoverySettings recoverySettings,
-        Consumer<Long> onSourceThrottle
+        Consumer<Long> onSourceThrottle,
+        Task task
     ) {
         this.transportService = transportService;
         this.threadPool = transportService.getThreadPool();
@@ -96,7 +97,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             TransportRequestOptions.Type.RECOVERY
         );
         this.standardTimeoutRequestOptions = TransportRequestOptions.timeout(recoverySettings.internalActionTimeout());
-        this.retriesSupported = targetNode.getVersion().onOrAfter(Version.V_7_9_0);
+        this.task = task;
     }
 
     public DiscoveryNode targetNode() {
@@ -293,7 +294,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             totalTranslogOps,
             throttleTimeInNanos
         );
-        final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
 
         // Fork the actual sending onto a separate thread so we can send them concurrently even if CPU-bound (e.g. using compression).
         // The AsyncIOProcessor and MultiFileWriter both concentrate their work onto fewer threads if possible, but once we have
@@ -301,14 +301,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         threadPool.generic()
             .execute(
                 ActionRunnable.wrap(
-                    listener,
-                    l -> executeRetryableAction(
-                        action,
-                        request,
-                        fileChunkRequestOptions,
-                        ActionListener.runBefore(l.map(r -> null), request::decRef),
-                        reader
-                    )
+                    ActionListener.<TransportResponse.Empty>runBefore(listener.map(r -> null), request::decRef),
+                    l -> executeRetryableAction(action, request, fileChunkRequestOptions, l, in -> TransportResponse.Empty.INSTANCE)
                 )
             );
     }
@@ -345,10 +339,11 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             @Override
             public void tryAction(ActionListener<T> listener) {
                 if (request.tryIncRef()) {
-                    transportService.sendRequest(
+                    transportService.sendChildRequest(
                         targetNode,
                         action,
                         request,
+                        task,
                         options,
                         new ActionListenerResponseHandler<>(
                             ActionListener.runBefore(listener, request::decRef),
@@ -363,7 +358,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
             @Override
             public boolean shouldRetry(Exception e) {
-                return retriesSupported && retryableException(e);
+                return retryableException(e);
             }
         };
         onGoingRetryableActions.put(key, retryableAction);

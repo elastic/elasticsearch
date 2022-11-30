@@ -8,7 +8,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
@@ -118,18 +117,6 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
     }
 
-    public void deleteTempFiles() {
-        incRef();
-        try {
-            for (String tempFileName : tempFileNames.keySet()) {
-                store.deleteQuiet(tempFileName);
-            }
-            tempFileNames.clear();
-        } finally {
-            decRef();
-        }
-    }
-
     /** Get a temporary name for the provided file name. */
     String getTempNameForFile(String origFile) {
         return tempFilePrefix + origFile;
@@ -217,7 +204,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             try {
                 entry.getValue().close();
             } catch (Exception e) {
-                logger.debug(() -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
+                logger.debug(() -> "error while closing recovery output [" + entry.getValue() + "]", e);
             }
             iterator.remove();
         }

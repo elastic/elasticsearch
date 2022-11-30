@@ -13,6 +13,7 @@ import joptsimple.OptionSpecBuilder;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
@@ -78,7 +79,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     }
 
     @Override
-    protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public final void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         validate(terminal, options, env);
         ensureFileRealmEnabled(env.settings());
         KeyStoreWrapper keyStoreWrapper = keyStoreFunction.apply(env);

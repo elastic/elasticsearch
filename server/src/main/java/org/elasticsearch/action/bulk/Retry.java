@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -141,7 +143,11 @@ public class Retry {
             int index = 0;
             for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
                 if (bulkItemResponse.isFailed()) {
-                    requestToReissue.add(currentBulkRequest.requests().get(index));
+                    DocWriteRequest<?> originalBulkItemRequest = currentBulkRequest.requests().get(index);
+                    if (originalBulkItemRequest instanceof IndexRequest item) {
+                        item.reset();
+                    }
+                    requestToReissue.add(originalBulkItemRequest);
                 }
                 index++;
             }
@@ -189,7 +195,7 @@ public class Retry {
         private BulkResponse getAccumulatedResponse() {
             BulkItemResponse[] itemResponses;
             synchronized (responses) {
-                itemResponses = responses.toArray(new BulkItemResponse[1]);
+                itemResponses = responses.toArray(new BulkItemResponse[0]);
             }
             long stopTimestamp = System.nanoTime();
             long totalLatencyMs = TimeValue.timeValueNanos(stopTimestamp - startTimestampNanos).millis();

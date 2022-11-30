@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -31,6 +30,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(ExecuteStepsUpdateTask.class);
@@ -205,7 +206,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                 // transition happens, so even if we would continue in the while
                 // loop, if we are about to go into a new phase, return so that
                 // other processing can occur
-                if (currentStep.getKey().getPhase().equals(currentStep.getNextStepKey().getPhase()) == false) {
+                if (currentStep.getKey().phase().equals(currentStep.getNextStepKey().phase()) == false) {
                     return state;
                 }
                 currentStep = policyStepsRegistry.getStep(indexMetadata, currentStep.getNextStepKey());
@@ -220,7 +221,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
     }
 
     @Override
-    public void onClusterStateProcessed(ClusterState oldState, ClusterState newState) {
+    public void onClusterStateProcessed(ClusterState newState) {
         final Metadata metadata = newState.metadata();
         final IndexMetadata indexMetadata = metadata.index(index);
         if (indexMetadata != null) {
@@ -268,16 +269,19 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
 
     @Override
     public void handleFailure(Exception e) {
-        logger.warn(new ParameterizedMessage("policy [{}] for index [{}] failed on step [{}].", policy, index, startStep.getKey()), e);
+        logger.warn(() -> format("policy [%s] for index [%s] failed on step [%s].", policy, index, startStep.getKey()), e);
     }
 
     private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) {
         this.failure = cause;
         logger.warn(
-            "policy [{}] for index [{}] failed on cluster state step [{}]. Moving to ERROR step",
-            policy,
-            index.getName(),
-            currentStepKey
+            () -> format(
+                "policy [%s] for index [%s] failed on cluster state step [%s]. Moving to ERROR step",
+                policy,
+                index.getName(),
+                currentStepKey
+            ),
+            cause
         );
         return IndexLifecycleTransition.moveClusterStateToErrorStep(index, state, cause, nowSupplier, policyStepsRegistry::getStep);
     }

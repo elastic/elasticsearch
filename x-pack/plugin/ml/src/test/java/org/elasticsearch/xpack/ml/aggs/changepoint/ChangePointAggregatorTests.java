@@ -11,7 +11,6 @@ import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.random.RandomGeneratorFactory;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Randomness;
@@ -169,6 +168,37 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testStepChangeEdgeCaseScenarios() throws IOException {
+        double[] bucketValues = new double[] {
+            214505.0,
+            193747.0,
+            204368.0,
+            193905.0,
+            152777.0,
+            203945.0,
+            163390.0,
+            163597.0,
+            214807.0,
+            224819.0,
+            214245.0,
+            21482.0,
+            22264.0,
+            21972.0,
+            22309.0,
+            21506.0,
+            21365.0,
+            21928.0,
+            21973.0,
+            23105.0,
+            22118.0,
+            22165.0,
+            21388.0 };
+        testChangeType(bucketValues, changeType -> {
+            assertThat(changeType, instanceOf(ChangeType.StepChange.class));
+            assertThat(Arrays.toString(bucketValues), changeType.changePoint(), equalTo(11));
+        });
+    }
+
     void testChangeType(double[] bucketValues, Consumer<ChangeType> changeTypeAssertions) throws IOException {
         FilterAggregationBuilder dummy = AggregationBuilders.filter("dummy", new MatchAllQueryBuilder())
             .subAggregation(
@@ -177,10 +207,10 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                     .subAggregation(AggregationBuilders.max("max").field(NUMERIC_FIELD_NAME))
             )
             .subAggregation(new ChangePointAggregationBuilder("changes", "time>max"));
-        testCase(dummy, new MatchAllDocsQuery(), w -> writeTestDocs(w, bucketValues), (InternalFilter result) -> {
+        testCase(w -> writeTestDocs(w, bucketValues), (InternalFilter result) -> {
             InternalChangePointAggregation agg = result.getAggregations().get("changes");
             changeTypeAssertions.accept(agg.getChangeType());
-        }, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME));
+        }, new AggTestConfig(dummy, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME)));
     }
 
     private static void writeTestDocs(RandomIndexWriter w, double[] bucketValues) throws IOException {

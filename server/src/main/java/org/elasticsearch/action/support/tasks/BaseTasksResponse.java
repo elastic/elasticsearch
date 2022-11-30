@@ -61,14 +61,8 @@ public class BaseTasksResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(taskFailures.size());
-        for (TaskOperationFailure exp : taskFailures) {
-            exp.writeTo(out);
-        }
-        out.writeVInt(nodeFailures.size());
-        for (ElasticsearchException exp : nodeFailures) {
-            exp.writeTo(out);
-        }
+        out.writeCollection(taskFailures);
+        out.writeCollection(nodeFailures);
     }
 
     /**

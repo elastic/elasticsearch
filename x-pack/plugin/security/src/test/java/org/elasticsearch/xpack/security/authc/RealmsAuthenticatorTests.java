@@ -23,6 +23,7 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
@@ -160,9 +161,9 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         final AuthenticationResult<Authentication> result = future.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         final Authentication authentication = result.getValue();
-        assertThat(authentication.getUser(), is(user));
+        assertThat(authentication.getEffectiveSubject().getUser(), is(user));
         assertThat(
-            authentication.getAuthenticatedBy(),
+            authentication.getAuthenticatingSubject().getRealm(),
             is(
                 new Authentication.RealmRef(
                     successfulRealm.name(),
@@ -242,7 +243,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
 
     public void testNullRunAsUser() {
         final PlainActionFuture<Tuple<User, Realm>> future = new PlainActionFuture<>();
-        realmsAuthenticator.lookupRunAsUser(createAuthenticatorContext(), mock(Authentication.class), future);
+        realmsAuthenticator.lookupRunAsUser(createAuthenticatorContext(), AuthenticationTestHelper.builder().build(false), future);
         assertThat(future.actionGet(), nullValue());
     }
 

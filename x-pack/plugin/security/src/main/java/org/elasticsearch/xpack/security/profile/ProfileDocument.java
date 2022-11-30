@@ -33,25 +33,19 @@ import java.util.Map;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.REALM_REF_PARSER;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
 
 public record ProfileDocument(
     String uid,
     boolean enabled,
     long lastSynchronized,
     ProfileDocumentUser user,
-    Map<String, Object> access,
+    Map<String, Object> labels,
     BytesReference applicationData
 ) implements ToXContentObject {
 
-    public record ProfileDocumentUser(
-        String username,
-        List<String> roles,
-        Authentication.RealmRef realm,
-        String email,
-        String fullName,
-        boolean active
-    ) implements ToXContent {
+    public record ProfileDocumentUser(String username, List<String> roles, Authentication.RealmRef realm, String email, String fullName)
+        implements
+            ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -61,14 +55,17 @@ public record ProfileDocument(
             builder.field("realm", realm);
             builder.field("email", email);
             builder.field("full_name", fullName);
-            builder.field("active", active);
             builder.endObject();
             return builder;
         }
 
         public Profile.ProfileUser toProfileUser() {
             final String domainName = realm.getDomain() != null ? realm.getDomain().name() : null;
-            return new Profile.ProfileUser(username, roles, realm.getName(), domainName, email, fullName, active);
+            return new Profile.ProfileUser(username, roles, realm.getName(), domainName, email, fullName);
+        }
+
+        public Subject toSubject() {
+            return new Subject(new User(username, roles.toArray(String[]::new), fullName, email, Map.of(), true), realm);
         }
     }
 
@@ -80,10 +77,10 @@ public record ProfileDocument(
         builder.field("last_synchronized", lastSynchronized);
         user.toXContent(builder, params);
 
-        if (params.paramAsBoolean("include_access", true) && access != null) {
-            builder.field("access", access);
+        if (params.paramAsBoolean("include_labels", true) && labels != null) {
+            builder.field("labels", labels);
         } else {
-            builder.startObject("access").endObject();
+            builder.startObject("labels").endObject();
         }
         if (params.paramAsBoolean("include_data", true) && applicationData != null) {
             builder.field("application_data", applicationData);
@@ -94,20 +91,13 @@ public record ProfileDocument(
         return builder;
     }
 
-    public Subject subject() {
-        return new Subject(
-            new User(user.username, user.roles.toArray(String[]::new), user.fullName, user.email, Map.of(), user.active),
-            user.realm
-        );
-    }
-
     static ProfileDocument fromSubject(Subject subject) {
         final String baseUid = computeBaseUidForSubject(subject);
         return fromSubjectWithUid(subject, baseUid + "_0"); // initial differentiator is 0
     }
 
     static ProfileDocument fromSubjectWithUid(Subject subject, String uid) {
-        assert uid.startsWith(computeBaseUidForSubject(subject) + "_");
+        assert uid.startsWith(computeBaseUidForSubject(subject) + "_") || uid.startsWith("u_" + subject.getUser().principal() + "_");
         final User subjectUser = subject.getUser();
         return new ProfileDocument(
             uid,
@@ -118,8 +108,7 @@ public record ProfileDocument(
                 Arrays.asList(subjectUser.roles()),
                 subject.getRealm(),
                 subjectUser.email(),
-                subjectUser.fullName(),
-                subjectUser.enabled()
+                subjectUser.fullName()
             ),
             Map.of(),
             null
@@ -129,23 +118,6 @@ public record ProfileDocument(
     static String computeBaseUidForSubject(Subject subject) {
         final MessageDigest digest = MessageDigests.sha256();
         digest.update(subject.getUser().principal().getBytes(StandardCharsets.UTF_8));
-        if (subject.getRealm().getDomain() != null) {
-            // Must sort with comparing type first because name does not matter for file/native realms
-            subject.getRealm().getDomain().realms().stream().sorted((o1, o2) -> {
-                int result = o1.getType().compareTo(o2.getType());
-                return (result == 0) ? o1.getName().compareTo(o2.getName()) : result;
-            }).forEach(realmIdentifier -> {
-                digest.update(realmIdentifier.getType().getBytes(StandardCharsets.UTF_8));
-                if (false == isFileOrNativeRealm(realmIdentifier.getType())) {
-                    digest.update(realmIdentifier.getName().getBytes(StandardCharsets.UTF_8));
-                }
-            });
-        } else {
-            digest.update(subject.getRealm().getType().getBytes(StandardCharsets.UTF_8));
-            if (false == isFileOrNativeRealm(subject.getRealm().getType())) {
-                digest.update(subject.getRealm().getName().getBytes(StandardCharsets.UTF_8));
-            }
-        }
         return "u_" + Base64.getUrlEncoder().withoutPadding().encodeToString(digest.digest());
     }
 
@@ -162,8 +134,7 @@ public record ProfileDocument(
             (List<String>) args[1],
             (Authentication.RealmRef) args[2],
             (String) args[3],
-            (String) args[4],
-            (Boolean) args[5]
+            (String) args[4]
         )
     );
 
@@ -193,13 +164,12 @@ public record ProfileDocument(
         PROFILE_DOC_USER_PARSER.declareObject(constructorArg(), (p, c) -> REALM_REF_PARSER.parse(p, c), new ParseField("realm"));
         PROFILE_DOC_USER_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("email"));
         PROFILE_DOC_USER_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("full_name"));
-        PROFILE_DOC_USER_PARSER.declareBoolean(constructorArg(), new ParseField("active"));
 
         PROFILE_DOC_PARSER.declareString(constructorArg(), new ParseField("uid"));
         PROFILE_DOC_PARSER.declareBoolean(constructorArg(), new ParseField("enabled"));
         PROFILE_DOC_PARSER.declareLong(constructorArg(), new ParseField("last_synchronized"));
         PROFILE_DOC_PARSER.declareObject(constructorArg(), (p, c) -> PROFILE_DOC_USER_PARSER.parse(p, null), new ParseField("user"));
-        PROFILE_DOC_PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("access"));
+        PROFILE_DOC_PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("labels"));
         ObjectParserHelper.declareRawObject(PROFILE_DOC_PARSER, constructorArg(), new ParseField("application_data"));
 
         PARSER.declareObject(constructorArg(), (p, c) -> PROFILE_DOC_PARSER.parse(p, null), new ParseField("user_profile"));

@@ -158,7 +158,7 @@ public final class ClientHelper {
     ) {
         try {
             final Authentication authentication = authenticationReader.apply(authenticationHeaderKey);
-            if (authentication != null && authentication.getVersion().after(minNodeVersion)) {
+            if (authentication != null && authentication.getEffectiveSubject().getVersion().after(minNodeVersion)) {
                 return authentication.maybeRewriteForOlderVersion(minNodeVersion).encode();
             }
         } catch (IOException e) {
@@ -174,6 +174,7 @@ public final class ClientHelper {
     @Deprecated
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
     public static final String SECURITY_ORIGIN = "security";
+    public static final String SECURITY_PROFILE_ORIGIN = "security_profile";
     public static final String WATCHER_ORIGIN = "watcher";
     public static final String ML_ORIGIN = "ml";
     public static final String INDEX_LIFECYCLE_ORIGIN = "index_lifecycle";

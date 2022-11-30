@@ -8,9 +8,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
-
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.ImpactsEnum;
@@ -28,7 +25,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
 
 import static org.apache.lucene.util.ArrayUtil.grow;
 
@@ -111,7 +110,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
 
 public final class TermVectorsFields extends Fields {
 
-    private final ObjectLongHashMap<String> fieldMap;
+    private final Map<String, Long> fieldMap;
     private final BytesReference termVectors;
     final boolean hasTermStatistic;
     final boolean hasFieldStatistic;
@@ -132,11 +131,7 @@ public final class TermVectorsFields extends Fields {
             hasTermStatistic = header.readBoolean();
             hasFieldStatistic = header.readBoolean();
             hasScores = header.readBoolean();
-            final int numFields = header.readVInt();
-            fieldMap = new ObjectLongHashMap<>(numFields);
-            for (int i = 0; i < numFields; i++) {
-                fieldMap.put((header.readString()), header.readVLong());
-            }
+            fieldMap = header.readMap(StreamInput::readString, StreamInput::readVLong);
         }
         // reference to the term vector data
         this.termVectors = termVectors;
@@ -144,34 +139,15 @@ public final class TermVectorsFields extends Fields {
 
     @Override
     public Iterator<String> iterator() {
-        final Iterator<ObjectLongCursor<String>> iterator = fieldMap.iterator();
-        return new Iterator<String>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public String next() {
-                return iterator.next().key;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
+        return Collections.unmodifiableSet(fieldMap.keySet()).iterator();
     }
 
     @Override
     public Terms terms(String field) throws IOException {
-        // first, find where in the termVectors bytes the actual term vector for
-        // this field is stored
-        final int keySlot = fieldMap.indexOf(field);
-        if (keySlot < 0) {
+        Long readOffset = fieldMap.get(field);
+        if (readOffset == null) {
             return null; // we don't have it.
         }
-        long readOffset = fieldMap.indexGet(keySlot);
         return new TermVector(termVectors, readOffset);
     }
 

@@ -1,5 +1,0 @@
-pr: 84957
-summary: "TSDB: Expand `_id` on version conflict"
-area: TSDB
-type: enhancement
-issues: []

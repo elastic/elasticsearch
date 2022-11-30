@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -17,33 +19,31 @@ public final class RoutingNodesHelper {
 
     private RoutingNodesHelper() {}
 
-    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState... state) {
+    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState state) {
         List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : routingNodes) {
-            shards.addAll(routingNode.shardsWithState(state));
-        }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
-                routingNodes.unassigned().forEach(shards::add);
-                break;
+        if (state == ShardRoutingState.UNASSIGNED) {
+            routingNodes.unassigned().forEach(shards::add);
+        } else {
+            for (RoutingNode routingNode : routingNodes) {
+                shards.addAll(routingNode.shardsWithState(state));
             }
         }
         return shards;
     }
 
-    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, String index, ShardRoutingState... state) {
+    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, String index, ShardRoutingState... states) {
         List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : routingNodes) {
-            shards.addAll(routingNode.shardsWithState(index, state));
-        }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
+        for (ShardRoutingState state : states) {
+            if (state == ShardRoutingState.UNASSIGNED) {
                 for (ShardRouting unassignedShard : routingNodes.unassigned()) {
                     if (unassignedShard.index().getName().equals(index)) {
                         shards.add(unassignedShard);
                     }
                 }
-                break;
+            } else {
+                for (RoutingNode routingNode : routingNodes) {
+                    shards.addAll(routingNode.shardsWithState(index, state));
+                }
             }
         }
         return shards;
@@ -58,5 +58,13 @@ public final class RoutingNodesHelper {
      */
     public static Stream<ShardRouting> asStream(IndexShardRoutingTable indexShardRoutingTable) {
         return IntStream.range(0, indexShardRoutingTable.size()).mapToObj(indexShardRoutingTable::shard);
+    }
+
+    public static RoutingNode routingNode(String nodeId, DiscoveryNode node, ShardRouting... shards) {
+        final RoutingNode routingNode = new RoutingNode(nodeId, node, shards.length);
+        for (ShardRouting shardRouting : shards) {
+            routingNode.add(shardRouting);
+        }
+        return routingNode;
     }
 }

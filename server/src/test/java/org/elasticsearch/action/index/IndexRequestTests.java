@@ -30,7 +30,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -146,10 +146,11 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
         assertEquals(
-            """
-                IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
-                {"total":%s,"successful":%s,"failed":0}]\
-                """.formatted(
+            formatted(
+                """
+                    IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
+                    {"total":%s,"successful":%s,"failed":0}]\
+                    """,
                 shardId.getIndexName(),
                 id,
                 version,
@@ -249,23 +250,23 @@ public class IndexRequestTests extends ESTestCase {
         }
     }
 
-    public void testToStringSizeLimit() throws UnsupportedEncodingException {
+    public void testToStringSizeLimit() {
         IndexRequest request = new IndexRequest("index");
 
         String source = "{\"name\":\"value\"}";
         request.source(source, XContentType.JSON);
         assertEquals("index {[index][null], source[" + source + "]}", request.toString());
 
-        source = """
+        source = formatted("""
             {"name":"%s"}
-            """.formatted(randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING));
+            """, randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING));
         request.source(source, XContentType.JSON);
-        int actualBytes = source.getBytes("UTF-8").length;
+        int actualBytes = source.getBytes(StandardCharsets.UTF_8).length;
         assertEquals(
             "index {[index][null], source[n/a, actual length: ["
-                + new ByteSizeValue(actualBytes).toString()
+                + ByteSizeValue.ofBytes(actualBytes).toString()
                 + "], max length: "
-                + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()
+                + ByteSizeValue.ofBytes(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()
                 + "]}",
             request.toString()
         );
@@ -414,6 +415,22 @@ public class IndexRequestTests extends ESTestCase {
                     "Error extracting data stream timestamp field: "
                         + "Failed to parse object: expecting token of type [START_OBJECT] but found [null]"
                 )
+            );
+        }
+
+        {
+            // set error format timestamp
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(Map.of("foo", randomAlphaOfLength(5)), XContentType.JSON);
+            request.setRawTimestamp(10.0d);
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo("Error get data stream timestamp field: timestamp [10.0] type [class java.lang.Double] error")
             );
         }
     }

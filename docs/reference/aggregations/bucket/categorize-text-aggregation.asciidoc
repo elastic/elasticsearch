@@ -4,8 +4,6 @@
 <titleabbrev>Categorize text</titleabbrev>
 ++++
 
-experimental::[]
-
 A multi-bucket aggregation that groups semi-structured text into buckets. Each `text` field is re-analyzed
 using a custom analyzer. The resulting tokens are then categorized creating buckets of similarly formatted
 text values. This aggregation works best with machine generated text like system logs. Only the first 100 analyzed
@@ -17,55 +15,13 @@ NOTE: If you have considerable memory allocated to your JVM but are receiving ci
       <<search-aggregations-bucket-diversified-sampler-aggregation,diversified sampler>>, or
       <<search-aggregations-random-sampler-aggregation,random sampler>> to explore the created categories.
 
+NOTE: The algorithm used for categorization was completely changed in version 8.3.0. As a result this aggregation
+      will not work in a mixed version cluster where some nodes are on version 8.3.0 or higher and others are
+      on a version older than 8.3.0. Upgrade all nodes in your cluster to the same version if you experience
+      an error related to this change.
+
 [[bucket-categorize-text-agg-syntax]]
 ==== Parameters
-
-`field`::
-(Required, string)
-The semi-structured text field to categorize.
-
-`max_unique_tokens`::
-(Optional, integer, default: `50`)
-The maximum number of unique tokens at any position up to `max_matched_tokens`.
-Must be larger than 1. Smaller values use less memory and create fewer categories.
-Larger values will use more memory and create narrower categories.
-Max allowed value is `100`.
-
-`max_matched_tokens`::
-(Optional, integer, default: `5`)
-The maximum number of token positions to match on before attempting to merge categories.
-Larger values will use more memory and create narrower categories.
-Max allowed value is `100`.
-
-Example:
-`max_matched_tokens` of 2 would disallow merging of the categories
-[`foo` `bar` `baz`]
-[`foo` `baz` `bozo`]
-As the first 2 tokens are required to match for the category.
-
-NOTE: Once `max_unique_tokens` is reached at a given position, a new `*` token is
-added and all new tokens at that position are matched by the `*` token.
-
-`similarity_threshold`::
-(Optional, integer, default: `50`)
-The minimum percentage of tokens that must match for text to be added to the
-category bucket.
-Must be between 1 and 100. The larger the value the narrower the categories.
-Larger values will increase memory usage and create narrower categories.
-
-`categorization_filters`::
-(Optional, array of strings)
-This property expects an array of regular expressions. The expressions
-are used to filter out matching sequences from the categorization field values.
-You can use this functionality to fine tune the categorization by excluding
-sequences from consideration when categories are defined. For example, you can
-exclude SQL statements that appear in your log files. This
-property cannot be used at the same time as `categorization_analyzer`. If you
-only want to define simple regular expression filters that are applied prior to
-tokenization, setting this property is the easiest method. If you also want to
-customize the tokenizer or post-tokenization filtering, use the
-`categorization_analyzer` property instead and include the filters as
-`pattern_replace` character filters.
 
 `categorization_analyzer`::
 (Optional, object or string)
@@ -95,14 +51,33 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter]
 =====
 
-`shard_size`::
-(Optional, integer)
-The number of categorization buckets to return from each shard before merging
-all the results.
+`categorization_filters`::
+(Optional, array of strings)
+This property expects an array of regular expressions. The expressions
+are used to filter out matching sequences from the categorization field values.
+You can use this functionality to fine tune the categorization by excluding
+sequences from consideration when categories are defined. For example, you can
+exclude SQL statements that appear in your log files. This
+property cannot be used at the same time as `categorization_analyzer`. If you
+only want to define simple regular expression filters that are applied prior to
+tokenization, setting this property is the easiest method. If you also want to
+customize the tokenizer or post-tokenization filtering, use the
+`categorization_analyzer` property instead and include the filters as
+`pattern_replace` character filters.
 
-`size`::
-(Optional, integer, default: `10`)
-The number of buckets to return.
+`field`::
+(Required, string)
+The semi-structured text field to categorize.
+
+`max_matched_tokens`::
+(Optional, integer)
+This parameter does nothing now, but is permitted for compatibility with the original
+pre-8.3.0 implementation.
+
+`max_unique_tokens`::
+(Optional, integer)
+This parameter does nothing now, but is permitted for compatibility with the original
+pre-8.3.0 implementation.
 
 `min_doc_count`::
 (Optional, integer)
@@ -113,8 +88,63 @@ The minimum number of documents for a bucket to be returned to the results.
 The minimum number of documents for a bucket to be returned from the shard before
 merging.
 
-==== Basic use
+`shard_size`::
+(Optional, integer)
+The number of categorization buckets to return from each shard before merging
+all the results.
 
+`similarity_threshold`::
+(Optional, integer, default: `70`)
+The minimum percentage of token weight that must match for text to be added to the
+category bucket.
+Must be between 1 and 100. The larger the value the narrower the categories.
+Larger values will increase memory usage and create narrower categories.
+
+`size`::
+(Optional, integer, default: `10`)
+The number of buckets to return.
+
+[[bucket-categorize-text-agg-response]]
+==== Response body
+
+`key`::
+(string)
+Consists of the tokens (extracted by the `categorization_analyzer`)
+that are common to all values of the input field included in the category.
+
+`doc_count`::
+(integer)
+Number of documents matching the category.
+
+`max_matching_length`::
+(integer)
+Categories from short messages containing few tokens may also match
+categories containing many tokens derived from much longer messages.
+`max_matching_length` is an indication of the maximum length of messages
+that should be considered to belong to the category. When searching for
+messages that match the category, any messages longer than
+`max_matching_length` should be excluded. Use this field to prevent a
+search for members of a category of short messages from matching much longer
+ones.
+
+`regex`::
+(string)
+A regular expression that will match all values of the input field included
+in the category. It is possible that the `regex` does not incorporate every
+term in `key`, if ordering varies between the values included in the
+category. However, in simple cases the `regex` will be the ordered terms
+concatenated into a regular expression that allows for arbitrary sections
+in between them. It is not recommended to use the `regex` as the primary
+mechanism for searching for the original documents that were categorized.
+Search using a regular expression is very slow. Instead the terms in the
+`key` field should be used to search for matching documents, as a terms
+search can use the inverted index and hence be much faster. However, there
+may be situations where it is useful to use the `regex` field to test whether
+a small set of messages that have not been indexed match the category, or to
+confirm that the terms in the `key` occur in the correct order in all the
+matched documents.
+
+==== Basic use
 
 WARNING: Re-analyzing _large_ result sets will require a lot of time and memory. This aggregation should be
          used in conjunction with <<async-search, Async search>>. Additionally, you may consider
@@ -149,26 +179,33 @@ Response:
       "buckets" : [
         {
           "doc_count" : 3,
-          "key" : "Node shutting down"
+          "key" : "Node shutting down",
+          "regex" : ".*?Node.+?shutting.+?down.*?",
+          "max_matching_length" : 49
         },
         {
           "doc_count" : 1,
-          "key" : "Node starting up"
+          "key" : "Node starting up",
+          "regex" : ".*?Node.+?starting.+?up.*?",
+          "max_matching_length" : 47
         },
         {
           "doc_count" : 1,
-          "key" : "User foo_325 logging on"
+          "key" : "User foo_325 logging on",
+          "regex" : ".*?User.+?foo_325.+?logging.+?on.*?",
+          "max_matching_length" : 52
         },
         {
           "doc_count" : 1,
-          "key" : "User foo_864 logged off"
+          "key" : "User foo_864 logged off",
+          "regex" : ".*?User.+?foo_864.+?logged.+?off.*?",
+          "max_matching_length" : 52
         }
       ]
     }
   }
 }
 --------------------------------------------------
-
 
 Here is an example using `categorization_filters`
 
@@ -202,19 +239,27 @@ category results
       "buckets" : [
         {
           "doc_count" : 3,
-          "key" : "Node shutting down"
+          "key" : "Node shutting down",
+          "regex" : ".*?Node.+?shutting.+?down.*?",
+          "max_matching_length" : 49
         },
         {
           "doc_count" : 1,
-          "key" : "Node starting up"
+          "key" : "Node starting up",
+          "regex" : ".*?Node.+?starting.+?up.*?",
+          "max_matching_length" : 47
         },
         {
           "doc_count" : 1,
-          "key" : "User logged off"
+          "key" : "User logged off",
+          "regex" : ".*?User.+?logged.+?off.*?",
+          "max_matching_length" : 52
         },
         {
           "doc_count" : 1,
-          "key" : "User logging on"
+          "key" : "User logging on",
+          "regex" : ".*?User.+?logging.+?on.*?",
+          "max_matching_length" : 52
         }
       ]
     }
@@ -223,11 +268,15 @@ category results
 --------------------------------------------------
 
 Here is an example using `categorization_filters`.
-The default analyzer is a whitespace analyzer with a custom token filter
-which filters out tokens that start with any number.
+The default analyzer uses the `ml_standard` tokenizer which is similar to a whitespace tokenizer
+but filters out tokens that could be interpreted as hexadecimal numbers. The default analyzer
+also uses the `first_line_with_letters` character filter, so that only the first meaningful line
+of multi-line messages is considered.
 But, it may be that a token is a known highly-variable token (formatted usernames, emails, etc.). In that case, it is good to supply
-custom `categorization_filters` to filter out those tokens for better categories. These filters will also reduce memory usage as fewer
-tokens are held in memory for the categories.
+custom `categorization_filters` to filter out those tokens for better categories. These filters may also reduce memory usage as fewer
+tokens are held in memory for the categories. (If there are sufficient examples of different usernames, emails, etc., then
+categories will form that naturally discard them as variables, but for small input data where only one example exists this won't
+happen.)
 
 [source,console]
 --------------------------------------------------
@@ -238,8 +287,7 @@ POST log-messages/_search?filter_path=aggregations
       "categorize_text": {
         "field": "message",
         "categorization_filters": ["\\w+\\_\\d{3}"], <1>
-        "max_matched_tokens": 2, <2>
-        "similarity_threshold": 30 <3>
+        "similarity_threshold": 11 <2>
       }
     }
   }
@@ -248,12 +296,12 @@ POST log-messages/_search?filter_path=aggregations
 // TEST[setup:categorize_text]
 <1> The filters to apply to the analyzed tokens. It filters
 out tokens like `bar_123`.
-<2> Require at least 2 tokens before the log categories attempt to merge together
-<3> Require 30% of the tokens to match before expanding a log categories
-    to add a new log entry
+<2> Require 11% of token weight to match before adding a message to an
+    existing category rather than creating a new one.
 
-The resulting categories are now broad, matching the first token
-and merging the log groups.
+The resulting categories are now very broad, merging the log groups.
+(A `similarity_threshold` of 11% is generally too low. Settings over
+50% are usually better.)
 
 [source,console-result]
 --------------------------------------------------
@@ -263,11 +311,15 @@ and merging the log groups.
       "buckets" : [
         {
           "doc_count" : 4,
-          "key" : "Node *"
+          "key" : "Node",
+          "regex" : ".*?Node.*?",
+          "max_matching_length" : 49
         },
         {
           "doc_count" : 2,
-          "key" : "User *"
+          "key" : "User",
+          "regex" : ".*?User.*?",
+          "max_matching_length" : 52
         }
       ]
     }
@@ -326,6 +378,8 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 2,
                 "key" : "Node shutting down",
+                "regex" : ".*?Node.+?shutting.+?down.*?",
+                "max_matching_length" : 49,
                 "hit" : {
                   "hits" : {
                     "total" : {
@@ -352,6 +406,8 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "Node starting up",
+                "regex" : ".*?Node.+?starting.+?up.*?",
+                "max_matching_length" : 47,
                 "hit" : {
                   "hits" : {
                     "total" : {
@@ -387,6 +443,8 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "Node shutting down",
+                "regex" : ".*?Node.+?shutting.+?down.*?",
+                "max_matching_length" : 49,
                 "hit" : {
                   "hits" : {
                     "total" : {
@@ -413,6 +471,8 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "User logged off",
+                "regex" : ".*?User.+?logged.+?off.*?",
+                "max_matching_length" : 52,
                 "hit" : {
                   "hits" : {
                     "total" : {
@@ -439,6 +499,8 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "User logging on",
+                "regex" : ".*?User.+?logging.+?on.*?",
+                "max_matching_length" : 52,
                 "hit" : {
                   "hits" : {
                     "total" : {

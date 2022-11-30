@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -92,29 +94,37 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String hash) throws IOException {
-        return validHash(hash) ? geoValue.relate(Geohash.toBoundingBox(hash)) : GeoRelation.QUERY_DISJOINT;
+        if (validHash(hash)) {
+            final Rectangle rectangle = Geohash.toBoundingBox(hash);
+            int minX = GeoEncodingUtils.encodeLongitude(rectangle.getMinLon());
+            int minY = GeoEncodingUtils.encodeLatitude(rectangle.getMinLat());
+            int maxX = GeoEncodingUtils.encodeLongitude(rectangle.getMaxLon());
+            int maxY = GeoEncodingUtils.encodeLatitude(rectangle.getMaxLat());
+            return geoValue.relate(minX, maxX == Integer.MAX_VALUE ? maxX : maxX - 1, minY, maxY == Integer.MAX_VALUE ? maxY : maxY - 1);
+        }
+        return GeoRelation.QUERY_DISJOINT;
     }
 
     protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex, GeoShapeValues.GeoShapeValue geoValue)
         throws IOException {
         String[] hashes = Geohash.getSubGeohashes(hash);
-        for (int i = 0; i < hashes.length; i++) {
-            GeoRelation relation = relateTile(geoValue, hashes[i]);
+        for (String s : hashes) {
+            GeoRelation relation = relateTile(geoValue, s);
             if (relation == GeoRelation.QUERY_CROSSES) {
-                if (hashes[i].length() == precision) {
+                if (s.length() == precision) {
                     values.resizeCell(valuesIndex + 1);
-                    values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
+                    values.add(valuesIndex++, Geohash.longEncode(s));
                 } else {
-                    valuesIndex = setValuesByRasterization(hashes[i], values, valuesIndex, geoValue);
+                    valuesIndex = setValuesByRasterization(s, values, valuesIndex, geoValue);
                 }
             } else if (relation == GeoRelation.QUERY_INSIDE) {
-                if (hashes[i].length() == precision) {
+                if (s.length() == precision) {
                     values.resizeCell(valuesIndex + 1);
-                    values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
+                    values.add(valuesIndex++, Geohash.longEncode(s));
                 } else {
                     int numTilesAtPrecision = getNumTilesAtPrecision(precision, hash.length());
                     values.resizeCell(getNewSize(valuesIndex, numTilesAtPrecision + 1));
-                    valuesIndex = setValuesForFullyContainedTile(hashes[i], values, valuesIndex, precision);
+                    valuesIndex = setValuesForFullyContainedTile(s, values, valuesIndex, precision);
                 }
             }
         }
@@ -139,12 +149,12 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
 
     protected int setValuesForFullyContainedTile(String hash, GeoShapeCellValues values, int valuesIndex, int targetPrecision) {
         String[] hashes = Geohash.getSubGeohashes(hash);
-        for (int i = 0; i < hashes.length; i++) {
-            if (validHash(hashes[i])) {
-                if (hashes[i].length() == targetPrecision) {
-                    values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
+        for (String s : hashes) {
+            if (validHash(s)) {
+                if (s.length() == targetPrecision) {
+                    values.add(valuesIndex++, Geohash.longEncode(s));
                 } else {
-                    valuesIndex = setValuesForFullyContainedTile(hashes[i], values, valuesIndex, targetPrecision);
+                    valuesIndex = setValuesForFullyContainedTile(s, values, valuesIndex, targetPrecision);
                 }
             }
         }

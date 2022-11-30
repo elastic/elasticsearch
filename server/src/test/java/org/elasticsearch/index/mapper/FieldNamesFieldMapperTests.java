@@ -16,19 +16,33 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class FieldNamesFieldMapperTests extends MapperServiceTestCase {
+public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
+
+    @Override
+    protected String fieldName() {
+        return FieldNamesFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return true;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     private static SortedSet<String> set(String... values) {
         return new TreeSet<>(Arrays.asList(values));
     }
 
-    void assertFieldNames(Set<String> expected, ParsedDocument doc) {
+    private static void assertFieldNames(Set<String> expected, ParsedDocument doc) {
         String[] got = TermVectorsService.getValues(doc.rootDoc().getFields("_field_names"));
         assertEquals(expected, set(got));
     }

@@ -11,8 +11,8 @@ package org.elasticsearch.test.diewithdignity;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -50,7 +50,7 @@ public class RestDieWithDignityAction extends BaseRestHandler {
                     builder.field("length", array.length);
                 }
                 builder.endObject();
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                channel.sendResponse(new RestResponse(RestStatus.OK, builder));
             }
         };
     }

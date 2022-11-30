@@ -14,7 +14,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -69,7 +70,7 @@ import java.util.stream.Collectors;
 /**
  * CLI tool to generate SAML Metadata for a Service Provider (realm)
  */
-public class SamlMetadataCommand extends KeyStoreAwareCommand {
+class SamlMetadataCommand extends KeyStoreAwareCommand {
 
     static final String METADATA_SCHEMA = "saml-schema-metadata-2.0.xsd";
 
@@ -90,18 +91,14 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
     private KeyStoreWrapper keyStoreWrapper;
 
-    public static void main(String[] args) throws Exception {
-        exit(new SamlMetadataCommand().main(args, Terminal.DEFAULT));
-    }
-
-    public SamlMetadataCommand() {
+    SamlMetadataCommand() {
         this((environment) -> {
             KeyStoreWrapper ksWrapper = KeyStoreWrapper.load(environment.configFile());
             return ksWrapper;
         });
     }
 
-    public SamlMetadataCommand(CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
+    SamlMetadataCommand(CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
         super("Generate Service Provider Metadata for a SAML realm");
         outputPathSpec = parser.accepts("out", "path of the xml file that should be generated").withRequiredArg();
         batchSpec = parser.accepts("batch", "Do not prompt");
@@ -142,7 +139,7 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         // OpenSAML prints a lot of _stuff_ at info level, that really isn't needed in a command line tool.
         Loggers.setLevel(LogManager.getLogger("org.opensaml"), Level.WARN);
 

@@ -683,9 +683,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         public void addLifecycleListener(LifecycleListener listener) {}
 
         @Override
-        public void removeLifecycleListener(LifecycleListener listener) {}
-
-        @Override
         public void start() {}
 
         @Override

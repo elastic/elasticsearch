@@ -54,7 +54,7 @@ public class MPNetTokenizerTests extends ESTestCase {
             ).build()
         ) {
             TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0).get(0);
-            assertThat(tokenStrings(tokenization.tokens()), contains("Elastic", "##search", "fun"));
+            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("Elastic", "##search", "fun"));
             assertArrayEquals(new int[] { 0, 1, 3 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 0, 1 }, tokenization.tokenMap());
         }

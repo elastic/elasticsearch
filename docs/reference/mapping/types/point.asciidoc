@@ -12,7 +12,10 @@ coordinate system.
 You can query documents using this type using
 <<query-dsl-shape-query,shape Query>>.
 
-There are four ways that a point may be specified, as demonstrated below:
+As with <<geo-shape, geo_shape>> and <<geo-point, geo_point>>, `point` can be specified in http://geojson.org[GeoJSON]
+and https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text] formats.
+However, there are a number of additional formats that are supported for convenience and historical reasons.
+In total there are five ways that a cartesian point may be specified, as demonstrated below:
 
 [source,console]
 --------------------------------------------------
@@ -29,39 +32,52 @@ PUT my-index-000001
 
 PUT my-index-000001/_doc/1
 {
-  "text": "Point as an object",
+  "text": "Point as an object using GeoJSON format",
   "location": { <1>
-    "x": 41.12,
-    "y": -71.34
+    "type": "Point",
+    "coordinates": [-71.34, 41.12]
   }
 }
 
 PUT my-index-000001/_doc/2
 {
-  "text": "Point as a string",
-  "location": "41.12,-71.34" <2>
+  "text": "Point as a WKT POINT primitive",
+  "location" : "POINT (-71.34 41.12)" <2>
 }
 
+PUT my-index-000001/_doc/3
+{
+  "text": "Point as an object with 'x' and 'y' keys",
+  "location": { <3>
+    "x": -71.34,
+    "y": 41.12
+  }
+}
 
 PUT my-index-000001/_doc/4
 {
   "text": "Point as an array",
-  "location": [41.12, -71.34] <3>
+  "location": [ -71.34, 41.12 ] <4>
 }
 
 PUT my-index-000001/_doc/5
 {
-  "text": "Point as a WKT POINT primitive",
-  "location" : "POINT (41.12 -71.34)" <4>
+  "text": "Point as a string",
+  "location": "-71.34,41.12" <5>
 }
 
 --------------------------------------------------
 
-<1> Point expressed as an object, with `x` and `y` keys.
-<2> Point expressed as a string with the format: `"x,y"`.
-<3> Point expressed as an array with the format: [ `x`, `y`]
-<4> Point expressed as a https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
+<1> Point expressed as an object, in https://geojson.org/[GeoJSON] format, with `type` and `coordinates` keys.
+<2> Point expressed as a https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
 POINT with the format: `"POINT(x y)"`
+<3> Point expressed as an object, with `x` and `y` keys.
+<4> Point expressed as an array with the format: [ `x`, `y`]
+<5> Point expressed as a string with the format: `"x,y"`.
+
+[NOTE]
+Unlike the case with the {ref}/geo-point.html[geo-point] field type,
+the order of the coordinates `x` and `y` is the same for all formats above.
 
 The coordinates provided to the indexer are single precision floating point values so
 the field guarantees the same accuracy provided by the java virtual machine (typically

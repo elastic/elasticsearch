@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.azure.executors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -26,6 +25,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Wrapper around {@link ThreadPool} that provides the necessary scheduling methods for a {@link reactor.core.scheduler.Scheduler} to
@@ -74,8 +75,8 @@ public class ReactorScheduledExecutorService extends AbstractExecutorService imp
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug(
-                        new ParameterizedMessage(
-                            "could not schedule execution of [{}] on [{}] as executor is shut down",
+                        () -> format(
+                            "could not schedule execution of [%s] on [%s] as executor is shut down",
                             decoratedCommand,
                             executorName
                         ),

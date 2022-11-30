@@ -10,8 +10,8 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ public class RestCatAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, HELP));
+        return channel -> channel.sendResponse(new RestResponse(RestStatus.OK, HELP));
     }
 
 }

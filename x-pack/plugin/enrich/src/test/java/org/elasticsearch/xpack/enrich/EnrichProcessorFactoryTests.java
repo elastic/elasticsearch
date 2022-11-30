@@ -288,8 +288,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             IngestDocument ingestDocument = new IngestDocument(
                 "_index",
                 "_id",
-                "_routing",
                 1L,
+                "_routing",
                 VersionType.INTERNAL,
                 Map.of("domain", "elastic.co")
             );
@@ -335,9 +335,9 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             .build();
         IndexMetadata.Builder builder = IndexMetadata.builder(EnrichPolicy.getBaseName(name) + "-1");
         builder.settings(settings);
-        builder.putMapping("""
+        builder.putMapping(formatted("""
             {"_meta": {"enrich_match_field": "%s", "enrich_policy_type": "%s"}}
-            """.formatted(policy.getMatchField(), policy.getType()));
+            """, policy.getMatchField(), policy.getType()));
         builder.putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName(name)).build());
         return Metadata.builder().put(builder).build();
     }

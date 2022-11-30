@@ -1,5 +1,0 @@
-pr: 84751
-summary: Use Throttling Netty Write Handler on HTTP Path
-area: Network
-type: enhancement
-issues: []

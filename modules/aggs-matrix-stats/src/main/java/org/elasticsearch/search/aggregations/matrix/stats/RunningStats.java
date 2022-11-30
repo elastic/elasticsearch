@@ -11,13 +11,17 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Descriptive stats gathered per shard. Coordinating node computes final correlation and covariance stats
@@ -197,6 +201,26 @@ public class RunningStats implements Writeable, Cloneable {
     }
 
     /**
+     * Get the set of fields required by the aggregation which are missing in at least one document.
+     *
+     * @param other the other {@link RunningStats} to check
+     * @return a set of field names
+     */
+    public Set<String> missingFieldNames(final RunningStats other) {
+        if (other == null || this.docCount == 0 || other.docCount == 0) {
+            return Collections.emptySet();
+        }
+        return symmetricDifference(this.getAllFieldNames(), other.getAllFieldNames());
+    }
+
+    private static <T> Set<T> symmetricDifference(final Set<T> a, final Set<T> b) {
+        final HashSet<T> result = new HashSet<>();
+        result.addAll(Sets.difference(a, b));
+        result.addAll(Sets.difference(b, a));
+        return result;
+    }
+
+    /**
      * Merges the descriptive statistics of a second data set (e.g., per shard)
      *
      * running computations taken from: http://prod.sandia.gov/techlib/access-control.cgi/2008/086212.pdf
@@ -307,6 +331,21 @@ public class RunningStats implements Writeable, Cloneable {
         } catch (CloneNotSupportedException e) {
             throw new ElasticsearchException("Error trying to create a copy of RunningStats");
         }
+    }
+
+    public Set<String> getAllFieldNames() {
+        final Set<String> allFieldNames = Collections.unmodifiableSet(this.counts.keySet());
+        assert allFieldNames.containsAll(this.variances.keySet())
+            && this.variances.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.fieldSum.keySet())
+            && this.fieldSum.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.means.keySet())
+            && this.means.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.kurtosis.keySet())
+            && this.kurtosis.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.skewness.keySet())
+            && this.skewness.keySet().containsAll(allFieldNames);
+        return allFieldNames;
     }
 
     @Override

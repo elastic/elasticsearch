@@ -40,12 +40,19 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * Use this method when the transport action should continue to run in the context of the current task
      */
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
-        ActionRequestValidationException validationException = request.validate();
+        final ActionRequestValidationException validationException;
+        try {
+            validationException = request.validate();
+        } catch (Exception e) {
+            assert false : new AssertionError("validating of request [" + request + "] threw exception", e);
+            logger.warn("validating of request [" + request + "] threw exception", e);
+            listener.onFailure(e);
+            return;
+        }
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
-
         if (task != null && request.getShouldStoreResult()) {
             listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
         }

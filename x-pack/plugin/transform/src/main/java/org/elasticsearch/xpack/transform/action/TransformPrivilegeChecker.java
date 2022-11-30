@@ -13,20 +13,25 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
+import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 /**
  * {@link TransformPrivilegeChecker} is responsible for checking whether the user has the right privileges in order to work with transform.
@@ -43,21 +48,27 @@ final class TransformPrivilegeChecker {
         boolean checkDestIndexPrivileges,
         ActionListener<Void> listener
     ) {
-        final String username = securityContext.getUser().principal();
+        useSecondaryAuthIfAvailable(securityContext, () -> {
+            final String username = securityContext.getUser().principal();
 
-        ActionListener<HasPrivilegesResponse> hasPrivilegesResponseListener = ActionListener.wrap(
-            response -> handlePrivilegesResponse(operationName, username, config.getId(), response, listener),
-            listener::onFailure
-        );
+            ActionListener<HasPrivilegesResponse> hasPrivilegesResponseListener = ActionListener.wrap(
+                response -> handlePrivilegesResponse(operationName, username, config.getId(), response, listener),
+                listener::onFailure
+            );
 
-        HasPrivilegesRequest hasPrivilegesRequest = buildPrivilegesRequest(
-            config,
-            indexNameExpressionResolver,
-            clusterState,
-            username,
-            checkDestIndexPrivileges
-        );
-        client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, hasPrivilegesResponseListener);
+            HasPrivilegesRequest hasPrivilegesRequest = buildPrivilegesRequest(
+                config,
+                indexNameExpressionResolver,
+                clusterState,
+                username,
+                checkDestIndexPrivileges
+            );
+            if (hasPrivilegesRequest.indexPrivileges().length == 0) {
+                listener.onResponse(null);
+            } else {
+                client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, hasPrivilegesResponseListener);
+            }
+        });
     }
 
     private static HasPrivilegesRequest buildPrivilegesRequest(
@@ -69,13 +80,19 @@ final class TransformPrivilegeChecker {
     ) {
         List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>(2);
 
-        RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-            .indices(config.getSource().getIndex())
-            // We need to read the source indices mapping to deduce the destination mapping, hence the need for view_index_metadata
-            .privileges("read", "view_index_metadata")
-            .build();
-        indicesPrivileges.add(sourceIndexPrivileges);
+        // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
+        String[] sourceIndex = Arrays.stream(config.getSource().getIndex())
+            .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
+            .toArray(String[]::new);
 
+        if (sourceIndex.length > 0) {
+            RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                .indices(sourceIndex)
+                // We need to read the source indices mapping to deduce the destination mapping, hence the need for view_index_metadata
+                .privileges("read", "view_index_metadata")
+                .build();
+            indicesPrivileges.add(sourceIndexPrivileges);
+        }
         if (checkDestIndexPrivileges) {
             final String destIndex = config.getDestination().getIndex();
             final String[] concreteDest = indexNameExpressionResolver.concreteIndexNames(
@@ -121,14 +138,24 @@ final class TransformPrivilegeChecker {
         if (privilegesResponse.isCompleteMatch()) {
             listener.onResponse(null);
         } else {
-            List<String> indices = privilegesResponse.getIndexPrivileges().stream().map(ResourcePrivileges::getResource).collect(toList());
+            List<String> missingPrivileges = privilegesResponse.getIndexPrivileges()
+                .stream()
+                .map(
+                    indexPrivileges -> indexPrivileges.getPrivileges()
+                        .entrySet()
+                        .stream()
+                        .filter(e -> Boolean.TRUE.equals(e.getValue()) == false)
+                        .map(Map.Entry::getKey)
+                        .collect(joining(", ", indexPrivileges.getResource() + ":[", "]"))
+                )
+                .collect(toList());
             listener.onFailure(
                 Exceptions.authorizationError(
-                    "Cannot {} transform [{}] because user {} lacks all the required permissions for indices: {}",
+                    "Cannot {} transform [{}] because user {} lacks the required permissions {}",
                     operationName,
                     transformId,
                     username,
-                    indices
+                    missingPrivileges
                 )
             );
         }

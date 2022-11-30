@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -124,7 +125,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     public static FiltersAggregator build(
         String name,
         AggregatorFactories factories,
-        List<QueryToFilterAdapter<?>> filters,
+        List<QueryToFilterAdapter> filters,
         boolean keyed,
         String otherBucketKey,
         AggregationContext context,
@@ -149,7 +150,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     return delegate.apply(factories);
                 }
             };
-        for (QueryToFilterAdapter<?> f : filters) {
+        for (QueryToFilterAdapter f : filters) {
             filterByFilterBuilder.add(f);
         }
         FilterByFilterAggregator filterByFilter = filterByFilterBuilder.build();
@@ -159,28 +160,28 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         return new FiltersAggregator.Compatible(name, factories, filters, keyed, otherBucketKey, context, parent, cardinality, metadata);
     }
 
-    private final List<QueryToFilterAdapter<?>> filters;
+    private final List<QueryToFilterAdapter> filters;
     private final boolean keyed;
     protected final String otherBucketKey;
 
     FiltersAggregator(
         String name,
         AggregatorFactories factories,
-        List<QueryToFilterAdapter<?>> filters,
+        List<QueryToFilterAdapter> filters,
         boolean keyed,
         String otherBucketKey,
-        AggregationContext context,
+        AggregationContext aggCtx,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, cardinality.multiply(filters.size() + (otherBucketKey == null ? 0 : 1)), metadata);
+        super(name, factories, aggCtx, parent, cardinality.multiply(filters.size() + (otherBucketKey == null ? 0 : 1)), metadata);
         this.filters = List.copyOf(filters);
         this.keyed = keyed;
         this.otherBucketKey = otherBucketKey;
     }
 
-    List<QueryToFilterAdapter<?>> filters() {
+    List<QueryToFilterAdapter> filters() {
         return filters;
     }
 
@@ -208,7 +209,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + (otherBucketKey == null ? 0 : 1));
-        for (QueryToFilterAdapter<?> filter : filters) {
+        for (QueryToFilterAdapter filter : filters) {
             InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key().toString(), 0, subAggs, keyed);
             buckets.add(bucket);
         }
@@ -225,7 +226,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         List<Map<String, Object>> filtersDebug = new ArrayList<>(filters.size());
-        for (QueryToFilterAdapter<?> filter : filters) {
+        for (QueryToFilterAdapter filter : filters) {
             Map<String, Object> debug = new HashMap<>();
             filter.collectDebugInfo(debug::put);
             filtersDebug.add(debug);
@@ -245,7 +246,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         Compatible(
             String name,
             AggregatorFactories factories,
-            List<QueryToFilterAdapter<?>> filters,
+            List<QueryToFilterAdapter> filters,
             boolean keyed,
             String otherBucketKey,
             AggregationContext context,
@@ -262,10 +263,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
             IntPredicate[] docFilters = new IntPredicate[filters().size()];
             for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
-                docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(ctx);
+                docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(aggCtx.getLeafReaderContext());
             }
             return new LeafBucketCollectorBase(sub, null) {
                 @Override

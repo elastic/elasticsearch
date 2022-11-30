@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
@@ -20,7 +19,7 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-public class FilePermissionsPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class FilePermissionsPrecommitPlugin extends PrecommitPlugin {
 
     public static final String FILEPERMISSIONS_TASK_NAME = "filepermissions";
     private ProviderFactory providerFactory;
@@ -32,16 +31,19 @@ public class FilePermissionsPrecommitPlugin extends PrecommitPlugin implements I
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        return project.getTasks()
-            .register(
-                FILEPERMISSIONS_TASK_NAME,
-                FilePermissionsTask.class,
-                filePermissionsTask -> filePermissionsTask.getSources()
-                    .addAll(
-                        providerFactory.provider(
-                            () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
-                        )
+        return project.getTasks().register(FILEPERMISSIONS_TASK_NAME, FilePermissionsTask.class, t -> {
+            t.getSources()
+                .addAll(
+                    providerFactory.provider(
+                        () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
                     )
+                );
+            t.dependsOn(
+                GradleUtils.getJavaSourceSets(project)
+                    .stream()
+                    .map(sourceSet -> sourceSet.getProcessResourcesTaskName())
+                    .collect(Collectors.toList())
             );
+        });
     }
 }

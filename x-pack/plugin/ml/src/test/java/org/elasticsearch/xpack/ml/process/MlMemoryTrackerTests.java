@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.junit.Before;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -377,6 +379,12 @@ public class MlMemoryTrackerTests extends ESTestCase {
         assertNotNull(exception.get());
         assertThat(exception.get(), instanceOf(EsRejectedExecutionException.class));
         assertEquals("Couldn't run ML memory update - node is shutting down", exception.get().getMessage());
+    }
+
+    public void testMaxDuration() {
+        assertThat(MlMemoryTracker.max(Duration.ofMinutes(1), Duration.ofMinutes(2)), equalTo(Duration.ofMinutes(2)));
+        assertThat(MlMemoryTracker.max(Duration.ofMinutes(4), Duration.ofMinutes(3)), equalTo(Duration.ofMinutes(4)));
+        assertThat(MlMemoryTracker.max(Duration.ofMinutes(5), Duration.ofMinutes(5)), equalTo(Duration.ofMinutes(5)));
     }
 
     private PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> makeTestAnomalyDetectorTask(String jobId) {

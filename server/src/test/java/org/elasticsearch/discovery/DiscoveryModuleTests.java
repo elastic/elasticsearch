@@ -18,8 +18,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -91,7 +92,8 @@ public class DiscoveryModuleTests extends ESTestCase {
             createTempDir().toAbsolutePath(),
             gatewayMetaState,
             mock(RerouteService.class),
-            null
+            null,
+            new NoneCircuitBreakerService()
         );
     }
 

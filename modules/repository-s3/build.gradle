@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.749'
+  'aws': '1.12.270'
 ]
 
 dependencies {
@@ -40,7 +40,7 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  api "joda-time:joda-time:2.8.1"
+  api "joda-time:joda-time:2.10.14"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
@@ -75,6 +75,20 @@ esplugin.bundleSpec.from('config/repository-s3') {
     into 'config'
 }
 
+def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
+  include '**/RepositoryCredentialsTests.class'
+  systemProperty 'es.allow_insecure_settings', 'true'
+}
+
+tasks.named('check').configure {
+  dependsOn(testRepositoryCreds)
+}
+
+tasks.named('test').configure {
+  // this is tested explicitly in separate test tasks
+  exclude '**/RepositoryCredentialsTests.class'
+}
+
 boolean useFixture = false
 
 def fixtureAddress = { fixture, name, port ->
@@ -107,7 +121,7 @@ String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 String s3STSBucket = System.getenv("amazon_s3_bucket_sts")
 String s3STSBasePath = System.getenv("amazon_s3_base_path_sts")
 
-boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+boolean s3DisableChunkedEncoding = BuildParams.random.nextBoolean()
 
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
@@ -354,6 +368,7 @@ tasks.named("thirdPartyAudit").configure {
           // We don't use the kms dependency
           'com.amazonaws.services.kms.AWSKMS',
           'com.amazonaws.services.kms.AWSKMSClient',
+          'com.amazonaws.services.kms.AWSKMSClientBuilder',
           'com.amazonaws.services.kms.model.DecryptRequest',
           'com.amazonaws.services.kms.model.DecryptResult',
           'com.amazonaws.services.kms.model.EncryptRequest',

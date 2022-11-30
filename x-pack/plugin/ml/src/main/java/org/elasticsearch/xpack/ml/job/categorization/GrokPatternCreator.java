@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.categorization;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.grok.Grok;
 
 import java.util.ArrayList;
@@ -20,12 +19,16 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Creates Grok patterns that will match all the examples in a given category_definition.
  *
  * The choice of field names is quite primitive.  The intention is that a human will edit these.
  */
 public final class GrokPatternCreator {
+
+    private static final boolean ECS_COMPATIBILITY = true;
 
     private static final Logger logger = LogManager.getLogger(GrokPatternCreator.class);
 
@@ -38,7 +41,7 @@ public final class GrokPatternCreator {
      * such that more generic patterns come after more specific patterns.
      */
     private static final List<GrokPatternCandidate> ORDERED_CANDIDATE_GROK_PATTERNS = Arrays.asList(
-        new GrokPatternCandidate("TOMCAT_DATESTAMP", "timestamp"),
+        new GrokPatternCandidate("TOMCATLEGACY_DATESTAMP", "timestamp"),
         new GrokPatternCandidate("TIMESTAMP_ISO8601", "timestamp"),
         new GrokPatternCandidate("DATESTAMP_RFC822", "timestamp"),
         new GrokPatternCandidate("DATESTAMP_RFC2822", "timestamp"),
@@ -50,8 +53,8 @@ public final class GrokPatternCreator {
         new GrokPatternCandidate("CISCOTIMESTAMP", "timestamp"),
         new GrokPatternCandidate("DATE", "date"),
         new GrokPatternCandidate("TIME", "time"),
-        new GrokPatternCandidate("LOGLEVEL", "loglevel"),
-        new GrokPatternCandidate("URI", "uri"),
+        new GrokPatternCandidate("LOGLEVEL", "log.level"),
+        new GrokPatternCandidate("URI", "url.original"),
         new GrokPatternCandidate("UUID", "uuid"),
         new GrokPatternCandidate("MAC", "macaddress"),
         // Can't use \b as the breaks, because slashes are not "word" characters
@@ -124,13 +127,7 @@ public final class GrokPatternCreator {
                 // case we will have appended an ellipsis to indicate truncation.
                 assert example.endsWith("...") : exampleProcessor.pattern() + " did not match non-truncated example " + example;
                 if (example.endsWith("...")) {
-                    logger.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}] Pattern [{}] did not match truncated example",
-                            jobId,
-                            exampleProcessor.pattern()
-                        )
-                    );
+                    logger.trace(() -> format("[%s] Pattern [%s] did not match truncated example", jobId, exampleProcessor.pattern()));
                 } else {
                     logger.warn("[{}] Pattern [{}] did not match non-truncated example [{}]", jobId, exampleProcessor.pattern(), example);
                 }
@@ -289,7 +286,7 @@ public final class GrokPatternCreator {
             this.grokPatternName = grokPatternName;
             this.fieldName = fieldName;
             this.grok = new Grok(
-                Grok.getBuiltinPatterns(false),
+                Grok.getBuiltinPatterns(ECS_COMPATIBILITY),
                 "%{DATA:" + PREFACE + "}" + preBreak + "%{" + grokPatternName + ":this}" + postBreak + "%{GREEDYDATA:" + EPILOGUE + "}",
                 logger::warn
             );

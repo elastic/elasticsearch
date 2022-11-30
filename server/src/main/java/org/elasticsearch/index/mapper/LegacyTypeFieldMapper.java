@@ -13,10 +13,12 @@ import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 /**
  * Field mapper to access the legacy _type that existed in Elasticsearch 5
@@ -27,15 +29,24 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_type";
 
+    public static final MappedFieldType FIELD_TYPE = new LegacyTypeFieldType();
+
     private static final LegacyTypeFieldMapper INSTANCE = new LegacyTypeFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
+    private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
+
     protected LegacyTypeFieldMapper() {
-        super(new LegacyTypeFieldType(), Lucene.KEYWORD_ANALYZER);
+        super(FIELD_TYPE);
     }
 
-    static final class LegacyTypeFieldType extends TermBasedFieldType {
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return ANALYZERS;
+    }
+
+    private static final class LegacyTypeFieldType extends TermBasedFieldType {
 
         LegacyTypeFieldType() {
             super(NAME, false, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
@@ -94,5 +105,10 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

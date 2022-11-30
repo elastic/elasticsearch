@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.mockito.ArgumentMatcher;
 
 import static java.util.Collections.emptyMap;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -53,7 +52,7 @@ public class TransportStopILMActionTests extends ESTestCase {
         StopILMRequest request = new StopILMRequest();
         transportStopILMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, ActionListener.noop());
 
-        verify(clusterService).submitStateUpdateTask(
+        verify(clusterService).submitUnbatchedStateUpdateTask(
             eq("ilm_operation_mode_update[stopping]"),
             argThat(new ArgumentMatcher<AckedClusterStateUpdateTask>() {
 
@@ -64,8 +63,7 @@ public class TransportStopILMActionTests extends ESTestCase {
                     actualPriority = other.priority();
                     return actualPriority == Priority.IMMEDIATE;
                 }
-            }),
-            any()
+            })
         );
     }
 

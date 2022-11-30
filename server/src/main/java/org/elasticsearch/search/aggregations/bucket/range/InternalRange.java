@@ -302,10 +302,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        out.writeVInt(ranges.size());
-        for (B bucket : ranges) {
-            bucket.writeTo(out);
-        }
+        out.writeCollection(ranges);
     }
 
     @Override

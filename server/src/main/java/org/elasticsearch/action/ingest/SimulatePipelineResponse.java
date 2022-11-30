@@ -121,10 +121,7 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(pipelineId);
         out.writeBoolean(verbose);
-        out.writeVInt(results.size());
-        for (SimulateDocumentResult response : results) {
-            response.writeTo(out);
-        }
+        out.writeCollection(results);
     }
 
     @Override

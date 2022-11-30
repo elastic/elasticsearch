@@ -1429,4 +1429,14 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             assertThat(e.getMessage(), containsString("time_series_dimension can't be configured in nested field [nested.object.foo]"));
         }
     }
+
+    public void testNestedDoesNotSupportSubobjectsParameter() {
+        MapperParsingException exception = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                mapping(b -> b.startObject("nested1").field("type", "nested").field("subobjects", randomBoolean()).endObject())
+            )
+        );
+        assertEquals("Failed to parse mapping: Nested type [nested1] does not support [subobjects] parameter", exception.getMessage());
+    }
 }

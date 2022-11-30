@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
-import java.util.Locale;
 import java.util.OptionalLong;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
@@ -33,9 +31,17 @@ import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY
 
 public final class NativeMemoryCalculator {
 
-    private static final long STATIC_JVM_UPPER_THRESHOLD = ByteSizeValue.ofGb(2).getBytes();
-    public static final long MINIMUM_AUTOMATIC_NODE_SIZE = ByteSizeValue.ofGb(1).getBytes();
-    private static final long OS_OVERHEAD = ByteSizeValue.ofMb(200L).getBytes();
+    // Maximum permitted JVM heap size when auto-configured.
+    // Must match the value used in MachineDependentHeap.MachineNodeRole.ML_ONLY.
+    public static final long STATIC_JVM_UPPER_THRESHOLD = ByteSizeValue.ofGb(31).getBytes();
+    public static final long MINIMUM_AUTOMATIC_NODE_SIZE = ByteSizeValue.ofMb(512).getBytes();
+    private static final long OS_OVERHEAD = ByteSizeValue.ofMb(200).getBytes();
+    // Memory size beyond which the JVM is given 10% of memory instead of 40%.
+    // Must match the value used in MachineDependentHeap.MachineNodeRole.ML_ONLY.
+    public static final long JVM_SIZE_KNOT_POINT = ByteSizeValue.ofGb(16).getBytes();
+    private static final long BYTES_IN_4MB = ByteSizeValue.ofMb(4).getBytes();
+    // The minimum automatic node size implicitly defines a minimum JVM size
+    private static final long MINIMUM_AUTOMATIC_JVM_SIZE = dynamicallyCalculateJvmSizeFromNodeSize(MINIMUM_AUTOMATIC_NODE_SIZE);
 
     private NativeMemoryCalculator() {}
 
@@ -88,121 +94,114 @@ public final class NativeMemoryCalculator {
             assert e == null : "ml.machine_memory should parse because we set it internally: invalid value was " + nodeBytes;
             return OptionalLong.empty();
         }
-        Long jvmMemory = null;
+        assert jvmBytes != null
+            : "This private method should only be called for ML nodes, and all ML nodes should have the ml.max_jvm_size node attribute";
+        if (jvmBytes == null) {
+            return OptionalLong.empty();
+        }
+        long jvmMemory;
         try {
-            if (Strings.isNullOrEmpty(jvmBytes) == false) {
-                jvmMemory = Long.parseLong(jvmBytes);
-            }
+            jvmMemory = Long.parseLong(jvmBytes);
         } catch (NumberFormatException e) {
+            assert e == null : "ml.max_jvm_size should parse because we set it internally: invalid value was " + jvmBytes;
             return OptionalLong.empty();
         }
         return OptionalLong.of(allowedBytesForMl(machineMemory, jvmMemory, maxMemoryPercent, useAuto));
     }
 
-    public static long calculateApproxNecessaryNodeSize(long nativeMachineMemory, Long jvmSize, int maxMemoryPercent, boolean useAuto) {
-        if (nativeMachineMemory == 0) {
+    public static long calculateApproxNecessaryNodeSize(
+        long mlNativeMemoryRequirement,
+        Long jvmSize,
+        int maxMemoryPercent,
+        boolean useAuto
+    ) {
+        if (mlNativeMemoryRequirement == 0) {
             return 0;
         }
         if (useAuto) {
-            // TODO utilize official ergonomic JVM size calculations when available.
-            jvmSize = jvmSize == null ? dynamicallyCalculateJvmSizeFromNativeMemorySize(nativeMachineMemory) : jvmSize;
-            // We haven't reached our 90% threshold, so, simply summing up the values is adequate
-            if ((jvmSize + OS_OVERHEAD) / (double) nativeMachineMemory > 0.1) {
-                return Math.max(nativeMachineMemory + jvmSize + OS_OVERHEAD, MINIMUM_AUTOMATIC_NODE_SIZE);
-            }
-            return Math.round((nativeMachineMemory / 0.9));
+            jvmSize = jvmSize == null ? dynamicallyCalculateJvmSizeFromMlNativeMemorySize(mlNativeMemoryRequirement) : jvmSize;
+            return Math.max(mlNativeMemoryRequirement + jvmSize + OS_OVERHEAD, MINIMUM_AUTOMATIC_NODE_SIZE);
         }
-        return (long) ((100.0 / maxMemoryPercent) * nativeMachineMemory);
+        // Round up here, to ensure enough ML memory when the formula is reversed
+        return (long) Math.ceil((100.0 / maxMemoryPercent) * mlNativeMemoryRequirement);
     }
 
-    public static double modelMemoryPercent(long machineMemory, Long jvmSize, int maxMemoryPercent, boolean useAuto) {
-        if (useAuto) {
-            jvmSize = jvmSize == null ? dynamicallyCalculateJvmSizeFromNodeSize(machineMemory) : jvmSize;
-            if (machineMemory - jvmSize < OS_OVERHEAD || machineMemory == 0) {
-                assert false
-                    : String.format(
-                        Locale.ROOT,
-                        "machine memory [%d] minus jvm [%d] is less than overhead [%d]",
-                        machineMemory,
-                        jvmSize,
-                        OS_OVERHEAD
-                    );
-                return maxMemoryPercent;
-            }
-            // This calculation is dynamic and designed to maximally take advantage of the underlying machine for machine learning
-            // We only allow 200MB for the Operating system itself and take up to 90% of the underlying native memory left
-            // Example calculations:
-            // 1GB node -> 41%
-            // 2GB node -> 66%
-            // 16GB node -> 87%
-            // 64GB node -> 90%
-            return Math.min(90.0, ((machineMemory - jvmSize - OS_OVERHEAD) / (double) machineMemory) * 100.0D);
-        }
-        return maxMemoryPercent;
-    }
-
-    static long allowedBytesForMl(long machineMemory, Long jvmSize, int maxMemoryPercent, boolean useAuto) {
+    static long allowedBytesForMl(long machineMemory, long jvmSize, int maxMemoryPercent, boolean useAuto) {
         // machineMemory can get set to -1 if the OS probe that determines memory fails
         if (machineMemory <= 0) {
             return 0L;
         }
-        if (useAuto && jvmSize != null) {
+        if (useAuto) {
             // It is conceivable that there is a machine smaller than 200MB.
             // If the administrator wants to use the auto configuration, the node should be larger.
             if (machineMemory - jvmSize <= OS_OVERHEAD) {
                 return machineMemory / 100;
             }
-            // This calculation is dynamic and designed to maximally take advantage of the underlying machine for machine learning
-            // We only allow 200MB for the Operating system itself and take up to 90% of the underlying native memory left
-            // Example calculations:
-            // 1GB node -> 41%
-            // 2GB node -> 66%
-            // 16GB node -> 87%
-            // 64GB node -> 90%
-            double memoryProportion = Math.min(0.90, (machineMemory - jvmSize - OS_OVERHEAD) / (double) machineMemory);
-            return Math.round(machineMemory * memoryProportion);
+            // This calculation is dynamic and designed to maximally take advantage of the underlying machine for machine learning.
+            // We allow for the JVM and 200MB for the operating system, and then use the remaining space for ML native memory subject
+            // to a maximum of 90% of the node size.
+            return Math.min(machineMemory - jvmSize - OS_OVERHEAD, machineMemory * 9 / 10);
         }
-
-        return (long) (machineMemory * (maxMemoryPercent / 100.0));
+        // Round down here, so we don't permit a model that's 1 byte too big after rounding
+        return machineMemory * maxMemoryPercent / 100;
     }
 
     public static long allowedBytesForMl(long machineMemory, int maxMemoryPercent, boolean useAuto) {
         return allowedBytesForMl(
             machineMemory,
-            useAuto ? dynamicallyCalculateJvmSizeFromNodeSize(machineMemory) : machineMemory / 2,
+            useAuto ? dynamicallyCalculateJvmSizeFromNodeSize(machineMemory) : Math.min(machineMemory / 2, STATIC_JVM_UPPER_THRESHOLD),
             maxMemoryPercent,
             useAuto
         );
     }
 
-    // TODO replace with official ergonomic calculation
     public static long dynamicallyCalculateJvmSizeFromNodeSize(long nodeSize) {
-        // While the original idea here was to predicate on 2Gb, it has been found that the knot points of
-        // 2GB and 8GB cause weird issues where the JVM size will "jump the gap" from one to the other when
-        // considering true tier sizes in elastic cloud.
-        if (nodeSize < ByteSizeValue.ofMb(1280).getBytes()) {
-            return (long) (nodeSize * 0.40);
+        // This must match the logic in MachineDependentHeap.MachineNodeRole.ML_ONLY,
+        // including rounding down to the next lower multiple of 4 megabytes.
+        if (nodeSize <= JVM_SIZE_KNOT_POINT) {
+            return ((long) (nodeSize * 0.4) / BYTES_IN_4MB) * BYTES_IN_4MB;
         }
-        if (nodeSize < ByteSizeValue.ofGb(8).getBytes()) {
-            return (long) (nodeSize * 0.25);
-        }
-        return STATIC_JVM_UPPER_THRESHOLD;
+        return Math.min(
+            ((long) (JVM_SIZE_KNOT_POINT * 0.4 + (nodeSize - JVM_SIZE_KNOT_POINT) * 0.1) / BYTES_IN_4MB) * BYTES_IN_4MB,
+            STATIC_JVM_UPPER_THRESHOLD
+        );
     }
 
-    public static long dynamicallyCalculateJvmSizeFromNativeMemorySize(long nativeMachineMemory) {
-        // See dynamicallyCalculateJvm the following JVM calculations are arithmetic inverses of JVM calculation
+    public static long dynamicallyCalculateJvmSizeFromMlNativeMemorySize(long mlNativeMemorySize) {
+        // For <= 16GB node, the JVM is 0.4 * total_node_size. This means the rest is 0.6 the node size.
+        // So, nativeAndOverhead = 0.6 * total_node_size => total_node_size = (nativeAndOverhead / 0.6)
+        // Consequently jvmSize = (nativeAndOverhead / 0.6) * 0.4 = nativeAndOverhead * 2 / 3
         //
-        // Example: For < 2GB node, the JVM is 0.4 * total_node_size. This means, the rest is 0.6 the node size.
-        // So, the `nativeAndOverhead` is == 0.6 * total_node_size => total_node_size = (nativeAndOverHead / 0.6)
-        // Consequently jvmSize = (nativeAndOverHead / 0.6)*0.4 = nativeAndOverHead * 2/3
-        long nativeAndOverhead = nativeMachineMemory + OS_OVERHEAD;
-        if (nativeAndOverhead < (ByteSizeValue.ofGb(2).getBytes() * 0.60)) {
-            return Math.round((nativeAndOverhead / 0.6) * 0.4);
+        // For > 16GB node, the JVM is 0.4 * 16GB + 0.1 * (total_node_size - 16GB).
+        // nativeAndOverheadAbove16GB = 0.9 * total_node_size_above_16GB
+        // Also, nativeAndOverheadAbove16GB = nativeAndOverhead - nativeAndOverheadBelow16GB = nativeAndOverhead - 0.6 * 16GB
+        // Consequently jvmSize = 0.4 * 16GB + (nativeAndOverheadAbove16GB / 0.9) * 0.1
+        //
+        // In both cases JVM size is rounded down to the next lower multiple of 4 megabytes to match
+        // MachineDependentHeap.MachineNodeRole.ML_ONLY.
+        long nativeAndOverhead = mlNativeMemorySize + OS_OVERHEAD;
+        long higherAnswer;
+        if (nativeAndOverhead <= (JVM_SIZE_KNOT_POINT - dynamicallyCalculateJvmSizeFromNodeSize(JVM_SIZE_KNOT_POINT))) {
+            higherAnswer = (nativeAndOverhead * 2 / 3 / BYTES_IN_4MB) * BYTES_IN_4MB;
+        } else {
+            double nativeAndOverheadAbove16GB = nativeAndOverhead - JVM_SIZE_KNOT_POINT * 0.6;
+            higherAnswer = ((long) (JVM_SIZE_KNOT_POINT * 0.4 + nativeAndOverheadAbove16GB / 0.9 * 0.1) / BYTES_IN_4MB) * BYTES_IN_4MB;
         }
-        if (nativeAndOverhead < (ByteSizeValue.ofGb(8).getBytes() * 0.75)) {
-            return Math.round((nativeAndOverhead / 0.75) * 0.25);
+        // Because we're rounding JVM size to a multiple of 4MB there will be a range of node sizes that can satisfy the required
+        // amount of ML memory. It's better to choose the lower size, because it avoids waste and avoids the possibility of a
+        // scale up followed by a scale down. For example, suppose we asked for a 2049MB node when the job would also fit on a
+        // 2048MB node. Then Cloud will give us a 4096MB node (because it can only give us certain fixed sizes). That immediately
+        // shows up as wasteful in the ML overview in the UI where the user can visually see that half the ML memory is unused.
+        // And an hour later the downscale will realise that the job could fit on a smaller node and will downscale to a 2048MB
+        // node. So it's better all round to choose the slightly lower size from the start if everything will still fit.
+        if (higherAnswer > BYTES_IN_4MB) {
+            long lowerAnswer = higherAnswer - BYTES_IN_4MB;
+            long nodeSizeImpliedByLowerAnswer = nativeAndOverhead + lowerAnswer;
+            if (dynamicallyCalculateJvmSizeFromNodeSize(nodeSizeImpliedByLowerAnswer) == lowerAnswer) {
+                return Math.max(MINIMUM_AUTOMATIC_JVM_SIZE, Math.min(lowerAnswer, STATIC_JVM_UPPER_THRESHOLD));
+            }
         }
-        return STATIC_JVM_UPPER_THRESHOLD;
+        return Math.max(MINIMUM_AUTOMATIC_JVM_SIZE, Math.min(higherAnswer, STATIC_JVM_UPPER_THRESHOLD));
     }
 
     /**
@@ -216,7 +215,6 @@ public final class NativeMemoryCalculator {
     public static ByteSizeValue calculateMaxModelMemoryLimitToFit(ClusterSettings clusterSettings, DiscoveryNodes nodes) {
 
         long maxMlMemory = 0;
-        int numMlNodes = 0;
 
         for (DiscoveryNode node : nodes) {
             OptionalLong limit = allowedBytesForMl(node, clusterSettings);
@@ -224,14 +222,18 @@ public final class NativeMemoryCalculator {
                 continue;
             }
             maxMlMemory = Math.max(maxMlMemory, limit.getAsLong());
-            ++numMlNodes;
         }
 
         // It is possible that there is scope for more ML nodes to be added
         // to the cluster, in which case take those into account too
         long maxMlNodeSize = clusterSettings.get(MAX_ML_NODE_SIZE).getBytes();
         int maxLazyNodes = clusterSettings.get(MAX_LAZY_ML_NODES);
-        if (maxMlNodeSize > 0 && numMlNodes < maxLazyNodes) {
+        // Even if all the lazy nodes have been added to the cluster, we make
+        // the assumption that if any were configured they'll be able to grow
+        // to the maximum ML node size. (We are assuming that lazy nodes always
+        // behave like they do with Elastic Cloud autoscaling, where vertical
+        // scaling is possible.)
+        if (maxMlNodeSize > 0 && maxLazyNodes > 0) {
             maxMlMemory = Math.max(
                 maxMlMemory,
                 allowedBytesForMl(

@@ -257,12 +257,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(scripts.size());
-
-        for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
-        }
+        out.writeMap(scripts, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
     /**

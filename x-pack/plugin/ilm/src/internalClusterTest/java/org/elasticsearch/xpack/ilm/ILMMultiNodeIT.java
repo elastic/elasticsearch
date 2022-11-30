@@ -64,7 +64,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         startWarmOnlyNode();
         ensureGreen();
 
-        RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null);
+        RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null, null, null, null, null, null);
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.singletonMap(rolloverAction.getWriteableName(), rolloverAction));
         ShrinkAction shrinkAction = new ShrinkAction(1, null);
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.singletonMap(shrinkAction.getWriteableName(), shrinkAction));

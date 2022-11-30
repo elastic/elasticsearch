@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
@@ -18,7 +17,6 @@ import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +90,6 @@ public abstract class TaskBatcher {
         // to give other tasks with different batching key a chance to execute.
         if (updateTask.processed.get() == false) {
             final List<BatchedTask> toExecute = new ArrayList<>();
-            final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
             final Set<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
             if (pending != null) {
                 // pending is a java.util.Collections.SynchronizedSet so we can safely iterate holding its mutex
@@ -102,7 +99,6 @@ public abstract class TaskBatcher {
                         if (task.processed.getAndSet(true) == false) {
                             logger.trace("will process {}", task);
                             toExecute.add(task);
-                            processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task);
                         } else {
                             logger.trace("skipping {}, already processed", task);
                         }
@@ -111,34 +107,16 @@ public abstract class TaskBatcher {
             }
 
             if (toExecute.isEmpty() == false) {
-                run(updateTask.batchingKey, toExecute, buildTasksDescription(updateTask, toExecute, processTasksBySource));
+                run(updateTask.batchingKey, toExecute, new BatchSummary(updateTask, toExecute));
             }
         }
-    }
-
-    private static final int MAX_TASK_DESCRIPTION_CHARS = 8 * 1024;
-
-    private String buildTasksDescription(
-        BatchedTask updateTask,
-        List<BatchedTask> toExecute,
-        Map<String, List<BatchedTask>> processTasksBySource
-    ) {
-        final StringBuilder output = new StringBuilder();
-        Strings.collectionToDelimitedStringWithLimit((Iterable<String>) () -> processTasksBySource.entrySet().stream().map(entry -> {
-            String tasks = updateTask.describeTasks(entry.getValue());
-            return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
-        }).filter(s -> s.isEmpty() == false).iterator(), ", ", "", "", MAX_TASK_DESCRIPTION_CHARS, output);
-        if (output.length() > MAX_TASK_DESCRIPTION_CHARS) {
-            output.append(" (").append(toExecute.size()).append(" tasks in total)");
-        }
-        return output.toString();
     }
 
     /**
      * Action to be implemented by the specific batching implementation
      * All tasks have the given batching key.
      */
-    protected abstract void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary);
+    protected abstract void run(Object batchingKey, List<? extends BatchedTask> tasks, BatchSummary tasksSummarySupplier);
 
     /**
      * Represents a runnable task that supports batching.

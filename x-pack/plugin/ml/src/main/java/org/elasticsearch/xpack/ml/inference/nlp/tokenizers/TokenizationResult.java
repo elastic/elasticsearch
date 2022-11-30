@@ -109,10 +109,22 @@ public abstract class TokenizationResult {
 
     protected void writeTokenTypeIds(String fieldName, XContentBuilder builder) throws IOException {
         builder.startArray(fieldName);
-        for (int i = 0; i < tokens.size(); i++) {
+        for (var inputTokens : tokens) {
             builder.startArray();
-            for (int j = 0; j < maxLength; j++) {
-                builder.value(0);
+            // Just a single sequence within this tokenization
+            if (inputTokens.seqPairOffset <= 0) {
+                for (int j = 0; j < maxLength; j++) {
+                    builder.value(0);
+                }
+            } else {
+                // Write the first of the sequence par, type id of 0
+                for (int j = 0; j < inputTokens.seqPairOffset; j++) {
+                    builder.value(0);
+                }
+                // Write the second of the sequence par, type id of 1
+                for (int j = inputTokens.seqPairOffset; j < maxLength; j++) {
+                    builder.value(1);
+                }
             }
             builder.endArray();
         }
@@ -135,23 +147,27 @@ public abstract class TokenizationResult {
      * Tokenization of a sequence
      */
     public record Tokens(
-        String input,
-        List<? extends DelimitedToken> tokens,
+        List<String> input,
+        List<List<? extends DelimitedToken>> tokens,
         boolean truncated,
         int[] tokenIds,
         int[] tokenMap,
         int spanPrev,
-        int sequenceId
+        int sequenceId,
+        int seqPairOffset
     ) {
         /**
          *
-         * @param input The whole sequence input
+         * @param input The sequence inputs
          * @param tokens The delimited tokens (includes original text offsets)
          * @param truncated Was this tokenization truncated
          * @param tokenIds The token ids
          * @param tokenMap The token positions
          * @param spanPrev How many of the previous sub-sequence does this tokenization include
          * @param sequenceId A unique sequence ID to allow sub-sequence reconstitution
+         * @param seqPairOffset if the tokenization is of a sequence pair, when does the second sequence start?
+         *                      This does take into account separator token ids. Meaning, the offset will indicate the actual
+         *                      start of the second sequence of the pair.
          */
         public Tokens {
             assert tokenIds.length == tokenMap.length;
@@ -186,13 +202,26 @@ public abstract class TokenizationResult {
 
         /**
          * Builds the token object
-         * @param input the original sequence input, may be a simple concatenation of a sequence pair
+         * @param input the original sequences input, may be a single sequence or a pair of sequences
          * @param truncated Was this truncated when tokenized
-         * @param allTokens All the tokens with their values and offsets
+         * @param allTokens The tokens with their values and offsets. Should match relatively to the input provided
          * @param spanPrev how many tokens from the previous subsequence are in this one. Only relevant when windowing
          * @param seqId the sequence id, unique per tokenized sequence, useful for windowing
          * @return A new Tokens object
          */
-        Tokens build(String input, boolean truncated, List<? extends DelimitedToken> allTokens, int spanPrev, int seqId);
+        Tokens build(List<String> input, boolean truncated, List<List<? extends DelimitedToken>> allTokens, int spanPrev, int seqId);
+
+        /**
+         * Build the token object accounting for a single tokenized sequence
+         * @param input the original sequence input
+         * @param truncated Was this truncated when tokenized
+         * @param allTokens The tokens with their values and offsets
+         * @param spanPrev how many tokens from the previous subsequence are in this one. Only relevant when windowing
+         * @param seqId the sequence id, unique per tokenized sequence, useful for windowing
+         * @return A new Tokens object
+         */
+        default Tokens build(String input, boolean truncated, List<? extends DelimitedToken> allTokens, int spanPrev, int seqId) {
+            return build(List.of(input), truncated, List.of(allTokens), spanPrev, seqId);
+        }
     }
 }

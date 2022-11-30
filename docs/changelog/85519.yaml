@@ -1,5 +1,0 @@
-pr: 85519
-summary: Ignore app priv failures when resolving superuser
-area: Authorization
-type: bug
-issues: []

@@ -21,7 +21,7 @@ public class KuromojiCompletionFilterFactory extends AbstractTokenFilterFactory 
     private final Mode mode;
 
     public KuromojiCompletionFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         mode = getMode(settings);
     }
 

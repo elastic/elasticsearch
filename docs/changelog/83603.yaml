@@ -1,6 +1,0 @@
-pr: 83603
-summary: Cache ILM policy name on `IndexMetadata`
-area: ILM+SLM
-type: enhancement
-issues:
- - 83582

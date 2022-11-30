@@ -64,7 +64,7 @@ import java.util.Set;
 public class TransportResumeFollowAction extends AcknowledgedTransportMasterNodeAction<ResumeFollowAction.Request> {
 
     static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB);
-    static final ByteSizeValue DEFAULT_MAX_WRITE_REQUEST_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+    static final ByteSizeValue DEFAULT_MAX_WRITE_REQUEST_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
     private static final int DEFAULT_MAX_OUTSTANDING_WRITE_REQUESTS = 9;
     private static final int DEFAULT_MAX_WRITE_BUFFER_COUNT = Integer.MAX_VALUE;
@@ -175,7 +175,9 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         ActionListener<AcknowledgedResponse> listener
     ) throws IOException {
 
-        MapperService mapperService = followIndexMetadata != null ? indicesService.createIndexMapperService(followIndexMetadata) : null;
+        MapperService mapperService = followIndexMetadata != null
+            ? indicesService.createIndexMapperServiceForValidation(followIndexMetadata)
+            : null;
         validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
         final int numShards = followIndexMetadata.getNumberOfShards();
         final ResponseHandler handler = new ResponseHandler(numShards, listener);
@@ -507,7 +509,8 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
-        DataTier.TIER_PREFERENCE_SETTING
+        DataTier.TIER_PREFERENCE_SETTING,
+        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {

@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
@@ -117,7 +117,7 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(stats.getJvmInference().getBytes(), greaterThanOrEqualTo(0L));
         }
         assertThat(mlNodes, is(2));
-        assertThat(nodesWithPytorchModel, equalTo(mlNodes));
+        assertThat(nodesWithPytorchModel, equalTo(1));
         assertThat(nodesWithAnomalyJob, is(1));
         // It's possible that the DFA job could have finished before the stats call was made
         assumeFalse(

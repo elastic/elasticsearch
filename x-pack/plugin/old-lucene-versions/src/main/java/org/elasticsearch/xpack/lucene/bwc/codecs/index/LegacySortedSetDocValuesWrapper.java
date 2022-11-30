@@ -99,6 +99,11 @@ public final class LegacySortedSetDocValuesWrapper extends SortedSetDocValues {
     }
 
     @Override
+    public int docValueCount() {
+        return values.docValueCount();
+    }
+
+    @Override
     public BytesRef lookupOrd(long ord) {
         return values.lookupOrd((int) ord);
     }

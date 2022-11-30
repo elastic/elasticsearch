@@ -13,18 +13,24 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponseTests;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponseTests;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIndexResponse> {
 
@@ -36,11 +42,11 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
     @Override
     protected GetIndexResponse createTestInstance() {
         String[] indices = generateRandomStringArray(5, 5, false, false);
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, String> dataStreams = ImmutableOpenMap.builder();
+        Map<String, MappingMetadata> mappings = new HashMap<>();
+        Map<String, List<AliasMetadata>> aliases = new HashMap<>();
+        Map<String, Settings> settings = new HashMap<>();
+        Map<String, Settings> defaultSettings = new HashMap<>();
+        Map<String, String> dataStreams = new HashMap<>();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index : indices) {
@@ -70,13 +76,20 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
                 dataStreams.put(index, randomAlphaOfLength(5).toLowerCase(Locale.ROOT));
             }
         }
-        return new GetIndexResponse(
-            indices,
-            mappings.build(),
-            aliases.build(),
-            settings.build(),
-            defaultSettings.build(),
-            dataStreams.build()
-        );
+        return new GetIndexResponse(indices, mappings, aliases, settings, defaultSettings, dataStreams);
+    }
+
+    public void testChunking() throws IOException {
+        final var response = createTestInstance();
+
+        try (var builder = jsonBuilder()) {
+            int chunkCount = 0;
+            final var iterator = response.toXContentChunked(EMPTY_PARAMS);
+            while (iterator.hasNext()) {
+                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                chunkCount += 1;
+            }
+            assertEquals(response.getIndices().length + 2, chunkCount);
+        } // closing the builder verifies that the XContent is well-formed
     }
 }

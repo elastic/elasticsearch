@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -8,6 +8,7 @@ apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
+  testImplementation testArtifact(project(xpackModule('core')))
   testImplementation project(':x-pack:qa')
   testImplementation project(':client:rest-high-level')
 }
@@ -118,6 +119,12 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
     nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
     nonInputProperties.systemProperty('tests.clustername', baseName)
+
+    // Disable ML tests for incompatible systems
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      systemProperty 'tests.ml.skip', 'true'
+      systemProperty 'tests.rest.blacklist', ['old_cluster/30_ml_jobs_crud/*', 'old_cluster/40_ml_datafeed_crud/*', 'old_cluster/90_ml_data_frame_analytics_crud'].join(',')
+    }
   }
 
   tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
@@ -133,12 +140,13 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
     // We only need to run these tests once so we may as well do it when we're two thirds upgraded
-    systemProperty 'tests.rest.blacklist', [
+    def excludeList = [
       'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
       'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
       'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
       'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed without aggs in mixed cluster',
       'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
+      'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with composite aggs in mixed cluster',
       'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
       'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
       'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster',
@@ -146,7 +154,14 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       'mixed_cluster/120_api_key/Test API key authentication will work in a mixed cluster',
       'mixed_cluster/120_api_key/Create API key with metadata in a mixed cluster',
       'mixed_cluster/130_operator_privileges/Test operator privileges will work in the mixed cluster'
-    ].join(',')
+    ]
+
+    // Disable ML tests for incompatible systems
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      systemProperty 'tests.ml.skip', 'true'
+      excludeList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'])
+    }
+    systemProperty 'tests.rest.blacklist', excludeList.join(',')
   }
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
@@ -161,6 +176,12 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     systemProperty 'tests.first_round', 'false'
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
+
+    // Disable ML tests for incompatible systems
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      systemProperty 'tests.ml.skip', 'true'
+      systemProperty 'tests.rest.blacklist', ['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'].join(',')
+    }
   }
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
@@ -174,6 +195,12 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
+
+    // Disable ML tests for incompatible systems
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      systemProperty 'tests.ml.skip', 'true'
+      systemProperty 'tests.rest.blacklist', ['upgraded_cluster/30_ml_jobs_crud/*', 'upgraded_cluster/40_ml_datafeed_crud/*', 'upgraded_cluster/90_ml_data_frame_analytics_crud'].join(',')
+    }
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

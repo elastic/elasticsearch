@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -84,10 +85,10 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             """, new RangeQueryBuilder("long_field").from(1).to(9));
         addCandidate(
             """
-                "bool": { "must_not": [{"match_all": {}}], "must": [{"match_all": {}}], "filter": [{"match_all": {}}], \
+                "bool": { "must_not": [{"match_none": {}}], "must": [{"match_all": {}}], "filter": [{"match_all": {}}], \
                 "should": [{"match_all": {}}]}
                 """,
-            new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder())
+            new BoolQueryBuilder().mustNot(new MatchNoneQueryBuilder())
                 .must(new MatchAllQueryBuilder())
                 .filter(new MatchAllQueryBuilder())
                 .should(new MatchAllQueryBuilder())
@@ -208,9 +209,9 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             for (int i = 0; i < CANDIDATES.size(); i++) {
                 QueryBuilder expectedQueryBuilder = (QueryBuilder) CANDIDATES.get(i)[1];
                 Request request = new Request("GET", "/" + index + "/_search");
-                request.setJsonEntity("""
+                request.setJsonEntity(formatted("""
                     {"query": {"ids": {"values": ["%s"]}}, "docvalue_fields": [{"field":"query.query_builder_field"}]}
-                    """.formatted(i));
+                    """, i));
                 Response rsp = client().performRequest(request);
                 assertEquals(200, rsp.getStatusLine().getStatusCode());
                 var hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) responseAsMap(rsp).get("hits")).get("hits")).get(0);

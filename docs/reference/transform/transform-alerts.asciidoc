@@ -65,7 +65,8 @@ are met.
 
 Connect your rule to actions that use supported built-in integrations by 
 selecting a connector type. Connectors are {kib} services or third-party 
-integrations that perform an action when the rule conditions are met.
+integrations that perform an action when the rule conditions are met or the 
+alert is recovered. You can select in which case the action will run.
 
 [role="screenshot"]
 image::images/transform-alert-actions.png["Selecting connector type"]

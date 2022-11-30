@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.plan;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
@@ -32,6 +31,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.recovery.RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
 
 public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
@@ -194,7 +194,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(new ParameterizedMessage("Unable to fetch available snapshots for shard {}", shardId), e);
+                logger.warn(() -> format("Unable to fetch available snapshots for shard %s", shardId), e);
                 listener.accept(Optional.empty());
             }
         };

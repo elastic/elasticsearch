@@ -19,3 +19,6 @@ dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
 }
+
+tasks.named('test').configure { enabled = false }
+

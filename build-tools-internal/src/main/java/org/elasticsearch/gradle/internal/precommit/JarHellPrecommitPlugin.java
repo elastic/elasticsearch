@@ -24,7 +24,10 @@ public class JarHellPrecommitPlugin extends PrecommitPlugin {
             // ideally we would configure this as a default dependency. But Default dependencies do not work correctly
             // with gradle project dependencies as they're resolved to late in the build and don't setup according task
             // dependencies properly
-            project.getDependencies().add("jarHell", project.project(":libs:elasticsearch-core"));
+            var elasticsearchCoreProject = project.findProject(":libs:elasticsearch-core");
+            if (elasticsearchCoreProject != null) {
+                project.getDependencies().add("jarHell", elasticsearchCoreProject);
+            }
         }
 
         return project.getTasks().withType(JarHellTask.class).named("jarHell");

@@ -18,6 +18,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 
+import java.util.Map;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -36,7 +38,7 @@ public class EvilEnvironmentAwareCommandTests extends ESTestCase {
             }
 
             @Override
-            protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+            public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
 
             }
 
@@ -45,7 +47,11 @@ public class EvilEnvironmentAwareCommandTests extends ESTestCase {
         final TestEnvironmentAwareCommand command = new TestEnvironmentAwareCommand("test");
         final UserException e = expectThrows(
             UserException.class,
-            () -> command.mainWithoutErrorHandling(new String[0], new MockTerminal())
+            () -> command.mainWithoutErrorHandling(
+                new String[0],
+                MockTerminal.create(),
+                new ProcessInfo(Map.of(), Map.of(), createTempDir())
+            )
         );
         assertThat(e, hasToString(containsString("the system property [es.path.conf] must be set")));
     }

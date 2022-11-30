@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.supportsUnsignedLong;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.supportsVersionType;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -30,7 +31,9 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumnsTests.VERSION_FIELD_TEST_VERSIONS;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
@@ -68,7 +71,8 @@ public class ShowColumnsTests extends ESTestCase {
             asList("point", JDBC_TYPE_GEOMETRY, GEO_POINT.typeName()),
             asList("shape", JDBC_TYPE_GEOMETRY, GEO_SHAPE.typeName()),
             asList("nested", JDBCType.STRUCT.getName(), NESTED.typeName()),
-            asList("nested.point", JDBC_TYPE_GEOMETRY, GEO_POINT.typeName())
+            asList("nested.point", JDBC_TYPE_GEOMETRY, GEO_POINT.typeName()),
+            asList("version", JDBCType.VARCHAR.getName(), VERSION.typeName())
         );
 
         assertEquals(expect.size(), rows.size());
@@ -92,6 +96,18 @@ public class ShowColumnsTests extends ESTestCase {
             Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
             ShowColumns.fillInRows(IndexCompatibility.compatible(mapping, Version.fromId(version.id)), null, rows);
             assertTrue((supportsUnsignedLong(Version.fromId(version.id)) && rows.contains(rowSupported)) || rows.contains(rowUnsupported));
+        }
+    }
+
+    public void testVersionFieldFiltering() {
+        List<?> rowSupported = List.of("version", "VARCHAR", "version");
+        List<?> rowUnsupported = List.of("version", "OTHER", "unsupported");
+        for (SqlVersion version : VERSION_FIELD_TEST_VERSIONS) {
+            List<List<?>> rows = new ArrayList<>();
+            // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
+            Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
+            ShowColumns.fillInRows(IndexCompatibility.compatible(mapping, Version.fromId(version.id)), null, rows);
+            assertTrue((supportsVersionType(Version.fromId(version.id)) && rows.contains(rowSupported)) || rows.contains(rowUnsupported));
         }
     }
 }

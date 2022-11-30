@@ -9,14 +9,17 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.DoubleValuesSource;
+import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -145,10 +148,12 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(StringSortScript.class)) {
             return context.factoryClazz.cast(new MockStringSortScriptFactory(script));
+        } else if (context.instanceClazz.equals(BytesRefSortScript.class)) {
+            return context.factoryClazz.cast(new MockBytesRefSortScriptFactory(script));
         } else if (context.instanceClazz.equals(IngestScript.class)) {
-            IngestScript.Factory factory = vars -> new IngestScript(vars) {
+            IngestScript.Factory factory = (parameters, ctx) -> new IngestScript(parameters, ctx) {
                 @Override
-                public void execute(Map<String, Object> ctx) {
+                public void execute() {
                     script.apply(ctx);
                 }
             };
@@ -165,6 +170,30 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateScript.class)) {
             UpdateScript.Factory factory = (parameters, ctx) -> new UpdateScript(parameters, ctx) {
+                @Override
+                public void execute() {
+                    final Map<String, Object> vars = new HashMap<>();
+                    vars.put("ctx", ctx);
+                    vars.put("params", parameters);
+                    vars.putAll(parameters);
+                    script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ReindexScript.class)) {
+            ReindexScript.Factory factory = (parameters, ctx) -> new ReindexScript(parameters, ctx) {
+                @Override
+                public void execute() {
+                    final Map<String, Object> vars = new HashMap<>();
+                    vars.put("ctx", ctx);
+                    vars.put("params", parameters);
+                    vars.putAll(parameters);
+                    script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(UpdateByQueryScript.class)) {
+            UpdateByQueryScript.Factory factory = (parameters, ctx) -> new UpdateByQueryScript(parameters, ctx) {
                 @Override
                 public void execute() {
                     final Map<String, Object> vars = new HashMap<>();
@@ -220,15 +249,6 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(SimilarityWeightScript.class)) {
             SimilarityWeightScript.Factory factory = mockCompiled::createSimilarityWeightScript;
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(MovingFunctionScript.class)) {
-            MovingFunctionScript.Factory factory = () -> new MovingFunctionScript() {
-                @Override
-                public double execute(Map<String, Object> params1, double[] values) {
-                    params1.put("_values", values);
-                    return (double) script.apply(params1);
-                }
-            };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScoreScript.class)) {
             ScoreScript.Factory factory = new MockScoreScript(script);
@@ -313,6 +333,9 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(objectFieldScript);
+        } else if (context.instanceClazz.equals(DoubleValuesScript.class)) {
+            DoubleValuesScript.Factory doubleValuesScript = () -> new MockDoubleValuesScript();
+            return context.factoryClazz.cast(doubleValuesScript);
         }
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {
@@ -339,7 +362,6 @@ public class MockScriptEngine implements ScriptEngine {
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
-            MovingFunctionScript.CONTEXT,
             ScoreScript.CONTEXT,
             ScriptedMetricAggContexts.InitScript.CONTEXT,
             ScriptedMetricAggContexts.MapScript.CONTEXT,
@@ -802,6 +824,69 @@ public class MockScriptEngine implements ScriptEngine {
                     return String.valueOf(script.apply(vars));
                 }
             };
+        }
+    }
+
+    class MockBytesRefSortScriptFactory implements BytesRefSortScript.Factory {
+        private final MockDeterministicScript script;
+
+        MockBytesRefSortScriptFactory(MockDeterministicScript script) {
+            this.script = script;
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return script.isResultDeterministic();
+        }
+
+        @Override
+        public BytesRefSortScript.LeafFactory newFactory(Map<String, Object> parameters) {
+            return docReader -> new BytesRefSortScript(parameters, docReader) {
+                @Override
+                public BytesRefProducer execute() {
+                    Map<String, Object> vars = new HashMap<>(parameters);
+                    vars.put("params", parameters);
+                    vars.put("doc", getDoc());
+                    return (BytesRefProducer) script.apply(vars);
+                }
+            };
+        }
+    }
+
+    class MockDoubleValuesScript extends DoubleValuesScript {
+        @Override
+        public double execute() {
+            return 1.0;
+        }
+
+        @Override
+        public double evaluate(DoubleValues[] functionValues) {
+            return 1.0;
+        }
+
+        @Override
+        public DoubleValuesSource getDoubleValuesSource(Function<String, DoubleValuesSource> sourceProvider) {
+            return null;
+        }
+
+        @Override
+        public SortField getSortField(Function<String, DoubleValuesSource> sourceProvider, boolean reverse) {
+            return null;
+        }
+
+        @Override
+        public Rescorer getRescorer(Function<String, DoubleValuesSource> sourceProvider) {
+            return null;
+        }
+
+        @Override
+        public String sourceText() {
+            return null;
+        }
+
+        @Override
+        public String[] variables() {
+            return new String[0];
         }
     }
 }

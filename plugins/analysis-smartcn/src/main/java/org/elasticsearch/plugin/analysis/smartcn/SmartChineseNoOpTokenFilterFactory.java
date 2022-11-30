@@ -17,7 +17,7 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 public class SmartChineseNoOpTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public SmartChineseNoOpTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
     }
 
     @Override

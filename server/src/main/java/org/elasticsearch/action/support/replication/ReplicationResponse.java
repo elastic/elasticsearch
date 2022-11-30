@@ -135,10 +135,7 @@ public class ReplicationResponse extends ActionResponse {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
             out.writeVInt(successful);
-            out.writeVInt(failures.length);
-            for (Failure failure : failures) {
-                failure.writeTo(out);
-            }
+            out.writeArray(failures);
         }
 
         @Override

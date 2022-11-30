@@ -101,9 +101,9 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
         return new CacheIndexInputStats(
             fileExt,
             inputStats.getNumFiles(),
-            new ByteSizeValue(inputStats.getTotalSize()),
-            new ByteSizeValue(inputStats.getMinSize()),
-            new ByteSizeValue(inputStats.getMaxSize()),
+            ByteSizeValue.ofBytes(inputStats.getTotalSize()),
+            ByteSizeValue.ofBytes(inputStats.getMinSize()),
+            ByteSizeValue.ofBytes(inputStats.getMaxSize()),
             inputStats.getOpened().sum(),
             inputStats.getClosed().sum(),
             toCounter(inputStats.getForwardSmallSeeks()),

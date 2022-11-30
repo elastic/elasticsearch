@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Allow index allocation">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-allow-index-allocation"
+            id="cloud-allow-index-allocation">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-allow-index-allocation"
+            id="self-managed-allow-index-allocation"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-allow-index-allocation"
+       aria-labelledby="cloud-allow-index-allocation">
+++++
+
+include::enable-index-allocation.asciidoc[tag=cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-allow-index-allocation"
+       aria-labelledby="self-managed-allow-index-allocation"
+       hidden="">
+++++
+
+include::enable-index-allocation.asciidoc[tag=self-managed]
+
+++++
+  </div>
+</div>
+++++

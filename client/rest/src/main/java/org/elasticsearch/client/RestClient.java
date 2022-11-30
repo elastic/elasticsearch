@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.ConnectionClosedException;
+import org.apache.http.ContentTooLongException;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -298,7 +299,7 @@ public class RestClient implements Closeable {
             onFailure(context.node);
             Exception cause = extractAndWrapCause(e);
             addSuppressedException(previousException, cause);
-            if (tuple.nodes.hasNext()) {
+            if (isRetryableException(e) && tuple.nodes.hasNext()) {
                 return performRequest(tuple, request, cause);
             }
             if (cause instanceof IOException) {
@@ -414,7 +415,7 @@ public class RestClient implements Closeable {
                     try {
                         RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
                         onFailure(context.node);
-                        if (tuple.nodes.hasNext()) {
+                        if (isRetryableException(failure) && tuple.nodes.hasNext()) {
                             listener.trackFailure(failure);
                             performRequestAsync(tuple, request, listener);
                         } else {
@@ -512,9 +513,7 @@ public class RestClient implements Closeable {
                 return singletonList(Collections.min(selectedDeadNodes).node);
             }
         }
-        throw new IOException(
-            "NodeSelector [" + nodeSelector + "] rejected all nodes, " + "living " + livingNodes + " and dead " + deadNodes
-        );
+        throw new IOException("NodeSelector [" + nodeSelector + "] rejected all nodes, living " + livingNodes + " and dead " + deadNodes);
     }
 
     /**
@@ -561,6 +560,19 @@ public class RestClient implements Closeable {
 
     private static boolean isSuccessfulResponse(int statusCode) {
         return statusCode < 300;
+    }
+
+    /**
+     * Should an exception cause retrying the request?
+     */
+    private static boolean isRetryableException(Throwable e) {
+        if (e instanceof ExecutionException) {
+            e = e.getCause();
+        }
+        if (e instanceof ContentTooLongException) {
+            return false;
+        }
+        return true;
     }
 
     private static boolean isRetryStatus(int statusCode) {

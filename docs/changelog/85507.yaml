@@ -1,7 +1,0 @@
-pr: 85507
-summary: Avoiding watcher validation errors when a data stream points to more than
-  one index
-area: Watcher
-type: bug
-issues:
- - 85508

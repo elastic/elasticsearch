@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.annotations;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -35,6 +34,9 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 import java.util.List;
 import java.util.SortedMap;
 
+import static java.lang.Thread.currentThread;
+import static org.elasticsearch.ExceptionsHelper.formatStackTrace;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -149,11 +151,11 @@ public class AnnotationIndex {
             IndexAbstraction currentIndexAbstraction = mlLookup.get(LATEST_INDEX_NAME);
             if (currentIndexAbstraction == null) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "Creating [{}] because [{}] exists; trace {}",
+                    () -> format(
+                        "Creating [%s] because [%s] exists; trace %s",
                         LATEST_INDEX_NAME,
                         mlLookup.firstKey(),
-                        org.elasticsearch.ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace())
+                        formatStackTrace(currentThread().getStackTrace())
                     )
                 );
 

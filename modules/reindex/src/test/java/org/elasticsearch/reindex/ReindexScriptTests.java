@@ -9,6 +9,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -20,7 +21,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Tests index-by-search with a script modifying the documents.
+ * Tests reindex with a script modifying the documents.
  */
 public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTestCase<ReindexRequest, BulkByScrollResponse> {
 
@@ -33,8 +34,8 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
     public void testSettingIndexToNullIsError() throws Exception {
         try {
             applyScript((Map<String, Object> ctx) -> ctx.put("_index", null));
-        } catch (NullPointerException e) {
-            assertThat(e.getMessage(), containsString("Can't reindex without a destination index!"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("_index cannot be null"));
         }
     }
 
@@ -59,13 +60,17 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
     }
 
     public void testSettingVersionToJunkIsAnError() throws Exception {
-        Object junkVersion = randomFrom(new Object[] { "junk", Math.PI });
-        try {
-            applyScript((Map<String, Object> ctx) -> ctx.put("_version", junkVersion));
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("_version may only be set to an int or a long but was ["));
-            assertThat(e.getMessage(), containsString(junkVersion.toString()));
-        }
+        IllegalArgumentException err = expectThrows(
+            IllegalArgumentException.class,
+            () -> applyScript((Map<String, Object> ctx) -> ctx.put("_version", "junk"))
+        );
+        assertEquals(err.getMessage(), "_version [junk] is wrong type, expected assignable to [java.lang.Number], not [java.lang.String]");
+
+        err = expectThrows(IllegalArgumentException.class, () -> applyScript((Map<String, Object> ctx) -> ctx.put("_version", Math.PI)));
+        assertEquals(
+            err.getMessage(),
+            "_version may only be set to an int or a long but was [3.141592653589793] with type [java.lang.Double]"
+        );
     }
 
     public void testSetRouting() throws Exception {
@@ -76,12 +81,25 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
 
     @Override
     protected ReindexRequest request() {
-        return new ReindexRequest();
+        ReindexRequest request = new ReindexRequest();
+        request.getDestination().index("test");
+        return request;
     }
 
     @Override
     protected Reindexer.AsyncIndexBySearchAction action(ScriptService scriptService, ReindexRequest request) {
         ReindexSslConfig sslConfig = Mockito.mock(ReindexSslConfig.class);
-        return new Reindexer.AsyncIndexBySearchAction(task, logger, null, null, threadPool, scriptService, sslConfig, request, listener());
+        return new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            scriptService,
+            ClusterState.EMPTY_STATE,
+            sslConfig,
+            request,
+            listener()
+        );
     }
 }

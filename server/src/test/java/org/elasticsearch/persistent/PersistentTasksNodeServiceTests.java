@@ -109,6 +109,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
+            threadPool,
             persistentTasksService,
             registry,
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
@@ -224,6 +225,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
+            threadPool,
             persistentTasksService,
             registry,
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
@@ -285,7 +287,13 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         int nonLocalNodesCount = randomInt(10);
         MockExecutor executor = new MockExecutor();
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService, registry, taskManager, executor);
+        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
+            threadPool,
+            persistentTasksService,
+            registry,
+            taskManager,
+            executor
+        );
 
         ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
 
@@ -374,7 +382,13 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         int nonLocalNodesCount = randomInt(10);
         MockExecutor executor = new MockExecutor();
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService, registry, taskManager, executor);
+        PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
+            threadPool,
+            persistentTasksService,
+            registry,
+            taskManager,
+            executor
+        );
 
         ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
 
@@ -441,10 +455,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
 
         final Client mockClient = mock(Client.class);
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(mockClient.threadPool()).thenReturn(threadPool);
+        final ThreadPool mockThreadPool = mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(mockThreadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(mockClient.threadPool()).thenReturn(mockThreadPool);
         when(mockClient.settings()).thenReturn(Settings.EMPTY);
 
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, mockClient) {
@@ -476,9 +490,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
+            mockThreadPool,
             persistentTasksService,
             registry,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            new TaskManager(Settings.EMPTY, mockThreadPool, Collections.emptySet()),
             executor
         );
 

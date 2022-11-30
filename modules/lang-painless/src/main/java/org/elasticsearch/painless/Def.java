@@ -19,6 +19,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -146,6 +147,8 @@ public final class Def {
     /** factory for arraylength MethodHandle (intrinsic) from Java 9 (pkg-private for tests) */
     static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
+    public static final Map<Class<?>, MethodHandle> DEF_TO_BOXED_TYPE_IMPLICIT_CAST;
+
     static {
         final MethodHandles.Lookup methodHandlesLookup = MethodHandles.publicLookup();
 
@@ -182,6 +185,43 @@ public final class Def {
             arrayLengthMHFactory = null;
         }
         JAVA9_ARRAY_LENGTH_MH_FACTORY = arrayLengthMHFactory;
+
+        Map<Class<?>, MethodHandle> defToBoxedTypeImplicitCast = new HashMap<>();
+
+        try {
+            defToBoxedTypeImplicitCast.put(
+                Byte.class,
+                methodHandlesLookup.findStatic(Def.class, "defToByteImplicit", MethodType.methodType(Byte.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Short.class,
+                methodHandlesLookup.findStatic(Def.class, "defToShortImplicit", MethodType.methodType(Short.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Character.class,
+                methodHandlesLookup.findStatic(Def.class, "defToCharacterImplicit", MethodType.methodType(Character.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Integer.class,
+                methodHandlesLookup.findStatic(Def.class, "defToIntegerImplicit", MethodType.methodType(Integer.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Long.class,
+                methodHandlesLookup.findStatic(Def.class, "defToLongImplicit", MethodType.methodType(Long.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Float.class,
+                methodHandlesLookup.findStatic(Def.class, "defToFloatImplicit", MethodType.methodType(Float.class, Object.class))
+            );
+            defToBoxedTypeImplicitCast.put(
+                Double.class,
+                methodHandlesLookup.findStatic(Def.class, "defToDoubleImplicit", MethodType.methodType(Double.class, Object.class))
+            );
+        } catch (NoSuchMethodException | IllegalAccessException exception) {
+            throw new IllegalStateException(exception);
+        }
+
+        DEF_TO_BOXED_TYPE_IMPLICIT_CAST = Collections.unmodifiableMap(defToBoxedTypeImplicitCast);
     }
 
     /** Hack to rethrow unknown Exceptions from {@link MethodHandle#invokeExact}: */

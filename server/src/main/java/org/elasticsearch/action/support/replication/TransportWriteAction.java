@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
@@ -42,6 +41,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
@@ -262,6 +264,7 @@ public abstract class TransportWriteAction<
         public final Location location;
         public final IndexShard primary;
         private final Logger logger;
+        private final Consumer<Runnable> postWriteAction;
 
         public WritePrimaryResult(
             ReplicaRequest request,
@@ -271,10 +274,23 @@ public abstract class TransportWriteAction<
             IndexShard primary,
             Logger logger
         ) {
+            this(request, finalResponse, location, operationFailure, primary, logger, null);
+        }
+
+        public WritePrimaryResult(
+            ReplicaRequest request,
+            @Nullable Response finalResponse,
+            @Nullable Location location,
+            @Nullable Exception operationFailure,
+            IndexShard primary,
+            Logger logger,
+            @Nullable Consumer<Runnable> postWriteAction
+        ) {
             super(request, finalResponse, operationFailure);
             this.location = location;
             this.primary = primary;
             this.logger = logger;
+            this.postWriteAction = postWriteAction;
             assert location == null || operationFailure == null
                 : "expected either failure to be null or translog location to be null, "
                     + "but found: ["
@@ -304,7 +320,7 @@ public abstract class TransportWriteAction<
                     public void onFailure(Exception ex) {
                         listener.onFailure(ex);
                     }
-                }, logger).run();
+                }, logger, postWriteAction).run();
             }
         }
     }
@@ -317,6 +333,7 @@ public abstract class TransportWriteAction<
         private final ReplicaRequest request;
         private final IndexShard replica;
         private final Logger logger;
+        private final Consumer<Runnable> postWriteAction;
 
         public WriteReplicaResult(
             ReplicaRequest request,
@@ -325,11 +342,23 @@ public abstract class TransportWriteAction<
             IndexShard replica,
             Logger logger
         ) {
+            this(request, location, operationFailure, replica, logger, null);
+        }
+
+        public WriteReplicaResult(
+            ReplicaRequest request,
+            @Nullable Location location,
+            @Nullable Exception operationFailure,
+            IndexShard replica,
+            Logger logger,
+            Consumer<Runnable> postWriteAction
+        ) {
             super(operationFailure);
             this.location = location;
             this.request = request;
             this.replica = replica;
             this.logger = logger;
+            this.postWriteAction = postWriteAction;
         }
 
         @Override
@@ -347,7 +376,7 @@ public abstract class TransportWriteAction<
                     public void onFailure(Exception ex) {
                         listener.onFailure(ex);
                     }
-                }, logger).run();
+                }, logger, postWriteAction).run();
             }
         }
     }
@@ -395,13 +424,15 @@ public abstract class TransportWriteAction<
         private final IndexShard indexShard;
         private final WriteRequest<?> request;
         private final Logger logger;
+        private final Consumer<Runnable> postWriteAction;
 
         AsyncAfterWriteAction(
             final IndexShard indexShard,
             final WriteRequest<?> request,
             @Nullable final Translog.Location location,
             final RespondingWriteResult respond,
-            final Logger logger
+            final Logger logger,
+            @Nullable final Consumer<Runnable> postWriteAction
         ) {
             this.indexShard = indexShard;
             this.request = request;
@@ -425,7 +456,11 @@ public abstract class TransportWriteAction<
             this.waitUntilRefresh = waitUntilRefresh;
             this.respond = respond;
             this.location = location;
+            this.postWriteAction = postWriteAction;
             if ((sync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null)) {
+                pendingOps.incrementAndGet();
+            }
+            if (postWriteAction != null) {
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
@@ -471,6 +506,9 @@ public abstract class TransportWriteAction<
                     maybeFinish();
                 });
             }
+            if (postWriteAction != null) {
+                postWriteAction.accept(this::maybeFinish);
+            }
         }
     }
 
@@ -493,7 +531,7 @@ public abstract class TransportWriteAction<
             ActionListener<Void> listener
         ) {
             if (TransportActions.isShardNotAvailableException(exception) == false) {
-                logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
+                logger.warn(() -> format("[%s] %s", replica.shardId(), message), exception);
             }
             shardStateAction.remoteShardFailed(
                 replica.shardId(),

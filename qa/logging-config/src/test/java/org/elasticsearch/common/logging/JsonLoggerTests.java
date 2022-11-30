@@ -657,7 +657,7 @@ public class JsonLoggerTests extends ESTestCase {
             .build();
         // need to use custom config path so we can use a custom log4j2.properties file for the test
         final Environment environment = new Environment(mergedSettings, configDir);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
     }
 
     private Matcher<JsonLogLine> logLine(String type, Level level, String nodeName, String component, String message) {

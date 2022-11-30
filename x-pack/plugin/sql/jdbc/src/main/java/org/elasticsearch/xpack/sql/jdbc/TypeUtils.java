@@ -93,6 +93,7 @@ final class TypeUtils {
         types.put(EsType.BINARY, byte[].class);
         types.put(EsType.DATETIME, Timestamp.class);
         types.put(EsType.IP, String.class);
+        types.put(EsType.VERSION, String.class);
         types.put(EsType.INTERVAL_YEAR, Period.class);
         types.put(EsType.INTERVAL_MONTH, Period.class);
         types.put(EsType.INTERVAL_YEAR_TO_MONTH, Period.class);

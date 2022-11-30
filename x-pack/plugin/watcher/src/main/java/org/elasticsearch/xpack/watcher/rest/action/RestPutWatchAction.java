@@ -13,7 +13,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
@@ -57,7 +56,7 @@ public class RestPutWatchAction extends BaseRestHandler implements RestRequestFi
             public RestResponse buildResponse(PutWatchResponse response, XContentBuilder builder) throws Exception {
                 response.toXContent(builder, request);
                 RestStatus status = response.isCreated() ? CREATED : OK;
-                return new BytesRestResponse(status, builder);
+                return new RestResponse(status, builder);
             }
         });
     }

@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -58,8 +57,9 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
     public void testReroutesWhenRequested() throws InterruptedException {
         final AtomicLong rerouteCount = new AtomicLong();
-        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r) -> {
+        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
             rerouteCount.incrementAndGet();
+            l.onResponse(null);
             return s;
         });
 
@@ -80,7 +80,9 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
     public void testBatchesReroutesTogetherAtPriorityOfHighestSubmittedReroute() throws BrokenBarrierException, InterruptedException {
         final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
-        clusterService.submitStateUpdateTask("block master service", new ClusterStateUpdateTask() {
+        // notify test that we are blocked
+        // wait to be unblocked by test
+        clusterService.submitUnbatchedStateUpdateTask("block master service", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 cyclicBarrier.await(); // notify test that we are blocked
@@ -92,13 +94,14 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError("block master service", e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
 
         cyclicBarrier.await(); // wait for master thread to be blocked
 
         final AtomicBoolean rerouteExecuted = new AtomicBoolean();
-        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r) -> {
+        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
             assertTrue(rerouteExecuted.compareAndSet(false, true)); // only called once
+            l.onResponse(null);
             return s;
         });
 
@@ -134,7 +137,9 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 }
                 final String source = "other task " + i + " at " + priority;
                 actions.add(() -> {
-                    clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(priority) {
+                    // else this task might be submitted too late to precede the reroute
+                    // may run either before or after reroute
+                    clusterService.submitUnbatchedStateUpdateTask(source, new ClusterStateUpdateTask(priority) {
 
                         @Override
                         public ClusterState execute(ClusterState currentState) {
@@ -167,7 +172,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             tasksCompletedCountDown.countDown();
                         }
-                    }, ClusterStateTaskExecutor.unbatched());
+                    });
                     if (submittedConcurrentlyWithReroute) {
                         tasksSubmittedCountDown.countDown();
                     }
@@ -185,27 +190,26 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
     public void testNotifiesOnFailure() throws InterruptedException {
 
-        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r) -> {
+        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
             if (rarely()) {
                 throw new ElasticsearchException("simulated");
             }
+            l.onResponse(null);
             return randomBoolean() ? s : ClusterState.builder(s).build();
         });
 
         final int iterations = between(1, 100);
         final CountDownLatch countDownLatch = new CountDownLatch(iterations);
         for (int i = 0; i < iterations; i++) {
-            batchedRerouteService.reroute("iteration " + i, randomFrom(EnumSet.allOf(Priority.class)), ActionListener.wrap(r -> {
-                countDownLatch.countDown();
-                if (rarely()) {
-                    throw new ElasticsearchException("failure during notification");
-                }
-            }, e -> {
-                countDownLatch.countDown();
-                if (randomBoolean()) {
-                    throw new ElasticsearchException("failure during failure notification", e);
-                }
-            }));
+            batchedRerouteService.reroute(
+                "iteration " + i,
+                randomFrom(EnumSet.allOf(Priority.class)),
+                ActionListener.runAfter(ActionListener.wrap(r -> {
+                    if (rarely()) {
+                        throw new ElasticsearchException("failure during notification");
+                    }
+                }, e -> {}), countDownLatch::countDown)
+            );
             if (rarely()) {
                 clusterService.getMasterService()
                     .setClusterStatePublisher(

@@ -48,7 +48,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     @Before
     public void init() {
-        ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        ingestDocument = TestIngestDocument.emptyIngestDocument();
         resultList = new ArrayList<>();
     }
 

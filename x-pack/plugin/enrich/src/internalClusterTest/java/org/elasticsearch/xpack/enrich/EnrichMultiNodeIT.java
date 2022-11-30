@@ -313,10 +313,10 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     private static void createPipeline() {
-        String pipelineBody = """
+        String pipelineBody = formatted("""
             {
               "processors": [ { "enrich": { "policy_name": "%s", "field": "%s", "target_field": "user" } } ]
-            }""".formatted(POLICY_NAME, MATCH_FIELD);
+            }""", POLICY_NAME, MATCH_FIELD);
         PutPipelineRequest request = new PutPipelineRequest(PIPELINE_NAME, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(request).actionGet();
     }

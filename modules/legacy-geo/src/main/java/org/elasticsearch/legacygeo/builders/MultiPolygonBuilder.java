@@ -63,10 +63,7 @@ public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygon, Multi
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         orientation.writeTo(out);
-        out.writeVInt(polygons.size());
-        for (PolygonBuilder polygon : polygons) {
-            polygon.writeTo(out);
-        }
+        out.writeList(polygons);
     }
 
     public Orientation orientation() {

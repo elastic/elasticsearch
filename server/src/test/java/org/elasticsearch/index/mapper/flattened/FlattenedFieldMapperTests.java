@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlatte
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -59,13 +60,18 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((FlattenedFieldMapper) m).ignoreAbove()));
         checker.registerUpdateCheck(
             b -> b.field("split_queries_on_whitespace", true),
-            m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name())
+            m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
         checker.registerUpdateCheck(b -> b.field("depth_limit", 10), m -> assertEquals(10, ((FlattenedFieldMapper) m).depthLimit()));
     }
 
     @Override
     protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
         return false;
     }
 
@@ -168,6 +174,82 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.nullField("field")));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
+    }
+
+    public void testBlankFieldName() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("", "value").endObject()));
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+    }
+
+    public void testDotOnlyFieldName() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(
+            source(b -> b.startObject("field").field(".", "value1").field("..", "value2").field("...", "value3").endObject())
+        );
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(6, fields.length);
+    }
+
+    public void testMixOfOrdinaryAndFlattenedFields() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            topMapping(
+                b -> b.field("dynamic", "strict")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "flattened")
+                    .endObject()
+                    .startObject("a")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("b")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("c")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .startObject("d")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("e")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ParsedDocument parsedDoc = mapper.parse(
+            source(
+                b -> b.startObject("field")
+                    .field("", "value")
+                    .field("subfield1", "value1")
+                    .field("subfield2", "value2")
+                    .endObject()
+                    .startObject("a")
+                    .startObject("b")
+                    .field("c", "value3")
+                    .endObject()
+                    .endObject()
+                    .field("d.e", "value4")
+            )
+        );
+        assertNull(parsedDoc.dynamicMappingsUpdate());
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(6, fields.length);
+        fields = parsedDoc.rootDoc().getFields("a.b");
+        assertEquals(0, fields.length);
+        fields = parsedDoc.rootDoc().getFields("a.b.c");
+        assertEquals(2, fields.length);
+        fields = parsedDoc.rootDoc().getFields("d");
+        assertEquals(0, fields.length);
+        fields = parsedDoc.rootDoc().getFields("d.e");
+        assertEquals(2, fields.length);
     }
 
     public void testMalformedJson() throws Exception {
@@ -380,16 +462,16 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }));
 
         RootFlattenedFieldType rootFieldType = (RootFlattenedFieldType) mapperService.fieldType("field");
-        assertThat(rootFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
+        assertThat(rootFieldType.getTextSearchInfo().searchAnalyzer().name(), equalTo("_whitespace"));
         assertTokenStreamContents(
-            rootFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            rootFieldType.getTextSearchInfo().searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "Hello", "World" }
         );
 
         KeyedFlattenedFieldType keyedFieldType = (KeyedFlattenedFieldType) mapperService.fieldType("field.key");
-        assertThat(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
+        assertThat(keyedFieldType.getTextSearchInfo().searchAnalyzer().name(), equalTo("_whitespace"));
         assertTokenStreamContents(
-            keyedFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            keyedFieldType.getTextSearchInfo().searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "Hello", "World" }
         );
     }
@@ -420,5 +502,23 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals(new BytesRef("value"), fields[0].binaryValue());
         IndexableField[] keyed = doc.rootDoc().getFields("a.b.c._keyed");
         assertEquals(new BytesRef("d\0value"), keyed[0].binaryValue());
+    }
+
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

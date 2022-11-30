@@ -14,6 +14,7 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -172,8 +173,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
     }
 
     /**
@@ -236,10 +237,10 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         @Override
         protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
             if (script.get() == null) {
-                return createRuntimeField(getParseFromSourceFactory());
+                return createRuntimeField(getParseFromSourceFactory(), parserContext.indexVersionCreated());
             }
             Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
-            return createRuntimeField(factory);
+            return createRuntimeField(factory, parserContext.indexVersionCreated());
         }
 
         @Override
@@ -262,11 +263,25 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory) {
-            AbstractScriptFieldType<?> fieldType = createFieldType(name, scriptFactory, getScript(), meta());
+            return createRuntimeField(scriptFactory, Version.CURRENT);
+        }
+
+        final RuntimeField createRuntimeField(Factory scriptFactory, Version indexVersion) {
+            var fieldType = createFieldType(name, scriptFactory, getScript(), meta(), indexVersion);
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
         abstract AbstractScriptFieldType<?> createFieldType(String name, Factory factory, Script script, Map<String, String> meta);
+
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            Factory factory,
+            Script script,
+            Map<String, String> meta,
+            Version supportedVersion
+        ) {
+            return createFieldType(name, factory, script, meta);
+        }
 
         @Override
         protected List<FieldMapper.Parameter<?>> getParameters() {

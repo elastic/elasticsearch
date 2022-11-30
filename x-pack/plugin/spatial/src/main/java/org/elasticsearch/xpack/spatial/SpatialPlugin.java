@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.spatial.action.SpatialUsageTransportAction;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
+import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder;
@@ -61,8 +62,18 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoSha
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.InternalGeoHexGrid;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianBoundsAggregationBuilder;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianBoundsAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianCentroidAggregationBuilder;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianCentroidAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianShapeBoundsAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianBounds;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianCentroid;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -72,14 +83,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static java.util.Collections.singletonList;
-
 public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin, SearchPlugin, IngestPlugin, ExtensiblePlugin {
     private final SpatialUsage usage = new SpatialUsage();
 
     private final LicensedFeature.Momentary GEO_CENTROID_AGG_FEATURE = LicensedFeature.momentary(
         "spatial",
         "geo-centroid-agg",
+        License.OperationMode.GOLD
+    );
+    private final LicensedFeature.Momentary CARTESIAN_CENTROID_AGG_FEATURE = LicensedFeature.momentary(
+        "spatial",
+        "cartesian-centroid-agg",
         License.OperationMode.GOLD
     );
     private final LicensedFeature.Momentary GEO_GRID_AGG_FEATURE = LicensedFeature.momentary(
@@ -130,7 +144,10 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        return singletonList(new QuerySpec<>(ShapeQueryBuilder.NAME, ShapeQueryBuilder::new, ShapeQueryBuilder::fromXContent));
+        return List.of(
+            new QuerySpec<>(ShapeQueryBuilder.NAME, ShapeQueryBuilder::new, ShapeQueryBuilder::fromXContent),
+            new QuerySpec<>(GeoGridQueryBuilder.NAME, GeoGridQueryBuilder::new, GeoGridQueryBuilder::fromXContent)
+        );
     }
 
     @Override
@@ -156,7 +173,17 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 GeoHexGridAggregationBuilder.NAME,
                 GeoHexGridAggregationBuilder::new,
                 usage.track(SpatialStatsAction.Item.GEOHEX, checkLicense(GeoHexGridAggregationBuilder.PARSER, GEO_HEX_AGG_FEATURE))
-            ).addResultReader(InternalGeoHexGrid::new).setAggregatorRegistrar(this::registerGeoHexGridAggregator)
+            ).addResultReader(InternalGeoHexGrid::new).setAggregatorRegistrar(this::registerGeoHexGridAggregator),
+            new AggregationSpec(
+                CartesianCentroidAggregationBuilder.NAME,
+                CartesianCentroidAggregationBuilder::new,
+                usage.track(SpatialStatsAction.Item.CARTESIANCENTROID, CartesianCentroidAggregationBuilder.PARSER)
+            ).addResultReader(InternalCartesianCentroid::new).setAggregatorRegistrar(this::registerCartesianCentroidAggregator),
+            new AggregationSpec(
+                CartesianBoundsAggregationBuilder.NAME,
+                CartesianBoundsAggregationBuilder::new,
+                usage.track(SpatialStatsAction.Item.CARTESIANBOUNDS, CartesianBoundsAggregationBuilder.PARSER)
+            ).addResultReader(InternalCartesianBounds::new).setAggregatorRegistrar(SpatialPlugin::registerCartesianBoundsAggregators)
         );
     }
 
@@ -174,6 +201,21 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
         );
     }
 
+    private static void registerCartesianBoundsAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            CartesianBoundsAggregationBuilder.REGISTRY_KEY,
+            CartesianShapeValuesSourceType.instance(),
+            CartesianShapeBoundsAggregator::new,
+            true
+        );
+        builder.register(
+            CartesianBoundsAggregationBuilder.REGISTRY_KEY,
+            CartesianPointValuesSourceType.instance(),
+            CartesianBoundsAggregator::new,
+            true
+        );
+    }
+
     private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(
             GeoCentroidAggregationBuilder.REGISTRY_KEY,
@@ -182,8 +224,30 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                 if (GEO_CENTROID_AGG_FEATURE.check(getLicenseState())) {
                     return new GeoShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
                 }
-                throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
+                throw LicenseUtils.newComplianceException(GeoCentroidAggregationBuilder.NAME + " aggregation on geo_shape fields");
             },
+            true
+        );
+    }
+
+    private void registerCartesianCentroidAggregator(ValuesSourceRegistry.Builder builder) {
+        // Only aggregations over the shape type are licensed at Gold/Platinum level
+        builder.register(
+            CartesianCentroidAggregationBuilder.REGISTRY_KEY,
+            CartesianShapeValuesSourceType.instance(),
+            (name, valuesSourceConfig, context, parent, metadata) -> {
+                if (CARTESIAN_CENTROID_AGG_FEATURE.check(getLicenseState())) {
+                    return new CartesianShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
+                }
+                throw LicenseUtils.newComplianceException(CartesianCentroidAggregationBuilder.NAME + " aggregation on shape fields");
+            },
+            true
+        );
+        // Points are licensed at the default level (Basic)
+        builder.register(
+            CartesianCentroidAggregationBuilder.REGISTRY_KEY,
+            CartesianPointValuesSourceType.instance(),
+            CartesianCentroidAggregator::new,
             true
         );
     }
@@ -322,7 +386,21 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     }
 
     private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), CardinalityAggregator::new, true);
+        builder.register(
+            CardinalityAggregationBuilder.REGISTRY_KEY,
+            GeoShapeValuesSourceType.instance(),
+            (name, valuesSourceConfig, precision, executionMode, context, parent, metadata) -> new CardinalityAggregator(
+                name,
+                valuesSourceConfig,
+                precision,
+                // Force execution mode to null
+                null,
+                context,
+                parent,
+                metadata
+            ),
+            true
+        );
     }
 
     private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser, LicensedFeature.Momentary feature) {

@@ -207,6 +207,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final SystemIndices systemIndices,
         Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
+        var metadata = simulatedState.getMetadata();
         Settings templateSettings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(
@@ -222,6 +223,15 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
+        // empty request mapping as the user can't specify any explicit mappings via the simulate api
+        List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
+            null,
+            simulatedState,
+            matchingTemplate,
+            xContentRegistry,
+            indexName
+        );
+
         // First apply settings sourced from index settings providers
         final var now = Instant.now();
         Settings.Builder additionalSettings = Settings.builder();
@@ -229,10 +239,11 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
-                template.getDataStreamTemplate() != null ? template.getDataStreamTemplate().getIndexMode() : null,
+                template.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(template),
                 simulatedState.getMetadata(),
                 now,
-                templateSettings
+                templateSettings,
+                mappings
             );
             dummySettings.put(result);
             additionalSettings.put(result);
@@ -263,15 +274,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         );
 
         Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
-
-        // empty request mapping as the user can't specify any explicit mappings via the simulate api
-        List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
-            null,
-            simulatedState,
-            matchingTemplate,
-            xContentRegistry,
-            indexName
-        );
 
         CompressedXContent mergedMapping = indicesService.<CompressedXContent, Exception>withTempIndexService(
             indexMetadata,

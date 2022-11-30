@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -16,7 +15,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -34,6 +32,8 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNodeAction<WatcherServiceRequest> {
 
@@ -71,7 +71,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
 
         // TODO: make WatcherServiceRequest a real AckedRequest so that we have both a configurable timeout and master node timeout like
         // we do elsewhere
-        clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask(new AckedRequest() {
+        submitUnbatchedTask(source, new AckedClusterStateUpdateTask(new AckedRequest() {
             @Override
             public TimeValue ackTimeout() {
                 return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
@@ -101,13 +101,10 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(
-                    new ParameterizedMessage("could not update watcher stopped status to [{}], source [{}]", manuallyStopped, source),
-                    e
-                );
+                logger.error(() -> format("could not update watcher stopped status to [%s], source [%s]", manuallyStopped, source), e);
                 listener.onFailure(e);
             }
-        }, newExecutor());
+        });
     }
 
     @Override
@@ -116,7 +113,8 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
+
 }

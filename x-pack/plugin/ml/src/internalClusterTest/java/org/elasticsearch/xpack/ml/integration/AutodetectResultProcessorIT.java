@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -134,7 +134,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             ReindexPlugin.class,
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
-            IndexLifecycle.class
+            IndexLifecycle.class,
+            MapperExtrasPlugin.class
         );
     }
 
@@ -162,7 +163,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp, null);
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
         resultProcessor = new AutodetectResultProcessor(
@@ -282,13 +283,10 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // 1. one related to creating model snapshot
         // 2. one for {@link Annotation} result
         List<Annotation> annotations = getAnnotations();
-        assertThat("Annotations were: " + annotations.toString(), annotations, hasSize(2));
+        assertThat("Annotations were: " + annotations, annotations, hasSize(2));
         assertThat(
             annotations.stream().map(Annotation::getAnnotation).collect(toList()),
-            containsInAnyOrder(
-                new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage(),
-                annotation.getAnnotation()
-            )
+            containsInAnyOrder("Job model snapshot with id [" + modelSnapshot.getSnapshotId() + "] stored", annotation.getAnnotation())
         );
     }
 
@@ -309,11 +307,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertThat(annotations, hasSize(1));
         assertThat(
             annotations.get(0).getAnnotation(),
-            is(
-                equalTo(
-                    new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage()
-                )
-            )
+            is(equalTo("Job model snapshot with id [" + modelSnapshot.getSnapshotId() + "] stored"))
         );
 
         // Verify that deleting model snapshot also deletes associated annotation
@@ -322,16 +316,16 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     public void testProcessResults_TimingStats() throws Exception {
-        ResultsBuilder resultsBuilder = new ResultsBuilder().addBucket(createBucket(true, 100))
-            .addBucket(createBucket(true, 1000))
-            .addBucket(createBucket(true, 100))
-            .addBucket(createBucket(true, 1000))
-            .addBucket(createBucket(true, 100))
-            .addBucket(createBucket(true, 1000))
-            .addBucket(createBucket(true, 100))
-            .addBucket(createBucket(true, 1000))
-            .addBucket(createBucket(true, 100))
-            .addBucket(createBucket(true, 1000));
+        ResultsBuilder resultsBuilder = new ResultsBuilder().addBucket(createBucket(false, 100))
+            .addBucket(createBucket(false, 1000))
+            .addBucket(createBucket(false, 100))
+            .addBucket(createBucket(false, 1000))
+            .addBucket(createBucket(false, 100))
+            .addBucket(createBucket(false, 1000))
+            .addBucket(createBucket(false, 100))
+            .addBucket(createBucket(false, 1000))
+            .addBucket(createBucket(false, 100))
+            .addBucket(createBucket(false, 1000));
         when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
         resultProcessor.process();
@@ -344,6 +338,24 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertThat(timingStats.getMaxBucketProcessingTimeMs(), equalTo(1000.0));
         assertThat(timingStats.getAvgBucketProcessingTimeMs(), equalTo(550.0));
         assertThat(timingStats.getExponentialAvgBucketProcessingTimeMs(), closeTo(143.244, 1e-3));
+    }
+
+    public void testProcessResults_InterimResultsDoNotChangeTimingStats() throws Exception {
+        ResultsBuilder resultsBuilder = new ResultsBuilder().addBucket(createBucket(true, 100))
+            .addBucket(createBucket(true, 100))
+            .addBucket(createBucket(true, 100))
+            .addBucket(createBucket(false, 10000));
+        when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
+
+        resultProcessor.process();
+        resultProcessor.awaitCompletion();
+
+        TimingStats timingStats = resultProcessor.timingStats();
+        assertThat(timingStats.getBucketCount(), equalTo(1L));
+        assertThat(timingStats.getMinBucketProcessingTimeMs(), equalTo(10000.0));
+        assertThat(timingStats.getMaxBucketProcessingTimeMs(), equalTo(10000.0));
+        assertThat(timingStats.getAvgBucketProcessingTimeMs(), equalTo(10000.0));
+        assertThat(timingStats.getExponentialAvgBucketProcessingTimeMs(), closeTo(10000.0, 1e-3));
     }
 
     public void testParseQuantiles_GivenRenormalizationIsEnabled() throws Exception {
@@ -672,6 +684,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 errorHolder.set(e);
                 latch.countDown();
             },
+            null,
+            null,
             client()
         );
         latch.await();

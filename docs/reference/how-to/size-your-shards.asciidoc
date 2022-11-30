@@ -55,14 +55,14 @@ thread pool>>. This can result in low throughput and slow search speeds.
 
 [discrete]
 [[each-shard-has-overhead]]
-==== Each index and shard has overhead
+==== Each index, shard, segment and field has overhead
 
 Every index and every shard requires some memory and CPU resources. In most
 cases, a small set of large shards uses fewer resources than many small shards.
 
 Segments play a big role in a shard's resource usage. Most shards contain
-several segments, which store its index data. {es} keeps segment metadata in
-JVM heap memory so it can be quickly retrieved for searches. As a shard grows,
+several segments, which store its index data. {es} keeps some segment metadata
+in heap memory so it can be quickly retrieved for searches. As a shard grows,
 its segments are <<index-modules-merge,merged>> into fewer, larger segments.
 This decreases the number of segments, which means less metadata is kept in
 heap memory.
@@ -71,6 +71,13 @@ Every mapped field also carries some overhead in terms of memory usage and disk
 space. By default {es} will automatically create a mapping for every field in
 every document it indexes, but you can switch off this behaviour to
 <<explicit-mapping,take control of your mappings>>.
+
+Moreover every segment requires a small amount of heap memory for each mapped
+field. This per-segment-per-field heap overhead includes a copy of the field
+name, encoded using ISO-8859-1 if applicable or UTF-16 otherwise. Usually this
+is not noticeable, but you may need to account for this overhead if your shards
+have high segment counts and the corresponding mappings contain high field
+counts and/or very long field names.
 
 [discrete]
 [[shard-auto-balance]]
@@ -175,24 +182,32 @@ index                                 prirep shard store
 
 [discrete]
 [[shard-count-recommendation]]
-==== Aim for 20 shards or fewer per GB of heap memory
+==== Master-eligible nodes should have at least 1GB of heap per 3000 indices
 
-The number of shards a data node can hold is proportional to the node's heap
-memory. For example, a node with 30GB of heap memory should have at most 600
-shards. The further below this limit you can keep your nodes, the better. If
-you find your nodes exceeding more than 20 shards per GB, consider adding
-another node.
+The number of indices a master node can manage is proportional to its heap
+size. The exact amount of heap memory needed for each index depends on various
+factors such as the size of the mapping and the number of shards per index.
 
-Some system indices for {enterprise-search-ref}/index.html[Enterprise Search]
-are nearly empty and rarely used. Due to their low overhead, you shouldn't
-count shards for these indices toward a node's shard limit.
+As a general rule of thumb, you should have fewer than 3000 indices per GB of
+heap on master nodes. For example, if your cluster has dedicated master nodes
+with 4GB of heap each then you should have fewer than 12000 indices. If your
+master nodes are not dedicated master nodes then the same sizing guidance
+applies: you should reserve at least 1GB of heap on each master-eligible node
+for every 3000 indices in your cluster.
 
-To check the current size of each node's heap, use the <<cat-nodes,cat nodes
+Note that this rule defines the absolute maximum number of indices that a
+master node can manage, but does not guarantee the performance of searches or
+indexing involving this many indices. You must also ensure that your data nodes
+have adequate resources for your workload and that your overall sharding
+strategy meets all your performance requirements. See also
+<<single-thread-per-shard>> and <<each-shard-has-overhead>>.
+
+To check the configured size of each node's heap, use the <<cat-nodes,cat nodes
 API>>.
 
 [source,console]
 ----
-GET _cat/nodes?v=true&h=heap.current
+GET _cat/nodes?v=true&h=heap.max
 ----
 // TEST[setup:my_index]
 
@@ -204,6 +219,131 @@ node.
 GET _cat/shards?v=true
 ----
 // TEST[setup:my_index]
+
+[discrete]
+[[field-count-recommendation]]
+==== Allow enough heap for field mappers and overheads
+
+Mapped fields consume some heap memory on each node, and require extra
+heap on data nodes.
+Ensure each node has enough heap for mappings, and also allow
+extra space for overheads associated with its workload. The following sections
+show how to determine these heap requirements.
+
+[discrete]
+===== Mapping metadata in the cluster state
+
+Each node in the cluster has a copy of the <<cluster-state-api-desc,cluster state>>.
+The cluster state includes information about the field mappings for
+each index. This information has heap overhead. You can use the
+<<cluster-stats,Cluster stats API>> to get the heap overhead of the total size of
+all mappings after deduplication and compression.
+
+[source,console]
+----
+GET _cluster/stats?human&filter_path=indices.mappings.total_deduplicated_mapping_size*
+----
+// TEST[setup:node]
+
+This will show you information like in this example output:
+
+[source,console-result]
+----
+{
+  "indices": {
+    "mappings": {
+      "total_deduplicated_mapping_size": "1gb",
+      "total_deduplicated_mapping_size_in_bytes": 1073741824
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"total_deduplicated_mapping_size": "1gb"/"total_deduplicated_mapping_size": $body.$_path/]
+// TESTRESPONSE[s/"total_deduplicated_mapping_size_in_bytes": 1073741824/"total_deduplicated_mapping_size_in_bytes": $body.$_path/]
+
+[discrete]
+===== Retrieving heap size and field mapper overheads
+
+You can use the <<cluster-nodes-stats,Nodes stats API>> to get two relevant metrics
+for each node:
+
+* The size of the heap on each node.
+
+* Any additional estimated heap overhead for the fields per node. This is specific to
+data nodes, where apart from the cluster state field information mentioned above,
+there is additional heap overhead for each mapped field of an index held by the data
+node. For nodes which are not data nodes, this field may be zero.
+
+[source,console]
+----
+GET _nodes/stats?human&filter_path=nodes.*.name,nodes.*.indices.mappings.total_estimated_overhead*,nodes.*.jvm.mem.heap_max*
+----
+// TEST[setup:node]
+
+For each node, this will show you information like in this example output:
+
+[source,console-result]
+----
+{
+  "nodes": {
+    "USpTGYaBSIKbgSUJR2Z9lg": {
+      "name": "node-0",
+      "indices": {
+        "mappings": {
+          "total_estimated_overhead": "1gb",
+          "total_estimated_overhead_in_bytes": 1073741824
+        }
+      },
+      "jvm": {
+        "mem": {
+          "heap_max": "4gb",
+          "heap_max_in_bytes": 4294967296
+        }
+      }
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"USpTGYaBSIKbgSUJR2Z9lg"/\$node_name/]
+// TESTRESPONSE[s/"name": "node-0"/"name": $body.$_path/]
+// TESTRESPONSE[s/"total_estimated_overhead": "1gb"/"total_estimated_overhead": $body.$_path/]
+// TESTRESPONSE[s/"total_estimated_overhead_in_bytes": 1073741824/"total_estimated_overhead_in_bytes": $body.$_path/]
+// TESTRESPONSE[s/"heap_max": "4gb"/"heap_max": $body.$_path/]
+// TESTRESPONSE[s/"heap_max_in_bytes": 4294967296/"heap_max_in_bytes": $body.$_path/]
+
+[discrete]
+===== Consider additional heap overheads
+
+Apart from the two field overhead metrics above, you must additionally allow
+enough heap for {es}'s baseline usage as well as your workload such as indexing,
+searches and aggregations. 0.5GB of extra heap will suffice for many reasonable
+workloads, and you may need even less if your workload is very light while heavy
+workloads may require more.
+
+[discrete]
+===== Example
+
+As an example, consider the outputs above for a data node. The heap of the node
+will need at least:
+
+* 1 GB for the cluster state field information.
+
+* 1 GB for the additional estimated heap overhead for the fields of the data node.
+
+* 0.5 GB of extra heap for other overheads.
+
+Since the node has a 4GB heap max size in the example, it is thus sufficient
+for the total required heap of 2.5GB.
+
+If the heap max size for a node is not sufficient, consider
+<<avoid-unnecessary-fields,avoiding unnecessary fields>>,
+or scaling up the cluster, or redistributing index shards.
+
+Note that the above rules do not necessarily guarantee the performance of
+searches or indexing involving a very high number of indices. You must also
+ensure that your data nodes have adequate resources for your workload and
+that your overall sharding strategy meets all your performance requirements.
+See also <<single-thread-per-shard>> and <<each-shard-has-overhead>>.
 
 [discrete]
 [[avoid-node-hotspots]]

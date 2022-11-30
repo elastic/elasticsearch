@@ -83,7 +83,10 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         return ranges;
     }
 
-    private static void sortRanges(final Range[] ranges) {
+    /**
+     * Sort the provided ranges in place.
+     */
+    static void sortRanges(final Range[] ranges) {
         new InPlaceMergeSorter() {
 
             @Override
@@ -106,10 +109,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(ranges.size());
-        for (Range range : ranges) {
-            range.writeTo(out);
-        }
+        out.writeList(ranges);
         out.writeBoolean(keyed);
     }
 

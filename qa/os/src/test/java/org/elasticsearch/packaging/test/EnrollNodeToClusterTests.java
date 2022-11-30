@@ -21,7 +21,6 @@ import java.util.List;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeTrue;
 
@@ -35,16 +34,6 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
     public void test10Install() throws Exception {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
-    }
-
-    public void test20EnrollToClusterWithEmptyTokenValue() throws Exception {
-        Shell.Result result = Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment-token"), false);
-        // something in our tests wrap the error code to 1 on windows
-        // TODO investigate this and remove this guard
-        if (distribution.platform != Distribution.Platform.WINDOWS) {
-            assertThat(result.exitCode(), equalTo(ExitCodes.USAGE));
-        }
-        verifySecurityNotAutoConfigured(installation);
     }
 
     public void test30EnrollToClusterWithInvalidToken() throws Exception {
@@ -98,43 +87,6 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             assertThat(result.exitCode(), equalTo(ExitCodes.NOOP));
         }
         Platforms.onWindows(() -> sh.chown(installation.config));
-    }
-
-    public void test60MultipleValuesForEnrollmentToken() throws Exception {
-        // if invoked with --enrollment-token tokenA tokenB tokenC, only tokenA is read
-        Shell.Result result = Archives.runElasticsearchStartCommand(
-            installation,
-            sh,
-            null,
-            List.of("--enrollment-token", generateMockEnrollmentToken(), "some-other-token", "some-other-token", "some-other-token"),
-            false
-        );
-        // Assert we used the first value which is a proper enrollment token but failed because the node is already configured ( 80 )
-        // something in our tests wrap the error code to 1 on windows
-        // TODO investigate this and remove this guard
-        if (distribution.platform != Distribution.Platform.WINDOWS) {
-            assertThat(result.exitCode(), equalTo(ExitCodes.NOOP));
-        }
-    }
-
-    public void test70MultipleParametersForEnrollmentTokenAreNotAllowed() throws Exception {
-        // if invoked with --enrollment-token tokenA --enrollment-token tokenB --enrollment-token tokenC, we exit
-        Shell.Result result = Archives.runElasticsearchStartCommand(
-            installation,
-            sh,
-            null,
-            List.of(
-                "--enrollment-token",
-                "some-other-token",
-                "--enrollment-token",
-                "some-other-token",
-                "--enrollment-token",
-                generateMockEnrollmentToken()
-            ),
-            false
-        );
-        assertThat(result.stderr(), containsString("Multiple --enrollment-token parameters are not allowed"));
-        assertThat(result.exitCode(), equalTo(1));
     }
 
     private String generateMockEnrollmentToken() throws Exception {

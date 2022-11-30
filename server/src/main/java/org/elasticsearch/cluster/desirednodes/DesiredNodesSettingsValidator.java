@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.desirednodes;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DesiredNode;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -23,15 +22,9 @@ import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
-import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
 public class DesiredNodesSettingsValidator {
-    private record DesiredNodeValidationError(int position, @Nullable String externalId, RuntimeException exception) {
-        public String externalId() {
-            return externalId == null ? "<missing>" : externalId;
-        }
-    }
+    private record DesiredNodeValidationError(int position, @Nullable String externalId, RuntimeException exception) {}
 
     private final ClusterSettings clusterSettings;
 
@@ -39,9 +32,8 @@ public class DesiredNodesSettingsValidator {
         this.clusterSettings = clusterSettings;
     }
 
-    public void validate(DesiredNodes desiredNodes) {
+    public void validate(List<DesiredNode> nodes) {
         final List<DesiredNodeValidationError> validationErrors = new ArrayList<>();
-        final List<DesiredNode> nodes = desiredNodes.nodes();
         for (int i = 0; i < nodes.size(); i++) {
             final DesiredNode node = nodes.get(i);
             try {
@@ -82,12 +74,6 @@ public class DesiredNodesSettingsValidator {
             );
         }
 
-        if (node.externalId() == null) {
-            throw new IllegalArgumentException(
-                format(Locale.ROOT, "[%s] or [%s] is missing or empty", NODE_NAME_SETTING.getKey(), NODE_EXTERNAL_ID_SETTING.getKey())
-            );
-        }
-
         // Validating settings for future versions can be unsafe:
         // - If the legal range is upgraded in the newer version
         // - If a new setting is used as the default value for a previous setting
@@ -103,8 +89,16 @@ public class DesiredNodesSettingsValidator {
         // we create a new setting just to run the validations using the desired node
         // number of available processors
         if (settings.hasValue(NODE_PROCESSORS_SETTING.getKey())) {
-            Setting.intSetting(NODE_PROCESSORS_SETTING.getKey(), node.processors(), 1, node.processors(), Setting.Property.NodeScope)
-                .get(settings);
+            int minProcessors = node.roundedDownMinProcessors();
+            Integer roundedUpMaxProcessors = node.roundedUpMaxProcessors();
+            int maxProcessors = roundedUpMaxProcessors == null ? minProcessors : roundedUpMaxProcessors;
+            Setting.doubleSetting(
+                NODE_PROCESSORS_SETTING.getKey(),
+                minProcessors,
+                Double.MIN_VALUE,
+                maxProcessors,
+                Setting.Property.NodeScope
+            ).get(settings);
             final Settings.Builder updatedSettings = Settings.builder().put(settings);
             updatedSettings.remove(NODE_PROCESSORS_SETTING.getKey());
             settings = updatedSettings.build();

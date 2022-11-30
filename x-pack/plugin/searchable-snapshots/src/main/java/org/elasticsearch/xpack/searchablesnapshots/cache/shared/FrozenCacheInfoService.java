@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,6 +25,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Keeps track of the nodes in the cluster and whether they do or do not have a frozen-tier shared cache, because we can only allocate
@@ -122,7 +123,7 @@ public class FrozenCacheInfoService {
 
         @Override
         public void onFailure(Exception e) {
-            logger.debug(new ParameterizedMessage("--> failed fetching frozen cache info from [{}]", discoveryNode), e);
+            logger.debug(() -> "--> failed fetching frozen cache info from [" + discoveryNode + "]", e);
             // Failed even to execute the nodes info action, just give up
             updateEntry(NodeState.FAILED);
         }
@@ -132,10 +133,7 @@ public class FrozenCacheInfoService {
             synchronized (mutex) {
                 shouldRetry = nodeStates.get(discoveryNode) == nodeStateHolder;
             }
-            logger.debug(
-                new ParameterizedMessage("failed to retrieve node settings from node {}, shouldRetry={}", discoveryNode, shouldRetry),
-                e
-            );
+            logger.debug(() -> format("failed to retrieve node settings from node %s, shouldRetry=%s", discoveryNode, shouldRetry), e);
             if (shouldRetry) {
                 // failure is likely something like a CircuitBreakingException, so there's no sense in an immediate retry
                 client.threadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(1), ThreadPool.Names.SAME, AsyncNodeFetch.this);

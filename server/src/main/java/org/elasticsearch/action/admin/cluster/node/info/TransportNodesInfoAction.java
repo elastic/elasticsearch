@@ -8,10 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,7 +33,6 @@ public class TransportNodesInfoAction extends TransportNodesAction<
     NodeInfo> {
 
     private final NodeService nodeService;
-    private final StatsRequestLimiter statsRequestLimiter;
 
     @Inject
     public TransportNodesInfoAction(
@@ -43,8 +40,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         NodeService nodeService,
-        ActionFilters actionFilters,
-        StatsRequestLimiter statsRequestLimiter
+        ActionFilters actionFilters
     ) {
         super(
             NodesInfoAction.NAME,
@@ -58,7 +54,6 @@ public class TransportNodesInfoAction extends TransportNodesAction<
             NodeInfo.class
         );
         this.nodeService = nodeService;
-        this.statsRequestLimiter = statsRequestLimiter;
     }
 
     @Override
@@ -97,11 +92,6 @@ public class TransportNodesInfoAction extends TransportNodesAction<
             metrics.contains(NodesInfoRequest.Metric.AGGREGATIONS.metricName()),
             metrics.contains(NodesInfoRequest.Metric.INDICES.metricName())
         );
-    }
-
-    @Override
-    protected void doExecute(Task task, NodesInfoRequest request, ActionListener<NodesInfoResponse> listener) {
-        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
     }
 
     public static class NodeInfoRequest extends TransportRequest {

@@ -13,9 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 
 /**
- * Thrown when a node join request or a master ping reaches a node which is not
- * currently acting as a master or when a cluster state update task is to be executed
- * on a node that is no longer master.
+ * Exception which indicates that an operation failed because the node stopped being the elected master.
  */
 public class NotMasterException extends ElasticsearchException {
 

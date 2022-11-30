@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -55,6 +54,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -177,6 +177,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final SystemIndices systemIndices;
 
+    private final MasterServiceTaskQueue<ShardSnapshotUpdate> masterServiceTaskQueue;
+
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
      * cluster state. The number of concurrent operations in a cluster state is defined as the sum of
@@ -223,6 +225,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
         }
         this.systemIndices = systemIndices;
+
+        this.masterServiceTaskQueue = clusterService.getTaskQueue("snapshots-service", Priority.NORMAL, SHARD_STATE_EXECUTOR);
     }
 
     /**
@@ -3450,12 +3454,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }));
         logger.trace("received updated snapshot restore state [{}]", update);
-        clusterService.submitStateUpdateTask(
-            "update snapshot state",
-            update,
-            ClusterStateTaskConfig.build(Priority.NORMAL),
-            SHARD_STATE_EXECUTOR
-        );
+        masterServiceTaskQueue.submitTask("update snapshot state", update, null);
     }
 
     private void startExecutableClones(SnapshotsInProgress snapshotsInProgress, @Nullable String repoName) {

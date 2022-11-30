@@ -222,8 +222,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             TimeUnit.SECONDS,
             r -> { throw new AssertionError("should not create new threads"); },
             null,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            null
         ) {
 
             @Override
@@ -266,6 +265,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         applierService.setInitialState(unassignedClusterState);
 
         final var clusterService = new ClusterService(settings, clusterSettings, masterService, applierService);
+        clusterService.start();
 
         final var clusterInfoService = new TestClusterInfoService(clusterService);
 

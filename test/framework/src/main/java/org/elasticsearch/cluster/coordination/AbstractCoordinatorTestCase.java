@@ -1604,7 +1604,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
 
             int getPendingTaskCount() {
-                return masterService.getFakeMasterServicePendingTaskCount();
+                return masterService.numberOfPendingTasks();
             }
         }
 

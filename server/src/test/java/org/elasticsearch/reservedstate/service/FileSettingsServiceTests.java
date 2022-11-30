@@ -18,16 +18,20 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,6 +53,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -56,6 +61,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -88,10 +94,10 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         clusterService = spy(
             new ClusterService(
-                Settings.EMPTY,
+                Settings.builder().put(NODE_NAME_SETTING.getKey(), "test").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadpool,
-                null
+                new TaskManager(Settings.EMPTY, threadpool, Set.of())
             )
         );
 
@@ -102,6 +108,17 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<ClusterState>) invocation -> clusterState).when(clusterService).state();
 
         clusterService.setRerouteService(mock(RerouteService.class));
+        clusterService.setNodeConnectionsService(mock(NodeConnectionsService.class));
+        clusterService.getClusterApplierService().setInitialState(clusterState);
+        clusterService.getMasterService().setClusterStatePublisher((e, pl, al) -> {
+            ClusterServiceUtils.setAllElapsedMillis(e);
+            al.onCommit(TimeValue.ZERO);
+            for (DiscoveryNode node : e.getNewState().nodes()) {
+                al.onNodeAck(node, null);
+            }
+            pl.onResponse(null);
+        });
+        clusterService.getMasterService().setClusterStateSupplier(() -> clusterState);
         env = newEnvironment(Settings.EMPTY);
 
         Files.createDirectories(env.configFile());
@@ -145,11 +162,14 @@ public class FileSettingsServiceTests extends ESTestCase {
         nodeClient = mock(NodeClient.class);
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, nodeClient));
         doAnswer(i -> clusterAdminClient).when(fileSettingsService).clusterAdminClient();
+
+        clusterService.start();
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
+        clusterService.close();
         threadpool.shutdownNow();
     }
 

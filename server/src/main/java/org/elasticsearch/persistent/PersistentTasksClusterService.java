@@ -27,6 +27,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -395,7 +396,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     // There must be a task that's worth rechecking because there was one
                     // that caused this method to be called and the method failed to assign it,
                     // but only do this if the node is still the master
-                    periodicRechecker.rescheduleIfNecessary();
+                    try {
+                        periodicRechecker.rescheduleIfNecessary();
+                    } catch (Exception e2) {
+                        assert e2 instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e2;
+                        logger.warn("failed to reschedule persistent tasks rechecker", e2);
+                    }
                 }
             }
 

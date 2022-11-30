@@ -19,7 +19,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -37,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -137,7 +137,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final AllocationService allocationService;
     private final JoinHelper joinHelper;
     private final JoinValidationService joinValidationService;
-    private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
+    private final MasterServiceTaskQueue<NodeRemovalClusterStateTaskExecutor.Task> nodeRemovalQueue;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
     private final NoMasterBlockService noMasterBlockService;
     final Object mutex = new Object(); // package-private to allow tests to call methods that assert that the mutex is held
@@ -272,7 +272,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             this::removeNode,
             nodeHealthService
         );
-        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
+        this.nodeRemovalQueue = masterService.getTaskQueue(
+            "node-left",
+            Priority.IMMEDIATE,
+            new NodeRemovalClusterStateTaskExecutor(allocationService)
+        );
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
@@ -344,12 +348,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     reason,
                     () -> joinReasonService.onNodeRemoved(discoveryNode, reason)
                 );
-                masterService.submitStateUpdateTask(
-                    "node-left",
-                    task,
-                    ClusterStateTaskConfig.build(Priority.IMMEDIATE),
-                    nodeRemovalExecutor
-                );
+                nodeRemovalQueue.submitTask("node-left", task, null);
             }
         }
     }

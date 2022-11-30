@@ -19,10 +19,10 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -115,7 +115,9 @@ public class MetadataIndexTemplateService {
     }
 
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
+
     private final ClusterService clusterService;
+    private final MasterServiceTaskQueue<TemplateClusterStateUpdateTask> taskQueue;
     private final IndicesService indicesService;
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
@@ -169,6 +171,7 @@ public class MetadataIndexTemplateService {
         IndexSettingProviders indexSettingProviders
     ) {
         this.clusterService = clusterService;
+        this.taskQueue = clusterService.getTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
         this.indicesService = indicesService;
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
@@ -178,7 +181,7 @@ public class MetadataIndexTemplateService {
     }
 
     public void removeTemplates(final RemoveRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", new TemplateClusterStateUpdateTask(listener) {
+        taskQueue.submitTask("remove-index-template [" + request.name + "]", new TemplateClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Set<String> templateNames = new HashSet<>();
@@ -203,7 +206,7 @@ public class MetadataIndexTemplateService {
                 }
                 return ClusterState.builder(currentState).metadata(metadata).build();
             }
-        }, ClusterStateTaskConfig.build(Priority.URGENT, request.masterTimeout), TEMPLATE_TASK_EXECUTOR);
+        }, request.masterTimeout);
     }
 
     /**
@@ -218,7 +221,7 @@ public class MetadataIndexTemplateService {
         final ComponentTemplate template,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask(
+        taskQueue.submitTask(
             "create-component-template [" + name + "], cause [" + cause + "]",
             new TemplateClusterStateUpdateTask(listener) {
                 @Override
@@ -226,8 +229,7 @@ public class MetadataIndexTemplateService {
                     return addComponentTemplate(currentState, create, name, template);
                 }
             },
-            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
-            TEMPLATE_TASK_EXECUTOR
+            masterTimeout
         );
     }
 
@@ -373,17 +375,12 @@ public class MetadataIndexTemplateService {
         final ActionListener<AcknowledgedResponse> listener
     ) {
         validateNotInUse(state.metadata(), names);
-        clusterService.submitStateUpdateTask(
-            "remove-component-template [" + String.join(",", names) + "]",
-            new TemplateClusterStateUpdateTask(listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return innerRemoveComponentTemplate(currentState, names);
-                }
-            },
-            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
-            TEMPLATE_TASK_EXECUTOR
-        );
+        taskQueue.submitTask("remove-component-template [" + String.join(",", names) + "]", new TemplateClusterStateUpdateTask(listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return innerRemoveComponentTemplate(currentState, names);
+            }
+        }, masterTimeout);
     }
 
     // Exposed for ReservedComponentTemplateAction
@@ -481,7 +478,7 @@ public class MetadataIndexTemplateService {
         final ActionListener<AcknowledgedResponse> listener
     ) {
         validateV2TemplateRequest(clusterService.state().metadata(), name, template);
-        clusterService.submitStateUpdateTask(
+        taskQueue.submitTask(
             "create-index-template-v2 [" + name + "], cause [" + cause + "]",
             new TemplateClusterStateUpdateTask(listener) {
                 @Override
@@ -489,8 +486,7 @@ public class MetadataIndexTemplateService {
                     return addIndexTemplateV2(currentState, create, name, template);
                 }
             },
-            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
-            TEMPLATE_TASK_EXECUTOR
+            masterTimeout
         );
     }
 
@@ -900,17 +896,12 @@ public class MetadataIndexTemplateService {
         final TimeValue masterTimeout,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask(
-            "remove-index-template-v2 [" + String.join(",", names) + "]",
-            new TemplateClusterStateUpdateTask(listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return innerRemoveIndexTemplateV2(currentState, names);
-                }
-            },
-            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
-            TEMPLATE_TASK_EXECUTOR
-        );
+        taskQueue.submitTask("remove-index-template-v2 [" + String.join(",", names) + "]", new TemplateClusterStateUpdateTask(listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return innerRemoveIndexTemplateV2(currentState, names);
+            }
+        }, masterTimeout);
     }
 
     // Public because it's used by ReservedComposableIndexTemplateAction
@@ -1024,7 +1015,7 @@ public class MetadataIndexTemplateService {
 
         final IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder(request.name);
 
-        clusterService.submitStateUpdateTask(
+        taskQueue.submitTask(
             "create-index-template [" + request.name + "], cause [" + request.cause + "]",
             new TemplateClusterStateUpdateTask(listener) {
                 @Override
@@ -1033,8 +1024,7 @@ public class MetadataIndexTemplateService {
                     return innerPutTemplate(currentState, request, templateBuilder);
                 }
             },
-            ClusterStateTaskConfig.build(Priority.URGENT, request.masterTimeout),
-            TEMPLATE_TASK_EXECUTOR
+            request.masterTimeout
         );
     }
 

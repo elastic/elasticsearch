@@ -12,11 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -27,12 +27,14 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -52,15 +54,23 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.core.Strings.format;
@@ -85,6 +95,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     public static final String STATE_UPDATE_ACTION_NAME = "publish_cluster_state_update";
 
+    private final ClusterStateTaskExecutor<ClusterStateUpdateTask> unbatchedExecutor;
+
     ClusterStatePublisher clusterStatePublisher;
 
     private final String nodeName;
@@ -98,9 +110,14 @@ public class MasterService extends AbstractLifecycleComponent {
     private final TaskManager taskManager;
 
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
-    private volatile Batcher taskBatcher;
+    private final CountedQueue[] queues;
+    private final AtomicInteger totalQueueSize = new AtomicInteger();
+    private volatile Batch currentlyExecutingBatch;
+    private final Map<Priority, CountedQueue> queuesByPriority;
+    private final LongSupplier insertionIndexSupplier = new AtomicLong()::incrementAndGet;
 
     private final ClusterStateUpdateStatsTracker clusterStateUpdateStatsTracker = new ClusterStateUpdateStatsTracker();
+    private final StarvationWatcher starvationWatcher = new StarvationWatcher();
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
@@ -112,6 +129,18 @@ public class MasterService extends AbstractLifecycleComponent {
 
         this.threadPool = threadPool;
         this.taskManager = taskManager;
+
+        final var queuesByPriorityBuilder = new EnumMap<Priority, CountedQueue>(Priority.class);
+        final var priorities = Priority.values();
+        queues = new CountedQueue[priorities.length];
+        var queueIndex = 0;
+        for (final var priority : priorities) {
+            final var queue = new CountedQueue(priority);
+            queues[queueIndex++] = queue;
+            queuesByPriorityBuilder.put(priority, queue);
+        }
+        this.queuesByPriority = Collections.unmodifiableMap(queuesByPriorityBuilder);
+        this.unbatchedExecutor = new UnbatchedExecutor();
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -131,7 +160,6 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = createThreadPoolExecutor();
-        taskBatcher = new Batcher(logger, threadPoolExecutor);
     }
 
     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
@@ -139,88 +167,12 @@ public class MasterService extends AbstractLifecycleComponent {
             nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
             daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            new MasterServiceStarvationWatcher(
-                starvationLoggingThreshold.getMillis(),
-                threadPool::relativeTimeInMillis,
-                () -> threadPoolExecutor
-            )
+            threadPool.scheduler()
         );
     }
 
     public ClusterStateUpdateStats getClusterStateUpdateStats() {
         return clusterStateUpdateStatsTracker.getStatistics();
-    }
-
-    @SuppressWarnings("unchecked")
-    class Batcher extends TaskBatcher {
-
-        Batcher(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
-            super(logger, threadExecutor);
-        }
-
-        @Override
-        protected void onTimeout(BatchedTask task, TimeValue timeout) {
-            threadPool.generic()
-                .execute(() -> ((UpdateTask) task).onFailure(new ProcessClusterEventTimeoutException(timeout, task.source), () -> {}));
-        }
-
-        @Override
-        protected void run(Object batchingKey, List<? extends BatchedTask> tasks, BatchSummary tasksSummary) {
-            runTasks((ClusterStateTaskExecutor<ClusterStateTaskListener>) batchingKey, (List<UpdateTask>) tasks, tasksSummary);
-        }
-
-        class UpdateTask extends BatchedTask {
-            private final ClusterStateTaskListener listener;
-            private final Supplier<ThreadContext.StoredContext> threadContextSupplier;
-
-            UpdateTask(
-                Priority priority,
-                String source,
-                ClusterStateTaskListener task,
-                Supplier<ThreadContext.StoredContext> threadContextSupplier,
-                ClusterStateTaskExecutor<?> executor
-            ) {
-                super(priority, source, executor, task);
-                this.threadContextSupplier = threadContextSupplier;
-                this.listener = task;
-            }
-
-            @Override
-            public String describeTasks(List<? extends BatchedTask> tasks) {
-                return ((ClusterStateTaskExecutor<ClusterStateTaskListener>) batchingKey).describeTasks(
-                    tasks.stream().map(task -> (ClusterStateTaskListener) task.task).toList()
-                );
-            }
-
-            public void onFailure(Exception e, Runnable restoreResponseHeaders) {
-                try (ThreadContext.StoredContext ignore = threadContextSupplier.get()) {
-                    restoreResponseHeaders.run();
-                    listener.onFailure(e);
-                } catch (Exception inner) {
-                    inner.addSuppressed(e);
-                    logger.error("exception thrown by listener notifying of failure", inner);
-                }
-            }
-
-            @Nullable
-            public ContextPreservingAckListener wrapInTaskContext(
-                @Nullable ClusterStateAckListener clusterStateAckListener,
-                Runnable restoreResponseHeaders
-            ) {
-                return clusterStateAckListener == null
-                    ? null
-                    : new ContextPreservingAckListener(
-                        Objects.requireNonNull(clusterStateAckListener),
-                        threadContextSupplier,
-                        restoreResponseHeaders
-                    );
-            }
-
-            ThreadContext getThreadContext() {
-                return threadPool.getThreadContext();
-            }
-        }
     }
 
     @Override
@@ -252,10 +204,10 @@ public class MasterService extends AbstractLifecycleComponent {
         return true;
     }
 
-    private void runTasks(
-        ClusterStateTaskExecutor<ClusterStateTaskListener> executor,
-        List<Batcher.UpdateTask> updateTasks,
-        BatchSummary summary
+    private <T extends ClusterStateTaskListener> void executeAndPublishBatch(
+        final ClusterStateTaskExecutor<T> executor,
+        final List<ExecutionResult<T>> executionResults,
+        final BatchSummary summary
     ) {
         if (lifecycle.started() == false) {
             logger.debug("processing [{}]: ignoring, master service not started", summary);
@@ -267,21 +219,21 @@ public class MasterService extends AbstractLifecycleComponent {
 
         if (previousClusterState.nodes().isLocalNodeElectedMaster() == false && executor.runOnlyOnMaster()) {
             logger.debug("failing [{}]: local node is no longer master", summary);
-            updateTasks.forEach(t -> t.onFailure(new NotMasterException("no longer master, failing [" + t.source() + "]"), () -> {}));
+            for (ExecutionResult<T> executionResult : executionResults) {
+                executionResult.onBatchFailure(new NotMasterException("no longer master"));
+                executionResult.notifyOnFailure();
+            }
             return;
         }
 
         final long computationStartTime = threadPool.rawRelativeTimeInMillis();
-        final var executionResults = updateTasks.stream().map(ExecutionResult::new).toList();
         final var newClusterState = patchVersions(
             previousClusterState,
             executeTasks(previousClusterState, executionResults, executor, summary, threadPool.getThreadContext())
         );
         // fail all tasks that have failed
         for (final var executionResult : executionResults) {
-            if (executionResult.failure != null) {
-                executionResult.updateTask.onFailure(executionResult.failure, executionResult::restoreResponseHeaders);
-            }
+            executionResult.notifyOnFailure();
         }
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", summary);
@@ -306,11 +258,11 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private void publishClusterStateUpdate(
-        ClusterStateTaskExecutor<ClusterStateTaskListener> executor,
+    private <T extends ClusterStateTaskListener> void publishClusterStateUpdate(
+        ClusterStateTaskExecutor<T> executor,
         BatchSummary summary,
         ClusterState previousClusterState,
-        List<ExecutionResult<ClusterStateTaskListener>> executionResults,
+        List<ExecutionResult<T>> executionResults,
         ClusterState newClusterState,
         TimeValue computationTime
     ) {
@@ -447,6 +399,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     }
                 );
             } catch (Exception e) {
+                assert publicationMayFail() : e;
                 handleException(summary, publicationStartTime, newClusterState, e);
             }
         } finally {
@@ -482,22 +435,17 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private void handleException(BatchSummary summary, long startTimeMillis, ClusterState newClusterState, Exception e) {
-        final TimeValue executionTime = getTimeSince(startTimeMillis);
-        final long version = newClusterState.version();
-        final String stateUUID = newClusterState.stateUUID();
-        final String fullState = newClusterState.toString();
         logger.warn(
             () -> format(
                 "took [%s] and then failed to publish updated cluster state (version: %s, uuid: %s) for [%s]:\n%s",
-                executionTime,
-                version,
-                stateUUID,
+                getTimeSince(startTimeMillis),
+                newClusterState.version(),
+                newClusterState.stateUUID(),
                 summary,
-                fullState
+                newClusterState
             ),
             e
         );
-        // TODO: do we want to call updateTask.onFailure here?
     }
 
     private ClusterState patchVersions(ClusterState previousClusterState, ClusterState newClusterState) {
@@ -534,8 +482,97 @@ public class MasterService extends AbstractLifecycleComponent {
      */
     @Deprecated
     public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
-        // NB new executor each time so as to avoid batching
-        submitStateUpdateTask(source, updateTask, updateTask, new UnbatchedExecutor());
+        final var summary = new BatchSummary(() -> source);
+        final var restorableContext = threadPool.getThreadContext().newRestorableContext(true);
+        final var executed = new AtomicBoolean(false);
+        final Scheduler.Cancellable timeoutCancellable;
+        final var timeout = updateTask.timeout();
+        if (timeout != null && timeout.millis() > 0) {
+            timeoutCancellable = threadPool.schedule(
+                new TaskTimeoutHandler(timeout, source, executed, updateTask),
+                timeout,
+                ThreadPool.Names.GENERIC
+            );
+        } else {
+            timeoutCancellable = null;
+        }
+        final long insertionIndex = insertionIndexSupplier.getAsLong();
+        final long insertionTime = threadPool.relativeTimeInMillis();
+
+        queuesByPriority.get(updateTask.priority()).execute(new Batch() {
+            private volatile boolean isRunning;
+
+            @Override
+            public Stream<PendingClusterTask> getPending(long currentTimeMillis) {
+                if (isTimedOut()) {
+                    return Stream.of();
+                }
+                return Stream.of(
+                    new PendingClusterTask(
+                        insertionIndex,
+                        updateTask.priority(),
+                        new Text(source),
+                        currentTimeMillis - insertionTime,
+                        executed.get()
+                    )
+                );
+            }
+
+            @Override
+            public int getPendingCount() {
+                return isTimedOut() ? 0 : 1;
+            }
+
+            @Override
+            public long getCreationTimeMillis() {
+                return isTimedOut() ? Long.MAX_VALUE : insertionTime;
+            }
+
+            private boolean isTimedOut() {
+                return executed.get() && isRunning == false;
+            }
+
+            @Override
+            public void onRejection(FailedToCommitClusterStateException e) {
+                try {
+                    if (acquireForExecution()) {
+                        try (var ignored = restorableContext.get()) {
+                            updateTask.onFailure(e);
+                        }
+                    }
+                } catch (Exception e2) {
+                    e2.addSuppressed(e);
+                    logger.error(() -> format("unexpected exception failing task [%s]", source), e2);
+                    assert false : e2;
+                }
+            }
+
+            @Override
+            public void run() {
+                isRunning = true;
+                try {
+                    if (acquireForExecution()) {
+                        executeAndPublishBatch(
+                            unbatchedExecutor,
+                            List.of(new ExecutionResult<>(source, updateTask, threadPool.getThreadContext(), restorableContext)),
+                            summary
+                        );
+                    }
+                } finally {
+                    isRunning = false;
+                }
+            }
+
+            private boolean acquireForExecution() {
+                if (executed.compareAndSet(false, true) == false) {
+                    return false;
+                }
+                if (timeoutCancellable != null) {
+                    timeoutCancellable.cancel();
+                }
+                return true;
+            }
+        });
     }
 
     private static class UnbatchedExecutor implements ClusterStateTaskExecutor<ClusterStateUpdateTask> {
@@ -569,70 +606,30 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Submits a cluster state update task; submitted updates will be
-     * batched across the same instance of executor. The exact batching
-     * semantics depend on the underlying implementation but a rough
-     * guideline is that if the update task is submitted while there
-     * are pending update tasks for the same executor, these update
-     * tasks will all be executed on the executor in a single batch
-     *
-     * @param source   the source of the cluster state update task
-     * @param task     the state needed for the cluster state update task, which implements {@link ClusterStateTaskListener} so that it is
-     *                 notified when it is executed.
-     * @param config   the cluster state update task configuration
-     * @param executor the cluster state update task executor; tasks
-     *                 that share the same executor will be executed
-     *                 batches on this executor
-     * @param <T>      the type of the cluster state update task state
-     *
-     */
-    public <T extends ClusterStateTaskListener> void submitStateUpdateTask(
-        String source,
-        T task,
-        ClusterStateTaskConfig config,
-        ClusterStateTaskExecutor<T> executor
-    ) {
-        if (lifecycle.started() == false) {
-            return;
-        }
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
-            taskBatcher.submitTask(taskBatcher.new UpdateTask(config.priority(), source, task, supplier, executor), config.timeout());
-        } catch (EsRejectedExecutionException e) {
-            // ignore cases where we are shutting down..., there is really nothing interesting
-            // to be done here...
-            if (lifecycle.stoppedOrClosed() == false) {
-                throw e;
-            }
-        }
-    }
-
-    /**
      * Returns the tasks that are pending.
      */
     public List<PendingClusterTask> pendingTasks() {
-        return Arrays.stream(threadPoolExecutor.getPending()).map(pending -> {
-            assert pending.task instanceof SourcePrioritizedRunnable
-                : "thread pool executor should only use SourcePrioritizedRunnable instances but found: "
-                    + pending.task.getClass().getName();
-            SourcePrioritizedRunnable task = (SourcePrioritizedRunnable) pending.task;
-            return new PendingClusterTask(
-                pending.insertionOrder,
-                pending.priority,
-                new Text(task.source()),
-                task.getAgeInMillis(),
-                pending.executing
-            );
-        }).toList();
+        final var currentTimeMillis = threadPool.relativeTimeInMillis();
+        return Stream.concat(Stream.ofNullable(currentlyExecutingBatch), Arrays.stream(queues).flatMap(q -> q.queue.stream()))
+            .flatMap(e -> e.getPending(currentTimeMillis))
+            .toList();
     }
 
     /**
      * Returns the number of currently pending tasks.
      */
     public int numberOfPendingTasks() {
-        return threadPoolExecutor.getNumberOfPendingTasks();
+        var result = getPendingCountOrZero(currentlyExecutingBatch); // single volatile read
+        for (final var queue : queues) {
+            for (final var entry : queue.queue) {
+                result += entry.getPendingCount();
+            }
+        }
+        return result;
+    }
+
+    private static int getPendingCountOrZero(@Nullable Batch batch) {
+        return batch == null ? 0 : batch.getPendingCount();
     }
 
     /**
@@ -641,7 +638,16 @@ public class MasterService extends AbstractLifecycleComponent {
      * @return A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
      */
     public TimeValue getMaxTaskWaitTime() {
-        return threadPoolExecutor.getMaxTaskWaitTime();
+        final var oldestTaskTimeMillis = Stream.concat(
+            Stream.ofNullable(currentlyExecutingBatch),
+            Arrays.stream(queues).flatMap(q -> q.queue.stream())
+        ).mapToLong(Batch::getCreationTimeMillis).min().orElse(Long.MAX_VALUE);
+
+        if (oldestTaskTimeMillis == Long.MAX_VALUE) {
+            return TimeValue.ZERO;
+        }
+
+        return TimeValue.timeValueMillis(threadPool.relativeTimeInMillis() - oldestTaskTimeMillis);
     }
 
     private void logExecutionTime(TimeValue executionTime, String activity, BatchSummary summary) {
@@ -820,7 +826,10 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private static class ExecutionResult<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
-        final Batcher.UpdateTask updateTask;
+        private final String source;
+        private final T task;
+        private final ThreadContext threadContext;
+        private final Supplier<ThreadContext.StoredContext> threadContextSupplier;
 
         @Nullable // if the task is incomplete or failed or onPublicationSuccess supplied
         Consumer<ClusterState> publishedStateConsumer;
@@ -837,14 +846,20 @@ public class MasterService extends AbstractLifecycleComponent {
         @Nullable
         Map<String, List<String>> responseHeaders;
 
-        ExecutionResult(Batcher.UpdateTask updateTask) {
-            this.updateTask = updateTask;
+        ExecutionResult(String source, T task, ThreadContext threadContext, Supplier<ThreadContext.StoredContext> threadContextSupplier) {
+            this.source = source;
+            this.task = task;
+            this.threadContext = threadContext;
+            this.threadContextSupplier = threadContextSupplier;
         }
 
-        @SuppressWarnings("unchecked") // trust us this is ok
+        public String getSource() {
+            return source;
+        }
+
         @Override
         public T getTask() {
-            return (T) updateTask.getTask();
+            return task;
         }
 
         private boolean incomplete() {
@@ -909,7 +924,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public Releasable captureResponseHeaders() {
-            final var threadContext = updateTask.getThreadContext();
             final var storedContext = threadContext.newStoredContext();
             return Releasables.wrap(() -> {
                 final var newResponseHeaders = threadContext.getResponseHeaders();
@@ -935,7 +949,7 @@ public class MasterService extends AbstractLifecycleComponent {
             if (responseHeaders != null) {
                 for (final var responseHeader : responseHeaders.entrySet()) {
                     for (final var value : responseHeader.getValue()) {
-                        updateTask.getThreadContext().addResponseHeader(responseHeader.getKey(), value);
+                        threadContext.addResponseHeader(responseHeader.getKey(), value);
                     }
                 }
             }
@@ -953,7 +967,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 assert failure != null;
                 return;
             }
-            try (ThreadContext.StoredContext ignored = updateTask.threadContextSupplier.get()) {
+            try (ThreadContext.StoredContext ignored = threadContextSupplier.get()) {
                 restoreResponseHeaders();
                 if (onPublicationSuccess == null) {
                     publishedStateConsumer.accept(newClusterState);
@@ -970,7 +984,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 assert failure != null;
                 return;
             }
-            try (ThreadContext.StoredContext ignored = updateTask.threadContextSupplier.get()) {
+            try (ThreadContext.StoredContext ignored = threadContextSupplier.get()) {
                 restoreResponseHeaders();
                 if (onPublicationSuccess == null) {
                     publishedStateConsumer.accept(clusterState);
@@ -987,7 +1001,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 assert failure != null;
                 return;
             }
-            try (ThreadContext.StoredContext ignored = updateTask.threadContextSupplier.get()) {
+            try (ThreadContext.StoredContext ignored = threadContextSupplier.get()) {
                 restoreResponseHeaders();
                 getTask().onFailure(e);
             } catch (Exception inner) {
@@ -998,19 +1012,35 @@ public class MasterService extends AbstractLifecycleComponent {
 
         ContextPreservingAckListener getContextPreservingAckListener() {
             assert incomplete() == false;
-            return updateTask.wrapInTaskContext(clusterStateAckListener, this::restoreResponseHeaders);
+            if (clusterStateAckListener == null) {
+                return null;
+            } else {
+                return new ContextPreservingAckListener(clusterStateAckListener, threadContextSupplier, this::restoreResponseHeaders);
+            }
         }
 
         @Override
         public String toString() {
-            return "TaskContextImpl[" + updateTask.getTask() + "]";
+            return "ExecutionResult[" + task + "]";
+        }
+
+        void notifyOnFailure() {
+            if (failure != null) {
+                try (ThreadContext.StoredContext ignore = threadContextSupplier.get()) {
+                    restoreResponseHeaders();
+                    getTask().onFailure(failure);
+                } catch (Exception inner) {
+                    inner.addSuppressed(failure);
+                    logger.error("exception thrown by listener notifying of failure", inner);
+                }
+            }
         }
     }
 
-    private static ClusterState executeTasks(
+    private static <T extends ClusterStateTaskListener> ClusterState executeTasks(
         ClusterState previousClusterState,
-        List<ExecutionResult<ClusterStateTaskListener>> executionResults,
-        ClusterStateTaskExecutor<ClusterStateTaskListener> executor,
+        List<ExecutionResult<T>> executionResults,
+        ClusterStateTaskExecutor<T> executor,
         BatchSummary summary,
         ThreadContext threadContext
     ) {
@@ -1024,26 +1054,29 @@ public class MasterService extends AbstractLifecycleComponent {
         return resultingState;
     }
 
-    private static boolean assertAllTasksComplete(List<ExecutionResult<ClusterStateTaskListener>> executionResults) {
+    private static <T extends ClusterStateTaskListener> boolean assertAllTasksComplete(List<ExecutionResult<T>> executionResults) {
         for (final var executionResult : executionResults) {
             assert executionResult.incomplete() == false : "missing result for " + executionResult;
         }
         return true;
     }
 
-    @SuppressWarnings("unchecked") // the input is unmodifiable so it is ok to cast to a more general element type
-    private static List<ClusterStateTaskExecutor.TaskContext<ClusterStateTaskListener>> castTaskContexts(List<?> executionResults) {
-        return (List<ClusterStateTaskExecutor.TaskContext<ClusterStateTaskListener>>) executionResults;
+    @SuppressWarnings("unchecked")
+    private static <T extends ClusterStateTaskListener> List<ClusterStateTaskExecutor.TaskContext<T>> castTaskContexts(
+        List<?> executionResults
+    ) {
+        // the input is unmodifiable so it is ok to cast to a more general element type
+        return (List<ClusterStateTaskExecutor.TaskContext<T>>) executionResults;
     }
 
-    private static ClusterState innerExecuteTasks(
+    private static <T extends ClusterStateTaskListener> ClusterState innerExecuteTasks(
         ClusterState previousClusterState,
-        List<ExecutionResult<ClusterStateTaskListener>> executionResults,
-        ClusterStateTaskExecutor<ClusterStateTaskListener> executor,
+        List<ExecutionResult<T>> executionResults,
+        ClusterStateTaskExecutor<T> executor,
         BatchSummary summary,
         ThreadContext threadContext
     ) {
-        final var taskContexts = castTaskContexts(executionResults);
+        final List<ClusterStateTaskExecutor.TaskContext<T>> taskContexts = castTaskContexts(executionResults);
         try (var ignored = threadContext.newStoredContext()) {
             // if the executor leaks a response header then this will cause a test failure, but we also store the context here to be sure
             // to avoid leaking headers in production that were missed by tests
@@ -1086,35 +1119,18 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class MasterServiceStarvationWatcher implements PrioritizedEsThreadPoolExecutor.StarvationWatcher {
-
-        private final long warnThreshold;
-        private final LongSupplier nowMillisSupplier;
-        private final Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorSupplier;
-
+    private class StarvationWatcher {
         // accesses of these mutable fields are synchronized (on this)
         private long lastLogMillis;
         private long nonemptySinceMillis;
         private boolean isEmpty = true;
 
-        MasterServiceStarvationWatcher(
-            long warnThreshold,
-            LongSupplier nowMillisSupplier,
-            Supplier<PrioritizedEsThreadPoolExecutor> threadPoolExecutorSupplier
-        ) {
-            this.nowMillisSupplier = nowMillisSupplier;
-            this.threadPoolExecutorSupplier = threadPoolExecutorSupplier;
-            this.warnThreshold = warnThreshold;
-        }
-
-        @Override
-        public synchronized void onEmptyQueue() {
+        synchronized void onEmptyQueue() {
             isEmpty = true;
         }
 
-        @Override
-        public void onNonemptyQueue() {
-            final long nowMillis = nowMillisSupplier.getAsLong();
+        void onNonemptyQueue() {
+            final long nowMillis = threadPool.relativeTimeInMillis();
             final long nonemptyDurationMillis;
             synchronized (this) {
                 if (isEmpty) {
@@ -1124,7 +1140,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     return;
                 }
 
-                if (nowMillis - lastLogMillis < warnThreshold) {
+                if (nowMillis - lastLogMillis < starvationLoggingThreshold.millis()) {
                     return;
                 }
 
@@ -1132,15 +1148,14 @@ public class MasterService extends AbstractLifecycleComponent {
                 nonemptyDurationMillis = nowMillis - nonemptySinceMillis;
             }
 
-            final PrioritizedEsThreadPoolExecutor threadPoolExecutor = threadPoolExecutorSupplier.get();
-            final TimeValue maxTaskWaitTime = threadPoolExecutor.getMaxTaskWaitTime();
+            final TimeValue maxTaskWaitTime = getMaxTaskWaitTime();
             logger.warn(
                 "pending task queue has been nonempty for [{}/{}ms] which is longer than the warn threshold of [{}ms];"
                     + " there are currently [{}] pending tasks, the oldest of which has age [{}/{}ms]",
                 TimeValue.timeValueMillis(nonemptyDurationMillis),
                 nonemptyDurationMillis,
-                warnThreshold,
-                threadPoolExecutor.getNumberOfPendingTasks(),
+                starvationLoggingThreshold.millis(),
+                numberOfPendingTasks(),
                 maxTaskWaitTime,
                 maxTaskWaitTime.millis()
             );
@@ -1236,4 +1251,457 @@ public class MasterService extends AbstractLifecycleComponent {
     public static boolean isPublishFailureException(Exception e) {
         return e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException;
     }
+
+    private final Runnable queuesProcessor = new Runnable() {
+        @Override
+        public void run() {
+            assert threadPool.getThreadContext().isSystemContext();
+            assert totalQueueSize.get() > 0;
+            assert currentlyExecutingBatch == null;
+            try {
+                final var nextBatch = takeNextItem();
+                if (lifecycle.started()) {
+                    nextBatch.run();
+                } else {
+                    nextBatch.onRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
+                }
+            } catch (Exception e) {
+                logger.error("unexpected exception executing queue entry", e);
+                assert false : e;
+            } finally {
+                currentlyExecutingBatch = null;
+                if (totalQueueSize.decrementAndGet() > 0) {
+                    starvationWatcher.onNonemptyQueue();
+                    forkQueueProcessor();
+                } else {
+                    starvationWatcher.onEmptyQueue();
+                }
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "master service queue processor";
+        }
+    };
+
+    private Batch takeNextItem() {
+        assert totalQueueSize.get() > 0;
+        assert currentlyExecutingBatch == null;
+        for (final var queue : queues) {
+            var item = queue.queue.poll();
+            if (item != null) {
+                currentlyExecutingBatch = item;
+                return item;
+            }
+        }
+        logger.error("queue processor found no items");
+        assert false : "queue processor found no items";
+        throw new IllegalStateException("queue processor found no items");
+    }
+
+    private void forkQueueProcessor() {
+        if (lifecycle.started() == false) {
+            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
+            return;
+        }
+
+        try {
+            assert totalQueueSize.get() > 0;
+            final var threadContext = threadPool.getThreadContext();
+            try (var ignored = threadContext.stashContext()) {
+                threadContext.markAsSystemContext();
+                threadPoolExecutor.execute(queuesProcessor);
+            }
+        } catch (Exception e) {
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", e));
+        }
+    }
+
+    private EsRejectedExecutionException getRejectionException() {
+        assert lifecycle.started() == false;
+        return new EsRejectedExecutionException("master service is in state [" + lifecycleState() + "]", true);
+    }
+
+    private void drainQueueOnRejection(FailedToCommitClusterStateException e) {
+        assert totalQueueSize.get() > 0;
+        do {
+            final var nextItem = takeNextItem();
+            try {
+                nextItem.onRejection(e);
+            } catch (Exception e2) {
+                e2.addSuppressed(e);
+                logger.error(() -> format("exception failing item on rejection [%s]", nextItem), e2);
+                assert false : e2;
+            } finally {
+                currentlyExecutingBatch = null;
+            }
+        } while (totalQueueSize.decrementAndGet() > 0);
+    }
+
+    /**
+     * Queue which tracks the count of items, allowing it to determine (in a threadsafe fashion) the transitions between empty and nonempty,
+     * so that it can spawn an action to process its elements if and only if it's needed. This allows it to ensure that there is only ever
+     * at most one active {@link #queuesProcessor}, and that there's always a pending processor if there is work to be done.
+     *
+     * There is one of these queues for each priority level.
+     */
+    private class CountedQueue {
+        private final ConcurrentLinkedQueue<Batch> queue = new ConcurrentLinkedQueue<>();
+        private final Priority priority;
+
+        CountedQueue(Priority priority) {
+            this.priority = priority;
+        }
+
+        void execute(Batch runner) {
+            queue.add(runner);
+            if (totalQueueSize.getAndIncrement() == 0) {
+                starvationWatcher.onEmptyQueue();
+                forkQueueProcessor();
+            }
+        }
+
+        Priority priority() {
+            return priority;
+        }
+    }
+
+    private interface Batch {
+
+        void run();
+
+        /**
+         * Called when the batch is rejected due to the master service shutting down.
+         *
+         * @param e is a {@link FailedToCommitClusterStateException} to cause things like {@link TransportMasterNodeAction} to retry after
+         *          submitting a task to a master which shut down. {@code e.getCause()} is the rejection exception, which should be a
+         *          {@link EsRejectedExecutionException} with {@link EsRejectedExecutionException#isExecutorShutdown()} true.
+         */
+        // Should really be a NodeClosedException instead, but this exception type doesn't trigger retries today.
+        void onRejection(FailedToCommitClusterStateException e);
+
+        /**
+         * @return number of tasks in this batch if the batch is pending, or {@code 0} if the batch is not pending.
+         */
+        int getPendingCount();
+
+        /**
+         * @return the tasks in this batch if the batch is pending, or an empty stream if the batch is not pending.
+         */
+        Stream<PendingClusterTask> getPending(long currentTimeMillis);
+
+        /**
+         * @return the earliest insertion time of the tasks in this batch if the batch is pending, or {@link Long#MAX_VALUE} otherwise.
+         */
+        long getCreationTimeMillis();
+    }
+
+    /**
+     * Create a new task queue which can be used to submit tasks for execution by the master service. Tasks submitted to the same queue
+     * (while the master service is otherwise busy) will be batched together into a single cluster state update. You should therefore re-use
+     * each queue as much as possible.
+     *
+     * @param name The name of the queue, which is mostly useful for debugging.
+     *
+     * @param priority The priority at which tasks submitted to the queue are executed. Avoid priorites other than {@link Priority#NORMAL}
+     *                 where possible. A stream of higher-priority tasks can starve lower-priority ones from running. Higher-priority tasks
+     *                 should definitely re-use the same {@link MasterServiceTaskQueue} so that they are executed in batches.
+     *
+     * @param executor The executor which processes each batch of tasks.
+     *
+     * @param <T> The type of the tasks
+     *
+     * @return A new batching task queue.
+     */
+    public <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> getTaskQueue(
+        String name,
+        Priority priority,
+        ClusterStateTaskExecutor<T> executor
+    ) {
+        return new BatchingTaskQueue<>(
+            name,
+            this::executeAndPublishBatch,
+            insertionIndexSupplier,
+            queuesByPriority.get(priority),
+            executor,
+            threadPool
+        );
+    }
+
+    @FunctionalInterface
+    private interface BatchConsumer<T extends ClusterStateTaskListener> {
+        void runBatch(ClusterStateTaskExecutor<T> executor, List<ExecutionResult<T>> tasks, BatchSummary summary);
+    }
+
+    private static class TaskTimeoutHandler extends AbstractRunnable {
+
+        private final TimeValue timeout;
+        private final String source;
+        private final AtomicBoolean executed;
+        private final ClusterStateTaskListener listener;
+
+        private TaskTimeoutHandler(TimeValue timeout, String source, AtomicBoolean executed, ClusterStateTaskListener listener) {
+            this.timeout = timeout;
+            this.source = source;
+            this.executed = executed;
+            this.listener = listener;
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+            completeTask(e);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error("unexpected failure executing task timeout handler", e);
+            assert false : e;
+            completeTask(e);
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            return true;
+        }
+
+        @Override
+        protected void doRun() {
+            completeTask(new ProcessClusterEventTimeoutException(timeout, source));
+        }
+
+        private void completeTask(Exception e) {
+            if (executed.compareAndSet(false, true)) {
+                listener.onFailure(e);
+            }
+        }
+    }
+
+    /**
+     * Actual implementation of {@link MasterServiceTaskQueue} exposed to clients. Conceptually, each entry in each {@link CountedQueue} is
+     * a {@link BatchingTaskQueue} representing a batch of tasks to be executed. Clients may add more tasks to each of these queues prior to
+     * their execution.
+     *
+     * Works similarly to {@link CountedQueue} in that the queue size is tracked in a threadsafe fashion so that we can detect transitions
+     * between empty and nonempty queues and arrange to process the queue if and only if it's nonempty. There is only ever one active
+     * processor for each such queue.
+     *
+     * Works differently from {@link CountedQueue} in that each time the queue is processed it will drain all the pending items at once and
+     * process them in a single batch.
+     *
+     * Also handles that tasks may time out before being processed.
+     */
+    private static class BatchingTaskQueue<T extends ClusterStateTaskListener> implements MasterServiceTaskQueue<T> {
+
+        private final ConcurrentLinkedQueue<Entry<T>> queue = new ConcurrentLinkedQueue<>();
+        private final ConcurrentLinkedQueue<Entry<T>> executing = new ConcurrentLinkedQueue<>(); // executing tasks are also shown in APIs
+        private final AtomicInteger queueSize = new AtomicInteger();
+        private final String name;
+        private final BatchConsumer<T> batchConsumer;
+        private final LongSupplier insertionIndexSupplier;
+        private final CountedQueue countedQueue;
+        private final ClusterStateTaskExecutor<T> executor;
+        private final ThreadPool threadPool;
+        private final Batch processor = new Processor();
+
+        BatchingTaskQueue(
+            String name,
+            BatchConsumer<T> batchConsumer,
+            LongSupplier insertionIndexSupplier,
+            CountedQueue countedQueue,
+            ClusterStateTaskExecutor<T> executor,
+            ThreadPool threadPool
+        ) {
+            this.name = name;
+            this.batchConsumer = batchConsumer;
+            this.insertionIndexSupplier = insertionIndexSupplier;
+            this.countedQueue = countedQueue;
+            this.executor = executor;
+            this.threadPool = threadPool;
+        }
+
+        @Override
+        public void submitTask(String source, T task, @Nullable TimeValue timeout) {
+            final var executed = new AtomicBoolean(false);
+            final Scheduler.Cancellable timeoutCancellable;
+            if (timeout != null && timeout.millis() > 0) {
+                timeoutCancellable = threadPool.schedule(
+                    new TaskTimeoutHandler(timeout, source, executed, task),
+                    timeout,
+                    ThreadPool.Names.GENERIC
+                );
+            } else {
+                timeoutCancellable = null;
+            }
+
+            queue.add(
+                new Entry<>(
+                    source,
+                    task,
+                    insertionIndexSupplier.getAsLong(),
+                    threadPool.relativeTimeInMillis(),
+                    executed,
+                    threadPool.getThreadContext().newRestorableContext(true),
+                    timeoutCancellable
+                )
+            );
+
+            if (queueSize.getAndIncrement() == 0) {
+                countedQueue.execute(processor);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "BatchingTaskQueue[" + name + "]";
+        }
+
+        private record Entry<T extends ClusterStateTaskListener> (
+            String source,
+            T task,
+            long insertionIndex,
+            long insertionTimeMillis,
+            AtomicBoolean executed,
+            Supplier<ThreadContext.StoredContext> storedContextSupplier,
+            @Nullable Scheduler.Cancellable timeoutCancellable
+        ) {
+            boolean acquireForExecution() {
+                if (executed.compareAndSet(false, true) == false) {
+                    return false;
+                }
+
+                if (timeoutCancellable != null) {
+                    timeoutCancellable.cancel();
+                }
+                return true;
+            }
+
+            void onRejection(FailedToCommitClusterStateException e) {
+                if (acquireForExecution()) {
+                    try (var ignored = storedContextSupplier.get()) {
+                        task.onFailure(e);
+                    } catch (Exception e2) {
+                        e2.addSuppressed(e);
+                        logger.error(() -> format("exception failing task [%s] on rejection", task), e2);
+                        assert false : e2;
+                    }
+                }
+            }
+        }
+
+        private class Processor implements Batch {
+            @Override
+            public void onRejection(FailedToCommitClusterStateException e) {
+                final var items = queueSize.getAndSet(0);
+                for (int i = 0; i < items; i++) {
+                    final var entry = queue.poll();
+                    assert entry != null;
+                    entry.onRejection(e);
+                }
+            }
+
+            @Override
+            public void run() {
+                assert executing.isEmpty() : executing;
+                final var entryCount = queueSize.getAndSet(0);
+                var taskCount = 0;
+                for (int i = 0; i < entryCount; i++) {
+                    final var entry = queue.poll();
+                    assert entry != null;
+                    if (entry.acquireForExecution()) {
+                        taskCount += 1;
+                        executing.add(entry);
+                    }
+                }
+                if (taskCount == 0) {
+                    return;
+                }
+                final var finalTaskCount = taskCount;
+                final var tasks = new ArrayList<ExecutionResult<T>>(finalTaskCount);
+                for (final var entry : executing) {
+                    tasks.add(
+                        new ExecutionResult<>(entry.source(), entry.task(), threadPool.getThreadContext(), entry.storedContextSupplier())
+                    );
+                }
+                try {
+                    batchConsumer.runBatch(executor, tasks, new BatchSummary(() -> buildTasksDescription(tasks)));
+                } finally {
+                    assert executing.size() == finalTaskCount;
+                    executing.clear();
+                }
+            }
+
+            private String buildTasksDescription(List<ExecutionResult<T>> tasks) {
+                final var tasksBySource = new HashMap<String, List<T>>();
+                for (final var entry : tasks) {
+                    tasksBySource.computeIfAbsent(entry.getSource(), ignored -> new ArrayList<>()).add(entry.getTask());
+                }
+
+                final var output = new StringBuilder();
+                Strings.collectionToDelimitedStringWithLimit((Iterable<String>) () -> tasksBySource.entrySet().stream().map(entry -> {
+                    var tasksDescription = executor.describeTasks(entry.getValue());
+                    return tasksDescription.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasksDescription + "]";
+                }).filter(s -> s.isEmpty() == false).iterator(), ", ", "", "", MAX_TASK_DESCRIPTION_CHARS, output);
+                if (output.length() > MAX_TASK_DESCRIPTION_CHARS) {
+                    output.append(" (").append(tasks.size()).append(" tasks in total)");
+                }
+                return output.toString();
+            }
+
+            @Override
+            public Stream<PendingClusterTask> getPending(long currentTimeMillis) {
+                return Stream.concat(
+                    executing.stream()
+                        .map(
+                            entry -> new PendingClusterTask(
+                                entry.insertionIndex(),
+                                countedQueue.priority(),
+                                new Text(entry.source()),
+                                currentTimeMillis - entry.insertionTimeMillis(),
+                                true
+                            )
+                        ),
+                    queue.stream()
+                        .filter(entry -> entry.executed().get() == false)
+                        .map(
+                            entry -> new PendingClusterTask(
+                                entry.insertionIndex(),
+                                countedQueue.priority(),
+                                new Text(entry.source()),
+                                currentTimeMillis - entry.insertionTimeMillis(),
+                                false
+                            )
+                        )
+                );
+            }
+
+            @Override
+            public int getPendingCount() {
+                int count = executing.size();
+                for (final var entry : queue) {
+                    if (entry.executed().get() == false) {
+                        count += 1;
+                    }
+                }
+                return count;
+            }
+
+            @Override
+            public long getCreationTimeMillis() {
+                return Stream.concat(executing.stream(), queue.stream().filter(entry -> entry.executed().get() == false))
+                    .mapToLong(Entry::insertionTimeMillis)
+                    .min()
+                    .orElse(Long.MAX_VALUE);
+            }
+
+            @Override
+            public String toString() {
+                return "process queue for [" + name + "]";
+            }
+        }
+    }
+
+    static final int MAX_TASK_DESCRIPTION_CHARS = 8 * 1024;
 }

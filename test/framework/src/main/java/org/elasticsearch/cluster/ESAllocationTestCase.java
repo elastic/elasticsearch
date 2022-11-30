@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -55,6 +56,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.mockito.Mockito.mock;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
     private static final ClusterSettings EMPTY_CLUSTER_SETTINGS = new ClusterSettings(
@@ -116,7 +118,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
-        return new DesiredBalanceShardsAllocator(new BalancedShardsAllocator(settings), queue.getThreadPool(), null, null) {
+        return new DesiredBalanceShardsAllocator(
+            new BalancedShardsAllocator(settings),
+            queue.getThreadPool(),
+            mock(ClusterService.class),
+            null
+        ) {
             private RoutingAllocation lastAllocation;
 
             @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,12 +37,15 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SubjectTests extends ESTestCase {
 
@@ -215,6 +219,96 @@ public class SubjectTests extends ESTestCase {
         assertThat(roleReferences, contains(isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class)));
         final ApiKeyRoleReference limitedByRoleReference = (ApiKeyRoleReference) roleReferences.get(1);
         assertThat(limitedByRoleReference.getRoleDescriptorsBytes(), equalTo(FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14));
+    }
+
+    public void testGetActionUserIdentifierForRegularUser() {
+        var username = randomAlphaOfLengthBetween(4, 16);
+        var realm = randomAlphaOfLengthBetween(4, 16);
+        var user = new User(username);
+        var subject = new Subject(
+            user,
+            new Authentication.RealmRef(realm, randomAlphaOfLength(5), "node" + randomIntBetween(1, 9)),
+            Version.CURRENT,
+            Map.of()
+        );
+
+        ActionUser.Id id = subject.identifier();
+        assertThat(id.toString(), equalTo("USER:" + username));
+        Map<String, String> ecs = id.asEcsMap();
+        assertThat(ecs, aMapWithSize(3));
+        assertThat(ecs, hasEntry("user.name", username));
+        assertThat(ecs, hasEntry("user.realm", realm));
+        assertThat(ecs, hasEntry("user.type", "USER"));
+        assertThat(ecs, sameInstance(id.asEcsMap()));
+    }
+
+    public void testGetActionUserIdentifierForAnonymousUser() {
+        var anonymousUser = getAnonymousUser();
+        var authentication = Authentication.newAnonymousAuthentication(anonymousUser, "node" + randomIntBetween(1, 9));
+        var subject = authentication.getEffectiveSubject();
+
+        ActionUser.Id id = subject.identifier();
+        assertThat(id.toString(), equalTo("USER:_anonymous"));
+        Map<String, String> ecs = id.asEcsMap();
+        assertThat(ecs, aMapWithSize(3));
+        assertThat(ecs, hasEntry("user.name", "_anonymous"));
+        assertThat(ecs, hasEntry("user.realm", AuthenticationField.ANONYMOUS_REALM_NAME));
+        assertThat(ecs, hasEntry("user.type", "USER"));
+        assertThat(ecs, sameInstance(id.asEcsMap()));
+    }
+
+    public void testGetActionUserIdentifierForServiceAccount() {
+        var namespace = randomAlphaOfLengthBetween(4, 8);
+        var serviceName = randomAlphaOfLengthBetween(6, 12);
+        var serviceUser = new User(namespace + "/" + serviceName);
+        var subject = new Subject(
+            serviceUser,
+            new Authentication.RealmRef(
+                ServiceAccountSettings.REALM_NAME,
+                ServiceAccountSettings.REALM_TYPE,
+                "node" + randomIntBetween(1, 9)
+            ),
+            Version.CURRENT,
+            Map.of()
+        );
+
+        ActionUser.Id id = subject.identifier();
+        assertThat(id.toString(), equalTo("SERVICE_ACCOUNT:" + namespace + "/" + serviceName));
+        Map<String, String> ecs = id.asEcsMap();
+        assertThat(ecs, aMapWithSize(3));
+        assertThat(ecs, hasEntry("user.name", namespace + "/" + serviceName));
+        assertThat(ecs, hasEntry("user.realm", ServiceAccountSettings.REALM_NAME));
+        assertThat(ecs, hasEntry("user.type", "SERVICE_ACCOUNT"));
+        assertThat(ecs, sameInstance(id.asEcsMap()));
+    }
+
+    public void testGetActionUserIdentifierForApiKey() {
+        var username = randomAlphaOfLengthBetween(4, 16);
+        var realm = randomAlphaOfLengthBetween(4, 16);
+        var apiKeyId = randomAlphaOfLength(12);
+
+        final Map<String, Object> authMetadata = new HashMap<>();
+        authMetadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
+        authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLength(12));
+        authMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, realm);
+        authMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, randomAlphaOfLengthBetween(3, 8));
+
+        var subject = new Subject(
+            new User(username),
+            new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node" + randomIntBetween(1, 9)),
+            Version.CURRENT,
+            authMetadata
+        );
+
+        ActionUser.Id id = subject.identifier();
+        assertThat(id.toString(), equalTo("API_KEY:" + username + ":" + apiKeyId));
+        Map<String, String> ecs = id.asEcsMap();
+        assertThat(ecs, aMapWithSize(4));
+        assertThat(ecs, hasEntry("user.apikey.id", apiKeyId));
+        assertThat(ecs, hasEntry("user.name", username));
+        assertThat(ecs, hasEntry("user.realm", realm));
+        assertThat(ecs, hasEntry("user.type", "API_KEY"));
+        assertThat(ecs, sameInstance(id.asEcsMap()));
     }
 
     private AnonymousUser getAnonymousUser() {

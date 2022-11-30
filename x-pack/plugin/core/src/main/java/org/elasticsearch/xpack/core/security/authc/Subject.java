@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
  * It also contains authentication level information, e.g. realm and metadata so that it can answer
  * queries in a better encapsulated way.
  */
-public class Subject {
+public class Subject implements ActionUser {
 
     public enum Type {
         USER,
@@ -73,40 +73,27 @@ public class Subject {
     }
 
     public ActionUser.Id identifier() {
-        // TODO Cleanup this implementation
-        return switch (getType()) {
-            case SERVICE_ACCOUNT, USER -> new ActionUser.Id() {
-                @Override
-                public Map<String, String> toEcsMap(String prefix) {
-                    return Map.ofEntries(
-                        Map.entry(prefix + ".type", getType().name()),
-                        Map.entry(prefix + ".name", getUser().principal()),
-                        Map.entry(prefix + ".realm", getRealm().getName())
-                    );
-                }
-
-                @Override
-                public String toString() {
-                    return getType().name() + ":" + getUser().principal();
-                }
-            };
-            case API_KEY -> new ActionUser.Id() {
-                @Override
-                public Map<String, String> toEcsMap(String prefix) {
-                    return Map.ofEntries(
-                        Map.entry(prefix + ".type", getType().name()),
-                        Map.entry(prefix + ".name", getUser().principal()),
-                        Map.entry(prefix + ".realm", String.valueOf(getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME))),
-                        Map.entry(prefix + ".apikey.id", String.valueOf(getMetadata().get(AuthenticationField.API_KEY_ID_KEY)))
-                    );
-                }
-
-                @Override
-                public String toString() {
-                    return getType().name() + ":" + getUser().principal() + ":" + getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
-                }
-            };
-        };
+        if (type == API_KEY) {
+            var keyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+            return new SubjectIdentifier(
+                getType().name() + ":" + getUser().principal() + ":" + keyId,
+                () -> Map.ofEntries(
+                    Map.entry("user.type", getType().name()),
+                    Map.entry("user.name", getUser().principal()),
+                    Map.entry("user.realm", (String) getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME)),
+                    Map.entry("user.apikey.id", (String) keyId)
+                )
+            );
+        } else {
+            return new SubjectIdentifier(
+                getType().name() + ":" + getUser().principal(),
+                () -> Map.ofEntries(
+                    Map.entry("user.type", getType().name()),
+                    Map.entry("user.name", getUser().principal()),
+                    Map.entry("user.realm", getRealm().getName())
+                )
+            );
+        }
     }
 
     public User getUser() {

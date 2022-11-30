@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -80,6 +81,7 @@ public final class Authentication implements ToXContentObject {
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
+    private final ActionUser actionUser;
 
     private Authentication(Subject subject, AuthenticationType type) {
         this(subject, subject, type);
@@ -89,6 +91,7 @@ public final class Authentication implements ToXContentObject {
         this.effectiveSubject = effectiveSubject;
         this.authenticatingSubject = authenticatingSubject;
         this.type = type;
+        this.actionUser = new SecurityActionUser(getEffectiveSubject());
         assertInternalConsistency();
     }
 
@@ -137,6 +140,7 @@ public final class Authentication implements ToXContentObject {
         } else {
             authenticatingSubject = effectiveSubject = new Subject(outerUser, authenticatedBy, version, metadata);
         }
+        this.actionUser = new SecurityActionUser(getEffectiveSubject());
         assertInternalConsistency();
     }
 
@@ -636,6 +640,10 @@ public final class Authentication implements ToXContentObject {
         builder.append(",type=").append(type);
         builder.append("]");
         return builder.toString();
+    }
+
+    public ActionUser getActionUser() {
+        return this.actionUser;
     }
 
     public static class RealmRef implements Writeable, ToXContentObject {

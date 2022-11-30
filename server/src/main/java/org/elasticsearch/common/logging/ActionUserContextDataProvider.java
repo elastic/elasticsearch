@@ -64,7 +64,7 @@ public class ActionUserContextDataProvider implements ContextDataProvider {
     }
 
     private Map<String, String> supplyContextData(ActionUser actionUser) {
-        return actionUser.identifier().toEcsMap("user");
+        return actionUser.identifier().asEcsMap();
     }
 
     private static Optional<ActionUser> getActionUser() {

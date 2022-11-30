@@ -22,8 +22,8 @@ public record MockActionUser(String username) implements ActionUser {
             }
 
             @Override
-            public Map<String, String> toEcsMap(String prefix) {
-                return Map.of(prefix + ".name", username);
+            public Map<String, String> asEcsMap() {
+                return Map.of("user.name", username);
             }
         };
     }

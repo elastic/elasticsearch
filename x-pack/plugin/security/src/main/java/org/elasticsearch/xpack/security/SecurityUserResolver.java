@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.user.ActionUserContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.SecurityActionUser;
 
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -32,6 +31,6 @@ class SecurityUserResolver implements ActionUserContext.Resolver {
             return Optional.empty();
         }
         final Authentication authentication = context.getAuthentication();
-        return Optional.ofNullable(authentication).map(Authentication::getEffectiveSubject).map(SecurityActionUser::new);
+        return Optional.ofNullable(authentication).map(Authentication::getActionUser);
     }
 }

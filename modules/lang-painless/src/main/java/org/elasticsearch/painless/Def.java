@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.api.ValueIterator;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -665,7 +666,7 @@ public final class Def {
 
     private static ClassCastException castException(Class<?> sourceClass, Class<?> targetClass, Boolean implicit) {
         return new ClassCastException(
-            String.format(
+            Strings.format(
                 "cannot %scast def [%s] to %s",
                 implicit != null ? (implicit ? "implicitly " : "explicitly ") : "",
                 PainlessLookupUtility.typeToUnboxedType(sourceClass).getCanonicalName(),

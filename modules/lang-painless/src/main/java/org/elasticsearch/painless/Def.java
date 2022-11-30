@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -139,8 +140,8 @@ public final class Def {
     private static final MethodHandle LIST_GET;
     /** pointer to List.set(int,Object) */
     private static final MethodHandle LIST_SET;
-    /** pointer to Iterable.iterator() */
-    private static final MethodHandle ITERATOR;
+    /** pointer to new ObjectIterator(Iterable.iterator()) */
+    private static final MethodHandle OBJECT_ITERATOR;
     /** pointer to {@link Def#mapIndexNormalize}. */
     private static final MethodHandle MAP_INDEX_NORMALIZE;
     /** pointer to {@link Def#listIndexNormalize}. */
@@ -151,14 +152,16 @@ public final class Def {
     public static final Map<Class<?>, MethodHandle> DEF_TO_BOXED_TYPE_IMPLICIT_CAST;
 
     static {
-        final MethodHandles.Lookup methodHandlesLookup = MethodHandles.publicLookup();
+        final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
 
         try {
             MAP_GET = methodHandlesLookup.findVirtual(Map.class, "get", MethodType.methodType(Object.class, Object.class));
             MAP_PUT = methodHandlesLookup.findVirtual(Map.class, "put", MethodType.methodType(Object.class, Object.class, Object.class));
             LIST_GET = methodHandlesLookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
             LIST_SET = methodHandlesLookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
-            ITERATOR = methodHandlesLookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
+            OBJECT_ITERATOR = MethodHandles.filterReturnValue(
+                methodHandlesLookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class)),
+                methodHandlesLookup.findConstructor(ObjectIterator.class, MethodType.methodType(void.class, Iterator.class)));
             MAP_INDEX_NORMALIZE = methodHandlesLookup.findStatic(
                 Def.class,
                 "mapIndexNormalize",
@@ -665,6 +668,117 @@ public final class Def {
             PainlessLookupUtility.typeToUnboxedType(sourceClass).getCanonicalName(), targetClass.getCanonicalName()));
     }
 
+    // TODO: separate out into combination of each behaviour for each type
+    private abstract static class BaseIterator<T> implements ValueIterator<T> {
+        @Override
+        public boolean nextBoolean() {
+            Object next = next();
+            try {
+                return (boolean)next;
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), boolean.class, null);
+            }
+        }
+
+        @Override
+        public byte nextByte() {
+            Object next = next();
+            try {
+                return ((Number)next).byteValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), byte.class, null);
+            }
+        }
+
+        @Override
+        public short nextShort() {
+            Object next = next();
+            try {
+                return ((Number)next).shortValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), short.class, null);
+            }
+        }
+
+        @Override
+        public char nextChar() {
+            Object next = next();
+            try {
+                return (char)next;
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), short.class, null);
+            }
+        }
+
+        @Override
+        public int nextInt() {
+            Object next = next();
+            try {
+                return ((Number)next).intValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), short.class, null);
+            }
+        }
+
+        @Override
+        public long nextLong() {
+            Object next = next();
+            try {
+                return ((Number)next).longValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), short.class, null);
+            }
+        }
+
+        @Override
+        public float nextFloat() {
+            Object next = next();
+            try {
+                return ((Number)next).floatValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), short.class, null);
+            }
+        }
+
+        @Override
+        public double nextDouble() {
+            Object next = next();
+            try {
+                return ((Number)next).doubleValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), short.class, null);
+            }
+        }
+    }
+
+    private static class ObjectIterator<T> extends BaseIterator<T> {
+        private final Iterator<T> iterator;
+
+        ObjectIterator(Iterator<T> iterator) {
+            this.iterator = iterator;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iterator.hasNext();
+        }
+
+        @Override
+        public T next() {
+            return iterator.next();
+        }
+
+        @Override
+        public void remove() {
+            iterator.remove();
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super T> action) {
+            iterator.forEachRemaining(action);
+        }
+    }
+
     /** Helper class for isolating MethodHandles and methods to get iterators over arrays
      * (to emulate "enhanced for loop" using MethodHandles).
      */
@@ -699,7 +813,7 @@ public final class Def {
         private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
 
         static ValueIterator<Boolean> iterator(final boolean[] array) {
-            return new Iterator<Boolean>() {
+            return new BaseIterator<Boolean>() {
                 int index = 0;
 
                 @Override
@@ -708,14 +822,19 @@ public final class Def {
                 }
 
                 @Override
-                public Boolean next() {
+                public boolean nextBoolean() {
                     return array[index++];
+                }
+
+                @Override
+                public Boolean next() {
+                    return nextBoolean();
                 }
             };
         }
 
         static ValueIterator<Byte> iterator(final byte[] array) {
-            return new Iterator<Byte>() {
+            return new BaseIterator<Byte>() {
                 int index = 0;
 
                 @Override
@@ -724,14 +843,49 @@ public final class Def {
                 }
 
                 @Override
-                public Byte next() {
+                public byte nextByte() {
                     return array[index++];
+                }
+
+                @Override
+                public short nextShort() {
+                    return nextByte();
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char)nextByte();
+                }
+
+                @Override
+                public int nextInt() {
+                    return nextByte();
+                }
+
+                @Override
+                public long nextLong() {
+                    return nextByte();
+                }
+
+                @Override
+                public float nextFloat() {
+                    return nextByte();
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextByte();
+                }
+
+                @Override
+                public Byte next() {
+                    return nextByte();
                 }
             };
         }
 
         static ValueIterator<Short> iterator(final short[] array) {
-            return new Iterator<Short>() {
+            return new BaseIterator<Short>() {
                 int index = 0;
 
                 @Override
@@ -740,14 +894,49 @@ public final class Def {
                 }
 
                 @Override
-                public Short next() {
+                public byte nextByte() {
+                    return (byte)nextShort();
+                }
+
+                @Override
+                public short nextShort() {
                     return array[index++];
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char)nextShort();
+                }
+
+                @Override
+                public int nextInt() {
+                    return nextShort();
+                }
+
+                @Override
+                public long nextLong() {
+                    return nextShort();
+                }
+
+                @Override
+                public float nextFloat() {
+                    return nextShort();
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextShort();
+                }
+
+                @Override
+                public Short next() {
+                    return nextShort();
                 }
             };
         }
 
         static ValueIterator<Integer> iterator(final int[] array) {
-            return new Iterator<Integer>() {
+            return new BaseIterator<Integer>() {
                 int index = 0;
 
                 @Override
@@ -756,14 +945,49 @@ public final class Def {
                 }
 
                 @Override
-                public Integer next() {
+                public byte nextByte() {
+                    return (byte)nextInt();
+                }
+
+                @Override
+                public short nextShort() {
+                    return (short)nextInt();
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char)nextInt();
+                }
+
+                @Override
+                public int nextInt() {
                     return array[index++];
+                }
+
+                @Override
+                public long nextLong() {
+                    return nextInt();
+                }
+
+                @Override
+                public float nextFloat() {
+                    return nextInt();
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextInt();
+                }
+
+                @Override
+                public Integer next() {
+                    return nextInt();
                 }
             };
         }
 
         static ValueIterator<Long> iterator(final long[] array) {
-            return new Iterator<Long>() {
+            return new BaseIterator<Long>() {
                 int index = 0;
 
                 @Override
@@ -772,14 +996,49 @@ public final class Def {
                 }
 
                 @Override
-                public Long next() {
+                public byte nextByte() {
+                    return (byte)nextLong();
+                }
+
+                @Override
+                public short nextShort() {
+                    return (short)nextLong();
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char)nextLong();
+                }
+
+                @Override
+                public int nextInt() {
+                    return (int)nextLong();
+                }
+
+                @Override
+                public long nextLong() {
                     return array[index++];
+                }
+
+                @Override
+                public float nextFloat() {
+                    return nextLong();
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextLong();
+                }
+
+                @Override
+                public Long next() {
+                    return nextLong();
                 }
             };
         }
 
         static ValueIterator<Character> iterator(final char[] array) {
-            return new Iterator<Character>() {
+            return new BaseIterator<Character>() {
                 int index = 0;
 
                 @Override
@@ -788,14 +1047,49 @@ public final class Def {
                 }
 
                 @Override
-                public Character next() {
+                public byte nextByte() {
+                    return (byte)nextChar();
+                }
+
+                @Override
+                public short nextShort() {
+                    return (short)nextChar();
+                }
+
+                @Override
+                public char nextChar() {
                     return array[index++];
+                }
+
+                @Override
+                public int nextInt() {
+                    return nextChar();
+                }
+
+                @Override
+                public long nextLong() {
+                    return nextChar();
+                }
+
+                @Override
+                public float nextFloat() {
+                    return nextChar();
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextChar();
+                }
+
+                @Override
+                public Character next() {
+                    return nextChar();
                 }
             };
         }
 
         static ValueIterator<Float> iterator(final float[] array) {
-            return new Iterator<Float>() {
+            return new BaseIterator<Float>() {
                 int index = 0;
 
                 @Override
@@ -804,14 +1098,49 @@ public final class Def {
                 }
 
                 @Override
-                public Float next() {
+                public byte nextByte() {
+                    return (byte)nextFloat();
+                }
+
+                @Override
+                public short nextShort() {
+                    return (short)nextFloat();
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char)nextFloat();
+                }
+
+                @Override
+                public int nextInt() {
+                    return (int)nextFloat();
+                }
+
+                @Override
+                public long nextLong() {
+                    return (long)nextFloat();
+                }
+
+                @Override
+                public float nextFloat() {
                     return array[index++];
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextFloat();
+                }
+
+                @Override
+                public Float next() {
+                    return nextFloat();
                 }
             };
         }
 
         static ValueIterator<Double> iterator(final double[] array) {
-            return new Iterator<Double>() {
+            return new BaseIterator<Double>() {
                 int index = 0;
 
                 @Override
@@ -820,14 +1149,49 @@ public final class Def {
                 }
 
                 @Override
-                public Double next() {
+                public byte nextByte() {
+                    return (byte)nextDouble();
+                }
+
+                @Override
+                public short nextShort() {
+                    return (short)nextDouble();
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char)nextDouble();
+                }
+
+                @Override
+                public int nextInt() {
+                    return (int)nextDouble();
+                }
+
+                @Override
+                public long nextLong() {
+                    return (long)nextDouble();
+                }
+
+                @Override
+                public float nextFloat() {
+                    return (float)nextDouble();
+                }
+
+                @Override
+                public double nextDouble() {
                     return array[index++];
+                }
+
+                @Override
+                public Double next() {
+                    return nextDouble();
                 }
             };
         }
 
         static ValueIterator<Object> iterator(final Object[] array) {
-            return new Iterator<Object>() {
+            return new BaseIterator<Object>() {
                 int index = 0;
 
                 @Override
@@ -861,7 +1225,7 @@ public final class Def {
      */
     static MethodHandle lookupIterator(Class<?> receiverClass) {
         if (Iterable.class.isAssignableFrom(receiverClass)) {
-            return ITERATOR;
+            return OBJECT_ITERATOR;
         } else if (receiverClass.isArray()) {
             return ArrayIteratorHelper.newIterator(receiverClass);
         } else {

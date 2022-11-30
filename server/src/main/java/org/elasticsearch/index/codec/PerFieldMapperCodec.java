@@ -14,13 +14,16 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.tsdb.ES97TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -36,6 +39,7 @@ public class PerFieldMapperCodec extends Lucene94Codec {
 
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final ES85BloomFilterPostingsFormat bloomFilterPostingsFormat;
+    private final ES97TSDBDocValuesFormat tsdbDocValuesFormat;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
@@ -46,6 +50,7 @@ public class PerFieldMapperCodec extends Lucene94Codec {
         super(compressionMode);
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES85BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
+        this.tsdbDocValuesFormat = new ES97TSDBDocValuesFormat();
     }
 
     @Override
@@ -84,6 +89,14 @@ public class PerFieldMapperCodec extends Lucene94Codec {
 
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
+        if (useTSDBDocValuesFormat(field)) {
+            return tsdbDocValuesFormat;
+        }
         return docValuesFormat;
+    }
+
+    private boolean useTSDBDocValuesFormat(final String field) {
+        return (mapperService.mappingLookup().hasTimestampField() && DataStream.TimestampField.FIXED_TIMESTAMP_FIELD.equals(field))
+            || TimeSeriesParams.MetricType.counter.equals(mapperService.fieldType(field).getMetricType());
     }
 }

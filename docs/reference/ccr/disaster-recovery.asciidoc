@@ -7,12 +7,7 @@
 
 
 Learn how to failover and failback between two clusters based on
-uni-directional {ccr}. The following tutorial is designed for mutable indices
-(data need to be updated after write). If you have append-only data (logs,
-metrics, observability, and security events), you should follow
-https://www.elastic.co/blog/bi-directional-replication-with-elasticsearch-cross-cluster-replication-ccr[Bi-directional
-replication with Elasticsearch cross-cluster replication (CCR) blog] to set up
-bi-directional {ccr} which automatically failover and failback without human
+uni-directional {ccr}. You can also visit <<ccr-disaster-recovery-bi-directional-tutorial,ccr bi-directional tutorial>> to set up replicating data streams that automatically failover and failback without human
 intervention.
 
 * Setting up uni-directional {ccr} replicated from `clusterA`

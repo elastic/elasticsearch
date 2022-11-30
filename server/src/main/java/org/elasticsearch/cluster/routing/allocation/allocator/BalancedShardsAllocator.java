@@ -282,8 +282,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         float weight(Balancer balancer, ModelNode node, String index) {
             final var tier = balancer.indexTier(index);
             final var tierStats = balancer.getStatsForTier(tier);
-            final float weightShard = node.numShards() - tierStats.avgShardSize();
-            final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
+            final float weightShard = node.numShards() - tierStats.avgShardCount();
+            final float weightIndex = ((float) balancer.metadata.index(index).getTotalNumberOfShards() / tierStats.numberOfNodes);
             final float ingestLoad = (float) (node.writeLoad() - tierStats.avgWriteLoad());
             final float diskUsage = (float) (node.diskUsageInBytes() - tierStats.avgDiskUsageInBytes());
             return theta0 * weightShard + theta1 * weightIndex + theta2 * ingestLoad + theta3 * diskUsage;
@@ -324,7 +324,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return tier;
         }
 
-        public float avgShardSize() {
+        public float avgShardCount() {
             return ((float) totalShards) / numberOfNodes;
         }
 

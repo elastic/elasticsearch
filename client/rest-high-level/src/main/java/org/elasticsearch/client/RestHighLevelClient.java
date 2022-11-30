@@ -63,9 +63,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -371,42 +369,6 @@ public class RestHighLevelClient implements Closeable {
         return performRequestAndParseEntity(
             reindexRequest,
             RequestConverters::reindex,
-            options,
-            BulkByScrollResponse::fromXContent,
-            singleton(409)
-        );
-    }
-
-    /**
-     * Executes a update by query request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
-     * @param updateByQueryRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final BulkByScrollResponse updateByQuery(UpdateByQueryRequest updateByQueryRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            updateByQueryRequest,
-            RequestConverters::updateByQuery,
-            options,
-            BulkByScrollResponse::fromXContent,
-            singleton(409)
-        );
-    }
-
-    /**
-     * Executes a delete by query request.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *     Delete By Query API on elastic.co</a>
-     * @param deleteByQueryRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final BulkByScrollResponse deleteByQuery(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            deleteByQueryRequest,
-            RequestConverters::deleteByQuery,
             options,
             BulkByScrollResponse::fromXContent,
             singleton(409)
@@ -1094,37 +1056,6 @@ public class RestHighLevelClient implements Closeable {
                             // first. If parsing of the response breaks, we fall back to parsing it as an error.
                             actionListener.onFailure(parseResponseException(responseException));
                         }
-                    } else {
-                        actionListener.onFailure(parseResponseException(responseException));
-                    }
-                } else {
-                    actionListener.onFailure(exception);
-                }
-            }
-        };
-    }
-
-    final <Resp> ResponseListener wrapResponseListener404sOptional(
-        CheckedFunction<Response, Resp, IOException> responseConverter,
-        ActionListener<Optional<Resp>> actionListener
-    ) {
-        return new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                try {
-                    actionListener.onResponse(Optional.of(responseConverter.apply(response)));
-                } catch (Exception e) {
-                    IOException ioe = new IOException("Unable to parse response body for " + response, e);
-                    onFailure(ioe);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                if (exception instanceof ResponseException responseException) {
-                    Response response = responseException.getResponse();
-                    if (RestStatus.NOT_FOUND.getStatus() == response.getStatusLine().getStatusCode()) {
-                        actionListener.onResponse(Optional.empty());
                     } else {
                         actionListener.onFailure(parseResponseException(responseException));
                     }

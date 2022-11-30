@@ -2,4 +2,5 @@ pr: 92021
 summary: Improve master service batching queues
 area: Cluster Coordination
 type: enhancement
-issues: []
+issues:
+ - 81626

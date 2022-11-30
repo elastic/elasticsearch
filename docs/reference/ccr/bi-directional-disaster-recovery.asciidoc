@@ -5,6 +5,20 @@
 <titleabbrev>Bi-directional disaster recovery</titleabbrev>
 ++++
 
+////
+[source,console]
+----
+PUT logs-generic-default
+----
+// TESTSETUP 
+
+[source,console]
+----
+DELETE /_data_stream/*
+----
+// TEARDOWN
+////
+
 Learn how to set up disaster recovery between two clusters based on
 bi-directional {ccr}. The following tutorial is designed for data streams which supports 
 <<update-docs-in-a-data-stream-by-query,update_by_query>> and

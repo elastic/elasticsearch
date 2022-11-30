@@ -7,12 +7,12 @@
 
 Learn how to set up disaster recovery between two clusters based on
 bi-directional {ccr}. The following tutorial is designed for data streams which supports 
-<<{ref}/use-a-data-stream.html#update-docs-in-a-data-stream-by-query,update_by_query>> and
- <<{ref}/use-a-data-stream.html#delete-docs-in-a-data-stream-by-query,delete_by_query>>. 
+<<update-docs-in-a-data-stream-by-query,update_by_query>> and
+ <<delete-docs-in-a-data-stream-by-query,delete_by_query>>. 
  You can only perform these actions on the leader index. 
 
 This tutorial works with Logstash as the source of ingestion. It takes
-advantage of a logstash feature where <<{logstash-ref}/plugins-outputs-elasticsearch,the output can be load balanced
+advantage of a logstash feature where {logstash-ref}/plugins-outputs-elasticsearch.html[logstash  output to Elasticsearch] can be load balanced
 across an array of hosts specified>>. Beats and agents currently do not 
 support multiple outputs. It should also be possible to set up a proxy 
 (Load Balancer) to redirect traffic without Logstash in this tutorial. 

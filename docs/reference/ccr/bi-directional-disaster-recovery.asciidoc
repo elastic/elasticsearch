@@ -8,7 +8,7 @@
 ////
 [source,console]
 ----
-PUT logs-generic-default
+PUT _data_stream/logs-generic-default
 ----
 // TESTSETUP 
 

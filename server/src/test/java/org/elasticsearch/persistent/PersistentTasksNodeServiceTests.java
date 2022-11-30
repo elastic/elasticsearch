@@ -11,7 +11,6 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.action.support.user.ActionUser;
 import org.elasticsearch.action.support.user.FakeActionUserContext;
 import org.elasticsearch.action.support.user.MockActionUser;
 import org.elasticsearch.client.internal.Client;
@@ -105,7 +104,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         // need to account for 5 original tasks on each node and their relocations
         for (int i = 0; i < (nonLocalNodesCount + 1) * 10; i++) {
             TaskId parentId = new TaskId("cluster", i);
-            when(action.createTask(anyLong(), anyString(), anyString(), eq(parentId), any(), any(ActionUser.class), any())).thenReturn(
+            when(action.createTask(anyLong(), anyString(), anyString(), eq(parentId), any(), any(), any())).thenReturn(
                 new TestPersistentTasksPlugin.TestTask(i, "persistent", "test", "", parentId, owner, Collections.emptyMap())
             );
         }
@@ -226,9 +225,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             owner,
             Collections.emptyMap()
         );
-        when(action.createTask(anyLong(), anyString(), anyString(), eq(parentId), any(), any(ActionUser.class), any())).thenReturn(
-            nodeTask
-        );
+        when(action.createTask(anyLong(), anyString(), anyString(), eq(parentId), any(), any(), any())).thenReturn(nodeTask);
         PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Collections.singletonList(action));
 
         MockExecutor executor = new MockExecutor();
@@ -288,7 +285,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         final MockActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
         when(action.getTaskName()).thenReturn("test");
-        when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any(ActionUser.class), any())).thenReturn(
+        when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any(), any())).thenReturn(
             new TestPersistentTasksPlugin.TestTask(1, "persistent", "test", "", new TaskId("cluster", 1), owner, Collections.emptyMap())
         );
         PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Collections.singletonList(action));
@@ -389,7 +386,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         final MockActionUser owner = randomBoolean() ? new MockActionUser(randomAlphaOfLengthBetween(4, 8)) : null;
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
         when(action.getTaskName()).thenReturn("test");
-        when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any(ActionUser.class), any())).thenReturn(
+        when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any(), any())).thenReturn(
             new TestPersistentTasksPlugin.TestTask(1, "persistent", "test", "", new TaskId("cluster", 1), owner, Collections.emptyMap())
         );
         PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Collections.singletonList(action));
@@ -502,7 +499,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
         when(action.getTaskName()).thenReturn(TestPersistentTasksExecutor.NAME);
-        when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any(ActionUser.class), any())).thenThrow(
+        when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any(), any())).thenThrow(
             new RuntimeException("Something went wrong")
         );
 

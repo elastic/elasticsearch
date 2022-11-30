@@ -54,7 +54,9 @@ public class IndexMappingTemplateAsserter {
      * A failure here will be very difficult to reproduce as it may be a side
      * effect of a different test running in the cluster.
      *
-     * @param client The rest client
+     * @param client The rest clien
+     * 
+     * @throws java.lang.Exception when test fails
      */
     public static void assertMlMappingsMatchTemplates(RestClient client) throws Exception {
         // Excluding those from stats index as some have been renamed and other removed.
@@ -120,7 +122,10 @@ public class IndexMappingTemplateAsserter {
      *                                      index does not cause an error
      * @param exceptions                    List of keys to ignore in the index mappings.
      *                                      Each key is a '.' separated path.
-     * @param allowSystemIndexWarnings      Whether deprecation warnings for system index access should be allowed/expected.
+     * @param allowSystemIndexWarnings
+     *       Whether deprecation warnings for system index access should be allowed/expected.
+     * 
+     * @throws java.lang.Exception when test fails
      */
     @SuppressWarnings("unchecked")
     public static void assertLegacyTemplateMatchesIndexMappings(
@@ -184,7 +189,10 @@ public class IndexMappingTemplateAsserter {
      *                                      index does not cause an error
      * @param exceptions                    List of keys to ignore in the index mappings.
      *                                      Each key is a '.' separated path.
-     * @param allowSystemIndexWarnings      Whether deprecation warnings for system index access should be allowed/expected.
+     * @param allowSystemIndexWarnings   
+     *    Whether deprecation warnings for system index access should be allowed/expected.
+     * 
+     * @throws java.lang.Exception when test fails
      */
     @SuppressWarnings("unchecked")
     public static void assertComposableTemplateMatchesIndexMappings(

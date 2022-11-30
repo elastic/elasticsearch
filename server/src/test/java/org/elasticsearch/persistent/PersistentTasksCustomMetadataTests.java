@@ -26,13 +26,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Builder;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -58,7 +59,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class PersistentTasksCustomMetadataTests extends SimpleDiffableSerializationTestCase<Custom> {
+public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Custom> {
 
     @Override
     protected PersistentTasksCustomMetadata createTestInstance() {
@@ -174,7 +175,7 @@ public class PersistentTasksCustomMetadataTests extends SimpleDiffableSerializat
         );
 
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference shuffled = toShuffledXContent(testInstance, xContentType, params, false);
+        BytesReference shuffled = toShuffledXContent(ChunkedToXContent.wrapAsXContentObject(testInstance), xContentType, params, false);
 
         PersistentTasksCustomMetadata newInstance;
         try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {

@@ -15,12 +15,13 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -28,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -222,14 +224,18 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.xContentValuesMap(DATA_STREAM.getPreferredName(), dataStreams);
-        builder.startObject(DATA_STREAM_ALIASES.getPreferredName());
-        for (Map.Entry<String, DataStreamAlias> dataStream : dataStreamAliases.entrySet()) {
-            dataStream.getValue().toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            Iterators.single(((builder, params) -> builder.startObject(DATA_STREAM.getPreferredName()))),
+            dataStreams.entrySet()
+                .stream()
+                .map(entry -> (ToXContent) (builder, params) -> builder.field(entry.getKey(), entry.getValue()))
+                .iterator(),
+            Iterators.single((builder, params) -> builder.endObject()),
+            Iterators.single(((builder, params) -> builder.startObject(DATA_STREAM_ALIASES.getPreferredName()))),
+            dataStreamAliases.values().iterator(),
+            Iterators.single((builder, params) -> builder.endObject())
+        );
     }
 
     @Override

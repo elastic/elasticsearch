@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
@@ -123,12 +126,12 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        builder.startArray(TOMBSTONES_FIELD.getPreferredName());
-        for (Tombstone tombstone : tombstones) {
-            tombstone.toXContent(builder, params);
-        }
-        return builder.endArray();
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            Iterators.<ToXContent>single((builder, params) -> builder.startArray(TOMBSTONES_FIELD.getPreferredName())),
+            tombstones.iterator(),
+            Iterators.single(((builder, params) -> builder.endArray()))
+        );
     }
 
     public static IndexGraveyard fromXContent(final XContentParser parser) throws IOException {

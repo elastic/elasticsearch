@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,7 +47,7 @@ public class IngestMetadataTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.prettyPrint();
         builder.startObject();
-        ingestMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsXContentObject(ingestMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentBuilder shuffled = shuffleXContent(builder);
         try (XContentParser parser = createParser(shuffled)) {

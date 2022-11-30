@@ -57,7 +57,13 @@ public class IndexGraveyardTests extends ESTestCase {
         final IndexGraveyard graveyard = createRandom();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        graveyard.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        final var iterator = graveyard.toXContentChunked(ToXContent.EMPTY_PARAMS);
+        int chunks = 0;
+        while(iterator.hasNext()) {
+            ++chunks;
+            iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+        assertEquals(2 + graveyard.getTombstones().size(), chunks);
         builder.endObject();
         if (graveyard.getTombstones().size() > 0) {
             // check that date properly printed

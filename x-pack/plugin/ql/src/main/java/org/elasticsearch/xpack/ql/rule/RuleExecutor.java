@@ -139,7 +139,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         Map<Batch, List<Transformation>> transformations = new LinkedHashMap<>();
 
         if (batches == null) {
-            batches =  batches();
+            batches = batches();
         }
         for (Batch batch : batches) {
             int batchRuns = 0;

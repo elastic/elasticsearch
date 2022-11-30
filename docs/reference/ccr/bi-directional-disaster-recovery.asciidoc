@@ -214,6 +214,7 @@ sending to both clusters.
 
 ==== Perform update or delete by query
 It is possible to update or delete the documents but you can only perform these actions on the leader index.
+
 . First identify which backing index contains the document you want to update.
 +
 [source,console]

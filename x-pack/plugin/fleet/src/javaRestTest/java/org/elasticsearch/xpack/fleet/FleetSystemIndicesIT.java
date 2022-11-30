@@ -43,10 +43,9 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         RequestOptions consumeSystemIndicesWarningsOptions = RequestOptions.DEFAULT.toBuilder()
             .setWarningsHandler(
                 warnings -> List.of(
-                    "this request accesses system indices: ["
+                    "index name ["
                         + indexName
-                        + "], but "
-                        + "in a future major version, direct access to system indices will be prevented by default"
+                        + "] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
                 ).equals(warnings) == false
             )
             .build();

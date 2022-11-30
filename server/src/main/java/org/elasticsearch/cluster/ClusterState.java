@@ -43,7 +43,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,6 +53,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -105,7 +108,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
-    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
+    public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
 
         /**
          * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be send to a client.
@@ -121,7 +124,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
          * the more faithful it is the more useful it is for diagnostics.
          */
         @Override
-        XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
+        Iterator<? extends ToXContent> toXContentChunked(Params params);
     }
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
@@ -619,7 +622,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (metrics.contains(Metric.CUSTOMS)) {
             for (Map.Entry<String, Custom> cursor : customs.entrySet()) {
                 builder.startObject(cursor.getKey());
-                cursor.getValue().toXContent(builder, params);
+                ChunkedToXContent.wrapAsXContentObject(cursor.getValue()).toXContent(builder, params);
                 builder.endObject();
             }
         }

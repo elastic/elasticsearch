@@ -8,9 +8,11 @@
 
 package org.elasticsearch.common.lucene.uid;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -52,10 +54,14 @@ final class PerThreadIDVersionAndSeqNoLookup {
     /** used for assertions to make sure class usage meets assumptions */
     private final Object readerKey;
 
+    final long minTimestamp;
+    final long maxTimestamp;
+
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, boolean trackReaderKey) throws IOException {
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, boolean trackReaderKey, boolean loadTimestampRange)
+        throws IOException {
         this.uidField = uidField;
         final Terms terms = reader.terms(uidField);
         if (terms == null) {
@@ -84,10 +90,19 @@ final class PerThreadIDVersionAndSeqNoLookup {
         Object readerKey = null;
         assert trackReaderKey ? (readerKey = reader.getCoreCacheHelper().getKey()) != null : readerKey == null;
         this.readerKey = readerKey;
+
+        if (loadTimestampRange) {
+            PointValues tsPointValues = reader.getPointValues("@timestamp");
+            minTimestamp = LongPoint.decodeDimension(tsPointValues.getMinPackedValue(), 0);
+            maxTimestamp = LongPoint.decodeDimension(tsPointValues.getMaxPackedValue(), 0);
+        } else {
+            minTimestamp = 0;
+            maxTimestamp = Integer.MAX_VALUE;
+        }
     }
 
-    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
-        this(reader, uidField, true);
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, boolean loadTimestampRange) throws IOException {
+        this(reader, uidField, true, loadTimestampRange);
     }
 
     /** Return null if id is not found.

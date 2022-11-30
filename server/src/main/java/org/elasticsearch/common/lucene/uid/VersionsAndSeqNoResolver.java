@@ -34,7 +34,8 @@ public final class VersionsAndSeqNoResolver {
         }
     };
 
-    private static PerThreadIDVersionAndSeqNoLookup[] getLookupState(IndexReader reader, String uidField) throws IOException {
+    private static PerThreadIDVersionAndSeqNoLookup[] getLookupState(IndexReader reader, String uidField, boolean loadTimestampRange)
+        throws IOException {
         // We cache on the top level
         // This means cache entries have a shorter lifetime, maybe as low as 1s with the
         // default refresh interval and a steady indexing rate, but on the other hand it
@@ -59,7 +60,7 @@ public final class VersionsAndSeqNoResolver {
         if (lookupState == null) {
             lookupState = new PerThreadIDVersionAndSeqNoLookup[reader.leaves().size()];
             for (LeafReaderContext leaf : reader.leaves()) {
-                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), uidField);
+                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), uidField, loadTimestampRange);
             }
             ctl.set(lookupState);
         }
@@ -118,7 +119,7 @@ public final class VersionsAndSeqNoResolver {
      * </ul>
      */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
-        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
+        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field(), false);
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments
@@ -133,11 +134,34 @@ public final class VersionsAndSeqNoResolver {
         return null;
     }
 
+    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, long timestamp, boolean loadSeqNo) throws IOException {
+        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field(), true);
+        List<LeafReaderContext> leaves = reader.leaves();
+        // iterate in default order, the segments should be sorted by DataStream#TIMESERIES_LEAF_READERS_SORTER
+        long prevMaxTimestamp = Long.MAX_VALUE;
+        for (final LeafReaderContext leaf : leaves) {
+            PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            assert prevMaxTimestamp > lookup.maxTimestamp;
+            if (timestamp < lookup.minTimestamp) {
+                continue;
+            }
+            if (timestamp > lookup.maxTimestamp) {
+                return null;
+            }
+            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf);
+            if (result != null) {
+                return result;
+            }
+            prevMaxTimestamp = lookup.maxTimestamp;
+        }
+        return null;
+    }
+
     public static DocIdAndVersion loadDocIdAndVersionUncached(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
         List<LeafReaderContext> leaves = reader.leaves();
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
-            PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), term.field(), false);
+            PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), term.field(), false, false);
             DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf);
             if (result != null) {
                 return result;
@@ -151,7 +175,7 @@ public final class VersionsAndSeqNoResolver {
      * The result is either null or the live and latest version of the given uid.
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term term) throws IOException {
-        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
+        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field(), false);
         final List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments

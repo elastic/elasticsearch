@@ -590,7 +590,6 @@ public class Node implements Closeable {
                 snapshotsInfoService,
                 threadPool,
                 systemIndices,
-                rerouteServiceReference::get,
                 writeLoadForecaster
             );
             modules.add(clusterModule);

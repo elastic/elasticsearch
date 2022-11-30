@@ -155,11 +155,11 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testFromStatsGroupingAvg() {
-        testFromStatsGroupingAvgImpl("from test | stats avg(count) by data", "avg(count)", "data");
+        testFromStatsGroupingAvgImpl("from test | stats avg(count) by data", "data", "avg(count)");
     }
 
     public void testFromStatsGroupingAvgWithAliases() {
-        testFromStatsGroupingAvgImpl("from test | eval g = data | stats f = avg(count) by g", "f", "g");
+        testFromStatsGroupingAvgImpl("from test | eval g = data | stats f = avg(count) by g", "g", "f");
     }
 
     private void testFromStatsGroupingAvgImpl(String command, String expectedFieldName, String expectedGroupName) {
@@ -170,34 +170,34 @@ public class EsqlActionIT extends ESIntegTestCase {
         // assert column metadata
         ColumnInfo groupColumn = results.columns().get(0);
         assertEquals(expectedGroupName, groupColumn.name());
-        assertEquals("long", groupColumn.type());
+        assertEquals("double", groupColumn.type());
         ColumnInfo valuesColumn = results.columns().get(1);
         assertEquals(expectedFieldName, valuesColumn.name());
-        assertEquals("double", valuesColumn.type());
+        assertEquals("long", valuesColumn.type());
 
         // assert column values
         List<List<Object>> valueValues = results.values();
         assertEquals(2, valueValues.size());
         // This is loathsome, find a declarative way to assert the expected output.
-        if ((long) valueValues.get(0).get(0) == 1L) {
-            assertEquals(42, (double) valueValues.get(0).get(1), 1d);
-            assertEquals(2L, (long) valueValues.get(1).get(0));
-            assertEquals(44, (double) valueValues.get(1).get(1), 1d);
-        } else if ((long) valueValues.get(0).get(0) == 2L) {
-            assertEquals(42, (double) valueValues.get(1).get(1), 1d);
-            assertEquals(1L, (long) valueValues.get(1).get(0));
-            assertEquals(44, (double) valueValues.get(0).get(1), 1d);
+        if ((long) valueValues.get(0).get(1) == 1L) {
+            assertEquals(42, (double) valueValues.get(0).get(0), 1d);
+            assertEquals(2L, (long) valueValues.get(1).get(1));
+            assertEquals(44, (double) valueValues.get(1).get(0), 1d);
+        } else if ((long) valueValues.get(0).get(1) == 2L) {
+            assertEquals(42, (double) valueValues.get(1).get(0), 1d);
+            assertEquals(1L, (long) valueValues.get(1).get(1));
+            assertEquals(44, (double) valueValues.get(0).get(0), 1d);
         } else {
             fail("Unexpected group value: " + valueValues.get(0).get(0));
         }
     }
 
     public void testFromStatsGroupingCount() {
-        testFromStatsGroupingCountImpl("from test | stats count(count) by data", "count(count)", "data");
+        testFromStatsGroupingCountImpl("from test | stats count(count) by data", "data", "count(count)");
     }
 
     public void testFromStatsGroupingCountWithAliases() {
-        testFromStatsGroupingCountImpl("from test | eval grp = data | stats total = count(count) by grp", "total", "grp");
+        testFromStatsGroupingCountImpl("from test | eval grp = data | stats total = count(count) by grp", "grp", "total");
     }
 
     private void testFromStatsGroupingCountImpl(String command, String expectedFieldName, String expectedGroupName) {
@@ -217,16 +217,16 @@ public class EsqlActionIT extends ESIntegTestCase {
         List<List<Object>> valueValues = results.values();
         assertEquals(2, valueValues.size());
         // This is loathsome, find a declarative way to assert the expected output.
-        if ((long) valueValues.get(0).get(0) == 1L) {
-            assertEquals(20L, valueValues.get(0).get(1));
-            assertEquals(2L, valueValues.get(1).get(0));
-            assertEquals(20L, valueValues.get(1).get(1));
-        } else if ((long) valueValues.get(0).get(0) == 2L) {
-            assertEquals(20L, valueValues.get(1).get(1));
-            assertEquals(1L, valueValues.get(1).get(0));
-            assertEquals(20L, valueValues.get(0).get(1));
+        if ((long) valueValues.get(0).get(1) == 1L) {
+            assertEquals(20L, valueValues.get(0).get(0));
+            assertEquals(2L, valueValues.get(1).get(1));
+            assertEquals(20L, valueValues.get(1).get(0));
+        } else if ((long) valueValues.get(0).get(1) == 2L) {
+            assertEquals(20L, valueValues.get(1).get(0));
+            assertEquals(1L, valueValues.get(1).get(1));
+            assertEquals(20L, valueValues.get(0).get(0));
         } else {
-            fail("Unexpected group value: " + valueValues.get(0).get(0));
+            fail("Unexpected group value: " + valueValues.get(0).get(1));
         }
     }
 
@@ -238,14 +238,14 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(40, results.values().size());
 
         // assert column metadata
-        assertEquals("time", results.columns().get(0).name());
-        assertEquals("date", results.columns().get(0).type());
-        assertEquals("avg(count)", results.columns().get(1).name());
-        assertEquals("double", results.columns().get(1).type());
+        assertEquals("avg(count)", results.columns().get(0).name());
+        assertEquals("double", results.columns().get(0).type());
+        assertEquals("time", results.columns().get(1).name());
+        assertEquals("date", results.columns().get(1).type());
 
         // assert column values
         List<Long> expectedValues = LongStream.range(0, 40).map(i -> epoch + i).sorted().boxed().toList();
-        List<Long> actualValues = IntStream.range(0, 40).mapToLong(i -> (Long) results.values().get(i).get(0)).sorted().boxed().toList();
+        List<Long> actualValues = IntStream.range(0, 40).mapToLong(i -> (Long) results.values().get(i).get(1)).sorted().boxed().toList();
         assertEquals(expectedValues, actualValues);
     }
 
@@ -256,17 +256,17 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(3, results.values().size());
 
         // assert column metadata
-        assertEquals("color", results.columns().get(0).name());
-        assertEquals("keyword", results.columns().get(0).type());
-        assertEquals("avg(count)", results.columns().get(1).name());
-        assertEquals("double", results.columns().get(1).type());
+        assertEquals("avg(count)", results.columns().get(0).name());
+        assertEquals("double", results.columns().get(0).type());
+        assertEquals("color", results.columns().get(1).name());
+        assertEquals("keyword", results.columns().get(1).type());
         record Group(String color, double avg) {
 
         }
         List<Group> expectedGroups = List.of(new Group("blue", 42), new Group("green", 44), new Group("red", 43));
         List<Group> actualGroups = results.values()
             .stream()
-            .map(l -> new Group((String) l.get(0), (Double) l.get(1)))
+            .map(l -> new Group((String) l.get(1), (Double) l.get(0)))
             .sorted(Comparator.comparing(c -> c.color))
             .toList();
         assertThat(actualGroups, equalTo(expectedGroups));

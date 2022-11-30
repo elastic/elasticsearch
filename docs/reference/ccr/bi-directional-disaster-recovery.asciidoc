@@ -234,6 +234,9 @@ GET logs-generic-default*/_search?filter_path=hits.hits._index
 * If the hits returns ` "_index": ".ds-logs-generic-default-<yyyy.MM.dd>-*"`, then you need to proceed to the next step on the same cluster where you perform the search query.
 
 . Perform the update (or delete) by query
++
+[source,console]
+----
 ### On the cluster identified from the previous step ###
 POST logs-generic-default/_update_by_query
 {
@@ -250,3 +253,4 @@ POST logs-generic-default/_update_by_query
     }
   }
 }
+----

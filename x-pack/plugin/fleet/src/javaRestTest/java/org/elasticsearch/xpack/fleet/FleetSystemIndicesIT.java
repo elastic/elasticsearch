@@ -95,14 +95,13 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     public void testCreationOfFleetFiles() throws Exception {
-        RequestOptions supressWarnings = supressWarningsForIndex(".fleet-agent-files-00001");
         Request request = new Request("PUT", ".fleet-agent-files-00001");
-        request.setOptions(supressWarnings); // The result includes system indices, so we warn
+        request.setOptions(supressWarningsForIndex(".fleet-agent-files-00001")); // The result includes system indices, so we warn
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         request = new Request("GET", ".fleet-agent-files-00001/_mapping");
-        request.setOptions(supressWarnings); // The result includes system indices, so we warn
+        request.setOptions(supressWarningsForIndex(".fleet-agent-files-00001")); // The result includes system indices, so we warn
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("action_id"));

@@ -1,0 +1,5 @@
+pr: 92027
+summary: Painless eq short-circuiting
+area: Infra/Scripting
+type: enhancement
+issues: []

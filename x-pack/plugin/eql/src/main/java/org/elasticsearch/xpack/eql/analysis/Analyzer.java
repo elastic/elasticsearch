@@ -9,16 +9,14 @@ package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.eql.expression.OptionalUnresolvedAttribute;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
@@ -48,7 +46,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch optional = new Batch("Optional", Limiter.ONCE, new ResolveOrReplaceOptionalRefs());
 
-        Batch resolution = new Batch("Resolution", new ResolveRefs(), new ResolveFunctions());
+        Batch resolution = new Batch("Resolution", new ResolveRefs(), new AnalyzerRules.ResolveFunctions(configuration, functionRegistry));
 
         Batch cleanup = new Batch("Finish Analysis", Limiter.ONCE, new AddMissingEqualsToBoolField());
 
@@ -95,32 +93,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     return named;
                 }
                 return u;
-            });
-        }
-    }
-
-    private class ResolveFunctions extends AnalyzerRule<LogicalPlan> {
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            return plan.transformExpressionsUp(UnresolvedFunction.class, uf -> {
-                if (uf.analyzed()) {
-                    return uf;
-                }
-
-                String name = uf.name();
-
-                if (uf.childrenResolved() == false) {
-                    return uf;
-                }
-
-                String functionName = functionRegistry.resolveAlias(name);
-                if (functionRegistry.functionExists(functionName) == false) {
-                    return uf.missing(functionName, functionRegistry.listFunctions());
-                }
-                FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                Function f = uf.buildResolved(configuration, def);
-                return f;
             });
         }
     }

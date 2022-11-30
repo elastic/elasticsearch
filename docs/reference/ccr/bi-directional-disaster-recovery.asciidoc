@@ -77,6 +77,12 @@ PUT _cluster/settings
   }
 }
 ----
+// TEST[setup:host]
+// TEST[s/"server_name": "clustera.es.australia-southeast1.gcp.elastic-cloud.com",//]
+// TEST[s/"server_name": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com",//]
+// TEST[s/"proxy_socket_connections": 18,//]
+// TEST[s/clustera.es.australia-southeast1.gcp.elastic-cloud.com:9400/\${transport_host}/]
+// TEST[s/clusterb.es.australia-southeast1.gcp.elastic-cloud.com:9400/\${transport_host}/]
 
 . Set up bi-directional cross-cluster replication.
 +
@@ -104,6 +110,9 @@ PUT /_ccr/auto_follow/logs-generic-default
   "follow_index_pattern": "{{leader_index}}-replicated_from_clustera"
 }
 ----
+// TEST[setup:remote_cluster]
+// TEST[s/clusterA/remote_cluster/]
+// TEST[s/clusterB/remote_cluster/]
 +
 IMPORTANT: Existing data on the cluster will not be replicated by
 `_ccr/auto_follow` even though the patterns may match. This function will only

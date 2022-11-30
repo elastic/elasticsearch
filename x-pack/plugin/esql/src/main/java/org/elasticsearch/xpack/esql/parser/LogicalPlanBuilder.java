@@ -77,8 +77,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         List<NamedExpression> aggregates = visitFields(ctx.fields());
-        List<Expression> groupings = visitQualifiedNames(ctx.qualifiedNames());
-        return input -> new Aggregate(source(ctx), input, groupings, aggregates);
+        List<NamedExpression> groupings = visitQualifiedNames(ctx.qualifiedNames());
+        aggregates.addAll(groupings);
+        return input -> new Aggregate(source(ctx), input, new ArrayList<>(groupings), aggregates);
     }
 
     @Override

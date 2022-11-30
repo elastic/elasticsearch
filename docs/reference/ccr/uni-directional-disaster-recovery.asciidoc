@@ -5,6 +5,20 @@
 <titleabbrev>Uni-directional disaster recovery</titleabbrev>
 ++++
 
+////
+[source,console]
+----
+PUT kibana_sample_data_ecommerce
+----
+// TESTSETUP 
+
+[source,console]
+----
+DELETE kibana_sample_data_ecommerce
+----
+// TEARDOWN
+////
+
 
 Learn how to failover and failback between two clusters based on
 uni-directional {ccr}. You can also visit <<ccr-disaster-recovery-bi-directional-tutorial,ccr bi-directional tutorial>> to set up replicating data streams that automatically failover and failback without human
@@ -52,12 +66,26 @@ PUT _cluster/settings
     }
   }
 }
-PUT /kibana_sample_data_ecommerce/_ccr/follow
+----
+// TEST[setup:host]
+// TEST[s/"server_name": "clustera.es.australia-southeast1.gcp.elastic-cloud.com",//]
+// TEST[s/"proxy_socket_connections": 18,//]
+// TEST[s/clustera.es.australia-southeast1.gcp.elastic-cloud.com:9400/\${transport_host}/]
+// TEST[s/clusterA/remote_cluster/]
+
++
+[source,console]
+----
+### On clusterB ###
+PUT /kibana_sample_data_ecommerce_copy/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster": "clusterA",
   "leader_index": "kibana_sample_data_ecommerce"
 }
 ----
+// TEST[continued]
+// TEST[s/clusterA/remote_cluster/]
+
 IMPORTANT: Writes (such as ingestion or updates) should occur only on the leader
 index. Follower indices are read-only and will reject any writes.
 
@@ -75,11 +103,12 @@ that it will be accepting writes. This can be achieved by:
 [source,console]
 ----
 ### On clusterB ###
-POST /kibana_sample_data_ecommerce/_ccr/pause_follow
-POST /kibana_sample_data_ecommerce/_close           
-POST /kibana_sample_data_ecommerce/_ccr/unfollow    
-POST /kibana_sample_data_ecommerce/_open
+POST /kibana_sample_data_ecommerce_copy/_ccr/pause_follow
+POST /kibana_sample_data_ecommerce_copy/_close           
+POST /kibana_sample_data_ecommerce_copy/_ccr/unfollow    
+POST /kibana_sample_data_ecommerce_copy/_open
 ----
+// TEST[continued]
 
 . On the Client (logstash, beats, agent) side, manually re-enable ingestion of
 `kibana_sample_data_ecommerce` and redirect traffic to the `clusterB`. You should
@@ -90,11 +119,12 @@ notice this index is now writable.
 [source,console]
 ----
 ### On clusterB ###
-POST kibana_sample_data_ecommerce/_doc/
+POST kibana_sample_data_ecommerce_copy/_doc/
 {
   "user": "kimchy"
 }
 ----
+// TEST[continued]
 
 ==== Failback when `clusterA` comes back
 
@@ -122,6 +152,12 @@ PUT _cluster/settings
   }
 }
 ----
+// TEST[setup:host]
+// TEST[s/"server_name": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com",//]
+// TEST[s/"proxy_socket_connections": 18,//]
+// TEST[s/clusterb.es.australia-southeast1.gcp.elastic-cloud.com:9400/\${transport_host}/]
+// TEST[s/clusterB/remote_cluster/]
+
 . Existing data need to be discarded before you can turn any index into a
 follower. Ensure the most up-to-date data is available on `clusterB` prior to
 deleting any indices on `clusterA`.  
@@ -131,6 +167,8 @@ deleting any indices on `clusterA`.
 ### On clusterA ###
 DELETE kibana_sample_data_ecommerce
 ----
+// TEST[skip:need dual cluster setup]
+
 
 . Create a follower index on `clusterA`, now following the leader index in
 `clusterB`.  
@@ -138,12 +176,14 @@ DELETE kibana_sample_data_ecommerce
 [source,console]
 ----
 ### On clusterA ###
-PUT /kibana_sample_data_ecommerce/_ccr/follow 
+PUT /kibana_sample_data_ecommerce/_ccr/follow?wait_for_active_shards=1
 { 
   "remote_cluster": "clusterB", 
-  "leader_index": "kibana_sample_data_ecommerce" 
+  "leader_index": "kibana_sample_data_ecommerce_copy" 
 }
 ----
+// TEST[continued]
+// TEST[s/clusterB/remote_cluster/]
 
 . You should now see updated documents from this index on the follower cluster.
 +
@@ -152,3 +192,4 @@ PUT /kibana_sample_data_ecommerce/_ccr/follow
 ### On clusterA ###
 GET kibana_sample_data_ecommerce/_search?q=kimchy
 ----
+// TEST[continued]

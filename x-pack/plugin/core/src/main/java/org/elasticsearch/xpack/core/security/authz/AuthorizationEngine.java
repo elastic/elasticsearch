@@ -699,17 +699,25 @@ public interface AuthorizationEngine {
         }
     }
 
-    record ParentActionAuthorization(Version version, String action) implements Writeable, ToXContent {
+    /**
+     * Holds information about authorization of a parent action which is used to pre-authorize its child actions.
+     *
+     * @param version the Elasticsearch version
+     * @param action the parent action
+     * @param id the identifier of this parent authorization used for debugging
+     */
+    record ParentActionAuthorization(Version version, String action, String id) implements Writeable, ToXContent {
 
         public static final String THREAD_CONTEXT_KEY = "_xpack_security_authorization";
 
         private static final ParseField VERSION = new ParseField("version");
         private static final ParseField ACTION = new ParseField("action");
+        private static final ParseField ID = new ParseField("id");
 
         private static final ConstructingObjectParser<ParentActionAuthorization, String> PARSER = new ConstructingObjectParser<>(
             "authorization",
             true,
-            (a) -> new ParentActionAuthorization((Version) a[0], (String) a[1])
+            (a) -> new ParentActionAuthorization((Version) a[0], (String) a[1], (String) a[2])
         );
         static {
             PARSER.declareField(
@@ -719,6 +727,7 @@ public interface AuthorizationEngine {
                 ObjectParser.ValueType.STRING
             );
             PARSER.declareString(constructorArg(), ACTION);
+            PARSER.declareString(constructorArg(), ID);
         }
 
         private static Version parseVersion(String version) {
@@ -732,12 +741,14 @@ public interface AuthorizationEngine {
         public void writeTo(StreamOutput out) throws IOException {
             Version.writeVersion(version, out);
             out.writeString(action);
+            out.writeString(id);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.field(VERSION.getPreferredName(), version);
             builder.field(ACTION.getPreferredName(), action);
+            builder.field(ID.getPreferredName(), id);
             return builder;
         }
 
@@ -751,7 +762,8 @@ public interface AuthorizationEngine {
         public static ParentActionAuthorization readFrom(StreamInput in) throws IOException {
             Version version = Version.readVersion(in);
             String action = in.readString();
-            return new ParentActionAuthorization(version, action);
+            String id = in.readString();
+            return new ParentActionAuthorization(version, action, id);
         }
 
         /**

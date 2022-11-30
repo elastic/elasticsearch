@@ -123,6 +123,28 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     && securityContext.getAuthentication().getEffectiveSubject().getVersion().equals(minVersion) == false) {
                         // re-write the authentication since we want the authentication version to match the version of the connection
                         securityContext.executeAfterRewritingAuthentication(original -> {
+                            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
+                                AuthorizationUtils.maybePreAuthorizeChildAction(
+                                    threadPool.getThreadContext(),
+                                    connection,
+                                    request,
+                                    action,
+                                    minVersion
+                                );
+                                sendWithUser(
+                                    connection,
+                                    action,
+                                    request,
+                                    options,
+                                    new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                                    sender
+                                );
+                            }
+                        }, minVersion);
+                    } else {
+                        // We need to store the thread context here to avoid that we pollute the context with parent authorization header,
+                        // which we only want to keep for a single transport request.
+                        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
                             AuthorizationUtils.maybePreAuthorizeChildAction(
                                 threadPool.getThreadContext(),
                                 connection,
@@ -130,24 +152,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 action,
                                 minVersion
                             );
-                            sendWithUser(
-                                connection,
-                                action,
-                                request,
-                                options,
-                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
-                                sender
-                            );
-                        }, minVersion);
-                    } else {
-                        AuthorizationUtils.maybePreAuthorizeChildAction(
-                            threadPool.getThreadContext(),
-                            connection,
-                            request,
-                            action,
-                            minVersion
-                        );
-                        sendWithUser(connection, action, request, options, handler, sender);
+                            sendWithUser(connection, action, request, options, handler, sender);
+                        }
                     }
             }
         };

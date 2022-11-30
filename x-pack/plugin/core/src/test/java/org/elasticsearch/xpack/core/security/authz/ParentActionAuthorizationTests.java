@@ -45,9 +45,10 @@ public class ParentActionAuthorizationTests extends ESTestCase {
     }
 
     private static ParentActionAuthorization createRandom() {
+        String id = randomAlphaOfLengthBetween(3, 10);
         String action = randomAlphaOfLengthBetween(5, 20);
         Version version = randomFrom(VersionUtils.allVersions());
-        return new ParentActionAuthorization(version, action);
+        return new ParentActionAuthorization(version, action, id);
     }
 
 }

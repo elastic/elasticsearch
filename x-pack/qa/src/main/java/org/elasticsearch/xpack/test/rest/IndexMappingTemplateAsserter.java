@@ -55,7 +55,7 @@ public class IndexMappingTemplateAsserter {
      * effect of a different test running in the cluster.
      *
      * @param client The rest clien
-     * 
+     *
      * @throws java.lang.Exception when test fails
      */
     public static void assertMlMappingsMatchTemplates(RestClient client) throws Exception {
@@ -124,7 +124,7 @@ public class IndexMappingTemplateAsserter {
      *                                      Each key is a '.' separated path.
      * @param allowSystemIndexWarnings
      *       Whether deprecation warnings for system index access should be allowed/expected.
-     * 
+     *
      * @throws java.lang.Exception when test fails
      */
     @SuppressWarnings("unchecked")
@@ -189,9 +189,9 @@ public class IndexMappingTemplateAsserter {
      *                                      index does not cause an error
      * @param exceptions                    List of keys to ignore in the index mappings.
      *                                      Each key is a '.' separated path.
-     * @param allowSystemIndexWarnings   
+     * @param allowSystemIndexWarnings
      *    Whether deprecation warnings for system index access should be allowed/expected.
-     * 
+     *
      * @throws java.lang.Exception when test fails
      */
     @SuppressWarnings("unchecked")

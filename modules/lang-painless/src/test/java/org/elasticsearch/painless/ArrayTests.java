@@ -81,4 +81,8 @@ public class ArrayTests extends ArrayLikeObjectTestCase {
     public void testDivideArray() {
         assertEquals(1, exec("def[] x = new def[1]; x[0] = 2; return x[0] / 2"));
     }
+
+    public void testLongIteration() {
+        exec("def x = new long[] { 100, 200 }; long s = 0; for (long l : x) s += l; return s");
+    }
 }

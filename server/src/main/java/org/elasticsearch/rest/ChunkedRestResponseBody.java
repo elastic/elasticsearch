@@ -117,6 +117,7 @@ public interface ChunkedRestResponseBody {
                         assert false : "failure encoding chunk";
                         IOUtils.closeWhileHandlingException(target);
                         target = null;
+                        serialization.forEachRemaining(ignored -> {});
                     }
                 }
             }

@@ -50,10 +50,12 @@ Infra/Scripting::
 
 Ingest Node::
 * Fixing a race condition in `EnrichCoordinatorProxyAction` that can leave an item stuck in its queue {es-pull}90688[#90688] (issue: {es-issue}90598[#90598])
+* Handle any exception thrown while generating source for an `IngestDocument` {es-pull}91981[#91981]
 * Refactor `DatabaseNodeService` as a cluster state listener {es-pull}91567[#91567] (issue: {es-issue}86999[#86999])
 
 Machine Learning::
 * Copy more settings when creating DF analytics destination index {es-pull}91546[#91546] (issue: {es-issue}89795[#89795])
+* Guard against input sequences that are too long for Question Answering models {es-pull}91924[#91924]
 * ML stats failures should not stop the usage API working {es-pull}91917[#91917] (issue: {es-issue}91893[#91893])
 * Skip remote clusters when performing up front privileges validation for datafeeds {es-pull}91895[#91895] (issue: {es-issue}87832[#87832])
 * Support fields with commas in data frame analytics `analyzed_fields` {es-pull}91710[#91710] (issue: {es-issue}72541[#72541])
@@ -104,6 +106,7 @@ Allocation::
 * Introduce desired-balance allocator {es-pull}91343[#91343]
 * Limit shard realocation retries {es-pull}90296[#90296]
 * Prevalidate node removal API {es-pull}88952[#88952]
+* Set default `cluster.routing.allocation.balance.disk_usage` {es-pull}91951[#91951]
 * Store write load in the `IndexMetadata` during data streams rollovers {es-pull}91019[#91019]
 * `DesiredBalance:` expose it via _internal/desired_balance {es-pull}91038[#91038] (issue: {es-issue}90583[#90583])
 
@@ -185,6 +188,7 @@ Store::
 
 TLS::
 * Add certificate start/expiry dates to SSL Diagnostic message {es-pull}89461[#89461]
+* Support SAN/dnsName for restricted trust {es-pull}91946[#91946]
 
 TSDB::
 * Generate 'index.routing_path' from dynamic mapping templates {es-pull}90552[#90552] (issue: {es-issue}90528[#90528])
@@ -217,6 +221,7 @@ Health::
 
 Machine Learning::
 * Make `categorize_text` aggregation GA {es-pull}88600[#88600]
+* Semantic search endpoint {es-pull}90450[#90450]
 
 Vector Search::
 * Add fielddata and scripting support for byte-sized vectors {es-pull}91184[#91184]

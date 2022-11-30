@@ -45,7 +45,8 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
                 warnings -> List.of(
                     "index name ["
                         + indexName
-                        + "] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
+                        + "] starts with a dot '.', in the next major version, "
+                        + "index names starting with a dot are reserved for hidden indices and system indices"
                 ).equals(warnings) == false
             )
             .build();

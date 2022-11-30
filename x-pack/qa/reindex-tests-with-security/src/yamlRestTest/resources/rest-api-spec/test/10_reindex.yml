@@ -341,6 +341,7 @@ setup:
         wait_for_completion: true
         task_id: $task
   - match: {response.created: 1}
+  - match: {task.owner: "USER:minimal_with_task_user" }
 
   - do:
       search:

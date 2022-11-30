@@ -91,7 +91,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
     ) {
         return new XContentTester<>(createParser, instanceSupplier, (testInstance, xContentType) -> {
             try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-                var serialization = testInstance.toXContentChunked();
+                var serialization = testInstance.toXContentChunked(toXContentParams);
                 while (serialization.hasNext()) {
                     serialization.next().toXContent(builder, toXContentParams);
                 }

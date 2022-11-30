@@ -930,17 +930,21 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(3));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1)); // Unassigned shard is expected.
 
-        // Cancel all initializing shards and move started primary to another node.
         AllocationCommands commands = new AllocationCommands();
-        String primaryNode = null;
+        // Cancel all initializing shards
         for (ShardRouting routing : clusterState.routingTable().allShards()) {
-            if (routing.primary()) {
-                primaryNode = routing.currentNodeId();
-            } else if (routing.initializing()) {
+            if (routing.initializing()) {
                 commands.add(new CancelAllocationCommand(routing.shardId().getIndexName(), routing.id(), routing.currentNodeId(), false));
             }
         }
-        commands.add(new MoveAllocationCommand("test", 0, primaryNode, "A-4"));
+        // Move started primary to another node.
+        for (ShardRouting routing : clusterState.routingTable().allShards()) {
+            if (routing.primary()) {
+                var currentNodeId = routing.currentNodeId();
+                var otherNodeId = randomValueOtherThan(currentNodeId, clusterState.nodes().getNodes().keySet().iterator()::next);
+                commands.add(new MoveAllocationCommand("test", 0, currentNodeId, otherNodeId));
+            }
+        }
 
         clusterState = strategy.reroute(clusterState, commands, false, false, false, ActionListener.noop()).clusterState();
 

@@ -26,35 +26,4 @@ public interface ValueIterator<T> extends Iterator<T> {
     long nextLong();
     float nextFloat();
     double nextDouble();
-
-    default void forEachRemaining(IntConsumer action) {
-        while (hasNext()) {
-            action.accept(nextInt());
-        }
-    }
-
-    default void forEachRemaining(LongConsumer action) {
-        while (hasNext()) {
-            action.accept(nextLong());
-        }
-    }
-
-    default void forEachRemaining(DoubleConsumer action) {
-        while (hasNext()) {
-            action.accept(nextDouble());
-        }
-    }
-
-    @Override
-    default void forEachRemaining(Consumer<? super T> action) {
-        if (action instanceof IntConsumer i) {
-            forEachRemaining(i);
-        } else if (action instanceof LongConsumer l) {
-            forEachRemaining(l);
-        } else if (action instanceof DoubleConsumer d) {
-            forEachRemaining(d);
-        } else {
-            Iterator.super.forEachRemaining(action);
-        }
-    }
 }

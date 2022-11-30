@@ -8,9 +8,11 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -118,8 +120,11 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
         }
     }
 
-    // The prevalidation result of a node
-    public record Result(boolean isSafe, Reason reason, String message) implements ToXContentObject, Writeable {
+    /**
+     *  The prevalidation result of a node.
+     * @param reason is nullable only for BWC between 8.6 and 8.7. In a fully-upgraded 8.7, it should always be non-null.
+     */
+    public record Result(boolean isSafe, @Nullable Reason reason, String message) implements ToXContentObject, Writeable {
 
         private static final ParseField IS_SAFE_FIELD = new ParseField("is_safe");
         private static final ParseField REASON_FIELD = new ParseField("reason");
@@ -143,11 +148,16 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(isSafe);
-            reason.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+                reason.writeTo(out);
+            }
             out.writeString(message);
         }
 
         public static Result readFrom(final StreamInput in) throws IOException {
+            if (in.getVersion().before(Version.V_8_7_0)) {
+                return new Result(in.readBoolean(), null, in.readString());
+            }
             return new Result(in.readBoolean(), Reason.readFrom(in), in.readString());
         }
 
@@ -155,7 +165,9 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(IS_SAFE_FIELD.getPreferredName(), isSafe);
-            builder.field(REASON_FIELD.getPreferredName(), reason.reason);
+            if (reason != null) {
+                builder.field(REASON_FIELD.getPreferredName(), reason.reason);
+            }
             builder.field(MESSAGE_FIELD.getPreferredName(), message);
             builder.endObject();
             return builder;

@@ -21,7 +21,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
@@ -193,9 +192,6 @@ public class RestTable {
                 } finally {
                     if (currentOutput != null) {
                         assert false : "failure encoding table chunk";
-                        needsHeader = false;
-                        rowIterator.forEachRemaining(ignored -> {});
-                        IOUtils.closeWhileHandlingException(writer);
                         Releasables.closeExpectNoException(currentOutput);
                         currentOutput = null;
                     }

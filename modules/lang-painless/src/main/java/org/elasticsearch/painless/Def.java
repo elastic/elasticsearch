@@ -161,7 +161,8 @@ public final class Def {
             LIST_SET = methodHandlesLookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
             OBJECT_ITERATOR = MethodHandles.filterReturnValue(
                 methodHandlesLookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class)),
-                methodHandlesLookup.findConstructor(ObjectIterator.class, MethodType.methodType(void.class, Iterator.class)));
+                methodHandlesLookup.findConstructor(ObjectIterator.class, MethodType.methodType(void.class, Iterator.class))
+            );
             MAP_INDEX_NORMALIZE = methodHandlesLookup.findStatic(
                 Def.class,
                 "mapIndexNormalize",
@@ -663,9 +664,14 @@ public final class Def {
     }
 
     private static ClassCastException castException(Class<?> sourceClass, Class<?> targetClass, Boolean implicit) {
-        return new ClassCastException(String.format("cannot %scast def [%s] to %s",
-            implicit != null ? (implicit ? "implicitly " : "explicitly ") : "",
-            PainlessLookupUtility.typeToUnboxedType(sourceClass).getCanonicalName(), targetClass.getCanonicalName()));
+        return new ClassCastException(
+            String.format(
+                "cannot %scast def [%s] to %s",
+                implicit != null ? (implicit ? "implicitly " : "explicitly ") : "",
+                PainlessLookupUtility.typeToUnboxedType(sourceClass).getCanonicalName(),
+                targetClass.getCanonicalName()
+            )
+        );
     }
 
     // TODO: separate out into combination of each behaviour for each type
@@ -674,7 +680,7 @@ public final class Def {
         public boolean nextBoolean() {
             Object next = next();
             try {
-                return (boolean)next;
+                return (boolean) next;
             } catch (ClassCastException e) {
                 throw castException(next.getClass(), boolean.class, null);
             }
@@ -684,7 +690,7 @@ public final class Def {
         public byte nextByte() {
             Object next = next();
             try {
-                return ((Number)next).byteValue();
+                return ((Number) next).byteValue();
             } catch (ClassCastException e) {
                 throw castException(next.getClass(), byte.class, null);
             }
@@ -694,7 +700,7 @@ public final class Def {
         public short nextShort() {
             Object next = next();
             try {
-                return ((Number)next).shortValue();
+                return ((Number) next).shortValue();
             } catch (ClassCastException e) {
                 throw castException(next.getClass(), short.class, null);
             }
@@ -704,7 +710,7 @@ public final class Def {
         public char nextChar() {
             Object next = next();
             try {
-                return (char)next;
+                return (char) next;
             } catch (ClassCastException e) {
                 throw castException(next.getClass(), short.class, null);
             }
@@ -714,7 +720,7 @@ public final class Def {
         public int nextInt() {
             Object next = next();
             try {
-                return ((Number)next).intValue();
+                return ((Number) next).intValue();
             } catch (ClassCastException e) {
                 throw castException(next.getClass(), short.class, null);
             }
@@ -724,7 +730,7 @@ public final class Def {
         public long nextLong() {
             Object next = next();
             try {
-                return ((Number)next).longValue();
+                return ((Number) next).longValue();
             } catch (ClassCastException e) {
                 throw castException(next.getClass(), short.class, null);
             }
@@ -734,7 +740,7 @@ public final class Def {
         public float nextFloat() {
             Object next = next();
             try {
-                return ((Number)next).floatValue();
+                return ((Number) next).floatValue();
             } catch (ClassCastException e) {
                 throw castException(next.getClass(), short.class, null);
             }
@@ -744,7 +750,7 @@ public final class Def {
         public double nextDouble() {
             Object next = next();
             try {
-                return ((Number)next).doubleValue();
+                return ((Number) next).doubleValue();
             } catch (ClassCastException e) {
                 throw castException(next.getClass(), short.class, null);
             }
@@ -854,7 +860,7 @@ public final class Def {
 
                 @Override
                 public char nextChar() {
-                    return (char)nextByte();
+                    return (char) nextByte();
                 }
 
                 @Override
@@ -895,7 +901,7 @@ public final class Def {
 
                 @Override
                 public byte nextByte() {
-                    return (byte)nextShort();
+                    return (byte) nextShort();
                 }
 
                 @Override
@@ -905,7 +911,7 @@ public final class Def {
 
                 @Override
                 public char nextChar() {
-                    return (char)nextShort();
+                    return (char) nextShort();
                 }
 
                 @Override
@@ -946,17 +952,17 @@ public final class Def {
 
                 @Override
                 public byte nextByte() {
-                    return (byte)nextInt();
+                    return (byte) nextInt();
                 }
 
                 @Override
                 public short nextShort() {
-                    return (short)nextInt();
+                    return (short) nextInt();
                 }
 
                 @Override
                 public char nextChar() {
-                    return (char)nextInt();
+                    return (char) nextInt();
                 }
 
                 @Override
@@ -997,22 +1003,22 @@ public final class Def {
 
                 @Override
                 public byte nextByte() {
-                    return (byte)nextLong();
+                    return (byte) nextLong();
                 }
 
                 @Override
                 public short nextShort() {
-                    return (short)nextLong();
+                    return (short) nextLong();
                 }
 
                 @Override
                 public char nextChar() {
-                    return (char)nextLong();
+                    return (char) nextLong();
                 }
 
                 @Override
                 public int nextInt() {
-                    return (int)nextLong();
+                    return (int) nextLong();
                 }
 
                 @Override
@@ -1048,12 +1054,12 @@ public final class Def {
 
                 @Override
                 public byte nextByte() {
-                    return (byte)nextChar();
+                    return (byte) nextChar();
                 }
 
                 @Override
                 public short nextShort() {
-                    return (short)nextChar();
+                    return (short) nextChar();
                 }
 
                 @Override
@@ -1099,27 +1105,27 @@ public final class Def {
 
                 @Override
                 public byte nextByte() {
-                    return (byte)nextFloat();
+                    return (byte) nextFloat();
                 }
 
                 @Override
                 public short nextShort() {
-                    return (short)nextFloat();
+                    return (short) nextFloat();
                 }
 
                 @Override
                 public char nextChar() {
-                    return (char)nextFloat();
+                    return (char) nextFloat();
                 }
 
                 @Override
                 public int nextInt() {
-                    return (int)nextFloat();
+                    return (int) nextFloat();
                 }
 
                 @Override
                 public long nextLong() {
-                    return (long)nextFloat();
+                    return (long) nextFloat();
                 }
 
                 @Override
@@ -1150,32 +1156,32 @@ public final class Def {
 
                 @Override
                 public byte nextByte() {
-                    return (byte)nextDouble();
+                    return (byte) nextDouble();
                 }
 
                 @Override
                 public short nextShort() {
-                    return (short)nextDouble();
+                    return (short) nextDouble();
                 }
 
                 @Override
                 public char nextChar() {
-                    return (char)nextDouble();
+                    return (char) nextDouble();
                 }
 
                 @Override
                 public int nextInt() {
-                    return (int)nextDouble();
+                    return (int) nextDouble();
                 }
 
                 @Override
                 public long nextLong() {
-                    return (long)nextDouble();
+                    return (long) nextDouble();
                 }
 
                 @Override
                 public float nextFloat() {
-                    return (float)nextDouble();
+                    return (float) nextDouble();
                 }
 
                 @Override
@@ -1577,7 +1583,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).byteValue();
             } else {
-            throw castException(value.getClass(), Byte.class, false);
+                throw castException(value.getClass(), Byte.class, false);
             }
     }
 
@@ -1594,7 +1600,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).shortValue();
             } else {
-            throw castException(value.getClass(), Short.class, false);
+                throw castException(value.getClass(), Short.class, false);
             }
     }
 
@@ -1613,7 +1619,7 @@ public final class Def {
             || value instanceof Double) {
                 return (char) ((Number) value).intValue();
             } else {
-            throw castException(value.getClass(), Character.class, false);
+                throw castException(value.getClass(), Character.class, false);
             }
     }
 
@@ -1630,7 +1636,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).intValue();
             } else {
-            throw castException(value.getClass(), Integer.class, false);
+                throw castException(value.getClass(), Integer.class, false);
             }
     }
 
@@ -1647,7 +1653,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).longValue();
             } else {
-            throw castException(value.getClass(), Long.class, false);
+                throw castException(value.getClass(), Long.class, false);
             }
     }
 
@@ -1664,7 +1670,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).floatValue();
             } else {
-            throw castException(value.getClass(), Float.class, false);
+                throw castException(value.getClass(), Float.class, false);
             }
     }
 
@@ -1681,7 +1687,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).doubleValue();
             } else {
-            throw castException(value.getClass(), Double.class, false);
+                throw castException(value.getClass(), Double.class, false);
             }
     }
 

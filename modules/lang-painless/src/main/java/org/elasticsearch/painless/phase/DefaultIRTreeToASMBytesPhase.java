@@ -598,8 +598,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         if (primitiveVariableType == null) {
             methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_NEXT);
             methodWriter.writeCast(irForEachSubIterableNode.getDecorationValue(IRDCast.class));
-        }
-        else {
+        } else {
             // TODO: IRDCast is ignored - need to modify the IR tree instead of this
             switch (primitiveVariableType.getSort()) {
                 case Type.BOOLEAN -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_BOOLEAN);

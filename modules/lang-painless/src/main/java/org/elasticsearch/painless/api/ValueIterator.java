@@ -9,21 +9,24 @@
 package org.elasticsearch.painless.api;
 
 import java.util.Iterator;
-import java.util.function.Consumer;
-import java.util.function.DoubleConsumer;
-import java.util.function.IntConsumer;
-import java.util.function.LongConsumer;
 
 /**
  * An {@link Iterator} that can return primitive values
  */
 public interface ValueIterator<T> extends Iterator<T> {
     boolean nextBoolean();
+
     byte nextByte();
+
     short nextShort();
+
     char nextChar();
+
     int nextInt();
+
     long nextLong();
+
     float nextFloat();
+
     double nextDouble();
 }

@@ -83,6 +83,6 @@ public class ArrayTests extends ArrayLikeObjectTestCase {
     }
 
     public void testLongIteration() {
-        exec("def x = new long[] { 100, 200 }; long s = 0; for (long l : x) s += l; return s");
+        assertEquals(300L, exec("def x = new long[] { 100, 200 }; long s = 0; for (long l : x) s += l; return s"));
     }
 }

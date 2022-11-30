@@ -13,18 +13,16 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,7 +33,7 @@ import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER
 /**
  * A response for a get index action.
  */
-public class GetIndexResponse extends ActionResponse implements ChunkedToXContent {
+public class GetIndexResponse extends ActionResponse implements ToXContentObject {
 
     private Map<String, MappingMetadata> mappings = Map.of();
     private Map<String, List<AliasMetadata>> aliases = Map.of();
@@ -180,58 +178,59 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(
-            Iterators.single((builder, params) -> builder.startObject()),
-            Arrays.stream(indices).<ToXContent>map(index -> (builder, params) -> {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        {
+            for (final String index : indices) {
                 builder.startObject(index);
-
-                builder.startObject("aliases");
-                List<AliasMetadata> indexAliases = aliases.get(index);
-                if (indexAliases != null) {
-                    for (final AliasMetadata alias : indexAliases) {
-                        AliasMetadata.Builder.toXContent(alias, builder, params);
+                {
+                    builder.startObject("aliases");
+                    List<AliasMetadata> indexAliases = aliases.get(index);
+                    if (indexAliases != null) {
+                        for (final AliasMetadata alias : indexAliases) {
+                            AliasMetadata.Builder.toXContent(alias, builder, params);
+                        }
                     }
-                }
-                builder.endObject();
-
-                MappingMetadata indexMappings = mappings.get(index);
-                if (indexMappings == null) {
-                    builder.startObject("mappings").endObject();
-                } else {
-                    if (builder.getRestApiVersion() == RestApiVersion.V_7
-                        && params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
-                        builder.startObject("mappings");
-                        builder.field(MapperService.SINGLE_MAPPING_NAME, indexMappings.sourceAsMap());
-                        builder.endObject();
-                    } else {
-                        builder.field("mappings", indexMappings.sourceAsMap());
-                    }
-                }
-
-                builder.startObject("settings");
-                Settings indexSettings = settings.get(index);
-                if (indexSettings != null) {
-                    indexSettings.toXContent(builder, params);
-                }
-                builder.endObject();
-
-                Settings defaultIndexSettings = defaultSettings.get(index);
-                if (defaultIndexSettings != null && defaultIndexSettings.isEmpty() == false) {
-                    builder.startObject("defaults");
-                    defaultIndexSettings.toXContent(builder, params);
                     builder.endObject();
-                }
 
-                String dataStream = dataStreams.get(index);
-                if (dataStream != null) {
-                    builder.field("data_stream", dataStream);
-                }
+                    MappingMetadata indexMappings = mappings.get(index);
+                    if (indexMappings == null) {
+                        builder.startObject("mappings").endObject();
+                    } else {
+                        if (builder.getRestApiVersion() == RestApiVersion.V_7
+                            && params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+                            builder.startObject("mappings");
+                            builder.field(MapperService.SINGLE_MAPPING_NAME, indexMappings.sourceAsMap());
+                            builder.endObject();
+                        } else {
+                            builder.field("mappings", indexMappings.sourceAsMap());
+                        }
+                    }
 
-                return builder.endObject();
-            }).iterator(),
-            Iterators.single((builder, params) -> builder.endObject())
-        );
+                    builder.startObject("settings");
+                    Settings indexSettings = settings.get(index);
+                    if (indexSettings != null) {
+                        indexSettings.toXContent(builder, params);
+                    }
+                    builder.endObject();
+
+                    Settings defaultIndexSettings = defaultSettings.get(index);
+                    if (defaultIndexSettings != null && defaultIndexSettings.isEmpty() == false) {
+                        builder.startObject("defaults");
+                        defaultIndexSettings.toXContent(builder, params);
+                        builder.endObject();
+                    }
+
+                    String dataStream = dataStreams.get(index);
+                    if (dataStream != null) {
+                        builder.field("data_stream", dataStream);
+                    }
+                }
+                builder.endObject();
+            }
+        }
+        builder.endObject();
+        return builder;
     }
 
     @Override

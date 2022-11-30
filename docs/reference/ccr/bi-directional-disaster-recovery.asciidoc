@@ -6,9 +6,10 @@
 ++++
 
 Learn how to set up disaster recovery between two clusters based on
-bi-directional {ccr}. The following tutorial is designed for immutable indices
-(data no longer need to be updated after writing) like logs, metrics, observability, 
-and security events. If you have mutable indices, you should follow <<disaster-recovery,the uni-directional cross-cluster replication disaster recovery tutorial>>.
+bi-directional {ccr}. The following tutorial is designed for data streams which supports 
+<<{ref}/use-a-data-stream.html#update-docs-in-a-data-stream-by-query,update_by_query>> and
+ <<{ref}/use-a-data-stream.html#delete-docs-in-a-data-stream-by-query,delete_by_query>>. 
+ You can only perform these actions on the leader index. 
 
 This tutorial works with Logstash as the source of ingestion. It takes
 advantage of a logstash feature where <<{logstash-ref}/plugins-outputs-elasticsearch,the output can be load balanced
@@ -38,7 +39,7 @@ PUT _cluster/settings
           "skip_unavailable": true,
           "server_name": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com",
           "proxy_socket_connections": 18,
-          "proxy_address": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com:9400",
+          "proxy_address": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com:9400"
         }
       }
     }
@@ -55,7 +56,7 @@ PUT _cluster/settings
           "skip_unavailable": true,
           "server_name": "clustera.es.australia-southeast1.gcp.elastic-cloud.com",
           "proxy_socket_connections": 18,
-          "proxy_address": "clustera.es.australia-southeast1.gcp.elastic-cloud.com:9400",
+          "proxy_address": "clustera.es.australia-southeast1.gcp.elastic-cloud.com:9400"
         }
       }
     }
@@ -211,4 +212,41 @@ automatically replicated.
 . If you have logstash running at this time, you will also observe traffic is
 sending to both clusters.
 
+==== Perform update or delete by query
+It is possible to update or delete the documents but you can only perform these actions on the leader index.
+. First identify which backing index contains the document you want to update.
++
+[source,console]
+----
+### On either of the cluster ###
+GET logs-generic-default*/_search?filter_path=hits.hits._index
+{
+"query": {
+    "match": {
+      "event.sequence": "97"
+    }
+  }
+}
+----
++
+* If the hits returns ` "_index": ".ds-logs-generic-default-replicated_from_clustera-<yyyy.MM.dd>-*"`, then you need to proceed to the next step on `cluster A`.
+* If the hits returns ` "_index": ".ds-logs-generic-default-replicated_from_clusterb-<yyyy.MM.dd>-*"`, then you need to proceed to the next step on `cluster B`.
+* If the hits returns ` "_index": ".ds-logs-generic-default-<yyyy.MM.dd>-*"`, then you need to proceed to the next step on the same cluster where you perform the search query.
 
+. Perform the update (or delete) by query
+### On the cluster identified from the previous step ###
+POST logs-generic-default/_update_by_query
+{
+  "query": {
+    "match": {
+      "event.sequence": "97"
+    }
+  },
+  "script": {
+    "source": "ctx._source.event.original = params.new_event",
+    "lang": "painless",
+    "params": {
+      "new_event": "FOOBAR"
+    }
+  }
+}

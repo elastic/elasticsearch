@@ -39,15 +39,17 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
             .build();
     }
 
-    private RequestOptions supressWarningsForIndex(String indexName){
+    private RequestOptions supressWarningsForIndex(String indexName) {
         RequestOptions consumeSystemIndicesWarningsOptions = RequestOptions.DEFAULT.toBuilder()
-        .setWarningsHandler(
-            warnings -> List.of(
-                "this request accesses system indices: [" + indexName +"], but "
-                    + "in a future major version, direct access to system indices will be prevented by default"
-            ).equals(warnings) == false
-        )
-        .build();
+            .setWarningsHandler(
+                warnings -> List.of(
+                    "this request accesses system indices: ["
+                        + indexName
+                        + "], but "
+                        + "in a future major version, direct access to system indices will be prevented by default"
+                ).equals(warnings) == false
+            )
+            .build();
 
         return consumeSystemIndicesWarningsOptions;
     }
@@ -121,7 +123,7 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     public void testCreationOfFleetArtifacts() throws Exception {
-        
+
         Request request = new Request("PUT", ".fleet-artifacts");
         request.setOptions(supressWarningsForIndex(".fleet-artifacts")); // The result includes system indices, so we warn
         Response response = client().performRequest(request);

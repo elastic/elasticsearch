@@ -108,7 +108,6 @@ public class IngestStats implements Writeable, ToXContentFragment {
         builder.endObject();
         builder.startObject("pipelines");
         String pipelineProcessorPrefix = PipelineProcessor.TYPE + ":";
-        Set<String> topLevelPipelineNames = findTopLevelPipelineNames(processorStats, pipelineProcessorPrefix);
         Map<String, PipelineStat> pipelineStatMap = pipelineStats.stream()
             .collect(
                 Collectors.toMap(pipelineStat -> pipelineProcessorPrefix + pipelineStat.getPipelineId(), pipelineStat -> pipelineStat)
@@ -117,9 +116,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
             try {
                 builder.startObject(pipelineStat.getPipelineId());
                 pipelineStat.getStats().toXContent(builder, params);
-                if (topLevelPipelineNames.contains(pipelineStat.getPipelineId())) {
-                    processorsToXContent(pipelineStat.getPipelineId(), pipelineStat, processorStats, pipelineStatMap, builder, params);
-                }
+                processorsToXContent(pipelineStat.getPipelineId(), processorStats, pipelineStatMap, builder, params);
                 builder.endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -130,22 +127,8 @@ public class IngestStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    private Set<String> findTopLevelPipelineNames(Map<String, List<ProcessorStat>> processorStats, String pipelineProcessorPrefix) {
-        Set<String> allPipelines = processorStats.keySet();
-        Set<String> topLevelPipelineNames = new HashSet<>(allPipelines);
-        Set<String> nestedPipelines = processorStats.values()
-            .stream()
-            .flatMap(Collection::stream)
-            .filter(processorStat -> processorStat.name != null && processorStat.name.startsWith(pipelineProcessorPrefix))
-            .map(processorStat -> processorStat.name.substring(pipelineProcessorPrefix.length()))
-            .collect(Collectors.toSet());
-        topLevelPipelineNames.removeAll(nestedPipelines);
-        return topLevelPipelineNames;
-    }
-
     private static void processorsToXContent(
         String context,
-        PipelineStat pipelineStat,
         Map<String, List<ProcessorStat>> processorStats,
         Map<String, PipelineStat> pipelineStatMap,
         XContentBuilder builder,
@@ -164,7 +147,6 @@ public class IngestStats implements Writeable, ToXContentFragment {
                 if (processorStat.getType().equals(PipelineProcessor.TYPE)) {
                     processorsToXContent(
                         context + ":" + processorStat.getName().substring(PipelineProcessor.TYPE.length() + 1),
-                        pipelineStatMap.get(processorStat.getName()),
                         processorStats,
                         pipelineStatMap,
                         builder,

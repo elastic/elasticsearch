@@ -69,93 +69,84 @@ public class IngestMetricsIT extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testAsyncProcessorImplementation() throws IOException {
-        String innerInnerPipeline = """
+    public void testNestedMetrics() throws IOException {
+        String pipeline3 = """
             {
                 "processors": [
                     {
                         "test-async-processor": {
-                            "description": "test-async-processor-in-innerInner"
+                            "description": "test-async-processor-in-pipeline3"
                         }
                     }
                 ]
             }
             """;
-        BytesReference innerInnerPipelineReference = new BytesArray(innerInnerPipeline);
-        client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest("innerInnerPipeline", innerInnerPipelineReference, XContentType.JSON))
-            .actionGet();
-        String innerPipeline = """
+        BytesReference pipeline3Reference = new BytesArray(pipeline3);
+        client().admin().cluster().putPipeline(new PutPipelineRequest("pipeline3", pipeline3Reference, XContentType.JSON)).actionGet();
+        String pipeline2 = """
             {
                 "processors": [
                     {
                         "test-async-processor": {
-                            "description": "test-async-processor-in-inner"
+                            "description": "test-async-processor-in-pipeline2"
                         },
                         "pipeline": {
-                            "name": "innerInnerPipeline",
-                            "description": "innerInnerPipeline-in-inner"
+                            "name": "pipeline3",
+                            "description": "pipeline3-in-pipeline2"
                         }
                     }
                 ]
             }
             """;
-        BytesReference innerPipelineReference = new BytesArray(innerPipeline);
-        client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest("innerPipeline", innerPipelineReference, XContentType.JSON))
-            .actionGet();
-        String outerPipeline = """
+        BytesReference pipeline2Reference = new BytesArray(pipeline2);
+        client().admin().cluster().putPipeline(new PutPipelineRequest("pipeline2", pipeline2Reference, XContentType.JSON)).actionGet();
+        String pipeline1 = """
             {
                 "processors": [
                     {
                         "pipeline": {
-                            "name": "innerPipeline",
-                            "description": "innerPipeline-in-outer"
+                            "name": "pipeline2",
+                            "description": "pipeline2-in-pipeline1"
                         }
                     },
                     {
                         "test-async-processor": {
-                            "description": "test-async-processor-in-outer"
+                            "description": "test-async-processor-in-pipeline1"
                         },
                         "pipeline": {
-                            "name": "innerInnerPipeline",
-                            "description": "innerInnerPipeline-in-outer"
+                            "name": "pipeline3",
+                            "description": "pipeline3-in-pipeline1"
                         }
                     }
                 ]
             }
             """;
-        BytesReference outerPipelineReference = new BytesArray(outerPipeline);
-        client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest("outerPipeline", outerPipelineReference, XContentType.JSON))
-            .actionGet();
+        BytesReference pipeline1Reference = new BytesArray(pipeline1);
+        client().admin().cluster().putPipeline(new PutPipelineRequest("pipeline1", pipeline1Reference, XContentType.JSON)).actionGet();
 
         BulkRequest bulkRequest = new BulkRequest();
-        int numDocsToOuterPipeline = randomIntBetween(1, 200);
-        for (int i = 0; i < numDocsToOuterPipeline; i++) {
-            bulkRequest.add(new IndexRequest("outer").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("outerPipeline"));
+        int numDocsToPipeline1 = randomIntBetween(1, 200);
+        for (int i = 0; i < numDocsToPipeline1; i++) {
+            bulkRequest.add(new IndexRequest("index1").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("pipeline1"));
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat(bulkResponse.getItems().length, equalTo(numDocsToOuterPipeline));
-        for (int i = 0; i < numDocsToOuterPipeline; i++) {
+        assertThat(bulkResponse.getItems().length, equalTo(numDocsToPipeline1));
+        for (int i = 0; i < numDocsToPipeline1; i++) {
             String id = Integer.toString(i);
             assertThat(bulkResponse.getItems()[i].getId(), equalTo(id));
         }
         bulkRequest = new BulkRequest();
-        int numDocsToInnerPipeline = randomIntBetween(1, 200);
-        for (int i = 0; i < numDocsToInnerPipeline; i++) {
-            bulkRequest.add(new IndexRequest("inner").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("innerPipeline"));
+        int numDocsToPipeline2 = randomIntBetween(1, 200);
+        for (int i = 0; i < numDocsToPipeline2; i++) {
+            bulkRequest.add(new IndexRequest("index2").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("pipeline2"));
         }
         bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat(bulkResponse.getItems().length, equalTo(numDocsToInnerPipeline));
-        for (int i = 0; i < numDocsToInnerPipeline; i++) {
+        assertThat(bulkResponse.getItems().length, equalTo(numDocsToPipeline2));
+        for (int i = 0; i < numDocsToPipeline2; i++) {
             String id = Integer.toString(i);
             assertThat(bulkResponse.getItems()[i].getId(), equalTo(id));
         }
-        int totalDocs = numDocsToOuterPipeline + numDocsToInnerPipeline;
+        int totalDocs = numDocsToPipeline1 + numDocsToPipeline2;
         NodesStatsResponse nodesStatsResponse = client().admin()
             .cluster()
             .nodesStats(new NodesStatsRequest().addMetric("ingest"))
@@ -169,20 +160,20 @@ public class IngestMetricsIT extends ESSingleNodeTestCase {
         int totalTime = (int) total.get("time_in_millis");
         assertThat(totalTime, greaterThan(0));
         Map<String, Object> pipelines = (Map<String, Object>) ingest.get("pipelines");
-        Map<String, Object> outerPipelineMap = (Map<String, Object>) pipelines.get("outerPipeline");
-        assertThat(outerPipelineMap.get("count"), equalTo(numDocsToOuterPipeline));
-        int outerPipelineTime = (int) outerPipelineMap.get("time_in_millis");
+        Map<String, Object> pipeline1Map = (Map<String, Object>) pipelines.get("pipeline1");
+        assertThat(pipeline1Map.get("count"), equalTo(numDocsToPipeline1));
+        int pipeline1Time = (int) pipeline1Map.get("time_in_millis");
         AtomicInteger pipelinesChecked = new AtomicInteger(0);
-        checkPipeline(outerPipelineMap, numDocsToOuterPipeline, totalTime, pipelinesChecked);
+        checkPipeline(pipeline1Map, numDocsToPipeline1, totalTime, pipelinesChecked);
         assertThat(pipelinesChecked.get(), equalTo(4));
 
-        Map<String, Object> innerPipelineMap = (Map<String, Object>) pipelines.get("innerPipeline");
-        assertThat(innerPipelineMap.get("count"), equalTo(numDocsToInnerPipeline));
-        int innerPipelineTime = (int) innerPipelineMap.get("time_in_millis");
-        Map<String, Object> innerInnerPipelineMap = (Map<String, Object>) pipelines.get("innerInnerPipeline");
-        assertThat(innerInnerPipelineMap.get("count"), equalTo(0));
-        int innerInnerPipelineTime = (int) innerInnerPipelineMap.get("time_in_millis");
-        assertThat(outerPipelineTime + innerPipelineTime + innerInnerPipelineTime, lessThanOrEqualTo(totalTime));
+        Map<String, Object> pipeline2Map = (Map<String, Object>) pipelines.get("pipeline2");
+        assertThat(pipeline2Map.get("count"), equalTo(numDocsToPipeline2));
+        int pipeline2Time = (int) pipeline2Map.get("time_in_millis");
+        Map<String, Object> pipeline3Map = (Map<String, Object>) pipelines.get("pipeline3");
+        assertThat(pipeline3Map.get("count"), equalTo(0));
+        int pipeline3Time = (int) pipeline3Map.get("time_in_millis");
+        assertThat(pipeline1Time + pipeline2Time + pipeline3Time, lessThanOrEqualTo(totalTime));
     }
 
     /*

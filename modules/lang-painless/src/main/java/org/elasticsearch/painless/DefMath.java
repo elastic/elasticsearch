@@ -528,8 +528,7 @@ public class DefMath {
     private static boolean eq(Object left, Object right) {
         if (left == right) {
             return true;
-        }
-        else if (left != null && right != null) {
+        } else if (left != null && right != null) {
             if (left.getClass() == right.getClass()) {
                 return left.equals(right);
             } else if (left instanceof Double) {

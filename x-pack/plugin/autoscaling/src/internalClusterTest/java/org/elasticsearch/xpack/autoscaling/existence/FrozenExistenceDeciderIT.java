@@ -131,7 +131,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
             String[] indices = indices();
             assertThat(indices, arrayContaining(PARTIAL_INDEX_NAME));
             assertThat(indices, not(arrayContaining(INDEX_NAME)));
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
         ensureGreen();
     }
 

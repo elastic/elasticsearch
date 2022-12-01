@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -1053,10 +1054,10 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 2, 3, 100, null)
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 2, 3, 100, null, Priority.NORMAL)
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null)
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null, Priority.NORMAL)
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2")
@@ -1066,10 +1067,10 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 3, 100, null)
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 3, 100, null, Priority.NORMAL)
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null)
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null, Priority.NORMAL)
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2")
@@ -1079,10 +1080,10 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 3, 100, null)
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 3, 100, null, Priority.NORMAL)
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null)
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null, Priority.NORMAL)
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2", "ml_node_3", "ml_node_4")
@@ -1217,8 +1218,8 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                 "requesting scale up as number of jobs in queues exceeded configured limit and there are no machine learning nodes"
             )
         );
-        assertThat(result.nodeSize(), equalTo(ByteSizeValue.ofGb(1)));
-        assertThat(result.tierSize(), equalTo(ByteSizeValue.ofGb(1)));
+        assertThat(result.nodeSize(), equalTo(ByteSizeValue.ofMb(714)));
+        assertThat(result.tierSize(), equalTo(ByteSizeValue.ofMb(714)));
     }
 
     private MlMemoryAutoscalingDecider buildDecider() {

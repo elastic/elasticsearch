@@ -1,5 +1,0 @@
-pr: 91033
-summary: Ingest `CompoundProcessor` asynchronous time stats can be incorrect
-area: Ingest Node
-type: bug
-issues: []

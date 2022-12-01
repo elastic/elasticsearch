@@ -1,0 +1,5 @@
+pr: 91243
+summary: More actionable error for ancient indices
+area: Infra/Core
+type: enhancement
+issues: []

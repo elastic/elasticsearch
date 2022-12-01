@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
 
@@ -26,7 +27,7 @@ public abstract class GeoShapeValuesSource extends ShapeValuesSource<GeoShapeVal
     };
 
     @Override
-    protected Function<Rounding, Rounding.Prepared> roundingPreparer() {
+    protected Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) {
         throw new AggregationExecutionException("can't round a [geo_shape]");
     }
 

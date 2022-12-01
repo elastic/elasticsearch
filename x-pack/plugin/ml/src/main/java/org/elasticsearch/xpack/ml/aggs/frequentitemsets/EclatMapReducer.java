@@ -189,6 +189,12 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
     }
 
     @Override
+    public HashBasedTransactionStore mapFiltered(HashBasedTransactionStore transactionStore) {
+        transactionStore.addFilteredTransaction();
+        return transactionStore;
+    }
+
+    @Override
     protected ImmutableTransactionStore mapFinalize(HashBasedTransactionStore transactionStore) {
 
         // reported by shard in collectDebugInfo
@@ -197,6 +203,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             profilingInfoMap.put("ram_bytes_transactionstore_after_map", transactionStore.ramBytesUsed());
             profilingInfoMap.put("total_items_after_map", transactionStore.getTotalItemCount());
             profilingInfoMap.put("total_transactions_after_map", transactionStore.getTotalTransactionCount());
+            profilingInfoMap.put("filtered_transactions_after_map", transactionStore.getFilteredTransactionCount());
             profilingInfoMap.put("unique_items_after_map", transactionStore.getUniqueItemsCount());
             profilingInfoMap.put("unique_transactions_after_map", transactionStore.getUniqueTransactionCount());
         }
@@ -283,6 +290,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             profilingInfoReduce.put("ram_bytes_transactionstore_after_reduce", transactionStore.ramBytesUsed());
             profilingInfoReduce.put("total_items_after_reduce", transactionStore.getTotalItemCount());
             profilingInfoReduce.put("total_transactions_after_reduce", transactionStore.getTotalTransactionCount());
+            profilingInfoReduce.put("filtered_transactions_after_reduce", transactionStore.getFilteredTransactionCount());
             profilingInfoReduce.put("unique_items_after_reduce", transactionStore.getUniqueItemsCount());
             profilingInfoReduce.put("unique_transactions_after_reduce", transactionStore.getUniqueTransactionCount());
         }
@@ -293,6 +301,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             profilingInfoReduce.put("ram_bytes_transactionstore_after_prune", transactionStore.ramBytesUsed());
             profilingInfoReduce.put("total_items_after_prune", transactionStore.getTotalItemCount());
             profilingInfoReduce.put("total_transactions_after_prune", transactionStore.getTotalTransactionCount());
+            profilingInfoReduce.put("filtered_transactions_after_prune", transactionStore.getFilteredTransactionCount());
             profilingInfoReduce.put("unique_items_after_prune", transactionStore.getUniqueItemsCount());
             profilingInfoReduce.put("unique_transactions_after_prune", transactionStore.getUniqueTransactionCount());
         }

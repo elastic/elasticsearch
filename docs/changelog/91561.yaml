@@ -1,0 +1,5 @@
+pr: 91561
+summary: Forecast average shard size during rollovers
+area: Allocation
+type: enhancement
+issues: []

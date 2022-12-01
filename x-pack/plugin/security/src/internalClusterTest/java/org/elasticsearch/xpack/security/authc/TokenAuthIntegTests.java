@@ -186,7 +186,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 }
                 """);
             Response searchResponse = getRestClient().performRequest(searchRequest);
-            assertThat(ObjectPath.createFromResponse(searchResponse).evaluate("hits.total.value"), equalTo(1));
+            assertThat(ObjectPath.createFromResponse(searchResponse).evaluate("hits.total.value"), equalTo(0));
         }, 30, TimeUnit.SECONDS);
 
         // Weird testing behaviour ahead...

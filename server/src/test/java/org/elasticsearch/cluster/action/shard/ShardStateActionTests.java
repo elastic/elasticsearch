@@ -59,7 +59,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -108,11 +107,10 @@ public class ShardStateActionTests extends ESTestCase {
             String actionName,
             ClusterStateObserver observer,
             TransportRequest request,
-            ActionListener<Void> listener,
-            Predicate<ClusterState> changePredicate
+            ActionListener<Void> listener
         ) {
             onBeforeWaitForNewMasterAndRetry.run();
-            super.waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
+            super.waitForNewMasterAndRetry(actionName, observer, request, listener);
             onAfterWaitForNewMasterAndRetry.run();
         }
     }

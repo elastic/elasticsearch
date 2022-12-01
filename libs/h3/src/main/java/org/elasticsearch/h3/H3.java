@@ -189,7 +189,7 @@ public final class H3 {
      */
     public static long geoToH3(double lat, double lng, int res) {
         checkResolution(res);
-        return new LatLng(toRadians(lat), toRadians(lng)).geoToFaceIJK(res).faceIjkToH3(res);
+        return Vec3d.geoToH3(res, toRadians(lat), toRadians(lng));
     }
 
     /**
@@ -248,6 +248,40 @@ public final class H3 {
         return h3ToStringList(h3ToChildren(stringToH3(h3Address)));
     }
 
+    private static final int[] PEN_INTERSECTING_CHILDREN_DIRECTIONS = new int[] { 3, 1, 6, 4, 2 };
+    private static final int[] HEX_INTERSECTING_CHILDREN_DIRECTIONS = new int[] { 3, 6, 2, 5, 1, 4 };
+
+    /**
+     * Returns the h3 bins on the level below which are not children of the given H3 index but
+     * intersects with it.
+     */
+    public static long[] h3ToNoChildrenIntersecting(long h3) {
+        final long[] children = new long[cellToChildrenSize(h3) - 1];
+        final Iterator.IterCellsChildren it = Iterator.iterInitParent(h3, H3Index.H3_get_resolution(h3) + 1);
+        final int[] directions = H3.isPentagon(it.h) ? PEN_INTERSECTING_CHILDREN_DIRECTIONS : HEX_INTERSECTING_CHILDREN_DIRECTIONS;
+        int pos = 0;
+        Iterator.iterStepChild(it);
+        while (it.h != Iterator.H3_NULL) {
+            children[pos] = HexRing.h3NeighborInDirection(it.h, directions[pos++]);
+            Iterator.iterStepChild(it);
+        }
+        return children;
+    }
+
+    /**
+     * Returns the h3 addresses on the level below which are not children of the given H3 address but
+     * intersects with it.
+     */
+    public static String[] h3ToNoChildrenIntersecting(String h3Address) {
+        return h3ToStringList(h3ToNoChildrenIntersecting(stringToH3(h3Address)));
+    }
+
+    /**
+     * Returns the neighbor indexes.
+     *
+     * @param h3Address Origin index
+     * @return All neighbor indexes from the origin
+     */
     public static String[] hexRing(String h3Address) {
         return h3ToStringList(hexRing(stringToH3(h3Address)));
     }
@@ -260,6 +294,28 @@ public final class H3 {
      */
     public static long[] hexRing(long h3) {
         return HexRing.hexRing(h3);
+    }
+
+    /**
+     * returns whether or not the provided hexagons border
+     *
+     * @param origin the first index
+     * @param destination the second index
+     * @return whether or not the provided hexagons border
+     */
+    public static boolean areNeighborCells(String origin, String destination) {
+        return areNeighborCells(stringToH3(origin), stringToH3(destination));
+    }
+
+    /**
+     * returns whether or not the provided hexagons border
+     *
+     * @param origin the first index
+     * @param destination the second index
+     * @return whether or not the provided hexagons border
+     */
+    public static boolean areNeighborCells(long origin, long destination) {
+        return HexRing.areNeighbours(origin, destination);
     }
 
     /**

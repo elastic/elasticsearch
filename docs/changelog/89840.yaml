@@ -1,5 +1,0 @@
-pr: 89840
-summary: "Synthetic _source: support `dense_vector`"
-area: Vector Search
-type: feature
-issues: []

@@ -797,9 +797,10 @@ You can also manually delete saved synchronous searches using the
 
 experimental::[]
 
-The EQL search API supports <<modules-cross-cluster-search,cross-cluster
-search>>. However, the local and <<remote-clusters,remote clusters>>
-must use the same {es} version.
+The EQL search API supports <<modules-cross-cluster-search,cross-cluster search>>.
+However, the local and <<remote-clusters,remote clusters>>
+must use the same {es} version
+if they have versions prior to 7.17.7 (included) or prior to 8.5.1 (included).
 
 The following <<cluster-update-settings,cluster update settings>> request
 adds two remote clusters: `cluster_one` and `cluster_two`.

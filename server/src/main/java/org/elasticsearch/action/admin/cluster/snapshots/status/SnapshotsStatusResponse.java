@@ -89,11 +89,13 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             Iterators.single((ToXContent) (b, p) -> b.startObject().startArray("snapshots")),
             snapshots.stream()
-                .flatMap(s -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(s.toXContentChunked(), Spliterator.ORDERED), false))
+                .flatMap(
+                    s -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(s.toXContentChunked(params), Spliterator.ORDERED), false)
+                )
                 .iterator(),
             Iterators.single((b, p) -> b.endArray().endObject())
         );

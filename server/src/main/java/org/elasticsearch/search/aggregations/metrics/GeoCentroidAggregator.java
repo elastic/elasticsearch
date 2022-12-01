@@ -33,6 +33,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
     private DoubleArray lonSum, lonCompensations, latSum, latCompensations;
     private LongArray counts;
 
+    // TODO: update with a LongDoubleDoubleDoubleDoubleArray
+
     GeoCentroidAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

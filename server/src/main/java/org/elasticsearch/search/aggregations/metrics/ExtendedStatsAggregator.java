@@ -43,6 +43,8 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray sumOfSqrs;
     DoubleArray compensationOfSqrs;
 
+    // TODO: update with a LongDoubleDoubleDoubleDoubleDoubleDoubleArray
+
     ExtendedStatsAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

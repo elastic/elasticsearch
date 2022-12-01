@@ -68,6 +68,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
@@ -1621,6 +1622,6 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     static CodecService newCodecService() {
-        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
+        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, randomFrom(IndexMode.values()));
     }
 }

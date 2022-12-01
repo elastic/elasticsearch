@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -142,7 +143,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
     public void testPostingsFormat() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, randomFrom(IndexMode.values()));
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         PerFieldMapperCodec perFieldCodec = (PerFieldMapperCodec) codec;

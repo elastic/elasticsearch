@@ -21,6 +21,7 @@ import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -94,7 +95,7 @@ public class CodecTests extends ESTestCase {
             settings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE
         );
-        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
+        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE, randomFrom(IndexMode.values()));
     }
 
 }

@@ -17,9 +17,21 @@ import java.io.IOException;
 import java.util.Arrays;
 
 public class ES97TSDBDocValuesEncoder {
-    static final int BLOCK_SIZE = ES97TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+    private final DocValuesForUtil forUtil;
+    private final int blockSize;
 
-    private final DocValuesForUtil forUtil = new DocValuesForUtil();
+    public ES97TSDBDocValuesEncoder() {
+        this(ES97TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE);
+    }
+
+    public ES97TSDBDocValuesEncoder(int blockSize) {
+        this.blockSize = blockSize;
+        this.forUtil = new DocValuesForUtil(blockSize);
+    }
+
+    public int getBlockSize() {
+        return blockSize;
+    }
 
     /**
      * Delta-encode monotonic fields. This is typically helpful with near-primary sort fields or
@@ -28,7 +40,7 @@ public class ES97TSDBDocValuesEncoder {
     private void deltaEncode(int token, int tokenBits, long[] in, DataOutput out) throws IOException {
         int gts = 0;
         int lts = 0;
-        for (int i = 1; i < BLOCK_SIZE; ++i) {
+        for (int i = 1; i < blockSize; ++i) {
             if (in[i] > in[i - 1]) {
                 gts++;
             } else if (in[i] < in[i - 1]) {
@@ -39,7 +51,7 @@ public class ES97TSDBDocValuesEncoder {
         final boolean doDeltaCompression = (gts == 0 && lts >= 2) || (lts == 0 && gts >= 2);
         long first = 0;
         if (doDeltaCompression) {
-            for (int i = BLOCK_SIZE - 1; i > 0; --i) {
+            for (int i = blockSize - 1; i > 0; --i) {
                 in[i] -= in[i - 1];
             }
             // Avoid setting in[0] to 0 in case there is a minimum interval between
@@ -75,7 +87,7 @@ public class ES97TSDBDocValuesEncoder {
         }
 
         if (min != 0) {
-            for (int i = 0; i < BLOCK_SIZE; ++i) {
+            for (int i = 0; i < blockSize; ++i) {
                 in[i] -= min;
             }
             token = (token << 1) | 0x01;
@@ -103,7 +115,7 @@ public class ES97TSDBDocValuesEncoder {
         }
         final boolean doGcdCompression = Long.compareUnsigned(gcd, 1) > 0;
         if (doGcdCompression) {
-            for (int i = 0; i < BLOCK_SIZE; ++i) {
+            for (int i = 0; i < blockSize; ++i) {
                 in[i] /= gcd;
             }
             token = (token << 1) | 0x01;
@@ -135,14 +147,14 @@ public class ES97TSDBDocValuesEncoder {
      * Encode the given longs using a combination of delta-coding, GCD factorization and bit packing.
      */
     void encode(long[] in, DataOutput out) throws IOException {
-        assert in.length == BLOCK_SIZE;
+        assert in.length == blockSize;
 
         deltaEncode(0, 0, in, out);
     }
 
     /** Decode longs that have been encoded with {@link #encode}. */
     void decode(DataInput in, long[] out) throws IOException {
-        assert out.length == BLOCK_SIZE : out.length;
+        assert out.length == blockSize : out.length;
 
         final int token = in.readVInt();
         final int bitsPerValue = token >>> 3;
@@ -180,20 +192,20 @@ public class ES97TSDBDocValuesEncoder {
 
     // this loop should auto-vectorize
     private void mul(long[] arr, long m) {
-        for (int i = 0; i < BLOCK_SIZE; ++i) {
+        for (int i = 0; i < blockSize; ++i) {
             arr[i] *= m;
         }
     }
 
     // this loop should auto-vectorize
     private void add(long[] arr, long min) {
-        for (int i = 0; i < BLOCK_SIZE; ++i) {
+        for (int i = 0; i < blockSize; ++i) {
             arr[i] += min;
         }
     }
 
     private void deltaDecode(long[] arr) {
-        for (int i = 1; i < BLOCK_SIZE; ++i) {
+        for (int i = 1; i < blockSize; ++i) {
             arr[i] += arr[i - 1];
         }
     }

@@ -32,10 +32,24 @@ final class ES97TSDBDocValuesConsumer extends DocValuesConsumer {
 
     IndexOutput data, meta;
     final int maxDoc;
+    private final int numericBlockShift;
+    private final int numericBlockSize;
+    private final int directMonotonicBlockShift;
 
-    ES97TSDBDocValuesConsumer(SegmentWriteState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
-        throws IOException {
+    ES97TSDBDocValuesConsumer(
+        SegmentWriteState state,
+        String dataCodec,
+        String dataExtension,
+        String metaCodec,
+        String metaExtension,
+        int numericBlockShift,
+        int numericBlockSize,
+        int directMonotonicBlockShift
+    ) throws IOException {
         boolean success = false;
+        this.numericBlockShift = numericBlockShift;
+        this.numericBlockSize = numericBlockSize;
+        this.directMonotonicBlockShift = directMonotonicBlockShift;
         try {
             final String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
             data = state.directory.createOutput(dataName, state.context);
@@ -108,26 +122,26 @@ final class ES97TSDBDocValuesConsumer extends DocValuesConsumer {
         meta.writeLong(numValues);
 
         if (numValues > 0) {
-            meta.writeInt(ES97TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
+            meta.writeInt(directMonotonicBlockShift);
             final ByteBuffersDataOutput indexOut = new ByteBuffersDataOutput();
             final DirectMonotonicWriter indexWriter = DirectMonotonicWriter.getInstance(
                 meta,
                 new ByteBuffersIndexOutput(indexOut, "temp-dv-index", "temp-dv-index"),
-                1L + ((numValues - 1) >>> ES97TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
-                ES97TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                1L + ((numValues - 1) >>> numericBlockShift),
+                directMonotonicBlockShift
             );
 
-            final long[] buffer = new long[ES97TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+            final long[] buffer = new long[numericBlockSize];
             int bufferSize = 0;
             final long valuesDataOffset = data.getFilePointer();
-            final ES97TSDBDocValuesEncoder encoder = new ES97TSDBDocValuesEncoder();
+            final ES97TSDBDocValuesEncoder encoder = new ES97TSDBDocValuesEncoder(numericBlockSize);
 
             values = valuesProducer.getSortedNumeric(field);
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 final int count = values.docValueCount();
                 for (int i = 0; i < count; ++i) {
                     buffer[bufferSize++] = values.nextValue();
-                    if (bufferSize == ES97TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
+                    if (bufferSize == numericBlockSize) {
                         indexWriter.add(data.getFilePointer() - valuesDataOffset);
                         encoder.encode(buffer, data);
                         bufferSize = 0;
@@ -137,7 +151,7 @@ final class ES97TSDBDocValuesConsumer extends DocValuesConsumer {
             if (bufferSize > 0) {
                 indexWriter.add(data.getFilePointer() - valuesDataOffset);
                 // Fill unused slots in the block with zeroes rather than junk
-                Arrays.fill(buffer, bufferSize, ES97TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE, 0L);
+                Arrays.fill(buffer, bufferSize, numericBlockSize, 0L);
                 encoder.encode(buffer, data);
             }
 

@@ -14,16 +14,23 @@ import org.apache.lucene.store.DataOutput;
 import java.io.IOException;
 
 public class DocValuesForUtil {
-    static final int BLOCK_SIZE = ES97TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
-
     private final ForUtil forUtil = new ForUtil();
+    private final int blockSize;
+
+    public DocValuesForUtil() {
+        this(ES97TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE);
+    }
+
+    public DocValuesForUtil(int blockSize) {
+        this.blockSize = blockSize;
+    }
 
     void encode(long[] in, int bitsPerValue, DataOutput out) throws IOException {
         if (bitsPerValue <= 24) { // these bpvs are handled efficiently by ForUtil
             forUtil.encode(in, bitsPerValue, out);
         } else if (bitsPerValue <= 32) {
             collapse32(in);
-            for (int i = 0; i < BLOCK_SIZE / 2; ++i) {
+            for (int i = 0; i < blockSize / 2; ++i) {
                 out.writeLong(in[i]);
             }
         } else {
@@ -37,10 +44,10 @@ public class DocValuesForUtil {
         if (bitsPerValue <= 24) {
             forUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
-            in.readLongs(out, 0, BLOCK_SIZE / 2);
+            in.readLongs(out, 0, blockSize / 2);
             expand32(out);
         } else {
-            in.readLongs(out, 0, BLOCK_SIZE);
+            in.readLongs(out, 0, blockSize);
         }
     }
 

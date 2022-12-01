@@ -25,8 +25,8 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.util.HashMap;

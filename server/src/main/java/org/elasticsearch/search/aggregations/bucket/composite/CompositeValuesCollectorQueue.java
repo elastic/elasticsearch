@@ -16,6 +16,8 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
@@ -48,6 +50,13 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         }
     }
 
+    @FunctionalInterface
+    private interface TopChangedListener {
+        void topChanged(int slot, boolean updateCompetitiveBounds) throws IOException;
+    }
+
+    private static final Logger logger = LogManager.getLogger(CompositeValuesCollectorQueue.class);
+
     // the slot for the current candidate
     private static final int CANDIDATE_SLOT = Integer.MAX_VALUE;
 
@@ -55,6 +64,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     private final int maxSize;
     private final Map<Slot, Integer> map;
     private final SingleDimensionValuesSource<?>[] arrays;
+    private final TopChangedListener topChangedListener;
 
     private LongArray docCounts;
     private boolean afterKeyIsSet = false;
@@ -70,6 +80,18 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         this.bigArrays = bigArrays;
         this.maxSize = size;
         this.arrays = sources;
+
+        // If the leading source is a GlobalOrdinalValuesSource we can apply an optimization which requires
+        // tracking the highest competitive value.
+        if (arrays[0]instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
+            topChangedListener = (slot, updateCompetitiveBounds) -> globalOrdinalValuesSource.updateHighestCompetitiveValue(
+                slot,
+                updateCompetitiveBounds
+            );
+        } else {
+            topChangedListener = null;
+        }
+
         this.map = Maps.newMapWithExpectedSize(size);
         this.docCounts = bigArrays.newLongArray(1, false);
     }
@@ -221,7 +243,14 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * The provided collector <code>in</code> is called on each composite bucket.
      */
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector in) throws IOException {
-        return getLeafCollector(null, context, in);
+        LeafBucketCollector leafBucketCollector = getLeafCollector(null, context, in);
+
+        // As we are starting to collect from a new segment we need to update the topChangedListener if present
+        // and if the queue is full.
+        if (topChangedListener != null && size() >= maxSize) {
+            topChangedListener.topChanged(top(), true);
+        }
+        return leafBucketCollector;
     }
 
     /**
@@ -249,7 +278,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * Check if the current candidate should be added in the queue.
      * @return <code>true</code> if the candidate is competitive (added or already in the queue).
      */
-    boolean addIfCompetitive(long inc) {
+    boolean addIfCompetitive(long inc) throws IOException {
         return addIfCompetitive(0, inc);
     }
 
@@ -263,7 +292,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      *
      * @throws CollectionTerminatedException if the current collection can be terminated early due to index sorting.
      */
-    boolean addIfCompetitive(int indexSortSourcePrefix, long inc) {
+    boolean addIfCompetitive(int indexSortSourcePrefix, long inc) throws IOException {
         // checks if the candidate key is competitive
         Integer topSlot = compareCurrent();
         if (topSlot != null) {
@@ -312,6 +341,10 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         copyCurrent(newSlot, inc);
         map.put(new Slot(newSlot), newSlot);
         add(newSlot);
+
+        if (topChangedListener != null) {
+            topChangedListener.topChanged(top(), size() >= maxSize);
+        }
         return true;
     }
 

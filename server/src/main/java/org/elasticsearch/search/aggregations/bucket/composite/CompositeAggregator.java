@@ -65,6 +65,7 @@ import java.util.function.LongUnaryOperator;
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
 public final class CompositeAggregator extends BucketsAggregator implements SizedBucketAggregator {
+
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
@@ -153,6 +154,11 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                 Releasables.close(sources);
             }
         }
+    }
+
+    @Override
+    public ScoreMode scoreMode() {
+        return ScoreMode.TOP_DOCS;
     }
 
     @Override
@@ -491,6 +497,11 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                     public void collect(int doc, long zeroBucket) throws IOException {
                         assert zeroBucket == 0L;
                         inner.collect(doc);
+                    }
+
+                    @Override
+                    public DocIdSetIterator competitiveIterator() throws IOException {
+                        return inner.competitiveIterator();
                     }
                 };
             }

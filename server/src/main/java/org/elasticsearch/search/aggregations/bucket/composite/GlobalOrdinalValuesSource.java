@@ -8,22 +8,32 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
@@ -31,13 +41,18 @@ import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
  * A {@link SingleDimensionValuesSource} for global ordinals.
  */
 class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
+
+    private static final Logger logger = LogManager.getLogger(GlobalOrdinalValuesSource.class);
+
     public static final long MISSING_VALUE_FLAG = -1L;
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
     private LongArray values;
     private SortedSetDocValues lookup;
     private long currentValue;
     private Long afterValueGlobalOrd;
+    private Long highestCompetitiveValueGlobalOrd = MISSING_VALUE_FLAG;
     private boolean isTopValueInsertionPoint;
+    private volatile CompetitiveIterator currentCompetitiveIterator;
 
     private long lastLookupOrd = -1;
     private BytesRef lastLookupValue;
@@ -137,7 +152,16 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         if (lookup == null) {
             initLookup(dvs);
         }
+
+        // We create a competitive iterator that allows us to optimize by narrowing down the search
+        // to terms that are within the range based on what the composite queue is tracking.
+        // For example, if the composite agg size is 5, and we have seen terms with ordinals [1, 4, 5, 10, 11],
+        // we know that we never need to look at terms with and ordinal higher than 11.
+        final CompetitiveIterator competitiveIterator = new CompetitiveIterator(context, fieldType.name(), false);
+        currentCompetitiveIterator = competitiveIterator;
+
         return new LeafBucketCollector() {
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (dvs.advanceExact(doc)) {
@@ -150,6 +174,11 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                     currentValue = MISSING_VALUE_FLAG;
                     next.collect(doc, bucket);
                 }
+            }
+
+            @Override
+            public DocIdSetIterator competitiveIterator() {
+                return competitiveIterator;
             }
         };
     }
@@ -212,6 +241,170 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 afterValueGlobalOrd = -afterValueGlobalOrd - 1;
                 isTopValueInsertionPoint = true;
             }
+        }
+    }
+
+    public void updateHighestCompetitiveValue(int slot, boolean updateCompetitiveBounds) throws IOException {
+        highestCompetitiveValueGlobalOrd = values.get(slot);
+        logger.debug("Highest observed set to [{}]", highestCompetitiveValueGlobalOrd);
+        if (updateCompetitiveBounds) {
+            final CompetitiveIterator competitiveIterator = currentCompetitiveIterator;
+            if (competitiveIterator != null) {
+                competitiveIterator.updateBounds();
+            }
+        }
+    }
+
+    private record PostingsEnumAndOrd(PostingsEnum postings, long ord) {}
+
+    private class CompetitiveIterator extends DocIdSetIterator {
+
+        private static final int MAX_TERMS = 128;
+
+        private final LeafReaderContext context;
+        private final int maxDoc;
+        private final String field;
+        private final boolean dense;
+        private int doc = -1;
+        private ArrayDeque<PostingsEnumAndOrd> postings;
+        private DocIdSetIterator docsWithField;
+        private PriorityQueue<PostingsEnumAndOrd> disjunction;
+
+        CompetitiveIterator(LeafReaderContext context, String field, boolean dense) {
+            this.context = context;
+            this.maxDoc = context.reader().maxDoc();
+            this.field = field;
+            this.dense = dense;
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return advance(docID() + 1);
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            if (target >= maxDoc) {
+                return doc = NO_MORE_DOCS;
+            } else if (disjunction == null) {
+                if (docsWithField != null) {
+                    // The field is sparse and we're only interested in documents that have a value.
+                    assert dense == false;
+                    return doc = docsWithField.advance(target);
+                } else {
+                    // We haven't started skipping yet
+                    return doc = target;
+                }
+            } else {
+                PostingsEnumAndOrd top = disjunction.top();
+                if (top == null) {
+                    // priority queue is empty, none of the remaining documents are competitive
+                    return doc = NO_MORE_DOCS;
+                }
+                while (top.postings.docID() < target) {
+                    top.postings.advance(target);
+                    top = disjunction.updateTop();
+                }
+                return doc = top.postings.docID();
+            }
+        }
+
+        @Override
+        public long cost() {
+            return context.reader().maxDoc();
+        }
+
+        /**
+         * Update this iterator to only match postings whose term has an ordinal between {@code minOrd}
+         * included and {@code maxOrd} included.
+         */
+        private void update(long minOrd, long maxOrd) throws IOException {
+            final int maxTerms = Math.min(MAX_TERMS, IndexSearcher.getMaxClauseCount());
+            final long size = Math.max(0, maxOrd - minOrd + 1);
+            if (size > maxTerms) {
+                if (dense == false && docsWithField == null) {
+                    docsWithField = getSortedDocValues(context, field);
+                }
+            } else if (postings == null) {
+                init(minOrd, maxOrd);
+            } else {
+                boolean removed = false;
+                // Zero or more ords got removed
+                while (postings.isEmpty() == false && postings.getFirst().ord < minOrd) {
+                    removed = true;
+                    postings.removeFirst();
+                }
+                while (postings.isEmpty() == false && postings.getLast().ord > maxOrd) {
+                    removed = true;
+                    postings.removeLast();
+                }
+                if (removed) {
+                    disjunction.clear();
+                    disjunction.addAll(postings);
+                }
+            }
+        }
+
+        protected SortedSetDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
+            return DocValues.getSortedSet(context.reader(), field);
+        }
+
+        /**
+         * For the first time, this iterator is allowed to skip documents. It needs to pull {@link
+         * PostingsEnum}s from the terms dictionary of the inverted index and create a priority queue
+         * out of them.
+         */
+        private void init(long minOrd, long maxOrd) throws IOException {
+            final int size = (int) Math.max(0, maxOrd - minOrd + 1);
+            postings = new ArrayDeque<>(size);
+            if (size > 0) {
+                Terms terms = context.reader().terms(field);
+                if (terms != null) {
+                    BytesRef minTerm = BytesRef.deepCopyOf(lookup.lookupOrd(minOrd));
+                    TermsEnum termsEnum = terms.iterator();
+                    TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(minTerm);
+                    if (seekStatus != TermsEnum.SeekStatus.END) {
+                        BytesRef maxTerm = BytesRef.deepCopyOf(lookup.lookupOrd(maxOrd));
+
+                        TermsEnum globalTermsEnum = lookup.termsEnum();
+                        globalTermsEnum.seekExact(minOrd);
+
+                        for (BytesRef term = termsEnum.term(); term != null && term.compareTo(maxTerm) <= 0; term = termsEnum.next()) {
+                            // Compute the global ordinal of this term by advancing the global terms enum to the same term and retrieving
+                            // the term ordinal. This is cheaper than calling lookupTerm for every term.
+                            while (globalTermsEnum.term().compareTo(term) < 0) {
+                                BytesRef nextGlobalTerm = globalTermsEnum.next();
+                                assert nextGlobalTerm != null;
+                            }
+                            assert globalTermsEnum.term().equals(term);
+                            final long globalOrd = globalTermsEnum.ord();
+                            postings.add(new PostingsEnumAndOrd(termsEnum.postings(null, PostingsEnum.NONE), globalOrd));
+                        }
+                    }
+                }
+            }
+            disjunction = new PriorityQueue<>(size) {
+                @Override
+                protected boolean lessThan(PostingsEnumAndOrd a, PostingsEnumAndOrd b) {
+                    return a.postings.docID() < b.postings.docID();
+                }
+            };
+            disjunction.addAll(postings);
+        }
+
+        public void updateBounds() throws IOException {
+            long lowOrd;
+            if (afterValueGlobalOrd != null && afterValueGlobalOrd != MISSING_VALUE_FLAG) {
+                lowOrd = afterValueGlobalOrd;
+            } else {
+                lowOrd = reverseMul == 1 ? 0 : lookup.getValueCount() - 1;
+            }
+            update(Math.min(highestCompetitiveValueGlobalOrd, lowOrd), Math.max(highestCompetitiveValueGlobalOrd, lowOrd));
         }
     }
 }

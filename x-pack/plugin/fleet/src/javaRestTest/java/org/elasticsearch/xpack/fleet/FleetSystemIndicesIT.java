@@ -96,26 +96,24 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     public void testCreationOfFleetFiles() throws Exception {
-        Request request = new Request("PUT", ".fleet-agent-files-00001");
-        expectSystemIndexWarning(request, ".fleet-agent-files-00001");
+        Request request = new Request("PUT", ".fleet-files-agent-00001");
+        expectSystemIndexWarning(request, ".fleet-files-agent-00001");
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        request = new Request("GET", ".fleet-agent-files-00001/_mapping");
-        expectSystemIndexWarning(request, ".fleet-agent-files-00001");
+        request = new Request("GET", ".fleet-files-agent-00001/_mapping");
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("action_id"));
     }
 
     public void testCreationOfFleetFileData() throws Exception {
-        Request request = new Request("PUT", ".fleet-agent-file-data-00001");
-        expectSystemIndexWarning(request, ".fleet-agent-file-data-00001");
+        Request request = new Request("PUT", ".fleet-file-data-agent-00001");
+        expectSystemIndexWarning(request, ".fleet-file-data-agent-00001");
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        request = new Request("GET", ".fleet-agent-file-data-00001/_mapping");
-        expectSystemIndexWarning(request, ".fleet-agent-file-data-00001");
+        request = new Request("GET", ".fleet-file-data-agent-00001/_mapping");
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("action_id"));

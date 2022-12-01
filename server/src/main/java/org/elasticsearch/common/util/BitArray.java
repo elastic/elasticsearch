@@ -39,6 +39,18 @@ public final class BitArray implements Releasable {
         bits.set(wordNum, bits.get(wordNum) | bitmask(index));
     }
 
+    /**
+     * Set the {@code index}th bit and return {@code true} if the bit was set already.
+     */
+    public boolean getAndSet(long index) {
+        long wordNum = wordNum(index);
+        bits = bigArrays.grow(bits, wordNum + 1);
+        long word = bits.get(wordNum);
+        long bitMask = bitmask(index);
+        bits.set(wordNum, word | bitMask);
+        return (word & bitMask) != 0;
+    }
+
     /** this = this OR other */
     public void or(BitArray other) {
         or(other.bits);

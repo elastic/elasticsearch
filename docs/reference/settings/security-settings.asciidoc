@@ -47,7 +47,7 @@ starting {es} for the first time, which means that you must
 
 `xpack.security.enrollment.enabled`::
 (<<static-cluster-setting,Static>>)
-Controls enrollment (of nodes and {kib}) to a local node
+Defaults to `false`. Controls enrollment (of nodes and {kib}) to a local node
 that's been <<configuring-stack-security, autoconfigured for security>>.
 When set to `true`, the local node can generate new enrollment tokens. Existing
 tokens can be used for enrollment if they are still valid.

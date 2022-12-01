@@ -101,6 +101,7 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     private boolean useTSDBDocValuesFormat(final String field) {
         return IndexMode.TIME_SERIES.equals(indexMode)
             && (mapperService.mappingLookup().hasTimestampField() && DataStream.TimestampField.FIXED_TIMESTAMP_FIELD.equals(field))
-            || TimeSeriesParams.MetricType.counter.equals(mapperService.fieldType(field).getMetricType());
+            || (mapperService.fieldType(field) != null
+                && TimeSeriesParams.MetricType.counter.equals(mapperService.fieldType(field).getMetricType()));
     }
 }

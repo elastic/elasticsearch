@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,6 +30,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -147,31 +150,28 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(PATTERNS_FIELD.getPreferredName());
-        for (Map.Entry<String, AutoFollowPattern> entry : patterns.entrySet()) {
-            builder.startObject(entry.getKey());
-            builder.value(entry.getValue());
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.single(((builder, params) -> {
+            builder.startObject(PATTERNS_FIELD.getPreferredName());
+            for (Map.Entry<String, AutoFollowPattern> entry : patterns.entrySet()) {
+                builder.startObject(entry.getKey());
+                builder.value(entry.getValue());
+                builder.endObject();
+            }
             builder.endObject();
-        }
-        builder.endObject();
 
-        builder.startObject(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName());
-        for (Map.Entry<String, List<String>> entry : followedLeaderIndexUUIDs.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
-        }
-        builder.endObject();
-        builder.startObject(HEADERS.getPreferredName());
-        for (Map.Entry<String, Map<String, String>> entry : headers.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return true;
+            builder.startObject(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName());
+            for (Map.Entry<String, List<String>> entry : followedLeaderIndexUUIDs.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+            builder.startObject(HEADERS.getPreferredName());
+            for (Map.Entry<String, Map<String, String>> entry : headers.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+            return builder;
+        }));
     }
 
     @Override

@@ -10,14 +10,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.Objects;
 
 public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
@@ -105,9 +107,8 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Field.MANUALLY_STOPPED.getPreferredName(), manuallyStopped);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.single(((builder, params) -> builder.field(Field.MANUALLY_STOPPED.getPreferredName(), manuallyStopped)));
     }
 
     interface Field {

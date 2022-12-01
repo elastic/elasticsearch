@@ -262,7 +262,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return scripts.entrySet().stream().map(entry -> (ToXContent)(builder, params) -> {
+        return scripts.entrySet().stream().map(entry -> (ToXContent) (builder, params) -> {
             builder.field(entry.getKey());
             return entry.getValue().toXContent(builder, params);
         }).iterator();

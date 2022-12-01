@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAuto
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingMetadata;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
 
-public class AutoscalingMetadataDiffableSerializationTests extends SimpleDiffableSerializationTestCase<Metadata.Custom> {
+public class AutoscalingMetadataDiffableSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {

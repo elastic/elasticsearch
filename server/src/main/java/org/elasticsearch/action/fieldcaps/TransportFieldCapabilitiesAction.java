@@ -395,7 +395,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         @Override
         public void messageReceived(FieldCapabilitiesNodeRequest request, TransportChannel channel, Task task) throws Exception {
             assert task instanceof CancellableTask;
-            final CancellableTask cancellableTask = (CancellableTask) task;
             final ActionListener<FieldCapabilitiesNodeResponse> listener = new ChannelActionListener<>(channel, ACTION_NODE_NAME, request);
             ActionListener.completeWith(listener, () -> {
                 final List<FieldCapabilitiesIndexResponse> allResponses = new ArrayList<>();
@@ -408,12 +407,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
                 final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService);
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
-                    cancellableTask.ensureNotCancelled();
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
                     for (ShardId shardId : shardIds) {
                         try {
                             final FieldCapabilitiesIndexResponse response = fetcher.fetch(
+                                (CancellableTask) task,
                                 shardId,
                                 request.fields(),
                                 request.filters(),

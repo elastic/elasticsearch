@@ -568,17 +568,15 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             irForEachSubIterableNode.getDecorationValue(IRDVariableName.class)
         );
         Variable iterator = writeScope.defineInternalVariable(
-            painlessMethod == null ? ValueIterator.class : irForEachSubIterableNode.getDecorationValue(IRDIterableType.class),
+            irForEachSubIterableNode.getDecorationValue(IRDIterableType.class),
             irForEachSubIterableNode.getDecorationValue(IRDIterableName.class)
         );
 
         visit(irForEachSubIterableNode.getConditionNode(), writeScope);
 
-        Type primitiveVariableType = null;
         if (painlessMethod == null) {
             Type methodType = Type.getMethodType(Type.getType(ValueIterator.class), Type.getType(Object.class));
             methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
-            primitiveVariableType = variable.getType().isPrimitive() ? variable.getAsmType() : null;
         } else {
             methodWriter.invokeMethodCall(painlessMethod);
         }
@@ -595,12 +593,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.ifZCmp(MethodWriter.EQ, end);
 
         methodWriter.visitVarInsn(iterator.getAsmType().getOpcode(Opcodes.ILOAD), iterator.getSlot());
-        if (primitiveVariableType == null) {
+        if (painlessMethod != null || variable.getType().isPrimitive() == false) {
             methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_NEXT);
             methodWriter.writeCast(irForEachSubIterableNode.getDecorationValue(IRDCast.class));
         } else {
-            // TODO: IRDCast is ignored - need to modify the IR tree instead of this
-            switch (primitiveVariableType.getSort()) {
+            switch (variable.getAsmType().getSort()) {
                 case Type.BOOLEAN -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_BOOLEAN);
                 case Type.BYTE -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_BYTE);
                 case Type.SHORT -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_SHORT);
@@ -609,7 +606,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 case Type.LONG -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_LONG);
                 case Type.FLOAT -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_FLOAT);
                 case Type.DOUBLE -> methodWriter.invokeInterface(VALUE_ITERATOR_TYPE, VALUE_ITERATOR_NEXT_DOUBLE);
-                default -> throw new IllegalArgumentException("Unknown primitive type " + primitiveVariableType);
+                default -> throw new IllegalArgumentException("Unknown primitive iteration variable type " + variable.getAsmType());
             }
         }
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());

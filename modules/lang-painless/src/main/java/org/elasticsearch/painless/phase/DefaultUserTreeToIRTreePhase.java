@@ -15,6 +15,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.api.ValueIterator;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
@@ -763,13 +764,21 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irForEachSubIterableNode.attachDecoration(new IRDIterableName("#itr" + userEachNode.getLocation().getOffset()));
 
             if (iterableValueType != def.class) {
+                irForEachSubIterableNode.attachDecoration(new IRDIterableType(Iterator.class));
                 irForEachSubIterableNode.attachDecoration(
                     new IRDMethod(scriptScope.getDecoration(userEachNode, IterablePainlessMethod.class).iterablePainlessMethod())
                 );
-            }
 
-            if (painlessCast != null) {
-                irForEachSubIterableNode.attachDecoration(new IRDCast(painlessCast));
+                if (painlessCast != null) {
+                    irForEachSubIterableNode.attachDecoration(new IRDCast(painlessCast));
+                }
+            } else {
+                // use ValueIterator as we could be iterating over an array directly
+                irForEachSubIterableNode.attachDecoration(new IRDIterableType(ValueIterator.class));
+
+                if (painlessCast != null && variable.type().isPrimitive() == false) {
+                    irForEachSubIterableNode.attachDecoration(new IRDCast(painlessCast));
+                }
             }
 
             irConditionNode = irForEachSubIterableNode;

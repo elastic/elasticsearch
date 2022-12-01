@@ -39,19 +39,21 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
             .build();
     }
 
-    private RequestOptions supressWarningsForIndex(String indexName) {
+    private void expectSystemIndexWarning(Request request, String indexName) {
+        String expectedWarnings = List.of(
+            "index name ["
+                + indexName
+                + "] starts with a dot '.', in the next major version, "
+                + "index names starting with a dot are reserved for hidden indices and system indices"
+        );
+
+        logger.error("expecting warnings: " + expectedWarnings.toString());
+
         RequestOptions consumeSystemIndicesWarningsOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(
-                warnings -> List.of(
-                    "index name ["
-                        + indexName
-                        + "] starts with a dot '.', in the next major version, "
-                        + "index names starting with a dot are reserved for hidden indices and system indices"
-                ).equals(warnings) == false
-            )
+            .setWarningsHandler(warnings -> expectedWarnings.equals(warnings) == false)
             .build();
 
-        return consumeSystemIndicesWarningsOptions;
+        request.setOptions(consumeSystemIndicesWarningsOptions);
     }
 
     public void testSearchWithoutIndexCreatedIsAllowed() throws Exception {
@@ -96,35 +98,32 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
 
     public void testCreationOfFleetFiles() throws Exception {
         Request request = new Request("PUT", ".fleet-agent-files-00001");
-        request.setOptions(supressWarningsForIndex(".fleet-agent-files-00001")); // The result includes system indices, so we warn
+        expectSystemIndexWarning(request, ".fleet-agent-files-00001");
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         request = new Request("GET", ".fleet-agent-files-00001/_mapping");
-        request.setOptions(supressWarningsForIndex(".fleet-agent-files-00001")); // The result includes system indices, so we warn
+        expectSystemIndexWarning(request, ".fleet-agent-files-00001");
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("action_id"));
     }
 
     public void testCreationOfFleetFileData() throws Exception {
-        RequestOptions supressWarnings = supressWarningsForIndex(".fleet-agent-file-data-00001");
         Request request = new Request("PUT", ".fleet-agent-file-data-00001");
-        request.setOptions(supressWarnings); // The result includes system indices, so we warn
+        expectSystemIndexWarning(request, ".fleet-agent-file-data-00001");
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         request = new Request("GET", ".fleet-agent-file-data-00001/_mapping");
-        request.setOptions(supressWarnings); // The result includes system indices, so we warn
+        expectSystemIndexWarning(request, ".fleet-agent-file-data-00001");
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("action_id"));
     }
 
     public void testCreationOfFleetArtifacts() throws Exception {
-
         Request request = new Request("PUT", ".fleet-artifacts");
-        request.setOptions(supressWarningsForIndex(".fleet-artifacts")); // The result includes system indices, so we warn
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 

@@ -108,34 +108,35 @@ public class ConditionalProcessorTests extends ESTestCase {
         String falseValue = "falsy";
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, falseValue);
-        execProcessor(processor, ingestDocument, (result, e) -> {});
+        String context = randomAlphaOfLength(5);
+        execProcessor(processor, ingestDocument, context, (result, e) -> {});
         assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(falseValue));
         assertThat(ingestDocument.getSourceAndMetadata(), not(hasKey("foo")));
-        assertStats(processor, 0, 0, 0);
+        assertStats(processor, context, 0, 0, 0);
         assertEquals(scriptName, processor.getCondition());
 
         ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, falseValue);
         ingestDocument.setFieldValue("error", true);
-        execProcessor(processor, ingestDocument, (result, e) -> {});
-        assertStats(processor, 0, 0, 0);
+        execProcessor(processor, ingestDocument, context, (result, e) -> {});
+        assertStats(processor, context, 0, 0, 0);
 
         // true, always call processor and increments metrics
         ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, trueValue);
-        execProcessor(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, context, (result, e) -> {});
         assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(trueValue));
         assertThat(ingestDocument.getSourceAndMetadata().get("foo"), is("bar"));
-        assertStats(processor, 1, 0, 1);
+        assertStats(processor, context, 1, 0, 1);
 
         ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, trueValue);
         ingestDocument.setFieldValue("error", true);
         IngestDocument finalIngestDocument = ingestDocument;
         Exception holder[] = new Exception[1];
-        execProcessor(processor, finalIngestDocument, (result, e) -> { holder[0] = e; });
+        execProcessor(processor, finalIngestDocument, context, (result, e) -> { holder[0] = e; });
         assertThat(holder[0], instanceOf(RuntimeException.class));
-        assertStats(processor, 2, 1, 2);
+        assertStats(processor, context, 2, 1, 2);
     }
 
     @SuppressWarnings("unchecked")
@@ -279,15 +280,16 @@ public class ConditionalProcessorTests extends ESTestCase {
         );
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue("listField", new ArrayList<>());
-        execProcessor(processor, ingestDocument, (result, e) -> {});
+        String context = randomAlphaOfLength(5);
+        execProcessor(processor, ingestDocument, context, (result, e) -> {});
         Exception e = expectedException.get();
         assertThat(e, instanceOf(UnsupportedOperationException.class));
         assertEquals("Mutating ingest documents in conditionals is not supported", e.getMessage());
-        assertStats(processor, 0, 0, 0);
+        assertStats(processor, context, 0, 0, 0);
     }
 
-    private static void assertStats(ConditionalProcessor conditionalProcessor, long count, long failed, long time) {
-        IngestStats.Stats stats = conditionalProcessor.getMetric(randomAlphaOfLength(5)).createStats();
+    private static void assertStats(ConditionalProcessor conditionalProcessor, String context, long count, long failed, long time) {
+        IngestStats.Stats stats = conditionalProcessor.getMetric(context).createStats();
         assertThat(stats.getIngestCount(), equalTo(count));
         assertThat(stats.getIngestCurrent(), equalTo(0L));
         assertThat(stats.getIngestFailedCount(), equalTo(failed));
@@ -295,11 +297,20 @@ public class ConditionalProcessorTests extends ESTestCase {
     }
 
     private static void execProcessor(Processor processor, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
+        execProcessor(processor, doc, randomAlphaOfLength(5), handler);
+    }
+
+    private static void execProcessor(
+        Processor processor,
+        IngestDocument doc,
+        String context,
+        BiConsumer<IngestDocument, Exception> handler
+    ) {
         if (processor.isAsync()) {
-            processor.execute(doc, randomAlphaOfLength(5), handler);
+            processor.execute(doc, context, handler);
         } else {
             try {
-                IngestDocument result = processor.execute(doc, randomAlphaOfLength(5));
+                IngestDocument result = processor.execute(doc, context);
                 handler.accept(result, null);
             } catch (Exception e) {
                 handler.accept(null, e);

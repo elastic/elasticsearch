@@ -372,7 +372,7 @@ public class InboundHandler {
      * @param remoteAddress remote address that the message was sent from
      * @param stream bytes stream for reading the message
      * @param header message header
-     * @param releaseResponse releasable that will be released once the message has been read from the {@code stream}
+     * @param releaseResponseBuffer releasable that will be released once the message has been read from the {@code stream}
      * @param <T> response message type
      */
     private <T extends TransportResponse> void doHandleResponse(
@@ -380,13 +380,11 @@ public class InboundHandler {
         InetSocketAddress remoteAddress,
         final StreamInput stream,
         final Header header,
-        Releasable releaseResponse
+        Releasable releaseResponseBuffer
     ) {
         final T response;
-        try {
-            try (releaseResponse) {
-                response = handler.read(stream);
-            }
+        try (releaseResponseBuffer) {
+            response = handler.read(stream);
             response.remoteAddress(remoteAddress);
         } catch (Exception e) {
             final TransportException serializationException = new TransportSerializationException(

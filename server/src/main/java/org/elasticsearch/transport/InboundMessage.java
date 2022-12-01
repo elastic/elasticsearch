@@ -83,6 +83,7 @@ public class InboundMessage extends AbstractRefCounted {
 
     public StreamInput openOrGetStreamInput() throws IOException {
         assert isPing == false && content != null;
+        assert hasReferences();
         if (streamInput == null) {
             streamInput = content.streamInput();
             streamInput.setVersion(header.getVersion());

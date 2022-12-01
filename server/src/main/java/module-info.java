@@ -369,4 +369,5 @@ module org.elasticsearch.server {
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 
     provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
+    provides org.apache.lucene.codecs.DocValuesFormat with org.elasticsearch.index.codec.tsdb.ES97TSDBDocValuesFormat;
 }

@@ -40,15 +40,14 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     private void expectSystemIndexWarning(Request request, String indexName) {
-        String expectedWarnings = List.of(
-            "index name ["
-                + indexName
-                + "] starts with a dot '.', in the next major version, "
-                + "index names starting with a dot are reserved for hidden indices and system indices"
-        );
+        String warningMsg = "index name ["
+            + indexName
+            + "] starts with a dot '.', in the next major version, "
+            + "index names starting with a dot are reserved for hidden indices and system indices";
 
-        logger.error("expecting warnings: " + expectedWarnings.toString());
+        List<String> expectedWarnings = List.of(warningMsg);
 
+        logger.info("expecting warnings: " + expectedWarnings.toString());
         RequestOptions consumeSystemIndicesWarningsOptions = RequestOptions.DEFAULT.toBuilder()
             .setWarningsHandler(warnings -> expectedWarnings.equals(warnings) == false)
             .build();

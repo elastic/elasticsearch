@@ -85,7 +85,6 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
         array.close();
     }
 
-    @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
     public void testIncrement() {
         final int totalLen = randomIntBetween(1, 1_000_000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);

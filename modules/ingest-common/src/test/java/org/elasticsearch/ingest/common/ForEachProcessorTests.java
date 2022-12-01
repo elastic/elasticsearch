@@ -478,10 +478,10 @@ public class ForEachProcessorTests extends ESTestCase {
     // executes either sync or async forEach processor
     private static void execProcessor(ForEachProcessor processor, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
         if (processor.isAsync()) {
-            processor.execute(doc, handler);
+            processor.execute(doc, randomAlphaOfLength(5), handler);
         } else {
             try {
-                IngestDocument result = processor.execute(doc);
+                IngestDocument result = processor.execute(doc, randomAlphaOfLength(5));
                 handler.accept(result, null);
             } catch (Exception e) {
                 handler.accept(null, e);

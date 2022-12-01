@@ -134,18 +134,28 @@ public class IngestMetricsIT extends ESSingleNodeTestCase {
             .actionGet();
 
         BulkRequest bulkRequest = new BulkRequest();
-        int numDocs = randomIntBetween(1, 200);
-        for (int i = 0; i < numDocs; i++) {
-            bulkRequest.add(
-                new IndexRequest("foobar").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("outerPipeline")
-            );
+        int numDocsToOuterPipeline = randomIntBetween(1, 200);
+        for (int i = 0; i < numDocsToOuterPipeline; i++) {
+            bulkRequest.add(new IndexRequest("outer").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("outerPipeline"));
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
-        for (int i = 0; i < numDocs; i++) {
+        assertThat(bulkResponse.getItems().length, equalTo(numDocsToOuterPipeline));
+        for (int i = 0; i < numDocsToOuterPipeline; i++) {
             String id = Integer.toString(i);
             assertThat(bulkResponse.getItems()[i].getId(), equalTo(id));
         }
+        bulkRequest = new BulkRequest();
+        int numDocsToInnerPipeline = randomIntBetween(1, 200);
+        for (int i = 0; i < numDocsToInnerPipeline; i++) {
+            bulkRequest.add(new IndexRequest("inner").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("innerPipeline"));
+        }
+        bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.getItems().length, equalTo(numDocsToInnerPipeline));
+        for (int i = 0; i < numDocsToInnerPipeline; i++) {
+            String id = Integer.toString(i);
+            assertThat(bulkResponse.getItems()[i].getId(), equalTo(id));
+        }
+        int totalDocs = numDocsToOuterPipeline + numDocsToInnerPipeline;
         NodesStatsResponse nodesStatsResponse = client().admin()
             .cluster()
             .nodesStats(new NodesStatsRequest().addMetric("ingest"))
@@ -155,14 +165,24 @@ public class IngestMetricsIT extends ESSingleNodeTestCase {
         Map<String, Object> ingest = (Map<String, Object>) ingestStatsMap.get("ingest");
         Map<String, Object> total = (Map<String, Object>) ingest.get("total");
         int totalCount = (int) total.get("count");
-        assertThat(totalCount, equalTo(numDocs));
+        assertThat(totalCount, equalTo(totalDocs));
         int totalTime = (int) total.get("time_in_millis");
         assertThat(totalTime, greaterThan(0));
         Map<String, Object> pipelines = (Map<String, Object>) ingest.get("pipelines");
         Map<String, Object> outerPipelineMap = (Map<String, Object>) pipelines.get("outerPipeline");
+        assertThat(outerPipelineMap.get("count"), equalTo(numDocsToOuterPipeline));
+        int outerPipelineTime = (int) outerPipelineMap.get("time_in_millis");
         AtomicInteger pipelinesChecked = new AtomicInteger(0);
-        checkPipeline(outerPipelineMap, totalCount, totalTime, pipelinesChecked);
+        checkPipeline(outerPipelineMap, numDocsToOuterPipeline, totalTime, pipelinesChecked);
         assertThat(pipelinesChecked.get(), equalTo(4));
+
+        Map<String, Object> innerPipelineMap = (Map<String, Object>) pipelines.get("innerPipeline");
+        assertThat(innerPipelineMap.get("count"), equalTo(numDocsToInnerPipeline));
+        int innerPipelineTime = (int) innerPipelineMap.get("time_in_millis");
+        Map<String, Object> innerInnerPipelineMap = (Map<String, Object>) pipelines.get("innerInnerPipeline");
+        assertThat(innerInnerPipelineMap.get("count"), equalTo(0));
+        int innerInnerPipelineTime = (int) innerInnerPipelineMap.get("time_in_millis");
+        assertThat(outerPipelineTime + innerPipelineTime + innerInnerPipelineTime, lessThanOrEqualTo(totalTime));
     }
 
     /*

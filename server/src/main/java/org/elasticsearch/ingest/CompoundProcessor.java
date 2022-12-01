@@ -32,7 +32,10 @@ public class CompoundProcessor implements Processor {
     private final boolean ignoreFailure;
     private final List<Processor> processors;
     private final List<Processor> onFailureProcessors;
-    private final List<Tuple<Processor, Map<String, IngestMetric>>> processorsWithContextAwareMetrics;
+    /*
+     * Each Tuple contains a Processor and a Map of context string to IngestMetric for that Processor
+     */
+    private final List<Tuple<Processor, Map<String, IngestMetric>>> processorsWithMetrics;
     private final LongSupplier relativeTimeProvider;
     private final boolean isAsync;
 
@@ -59,14 +62,14 @@ public class CompoundProcessor implements Processor {
         this.processors = List.copyOf(processors);
         this.onFailureProcessors = List.copyOf(onFailureProcessors);
         this.relativeTimeProvider = relativeTimeProvider;
-        this.processorsWithContextAwareMetrics = processors.stream()
+        this.processorsWithMetrics = processors.stream()
             .map(p -> new Tuple<>(p, (Map<String, IngestMetric>) new ConcurrentHashMap<String, IngestMetric>()))
             .toList();
         this.isAsync = flattenProcessors().stream().anyMatch(Processor::isAsync);
     }
 
     List<Tuple<Processor, Map<String, IngestMetric>>> getProcessorsWithMetrics() {
-        return processorsWithContextAwareMetrics;
+        return processorsWithMetrics;
     }
 
     public boolean isIgnoreFailure() {
@@ -163,8 +166,8 @@ public class CompoundProcessor implements Processor {
         String context,
         final BiConsumer<IngestDocument, Exception> handler
     ) {
-        assert currentProcessor <= processorsWithContextAwareMetrics.size();
-        if (currentProcessor == processorsWithContextAwareMetrics.size()) {
+        assert currentProcessor <= processorsWithMetrics.size();
+        if (currentProcessor == processorsWithMetrics.size()) {
             handler.accept(ingestDocument, null);
             return;
         }
@@ -172,10 +175,9 @@ public class CompoundProcessor implements Processor {
         Processor processor;
         IngestMetric metric;
         // iteratively execute any sync processors
-        while (currentProcessor < processorsWithContextAwareMetrics.size()
-            && processorsWithContextAwareMetrics.get(currentProcessor).v1().isAsync() == false) {
-            processor = processorsWithContextAwareMetrics.get(currentProcessor).v1();
-            metric = processorsWithContextAwareMetrics.get(currentProcessor).v2().computeIfAbsent(context, s -> new IngestMetric());
+        while (currentProcessor < processorsWithMetrics.size() && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false) {
+            processor = processorsWithMetrics.get(currentProcessor).v1();
+            metric = processorsWithMetrics.get(currentProcessor).v2().computeIfAbsent(context, s -> new IngestMetric());
             // metric = processorWithMetric.v2();
             metric.preIngest();
 
@@ -198,8 +200,8 @@ public class CompoundProcessor implements Processor {
             currentProcessor++;
         }
 
-        assert currentProcessor <= processorsWithContextAwareMetrics.size();
-        if (currentProcessor == processorsWithContextAwareMetrics.size()) {
+        assert currentProcessor <= processorsWithMetrics.size();
+        if (currentProcessor == processorsWithMetrics.size()) {
             handler.accept(ingestDocument, null);
             return;
         }
@@ -208,10 +210,8 @@ public class CompoundProcessor implements Processor {
         final int finalCurrentProcessor = currentProcessor;
         final int nextProcessor = currentProcessor + 1;
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
-        final IngestMetric finalMetric = processorsWithContextAwareMetrics.get(currentProcessor)
-            .v2()
-            .computeIfAbsent(context, s -> new IngestMetric());
-        final Processor finalProcessor = processorsWithContextAwareMetrics.get(currentProcessor).v1();
+        final IngestMetric finalMetric = processorsWithMetrics.get(currentProcessor).v2().computeIfAbsent(context, s -> new IngestMetric());
+        final Processor finalProcessor = processorsWithMetrics.get(currentProcessor).v1();
         final IngestDocument finalIngestDocument = ingestDocument;
         finalMetric.preIngest();
         try {

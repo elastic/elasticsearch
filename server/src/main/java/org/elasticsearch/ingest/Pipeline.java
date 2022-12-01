@@ -114,12 +114,16 @@ public final class Pipeline {
          * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
          * is only executed once.
          */
-        metrics.preIngest();
+        if (context.contains(":") == false) {
+            metrics.preIngest();
+        }
         compoundProcessor.execute(ingestDocument, context, (result, e) -> {
             long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
-            metrics.postIngest(ingestTimeInNanos);
-            if (e != null) {
-                metrics.ingestFailed();
+            if (context.contains(":") == false) {
+                metrics.postIngest(ingestTimeInNanos);
+                if (e != null) {
+                    metrics.ingestFailed();
+                }
             }
             handler.accept(result, e);
         });

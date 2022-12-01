@@ -109,12 +109,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected void assertAggregatableConsistency(MappedFieldType ft) {
         if (ft.isAggregatable()) {
             try {
-                ft.fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_test"));
+                ft.fielddataBuilder("test", () -> { throw new IllegalArgumentException(); });
             } catch (Exception e) {
                 fail("Unexpected exception when fetching field data from aggregatable field type");
             }
         } else {
-            expectThrows(IllegalArgumentException.class, () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_test")));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> ft.fielddataBuilder("test", () -> { throw new IllegalArgumentException(); })
+            );
         }
     }
 

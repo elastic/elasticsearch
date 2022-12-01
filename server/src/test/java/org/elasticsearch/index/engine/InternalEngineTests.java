@@ -7483,7 +7483,7 @@ public class InternalEngineTests extends EngineTestCase {
             @Override
             public void onNewCommit(ShardId shardId, Engine.IndexCommitRef indexCommitRef) {
                 assertThat(acquiredCommits.put(indexCommitRef.getIndexCommit(), indexCommitRef), nullValue());
-                assertThat(shardId, equalTo(shardId));
+                assertThat(shardId, equalTo(InternalEngineTests.this.shardId));
             }
 
             @Override
@@ -7491,7 +7491,7 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(acquiredCommits.remove(deletedCommit), notNullValue());
                 assertThat(deletedCommits.add(deletedCommit), equalTo(true));
                 assertThat(deletedCommit.isDeleted(), equalTo(true));
-                assertThat(shardId, equalTo(shardId));
+                assertThat(shardId, equalTo(InternalEngineTests.this.shardId));
             }
         };
 

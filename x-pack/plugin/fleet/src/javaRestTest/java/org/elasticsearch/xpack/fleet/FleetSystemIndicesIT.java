@@ -116,7 +116,8 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         request = new Request("GET", ".fleet-file-data-agent-00001/_mapping");
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
-        assertThat(responseBody, containsString("action_id"));
+        assertThat(responseBody, containsString("data"));
+        assertThat(responseBody, containsString("bid"));
     }
 
     public void testCreationOfFleetArtifacts() throws Exception {

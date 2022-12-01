@@ -54,6 +54,10 @@ public class HighlightField implements ToXContentFragment, Writeable {
         this.fragments = fragments;
     }
 
+    public HighlightField(String name, List<String> fragments) {
+        this(name, fragments.stream().map(Text::new).toArray(Text[]::new));
+    }
+
     /**
      * The name of the field highlighted.
      */

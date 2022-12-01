@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
@@ -80,7 +81,7 @@ public class HighlightFieldTests extends ESTestCase {
               ]
             }""", Strings.toString(builder));
 
-        field = new HighlightField("foo", null);
+        field = new HighlightField("foo", Collections.emptyList());
         builder = JsonXContent.contentBuilder();
         builder.prettyPrint();
         builder.startObject();

@@ -9,7 +9,11 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -21,8 +25,10 @@ import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.MatchesHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
@@ -44,7 +50,9 @@ public class HighlighterTestCase extends MapperServiceTestCase {
             "fvh",
             new FastVectorHighlighter(getIndexSettings()),
             "plain",
-            new PlainHighlighter()
+            new PlainHighlighter(),
+            "matches",
+            new MatchesHighlighter()
         );
     }
 
@@ -91,6 +99,8 @@ public class HighlighterTestCase extends MapperServiceTestCase {
         when(fetchContext.parsedQuery()).thenReturn(new ParsedQuery(search.query().toQuery(context)));
         when(fetchContext.getSearchExecutionContext()).thenReturn(context);
         when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(false));
+        ContextIndexSearcher cis = new ContextIndexSearcher(context.searcher().getIndexReader(), new BM25Similarity(), null, TrivialQueryCachingPolicy.NEVER, false);
+        when(fetchContext.searcher()).thenReturn(cis);
         return fetchContext;
     }
 }

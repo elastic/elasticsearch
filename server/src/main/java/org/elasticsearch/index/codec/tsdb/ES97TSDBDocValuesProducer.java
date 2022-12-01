@@ -104,7 +104,7 @@ public class ES97TSDBDocValuesProducer extends DocValuesProducer {
 
             success = true;
         } finally {
-            if (!success) {
+            if (success == false) {
                 IOUtils.closeWhileHandlingException(this.data);
             }
         }

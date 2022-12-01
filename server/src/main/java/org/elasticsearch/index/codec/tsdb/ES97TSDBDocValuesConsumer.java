@@ -72,7 +72,7 @@ final class ES97TSDBDocValuesConsumer extends DocValuesConsumer {
             maxDoc = state.segmentInfo.maxDoc();
             success = true;
         } finally {
-            if (!success) {
+            if (success == false) {
                 IOUtils.closeWhileHandlingException(this);
             }
         }

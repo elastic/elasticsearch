@@ -330,9 +330,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     @Override
                     protected boolean isContentAlwaysEmpty(HttpResponse msg) {
                         // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
-                        // encoding are only sent by us in response to HEAD requests an must always have an empty body
-                        return msg instanceof Netty4HttpResponse && HttpUtil.isTransferEncodingChunked(msg)
-                            || super.isContentAlwaysEmpty(msg);
+                        // encoding are only sent by us in response to HEAD requests and must always have an empty body
+                        if (msg instanceof Netty4HttpResponse netty4HttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
+                            assert netty4HttpResponse.content().isReadable() == false;
+                            return true;
+                        }
+                        return super.isContentAlwaysEmpty(msg);
                     }
                 })
                 .addLast("aggregator", aggregator);

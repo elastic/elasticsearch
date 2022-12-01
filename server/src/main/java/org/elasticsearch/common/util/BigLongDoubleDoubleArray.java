@@ -54,7 +54,7 @@ final class BigLongDoubleDoubleArray extends AbstractBigArray implements LongDou
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         // + prev all elements, which is one long
-        var d = (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], (indexInPage << ELEMENT_SHIFT) + Long.BYTES);
+        var d = (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], (indexInPage << ELEMENT_SHIFT) + 8);
         return d;
     }
 
@@ -63,7 +63,7 @@ final class BigLongDoubleDoubleArray extends AbstractBigArray implements LongDou
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         // + prev all elements, which is one long and one double
-        return (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], (indexInPage << ELEMENT_SHIFT) + Long.BYTES + Double.BYTES);
+        return (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], (indexInPage << ELEMENT_SHIFT) + 16);
     }
 
     @Override
@@ -71,10 +71,25 @@ final class BigLongDoubleDoubleArray extends AbstractBigArray implements LongDou
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        VH_PLATFORM_NATIVE_LONG.set(page, indexInPage << ELEMENT_SHIFT, lValue0);
-        VH_PLATFORM_NATIVE_DOUBLE.set(page, (indexInPage << ELEMENT_SHIFT) + Long.BYTES, dValue0);
-        VH_PLATFORM_NATIVE_DOUBLE.set(page, (indexInPage << ELEMENT_SHIFT) + Long.BYTES + Double.BYTES, dValue1);
+        final int offset = indexInPage << ELEMENT_SHIFT;
+        VH_PLATFORM_NATIVE_LONG.set(page, offset, lValue0);
+        VH_PLATFORM_NATIVE_DOUBLE.set(page, offset + 8, dValue0);
+        VH_PLATFORM_NATIVE_DOUBLE.set(page, offset + 16, dValue1);
         // ignore padding - should be 0
+    }
+
+    @Override
+    public void increment(long index, long lValue0Inc, double dValue0Inc, double dValue1Inc) {
+        final int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        final byte[] page = pages[pageIndex];
+        final int offset = indexInPage << ELEMENT_SHIFT;
+        var newLong0 = (long) VH_PLATFORM_NATIVE_LONG.get(pages[pageIndex], offset) + +lValue0Inc;
+        var newDouble0 = (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], offset + 8) + dValue0Inc;
+        var newDouble1 = (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], offset + 16) + dValue1Inc;
+        VH_PLATFORM_NATIVE_LONG.set(page, offset, newLong0);
+        VH_PLATFORM_NATIVE_DOUBLE.set(page, offset + 8, newDouble0);
+        VH_PLATFORM_NATIVE_DOUBLE.set(page, offset + 16, newDouble1);
     }
 
     /** Changes the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */

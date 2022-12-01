@@ -85,6 +85,41 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
         array.close();
     }
 
+    @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
+    public void testIncrement() {
+        final int totalLen = randomIntBetween(1, 1_000_000);
+        final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
+
+        LongDoubleDoubleArray array = bigArrays.newLongDoubleDoubleArray(startLen, randomBoolean());
+        long[] longRef = new long[totalLen];
+        double[] doubleRef0 = new double[totalLen];
+        double[] doubleRef1 = new double[totalLen];
+        // initial values
+        for (int i = 0; i < totalLen; ++i) {
+            longRef[i] = randomLongBetween(1, Long.MAX_VALUE / 2);
+            doubleRef0[i] = randomDoubleBetween(1, Double.MAX_VALUE / 2, true);
+            doubleRef1[i] = randomDoubleBetween(1, Double.MAX_VALUE / 2, true);
+            array = bigArrays.grow(array, i + 1);
+            array.set(i, longRef[i], doubleRef0[i], doubleRef1[i]);
+        }
+        // increment
+        for (int i = 0; i < totalLen; ++i) {
+            long long0Inc = randomLongBetween(1, Long.MAX_VALUE / 2);
+            double double0Inc = randomDoubleBetween(1, Double.MAX_VALUE / 2, true);
+            double double1Inc = randomDoubleBetween(1, Double.MAX_VALUE / 2, true);
+            longRef[i] += long0Inc;
+            doubleRef0[i] += double0Inc;
+            doubleRef1[i] += double1Inc;
+            array.increment(i, long0Inc, double0Inc, double1Inc);
+        }
+        for (int i = 0; i < totalLen; ++i) {
+            assertEquals(longRef[i], array.getLong0(i));
+            assertEquals(doubleRef0[i], array.getDouble0(i), 0.0d);
+            assertEquals(doubleRef1[i], array.getDouble1(i), 0.0d);
+        }
+        array.close();
+    }
+
     /** Tests the estimated ram byte used. For now, always 16K increments, even for small sizes  */
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
     public void testRamBytesUsed() {

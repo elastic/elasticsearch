@@ -31,8 +31,9 @@ public interface LongDoubleDoubleArray extends BigArray { // TODO: implement Wri
      */
     void set(long index, long lValue0, double dValue0, double dValue1);
 
+    void increment(long index, long lValue0Inc, double dValue0Inc, double dValue1Inc);
+
     // TODO: considering adding:
-    // - increment
     // - fill
     // - bulk byte[] set
 

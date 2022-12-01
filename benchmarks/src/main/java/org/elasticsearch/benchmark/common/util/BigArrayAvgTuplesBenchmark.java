@@ -18,6 +18,7 @@ import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -40,75 +41,137 @@ public class BigArrayAvgTuplesBenchmark {
 
     LongDoubleDoubleArray triple;
 
-    static final int PAGE_SIZE = 1 << 14; // 16k
+    int[] indices;
 
-    static final int PAGE_ELEMENTS = PAGE_SIZE / Long.BYTES;
+    @Param(value = { "1000", "10000", "100000" })
+    int size;
 
-    int fakeOffset;
-
-    // Notes:
-    // M1 L1 cache size is 64k or 128k depending on performance of efficient core.
-    // M1 L2 cache size is 12MB.
+    static final int STRIDE = 1000;
 
     @Setup
     public void setup() {
         BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
 
-        // 2048 * 250 = 512,000 (8 byte) elements = 4,096,000 bytes = 3.9MB per bigArray instance
-        counts = bigArrays.newLongArray(PAGE_ELEMENTS * 250, false);
-        sums = bigArrays.newDoubleArray(PAGE_ELEMENTS * 250, false);
-        compensations = bigArrays.newDoubleArray(PAGE_ELEMENTS * 250, false);
-        fakeOffset = 0;
+        counts = bigArrays.newLongArray(size, false);
+        sums = bigArrays.newDoubleArray(size, false);
+        compensations = bigArrays.newDoubleArray(size, false);
+        triple = bigArrays.newLongDoubleDoubleArray(size, false);
 
-        triple = bigArrays.newLongDoubleDoubleArray((PAGE_ELEMENTS * 250) * 3, false);
-    }
-
-    // Touches all elements of all pages in all arrays, in a ping-pong like fashion.
-    // The inner loop touches one element per on each bigArray page, on each iteration.
-    // The outer loop does the inner a number of time, by striding over each page-index.
-    @Benchmark
-    public void testReal(Blackhole bh) {
-        for (int i = 0; i < PAGE_ELEMENTS; i++) {
-            for (int j = 0; j < 1000; j++) {
-                int offset = j * PAGE_ELEMENTS;
-                counts.increment(offset + i, 1);
-                sums.increment(offset + i, 2);
-                compensations.increment(offset + i, 3);
+        // setup a non-linear access pattern
+        indices = new int[size];
+        int index = 0;
+        final int len = size / STRIDE;
+        for (int i = 0; i < STRIDE; i++) {
+            for (int j = 0; j < len; j++) {
+                indices[index++] = i + (j * STRIDE);
             }
         }
+
+        // trivial benchmark assertions
+        if (triple.size() != counts.size()) {
+            throw new AssertionError("Triple size=" + triple.size() + ", counts size=" + counts.size());
+        }
+        if (size % STRIDE != 0) {
+            throw new AssertionError("stride [" + STRIDE + "] not a multiple of size [" + size + "]");
+        }
+    }
+
+    @Benchmark
+    public void testThreeSeparateArrays(Blackhole bh) {
+        threeSeparateArrays(counts, sums, compensations, indices);
         bh.consume(counts);
         bh.consume(sums);
         bh.consume(compensations);
     }
 
-    @Benchmark
-    public void testLongDoubleDoubleArray(Blackhole bh) {
-        for (int i = 0; i < PAGE_ELEMENTS; i++) {
-            for (int j = 0; j < 250; j++) {
-                int offset = j * PAGE_ELEMENTS;
-                triple.set(offset + i, 1, 2, 3);
-            }
+    private static LongArray threeSeparateArrays(LongArray counts, DoubleArray sums, DoubleArray compensations, int[] indices) {
+        int len = (int) counts.size();
+        for (int i = 0; i < len; i++) {
+            int index = indices[i];
+            counts.increment(index, i + 1);
+            sums.increment(index, i + 2);
+            compensations.increment(index, i + 3);
         }
-        bh.consume(counts);
-        bh.consume(sums);
-        bh.consume(compensations);
+        return counts;
     }
 
-    // public static void main(String... args) {
-    // var test = new BigArrayAvgTuplesBenchmark();
-    // test.setup();
-    // test.testReal(null);
-    // test.testFake(null);
-    // }
+    @Benchmark
+    public void testLongDoubleDoubleArraySet(Blackhole bh) {
+        longDoubleDoubleArraySet(triple, indices);
+        bh.consume(triple);
+    }
+
+    private static void longDoubleDoubleArraySet(LongDoubleDoubleArray triple, int[] indices) {
+        int len = (int) triple.size();
+        for (int i = 0; i < len; i++) {
+            int index = indices[i];
+            triple.set(index, triple.getLong0(index) + i + 1, triple.getDouble0(index) + i + 2, triple.getDouble1(index) + i + 3);
+        }
+    }
+
+    @Benchmark
+    public void testLongDoubleDoubleArrayInc(Blackhole bh) {
+        longDoubleDoubleArrayInc(triple, indices);
+        bh.consume(triple);
+    }
+
+    private static void longDoubleDoubleArrayInc(LongDoubleDoubleArray triple, int[] indices) {
+        int len = (int) triple.size();
+        for (int i = 0; i < len; i++) {
+            int index = indices[i];
+            triple.increment(index, i + 1, i + 2, i + 3);
+        }
+    }
+
+    // -- main and test below
+    /*
+    public static void main(String... args) {
+        var test = new BigArrayAvgTuplesBenchmark();
+        test.size = 1_000_000;
+        test.setup();
+        if (args.length != 0) {
+            if (args[0].equals("r")) {
+                threeSeparateArrays(test.counts, test.sums, test.compensations, test.indices);
+            } else {
+                longDoubleDoubleArraySet(test.triple, test.indices);
+            }
+        } else {
+            // assert test implementation
+            assertTestImpl();
+        }
+    }
+
+    private static void assertTestImpl() {
+        {
+            BigArrayAvgTuplesBenchmark test1 = new BigArrayAvgTuplesBenchmark();
+            test1.size = 1_000_000;
+            test1.setup();
+            threeSeparateArrays(test1.counts, test1.sums, test1.compensations, test1.indices);
+            longDoubleDoubleArraySet(test1.triple, test1.indices);
+            assertValues(test1);
+        }
+        {
+            BigArrayAvgTuplesBenchmark test2 = new BigArrayAvgTuplesBenchmark();
+            test2.size = 10000;
+            test2.setup();
+            threeSeparateArrays(test2.counts, test2.sums, test2.compensations, test2.indices);
+            longDoubleDoubleArrayInc(test2.triple, test2.indices);
+            assertValues(test2);
+        }
+    }
+
+    private static void assertValues(BigArrayAvgTuplesBenchmark test) {
+        for (int i = 0; i < test.size; i++) {
+            if (test.triple.getLong0(i) != test.counts.get(i)) {
+                throw new AssertionError(test.triple.getLong0(i) + " != " + test.counts.get(i));
+            }
+            if (test.triple.getDouble0(i) != test.sums.get(i)) {
+                throw new AssertionError(test.triple.getDouble0(i) + " != " + test.sums.get(i));
+            }
+            if (test.triple.getDouble1(i) != test.compensations.get(i)) {
+                throw new AssertionError(test.triple.getDouble0(i) + " != " + test.compensations.get(i));
+            }
+        }
+    }
+    */
 }
-
-/*
-
-Output on chegar's Mac M1
-
-Benchmark                            Mode  Cnt        Score        Error  Units
-BigArrayAvgTuplesBenchmark.testFake  avgt   30  1812699.723 ±  49472.941  ns/op
-BigArrayAvgTuplesBenchmark.testReal  avgt   30  3225329.426 ± 181804.312  ns/op
-
-
- */

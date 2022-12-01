@@ -760,7 +760,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irForEachSubIterableNode.setBlockNode(irBlockNode);
             irForEachSubIterableNode.attachDecoration(new IRDVariableType(variable.type()));
             irForEachSubIterableNode.attachDecoration(new IRDVariableName(variable.name()));
-            irForEachSubIterableNode.attachDecoration(new IRDIterableType(Iterator.class));
             irForEachSubIterableNode.attachDecoration(new IRDIterableName("#itr" + userEachNode.getLocation().getOffset()));
 
             if (iterableValueType != def.class) {

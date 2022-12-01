@@ -227,7 +227,9 @@ public abstract class Engine implements Closeable {
         void onNewCommit(ShardId shardId, Engine.IndexCommitRef indexCommitRef);
 
         /**
-         * This method is invoked after the policy deleted the given {@link IndexCommit}.
+         * This method is invoked after the policy deleted the given {@link IndexCommit}. A listener is never notified of a deleted commit
+         * until the corresponding {@link Engine.IndexCommitRef} received through {@link #onNewCommit(ShardId, IndexCommitRef)} has been
+         * closed; closing which in turn can call this method directly.
          *
          * @param deletedCommit the deleted {@link IndexCommit}
          */

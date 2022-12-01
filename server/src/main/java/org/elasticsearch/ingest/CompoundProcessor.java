@@ -178,7 +178,6 @@ public class CompoundProcessor implements Processor {
         while (currentProcessor < processorsWithMetrics.size() && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false) {
             processor = processorsWithMetrics.get(currentProcessor).v1();
             metric = processorsWithMetrics.get(currentProcessor).v2().computeIfAbsent(context, s -> new IngestMetric());
-            // metric = processorWithMetric.v2();
             metric.preIngest();
 
             final long startTimeInNanos = relativeTimeProvider.getAsLong();

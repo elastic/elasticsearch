@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -50,7 +51,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private final Script condition;
     private final ScriptService scriptService;
     private final Processor processor;
-    private final IngestMetric metric;
+    private final Map<String, IngestMetric> contextToMetricMap;
     private final LongSupplier relativeTimeProvider;
     private final IngestConditionalScript precompiledConditionScript;
 
@@ -70,7 +71,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         this.condition = script;
         this.scriptService = scriptService;
         this.processor = processor;
-        this.metric = new IngestMetric();
+        this.contextToMetricMap = new ConcurrentHashMap<>();
         this.relativeTimeProvider = relativeTimeProvider;
 
         try {
@@ -89,9 +90,9 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     @Override
     public IngestDocument execute(IngestDocument ingestDocument, String context) throws Exception {
         assert isAsync() == false;
-
         final boolean matches = evaluate(ingestDocument);
         if (matches) {
+            IngestMetric metric = contextToMetricMap.computeIfAbsent(context, s -> new IngestMetric());
             long startTimeInNanos = relativeTimeProvider.getAsLong();
             try {
                 metric.preIngest();
@@ -119,6 +120,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         }
 
         if (matches) {
+            IngestMetric metric = contextToMetricMap.computeIfAbsent(context, s -> new IngestMetric());
             final long startTimeInNanos = relativeTimeProvider.getAsLong();
             metric.preIngest();
             processor.execute(ingestDocument, context, (result, e) -> {
@@ -154,8 +156,8 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         return processor;
     }
 
-    IngestMetric getMetric() {
-        return metric;
+    IngestMetric getMetric(String context) {
+        return contextToMetricMap.computeIfAbsent(context, s -> new IngestMetric());
     }
 
     @Override

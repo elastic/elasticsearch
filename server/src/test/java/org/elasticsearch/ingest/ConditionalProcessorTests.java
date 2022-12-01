@@ -287,7 +287,7 @@ public class ConditionalProcessorTests extends ESTestCase {
     }
 
     private static void assertStats(ConditionalProcessor conditionalProcessor, long count, long failed, long time) {
-        IngestStats.Stats stats = conditionalProcessor.getMetric().createStats();
+        IngestStats.Stats stats = conditionalProcessor.getMetric(randomAlphaOfLength(5)).createStats();
         assertThat(stats.getIngestCount(), equalTo(count));
         assertThat(stats.getIngestCurrent(), equalTo(0L));
         assertThat(stats.getIngestFailedCount(), equalTo(failed));

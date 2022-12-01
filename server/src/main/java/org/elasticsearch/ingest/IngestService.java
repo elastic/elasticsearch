@@ -553,7 +553,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 getProcessorMetrics(cp, processorMetrics);
             } else {
                 Map<String, IngestMetric> contextAwareMetrics = processorWithMetric.v2();
-                processorMetrics.add(new Tuple<>(processor, contextAwareMetrics));
+                if (processor instanceof ConditionalProcessor cp) {
+                    Map<String, IngestMetric> conditionalContextAwareMetrics = new HashMap<>();
+                    for (Map.Entry<String, IngestMetric> entry : contextAwareMetrics.entrySet()) {
+                        conditionalContextAwareMetrics.put(entry.getKey(), cp.getMetric(entry.getKey()));
+                    }
+                    processorMetrics.add(new Tuple<>(processor, conditionalContextAwareMetrics));
+                } else {
+                    processorMetrics.add(new Tuple<>(processor, contextAwareMetrics));
+                }
             }
         }
         return processorMetrics;

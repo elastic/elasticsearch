@@ -211,18 +211,18 @@ public class PipelineProcessorTests extends ESTestCase {
 
         // count
         assertThat(pipeline1Stats.getIngestCount(), equalTo(1L));
-        assertThat(pipeline2Stats.getIngestCount(), equalTo(1L));
-        assertThat(pipeline3Stats.getIngestCount(), equalTo(1L));
+        assertThat(pipeline2Stats.getIngestCount(), equalTo(0L)); // because pipeline1 was the only toplevel pipeline run
+        assertThat(pipeline3Stats.getIngestCount(), equalTo(0L)); // because pipeline1 was the only toplevel pipeline run
 
         // time
         assertThat(pipeline1Stats.getIngestTimeInMillis(), equalTo(0L));
-        assertThat(pipeline2Stats.getIngestTimeInMillis(), equalTo(3L));
-        assertThat(pipeline3Stats.getIngestTimeInMillis(), equalTo(2L));
+        assertThat(pipeline2Stats.getIngestTimeInMillis(), equalTo(0L)); // because pipeline1 was the only toplevel pipeline run
+        assertThat(pipeline3Stats.getIngestTimeInMillis(), equalTo(0L)); // because pipeline1 was the only toplevel pipeline run
 
         // failure
         assertThat(pipeline1Stats.getIngestFailedCount(), equalTo(0L));
-        assertThat(pipeline2Stats.getIngestFailedCount(), equalTo(0L));
-        assertThat(pipeline3Stats.getIngestFailedCount(), equalTo(1L));
+        assertThat(pipeline2Stats.getIngestFailedCount(), equalTo(0L)); // because pipeline1 was the only toplevel pipeline run
+        assertThat(pipeline3Stats.getIngestFailedCount(), equalTo(0L)); // because pipeline1 was the only toplevel pipeline run
     }
 
     public void testIngestPipelineMetadata() {

@@ -87,7 +87,8 @@ public final class Def {
             ARRAY_LENGTH = methodHandlesLookup.findStatic(
                 MethodHandles.class,
                 "arrayLength",
-                MethodType.methodType(MethodHandle.class, Class.class));
+                MethodType.methodType(MethodHandle.class, Class.class)
+            );
         } catch (ReflectiveOperationException roe) {
             throw new AssertionError(roe);
         }

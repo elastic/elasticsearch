@@ -223,7 +223,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                                     + "] repeated failures without successful execution since ["
                                     + FORMATTER.formatMillis(execTime)
                                     + "]",
-                                "Check the snapshot lifecycle policy for detailed failure info:\n- /_slm/policy/test-policy?human"
+                                "Check the snapshot lifecycle policy for detailed failure info:\n- /_slm/policy/policy-id?human"
                             ),
                             List.of(new Diagnosis.Resource(Type.SLM_POLICY, List.of("test-policy")))
                         )
@@ -303,7 +303,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         return Map.of(
             "test-policy",
             SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null))
+                .setPolicy(new SnapshotLifecyclePolicy("policy-id", "test-policy", "", "test-repository", null, null))
                 .setVersion(1L)
                 .setModifiedDate(System.currentTimeMillis())
                 .setLastSuccess(lastSuccess)

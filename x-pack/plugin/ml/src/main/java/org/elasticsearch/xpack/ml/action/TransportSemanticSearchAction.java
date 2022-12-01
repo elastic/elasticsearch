@@ -130,7 +130,7 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
         var inferenceRequest = new InferTrainedModelDeploymentAction.Request(
             request.getModelId(),
             request.getEmbeddingConfig(),
-            request.getQueryString(),
+            request.getModelText(),
             request.getInferenceTimeout()
         );
         inferenceRequest.setParentTask(parentTask);

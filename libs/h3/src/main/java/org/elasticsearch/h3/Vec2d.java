@@ -146,11 +146,12 @@ final class Vec2d {
 
         // adjust theta for Class III
         // if a substrate grid, then it's already been adjusted for Class III
-        if (substrate == false && H3Index.isResolutionClassIII(res)) theta = posAngleRads(theta + Constants.M_AP7_ROT_RADS);
+        if (substrate == false && H3Index.isResolutionClassIII(res)) {
+            theta = posAngleRads(theta + Constants.M_AP7_ROT_RADS);
+        }
 
         // find theta as an azimuth
         theta = posAngleRads(faceAxesAzRadsCII[face][0] - theta);
-
         // now find the point at (r,theta) from the face center
         return geoAzDistanceRads(faceCenterGeo[face], theta, r);
     }
@@ -353,7 +354,11 @@ final class Vec2d {
                 lon = constrainLng(p1.getLonRad());
             }
         } else { // not due north or south
-            sinlat = Math.sin(p1.getLatRad()) * Math.cos(distance) + Math.cos(p1.getLatRad()) * Math.sin(distance) * Math.cos(az);
+            final double sinDistance = Math.sin(distance);
+            final double cosDistance = Math.cos(distance);
+            final double sinP1Lat = Math.sin(p1.getLatRad());
+            final double cosP1Lat = Math.cos(p1.getLatRad());
+            sinlat = sinP1Lat * cosDistance + cosP1Lat * sinDistance * Math.cos(az);
             if (sinlat > 1.0) {
                 sinlat = 1.0;
             }
@@ -370,8 +375,9 @@ final class Vec2d {
                 lat = -M_PI_2;
                 lon = 0.0;
             } else {
-                sinlng = Math.sin(az) * Math.sin(distance) / Math.cos(lat);
-                coslng = (Math.cos(distance) - Math.sin(p1.getLatRad()) * Math.sin(lat)) / Math.cos(p1.getLatRad()) / Math.cos(lat);
+                final double cosLat = Math.cos(lat);
+                sinlng = Math.sin(az) * sinDistance / cosLat;
+                coslng = (cosDistance - sinP1Lat * Math.sin(lat)) / cosP1Lat / cosLat;
                 if (sinlng > 1.0) {
                     sinlng = 1.0;
                 }

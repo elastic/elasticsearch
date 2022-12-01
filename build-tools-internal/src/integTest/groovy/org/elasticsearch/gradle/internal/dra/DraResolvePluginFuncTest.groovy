@@ -76,14 +76,14 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         result.task(":resolveArtifacts").outcome == TaskOutcome.SUCCESS
 
         when:
-        result = gradleRunner("resolveArtifacts", "-Ddra.artifacts=true").buildAndFail()
+        result = gradleRunner("resolveArtifacts", "-Ddra.artifacts=true", "-Ddra.workflow=SNAPSHOT").buildAndFail()
 
         then:
         result.task(":resolveArtifacts").outcome == TaskOutcome.FAILED
         result.output.contains("Cannot resolve external dependency org.acme:ml-cpp:8.6.0-SNAPSHOT because no repositories are defined.")
     }
 
-    def "configures repositories to resolve #draKey like dra #artifactType artifacts"() {
+    def "configures repositories to resolve #draKey like dra #workflow artifacts"() {
         setup:
         repository.generateJar("some.group", "bar", "1.0.0")
         repository.generateJar("some.group", "baz", "1.0.0-SNAPSHOT")
@@ -110,18 +110,21 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         def result = WiremockFixture.withWireMock(expectedRequest, "content".getBytes('UTF-8')) { server ->
             gradleRunner("resolveArtifacts",
                     '-Ddra.artifacts=true',
+                    "-Ddra.workflow=$workflow",
                     "-Ddra.artifacts.dependency.${draKey}=$buildId",
-                    "-Ddra.artifacts.url.repo.${artifactType}.prefix=${server.baseUrl()}").build()
+                    "-Ddra.artifacts.url.repo.prefix=${server.baseUrl()}").build()
         }
 
         then:
         result.task(":resolveArtifacts").outcome == TaskOutcome.SUCCESS
 
         where:
-        artifactType | buildId          | draVersion       | draKey   | draArtifact  | expectedRequest
-        "snapshot"   | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "release"    | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "snapshot"   | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "release"    | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        workflow   | buildId          | draVersion       | draKey   | draArtifact  | expectedRequest
+        "snapshot" | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "staging"  | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "release"  | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "snapshot" | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "staging"  | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "release"  | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
     }
 }

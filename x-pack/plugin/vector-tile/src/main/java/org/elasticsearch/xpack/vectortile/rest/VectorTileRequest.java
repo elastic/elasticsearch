@@ -89,7 +89,7 @@ class VectorTileRequest {
         }, SearchSourceBuilder.FETCH_FIELDS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareField(
             VectorTileRequest::setQueryBuilder,
-            AbstractQueryBuilder::parseTopLevelQuery,
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
             SearchSourceBuilder.QUERY_FIELD,
             ObjectParser.ValueType.OBJECT
         );

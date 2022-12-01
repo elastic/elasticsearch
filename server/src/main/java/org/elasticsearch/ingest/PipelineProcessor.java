@@ -16,6 +16,7 @@ import java.util.function.BiConsumer;
 public class PipelineProcessor extends AbstractProcessor {
 
     public static final String TYPE = "pipeline";
+    public static final String CONTEXT_DELIMITER = ":";
 
     private final TemplateScript.Factory pipelineTemplate;
     private final boolean ignoreMissingPipeline;
@@ -39,7 +40,7 @@ public class PipelineProcessor extends AbstractProcessor {
         String pipelineName = ingestDocument.renderTemplate(this.pipelineTemplate);
         Pipeline pipeline = ingestService.getPipeline(pipelineName);
         if (pipeline != null) {
-            ingestDocument.executePipeline(pipeline, context + ":" + pipelineName, handler);
+            ingestDocument.executePipeline(pipeline, context + CONTEXT_DELIMITER + pipelineName, handler);
         } else {
             if (ignoreMissingPipeline) {
                 handler.accept(ingestDocument, null);

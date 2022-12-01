@@ -114,12 +114,13 @@ public final class Pipeline {
          * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
          * is only executed once.
          */
-        if (context.contains(":") == false) {
+        final boolean isTopLevelPipeline = isTopLevelPipeline(context);
+        if (isTopLevelPipeline) {
             metrics.preIngest();
         }
         compoundProcessor.execute(ingestDocument, context, (result, e) -> {
             long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
-            if (context.contains(":") == false) {
+            if (isTopLevelPipeline) {
                 metrics.postIngest(ingestTimeInNanos);
                 if (e != null) {
                     metrics.ingestFailed();
@@ -127,6 +128,10 @@ public final class Pipeline {
             }
             handler.accept(result, e);
         });
+    }
+
+    private boolean isTopLevelPipeline(String context) {
+        return context.contains(PipelineProcessor.CONTEXT_DELIMITER) == false;
     }
 
     /**

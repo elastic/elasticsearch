@@ -104,7 +104,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
         totalStats.toXContent(builder, params);
         builder.endObject();
         builder.startObject("pipelines");
-        String pipelineProcessorPrefix = PipelineProcessor.TYPE + ":";
+        String pipelineProcessorPrefix = PipelineProcessor.TYPE + PipelineProcessor.CONTEXT_DELIMITER;
         Map<String, PipelineStat> pipelineStatMap = pipelineStats.stream()
             .collect(
                 Collectors.toMap(pipelineStat -> pipelineProcessorPrefix + pipelineStat.getPipelineId(), pipelineStat -> pipelineStat)
@@ -143,7 +143,8 @@ public class IngestStats implements Writeable, ToXContentFragment {
                 processorStat.getStats().toXContent(builder, params);
                 if (processorStat.getType().equals(PipelineProcessor.TYPE)) {
                     processorsToXContent(
-                        context + ":" + processorStat.getName().substring(PipelineProcessor.TYPE.length() + 1),
+                        context + PipelineProcessor.CONTEXT_DELIMITER + processorStat.getName()
+                            .substring(PipelineProcessor.TYPE.length() + 1),
                         processorStats,
                         pipelineStatMap,
                         builder,

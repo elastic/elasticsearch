@@ -55,7 +55,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
     public void testActualProcessor() throws Exception {
         TestProcessor actualProcessor = new TestProcessor(ingestDocument -> {});
         TrackingResultProcessor trackingProcessor = new TrackingResultProcessor(false, actualProcessor, null, resultList);
-        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(
             actualProcessor.getType(),
@@ -80,7 +80,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
         Exception[] holder = new Exception[1];
-        trackingProcessor.execute(ingestDocument, (result, e) -> holder[0] = e);
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> holder[0] = e);
         assertThat(((IngestProcessorException) holder[0]).getRootCause().getMessage(), equalTo(exception.getMessage()));
 
         SimulateProcessorResult expectedFirstResult = new SimulateProcessorResult(
@@ -113,7 +113,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
             Arrays.asList(onFailureProcessor)
         );
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
-        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> {});
 
         SimulateProcessorResult expectedFailResult = new SimulateProcessorResult(
             failProcessor.getType(),
@@ -184,7 +184,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
             Arrays.asList(onFailureProcessor)
         );
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
-        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> {});
 
         SimulateProcessorResult expectedFailResult = new SimulateProcessorResult(
             failProcessor.getType(),
@@ -226,7 +226,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         CompoundProcessor actualProcessor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
-        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(
             testProcessor.getType(),
@@ -271,7 +271,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
 
         CompoundProcessor trackingProcessor = decorate(compoundProcessor, null, resultList);
-        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> {});
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(
             compoundProcessor.getType(),
             compoundProcessor.getTag(),
@@ -327,7 +327,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
-        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(
             actualProcessor.getType(),
@@ -420,7 +420,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
-        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(
             actualProcessor.getType(),
@@ -520,7 +520,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
-        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(
             actualProcessor.getType(),
@@ -586,7 +586,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
-        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(
             actualProcessor.getType(),
@@ -647,7 +647,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
-        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(
             actualProcessor.getType(),
@@ -704,7 +704,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
         Exception[] holder = new Exception[1];
-        trackingProcessor.execute(ingestDocument, (result, e) -> holder[0] = e);
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> holder[0] = e);
         IngestProcessorException exception = (IngestProcessorException) holder[0];
         assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
         assertThat(exception.getMessage(), containsString("Cycle detected for pipeline: pipeline1"));
@@ -733,7 +733,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
 
-        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+        trackingProcessor.execute(ingestDocument, randomAlphaOfLength(5), (result, e) -> {});
 
         SimulateProcessorResult expectedResult = new SimulateProcessorResult(
             actualProcessor.getType(),

@@ -41,7 +41,7 @@ public final class TrackingResultProcessor implements Processor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+    public void execute(IngestDocument ingestDocument, String context, BiConsumer<IngestDocument, Exception> handler) {
         Tuple<String, Boolean> conditionalWithResult;
         if (conditionalProcessor != null) {
             if (conditionalProcessor.evaluate(ingestDocument) == false) {
@@ -87,7 +87,7 @@ public final class TrackingResultProcessor implements Processor {
                 );
                 throw e;
             }
-            ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
+            ingestDocumentCopy.executePipeline(pipelineToCall, context, (result, e) -> {
                 // special handling for pipeline cycle errors
                 if (e instanceof ElasticsearchException
                     && e.getCause() instanceof IllegalStateException
@@ -134,13 +134,13 @@ public final class TrackingResultProcessor implements Processor {
                         pipeline.getMetadata(),
                         verbosePipelineProcessor
                     );
-                    ingestDocument.executePipeline(verbosePipeline, handler);
+                    ingestDocument.executePipeline(verbosePipeline, context, handler);
                 }
             });
             return;
         }
 
-        executeProcessor(actualProcessor, ingestDocument, (result, e) -> {
+        executeProcessor(actualProcessor, ingestDocument, context, (result, e) -> {
             if (e != null) {
                 if (ignoreFailure) {
                     processorResultList.add(
@@ -192,12 +192,12 @@ public final class TrackingResultProcessor implements Processor {
         });
     }
 
-    private static void executeProcessor(Processor p, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
+    private static void executeProcessor(Processor p, IngestDocument doc, String context, BiConsumer<IngestDocument, Exception> handler) {
         if (p.isAsync()) {
-            p.execute(doc, handler);
+            p.execute(doc, context, handler);
         } else {
             try {
-                IngestDocument result = p.execute(doc);
+                IngestDocument result = p.execute(doc, context);
                 handler.accept(result, null);
             } catch (Exception e) {
                 handler.accept(null, e);

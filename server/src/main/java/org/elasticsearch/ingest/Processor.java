@@ -33,7 +33,7 @@ public interface Processor {
      * Introspect and potentially modify the incoming data.
      *
      * Expert method: only override this method if a processor implementation needs to make an asynchronous call,
-     * otherwise just overwrite {@link #execute(IngestDocument)}.
+     * otherwise just overwrite {@link #execute(IngestDocument, String)}.
      */
     default void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         if (isAsync() == false) {
@@ -43,6 +43,10 @@ public interface Processor {
             );
         }
         handler.accept(ingestDocument, null);
+    }
+
+    default void execute(IngestDocument ingestDocument, String context, BiConsumer<IngestDocument, Exception> handler) {
+        execute(ingestDocument, handler);
     }
 
     /**
@@ -56,6 +60,10 @@ public interface Processor {
             throw new UnsupportedOperationException("synchronous execute method should not be executed for async processors");
         }
         return ingestDocument;
+    }
+
+    default IngestDocument execute(IngestDocument ingestDocument, String context) throws Exception {
+        return execute(ingestDocument);
     }
 
     /**

@@ -8,14 +8,26 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class IngestStatsTests extends ESTestCase {
 
@@ -26,6 +38,103 @@ public class IngestStatsTests extends ESTestCase {
         IngestStats ingestStats = new IngestStats(totalStats, pipelineStats, processorStats);
         IngestStats serializedStats = serialize(ingestStats);
         assertIngestStats(ingestStats, serializedStats, true, true);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testToXContent() throws Exception {
+        IngestStats.Stats totalStats = new IngestStats.Stats(
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100)
+        );
+        IngestStats.PipelineStat pipeline1Stats = new IngestStats.PipelineStat(
+            "outerPipeline",
+            new IngestStats.Stats(randomIntBetween(0, 100), randomIntBetween(0, 100), randomIntBetween(0, 100), randomIntBetween(0, 100))
+        );
+        IngestStats.PipelineStat pipeline2Stats = new IngestStats.PipelineStat(
+            "innerPipeline",
+            new IngestStats.Stats(randomIntBetween(0, 100), randomIntBetween(0, 100), randomIntBetween(0, 100), randomIntBetween(0, 100))
+        );
+        IngestStats.Stats pipelineStats = new IngestStats.Stats(
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100)
+        );
+        IngestStats.ProcessorStat pipelineProcessorStat = new IngestStats.ProcessorStat(
+            "pipeline:innerPipeline",
+            "pipeline",
+            pipelineStats
+        );
+        IngestStats.ProcessorStat sharedProcessor = getRandomNonPipelineProcessorStat();
+        List<IngestStats.ProcessorStat> outerPipelineProcessors = List.of(
+            sharedProcessor,
+            getRandomNonPipelineProcessorStat(),
+            pipelineProcessorStat,
+            getRandomNonPipelineProcessorStat(),
+            getRandomNonPipelineProcessorStat()
+        );
+        List<IngestStats.ProcessorStat> innerPipelineProcessors = List.of(
+            getRandomNonPipelineProcessorStat(),
+            getRandomNonPipelineProcessorStat(),
+            sharedProcessor,
+            getRandomNonPipelineProcessorStat()
+        );
+        Map<String, List<IngestStats.ProcessorStat>> processorStats = Map.of(
+            "outerPipeline",
+            outerPipelineProcessors,
+            "outerPipeline:innerPipeline",
+            innerPipelineProcessors
+        );
+        IngestStats ingestStats = new IngestStats(totalStats, List.of(pipeline1Stats, pipeline2Stats), processorStats);
+        Map<String, Object> ingestStatsMap = xContentToMap(ingestStats, RestApiVersion.current());
+        assertThat(ingestStatsMap.size(), equalTo(1));
+        Map<String, Object> ingest = (Map<String, Object>) ingestStatsMap.get("ingest");
+        assertThat(ingest.size(), equalTo(2));
+        Map<String, Object> topLevelPipelines = (Map<String, Object>) ingest.get("pipelines");
+        assertThat(topLevelPipelines.size(), equalTo(2));
+        Map<String, Object> outerPipeline = (Map<String, Object>) topLevelPipelines.get("outerPipeline");
+        assertThat(outerPipeline.size(), equalTo(5));
+        List<Map<String, Object>> outerPipelineProcessorsList = (List<Map<String, Object>>) outerPipeline.get("processors");
+        assertThat(outerPipelineProcessorsList.size(), equalTo(outerPipelineProcessors.size()));
+        Map<String, Object> innerPipelineProcessor = outerPipelineProcessorsList.get(2);
+        assertThat(innerPipelineProcessor.size(), equalTo(1));
+        Map<String, Object> innerPipeline = (Map<String, Object>) innerPipelineProcessor.get("pipeline:innerPipeline");
+        assertNotNull(innerPipeline);
+        assertThat(innerPipeline.size(), equalTo(2));
+        List<Map<String, Object>> innerPipelineProcessorsList = (List<Map<String, Object>>) ((Map<String, Object>) innerPipeline.get(
+            "stats"
+        )).get("processors");
+        assertThat(innerPipelineProcessorsList.size(), equalTo(4));
+    }
+
+    private Map<String, Object> xContentToMap(ToXContent xcontent, RestApiVersion restApiVersion) throws IOException {
+        XContentBuilder builder = new XContentBuilder(
+            JsonXContent.jsonXContent,
+            new ByteArrayOutputStream(),
+            Collections.emptySet(),
+            Collections.emptySet(),
+            JsonXContent.jsonXContent.type().toParsedMediaType(),
+            restApiVersion
+        );
+        // XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        XContentParser parser = XContentType.JSON.xContent()
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
+        return parser.map();
+    }
+
+    private IngestStats.ProcessorStat getRandomNonPipelineProcessorStat() {
+        IngestStats.Stats processorStats = new IngestStats.Stats(47, 97, 197, 297);
+        IngestStats.ProcessorStat processorStat = new IngestStats.ProcessorStat(
+            randomAlphaOfLengthBetween(5, 10),
+            randomAlphaOfLength(5),
+            processorStats
+        );
+        return processorStat;
     }
 
     private List<IngestStats.PipelineStat> createPipelineStats() {

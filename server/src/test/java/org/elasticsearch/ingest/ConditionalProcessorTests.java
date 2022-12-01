@@ -73,7 +73,7 @@ public class ConditionalProcessorTests extends ESTestCase {
             scriptService,
             new Processor() {
                 @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) {
+                public IngestDocument execute(final IngestDocument ingestDocument, String context) {
                     if (ingestDocument.hasField("error")) {
                         throw new RuntimeException("error");
                     }
@@ -170,7 +170,7 @@ public class ConditionalProcessorTests extends ESTestCase {
             scriptService,
             new Processor() {
                 @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) {
+                public IngestDocument execute(final IngestDocument ingestDocument, String context) {
                     return ingestDocument;
                 }
 
@@ -296,10 +296,10 @@ public class ConditionalProcessorTests extends ESTestCase {
 
     private static void execProcessor(Processor processor, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
         if (processor.isAsync()) {
-            processor.execute(doc, handler);
+            processor.execute(doc, randomAlphaOfLength(5), handler);
         } else {
             try {
-                IngestDocument result = processor.execute(doc);
+                IngestDocument result = processor.execute(doc, randomAlphaOfLength(5));
                 handler.accept(result, null);
             } catch (Exception e) {
                 handler.accept(null, e);

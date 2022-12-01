@@ -56,7 +56,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument, String context) throws Exception {
         assert isAsync() == false;
 
         Object o = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
@@ -67,9 +67,9 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 throw new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements.");
             }
         } else if (o instanceof Map<?, ?> map) {
-            return iterateMap(ingestDocument, map);
+            return iterateMap(ingestDocument, map, context);
         } else if (o instanceof List<?> list) {
-            return iterateList(ingestDocument, list);
+            return iterateList(ingestDocument, list, context);
         } else {
             throw new IllegalArgumentException(
                 "field [" + field + "] of type [" + o.getClass().getName() + "] cannot be cast to a " + "list or map"
@@ -77,7 +77,12 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         }
     }
 
-    private IngestDocument iterateMap(IngestDocument document, Map<?, ?> map) throws Exception {
+    @Override
+    public IngestDocument execute(IngestDocument document) throws Exception {
+        throw new UnsupportedOperationException("Calling execute without context loses context");
+    }
+
+    private IngestDocument iterateMap(IngestDocument document, Map<?, ?> map, String context) throws Exception {
         var newValues = Maps.newHashMapWithExpectedSize(map.size());
         for (Map.Entry<?, ?> e : map.entrySet()) {
             String key = (String) e.getKey();
@@ -85,7 +90,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             Object value = e.getValue();
             Object previousValue = document.getIngestMetadata().put("_value", value);
             try {
-                processor.execute(document);
+                processor.execute(document, context);
             } finally {
                 String newKey = (String) document.getIngestMetadata().get("_key");
                 if (Strings.hasText(newKey)) {
@@ -99,13 +104,13 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         return document;
     }
 
-    private IngestDocument iterateList(IngestDocument ingestDocument, List<?> values) throws Exception {
+    private IngestDocument iterateList(IngestDocument ingestDocument, List<?> values, String context) throws Exception {
         List<Object> newValues = new ArrayList<>(values.size());
         List<?> iterableValues = new ArrayList<>(values);
         for (Object value : iterableValues) {
             Object previousValue = ingestDocument.getIngestMetadata().put("_value", value);
             try {
-                ingestDocument = processor.execute(ingestDocument);
+                ingestDocument = processor.execute(ingestDocument, context);
                 if (ingestDocument == null) {
                     return null;
                 }
@@ -118,7 +123,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+    public void execute(IngestDocument ingestDocument, String context, BiConsumer<IngestDocument, Exception> handler) {
         assert isAsync();
         Object o = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
         if (o == null) {
@@ -129,14 +134,27 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             }
         } else if (o instanceof Map<?, ?> map) {
             List<?> keys = new ArrayList<>(map.keySet());
-            iterateMapAsync(0, new HashMap<Object, Object>(map), keys, Maps.newMapWithExpectedSize(map.size()), ingestDocument, handler);
+            iterateMapAsync(
+                0,
+                new HashMap<Object, Object>(map),
+                keys,
+                Maps.newMapWithExpectedSize(map.size()),
+                ingestDocument,
+                context,
+                handler
+            );
         } else if (o instanceof List<?> list) {
-            iterateListAsync(0, new ArrayList<>(list), new ArrayList<>(list.size()), ingestDocument, handler);
+            iterateListAsync(0, new ArrayList<>(list), new ArrayList<>(list.size()), ingestDocument, context, handler);
         } else {
             throw new IllegalArgumentException(
                 "field [" + field + "] of type [" + o.getClass().getName() + "] cannot be cast to a " + "list or map"
             );
         }
+    }
+
+    @Override
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        throw new UnsupportedOperationException("Calling execute without context loses context");
     }
 
     void iterateMapAsync(
@@ -145,6 +163,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         List<?> keys,
         Map<Object, Object> newValues,
         IngestDocument document,
+        String context,
         BiConsumer<IngestDocument, Exception> handler
     ) {
         for (; keyIndex < keys.size(); keyIndex++) {
@@ -154,7 +173,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             Object value = map.get(key);
             Object previousValue = document.getIngestMetadata().put("_value", value);
             int nextIndex = keyIndex + 1;
-            processor.execute(document, (result, e) -> {
+            processor.execute(document, context, (result, e) -> {
                 String newKey = (String) document.getIngestMetadata().get("_key");
                 if (Strings.hasText(newKey)) {
                     newValues.put(newKey, document.getIngestMetadata().put("_value", previousValue));
@@ -163,7 +182,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 if (e != null || result == null) {
                     handler.accept(result, e);
                 } else if (shouldContinueHere.getAndSet(true)) {
-                    iterateMapAsync(nextIndex, map, keys, newValues, document, handler);
+                    iterateMapAsync(nextIndex, map, keys, newValues, document, context, handler);
                 }
             });
 
@@ -184,6 +203,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         List<?> values,
         List<Object> newValues,
         IngestDocument document,
+        String context,
         BiConsumer<IngestDocument, Exception> handler
     ) {
         for (; index < values.size(); index++) {
@@ -191,12 +211,12 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             Object value = values.get(index);
             Object previousValue = document.getIngestMetadata().put("_value", value);
             int nextIndex = index + 1;
-            processor.execute(document, (result, e) -> {
+            processor.execute(document, context, (result, e) -> {
                 newValues.add(document.getIngestMetadata().put("_value", previousValue));
                 if (e != null || result == null) {
                     handler.accept(result, e);
                 } else if (shouldContinueHere.getAndSet(true)) {
-                    iterateListAsync(nextIndex, values, newValues, document, handler);
+                    iterateListAsync(nextIndex, values, newValues, document, context, handler);
                 }
             });
 

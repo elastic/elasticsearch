@@ -825,10 +825,10 @@ public final class IngestDocument {
      * @param pipeline the pipeline to execute
      * @param handler handles the result or failure
      */
-    public void executePipeline(Pipeline pipeline, BiConsumer<IngestDocument, Exception> handler) {
+    public void executePipeline(Pipeline pipeline, String context, BiConsumer<IngestDocument, Exception> handler) {
         if (executedPipelines.add(pipeline.getId())) {
             Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
-            pipeline.execute(this, (result, e) -> {
+            pipeline.execute(this, context, (result, e) -> {
                 executedPipelines.remove(pipeline.getId());
                 if (previousPipeline != null) {
                     ingestMetadata.put("pipeline", previousPipeline);

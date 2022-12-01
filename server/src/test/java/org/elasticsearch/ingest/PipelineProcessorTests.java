@@ -37,7 +37,7 @@ public class PipelineProcessorTests extends ESTestCase {
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Pipeline pipeline = new Pipeline(pipelineId, null, null, null, new CompoundProcessor(new Processor() {
             @Override
-            public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+            public IngestDocument execute(final IngestDocument ingestDocument, String context) throws Exception {
                 invoked.complete(ingestDocument);
                 return ingestDocument;
             }
@@ -61,7 +61,7 @@ public class PipelineProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
         config.put("name", pipelineId);
-        factory.create(Collections.emptyMap(), null, null, config).execute(testIngestDocument, (result, e) -> {});
+        factory.create(Collections.emptyMap(), null, null, config).execute(testIngestDocument, randomAlphaOfLength(5), (result, e) -> {});
         assertEquals(testIngestDocument, invoked.get());
     }
 
@@ -73,7 +73,7 @@ public class PipelineProcessorTests extends ESTestCase {
         config.put("name", "missingPipelineId");
         IllegalStateException[] e = new IllegalStateException[1];
         factory.create(Collections.emptyMap(), null, null, config)
-            .execute(testIngestDocument, (result, e1) -> e[0] = (IllegalStateException) e1);
+            .execute(testIngestDocument, randomAlphaOfLength(5), (result, e1) -> e[0] = (IllegalStateException) e1);
         assertEquals("Pipeline processor configured for non-existent pipeline [missingPipelineId]", e[0].getMessage());
     }
 
@@ -88,7 +88,7 @@ public class PipelineProcessorTests extends ESTestCase {
         var r = new IngestDocument[1];
         var e = new Exception[1];
         var processor = factory.create(Collections.emptyMap(), null, null, config);
-        processor.execute(testIngestDocument, (result, e1) -> {
+        processor.execute(testIngestDocument, randomAlphaOfLength(5), (result, e1) -> {
             r[0] = result;
             e[0] = e1;
         });
@@ -125,7 +125,7 @@ public class PipelineProcessorTests extends ESTestCase {
         outerConfig.put("name", innerPipelineId);
         ElasticsearchException[] e = new ElasticsearchException[1];
         factory.create(Collections.emptyMap(), null, null, outerConfig)
-            .execute(testIngestDocument, (result, e1) -> e[0] = (ElasticsearchException) e1);
+            .execute(testIngestDocument, randomAlphaOfLength(5), (result, e1) -> e[0] = (ElasticsearchException) e1);
         assertEquals("Cycle detected for pipeline: inner", e[0].getRootCause().getMessage());
     }
 
@@ -139,8 +139,8 @@ public class PipelineProcessorTests extends ESTestCase {
         Pipeline inner = new Pipeline(innerPipelineId, null, null, null, new CompoundProcessor());
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
         Processor outerProc = factory.create(Collections.emptyMap(), null, null, outerConfig);
-        outerProc.execute(testIngestDocument, (result, e) -> {});
-        outerProc.execute(testIngestDocument, (result, e) -> {});
+        outerProc.execute(testIngestDocument, randomAlphaOfLength(5), (result, e) -> {});
+        outerProc.execute(testIngestDocument, randomAlphaOfLength(5), (result, e) -> {});
     }
 
     public void testPipelineProcessorWithPipelineChain() throws Exception {
@@ -196,7 +196,7 @@ public class PipelineProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         // start the chain
-        ingestDocument.executePipeline(pipeline1, (result, e) -> {});
+        ingestDocument.executePipeline(pipeline1, randomAlphaOfLength(5), (result, e) -> {});
         assertNotNull(ingestDocument.getSourceAndMetadata().get(key1));
 
         // check the stats
@@ -235,7 +235,7 @@ public class PipelineProcessorTests extends ESTestCase {
             List<Processor> processors = new ArrayList<>();
             processors.add(new AbstractProcessor(null, null) {
                 @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                public IngestDocument execute(final IngestDocument ingestDocument, String context) throws Exception {
                     ingestDocument.appendFieldValue("pipelines", ingestDocument.getIngestMetadata().get("pipeline"));
                     return ingestDocument;
                 }
@@ -261,7 +261,7 @@ public class PipelineProcessorTests extends ESTestCase {
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         IngestDocument[] docHolder = new IngestDocument[1];
         Exception[] errorHolder = new Exception[1];
-        testIngestDocument.executePipeline(firstPipeline, (doc, e) -> {
+        testIngestDocument.executePipeline(firstPipeline, randomAlphaOfLength(5), (doc, e) -> {
             docHolder[0] = doc;
             errorHolder[0] = e;
         });

@@ -87,7 +87,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument, String context) throws Exception {
         assert isAsync() == false;
 
         final boolean matches = evaluate(ingestDocument);
@@ -95,7 +95,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             long startTimeInNanos = relativeTimeProvider.getAsLong();
             try {
                 metric.preIngest();
-                return processor.execute(ingestDocument);
+                return processor.execute(ingestDocument, context);
             } catch (Exception e) {
                 metric.ingestFailed();
                 throw e;
@@ -108,7 +108,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+    public void execute(IngestDocument ingestDocument, String context, BiConsumer<IngestDocument, Exception> handler) {
         assert isAsync();
         final boolean matches;
         try {
@@ -121,7 +121,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         if (matches) {
             final long startTimeInNanos = relativeTimeProvider.getAsLong();
             metric.preIngest();
-            processor.execute(ingestDocument, (result, e) -> {
+            processor.execute(ingestDocument, context, (result, e) -> {
                 long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
                 metric.postIngest(ingestTimeInNanos);
                 if (e != null) {
@@ -134,6 +134,11 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         } else {
             handler.accept(ingestDocument, null);
         }
+    }
+
+    @Override
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        throw new UnsupportedOperationException("Calling execute without context loses context");
     }
 
     boolean evaluate(IngestDocument ingestDocument) {

@@ -87,9 +87,8 @@ public final class Def {
             ARRAY_LENGTH = methodHandlesLookup.findStatic(
                 MethodHandles.class,
                 "arrayLength",
-                MethodType.methodType(MethodHandle.class, Class.class)
-            );
-        } catch (final ReflectiveOperationException roe) {
+                MethodType.methodType(MethodHandle.class, Class.class));
+        } catch (ReflectiveOperationException roe) {
             throw new AssertionError(roe);
         }
 
@@ -768,8 +767,8 @@ public final class Def {
     // Conversion methods for def to primitive types.
 
     public static boolean defToboolean(final Object value) {
-        if (value instanceof Boolean b) {
-            return b;
+        if (value instanceof Boolean) {
+            return (boolean) value;
         } else {
             throw new ClassCastException(
                 "cannot cast "
@@ -782,8 +781,8 @@ public final class Def {
     }
 
     public static byte defTobyteImplicit(final Object value) {
-        if (value instanceof Byte b) {
-            return b;
+        if (value instanceof Byte) {
+            return (byte) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -796,10 +795,10 @@ public final class Def {
     }
 
     public static short defToshortImplicit(final Object value) {
-        if (value instanceof Byte b) {
-            return b;
-        } else if (value instanceof Short s) {
-            return s;
+        if (value instanceof Byte) {
+            return (byte) value;
+        } else if (value instanceof Short) {
+            return (short) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -812,8 +811,8 @@ public final class Def {
     }
 
     public static char defTocharImplicit(final Object value) {
-        if (value instanceof Character c) {
-            return c;
+        if (value instanceof Character) {
+            return (char) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -826,14 +825,14 @@ public final class Def {
     }
 
     public static int defTointImplicit(final Object value) {
-        if (value instanceof Byte b) {
-            return b;
-        } else if (value instanceof Short s) {
-            return s;
-        } else if (value instanceof Character c) {
-            return c;
-        } else if (value instanceof Integer i) {
-            return i;
+        if (value instanceof Byte) {
+            return (byte) value;
+        } else if (value instanceof Short) {
+            return (short) value;
+        } else if (value instanceof Character) {
+            return (char) value;
+        } else if (value instanceof Integer) {
+            return (int) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -846,16 +845,16 @@ public final class Def {
     }
 
     public static long defTolongImplicit(final Object value) {
-        if (value instanceof Byte b) {
-            return b;
-        } else if (value instanceof Short s) {
-            return s;
-        } else if (value instanceof Character c) {
-            return c;
-        } else if (value instanceof Integer i) {
-            return i;
-        } else if (value instanceof Long l) {
-            return l;
+        if (value instanceof Byte) {
+            return (byte) value;
+        } else if (value instanceof Short) {
+            return (short) value;
+        } else if (value instanceof Character) {
+            return (char) value;
+        } else if (value instanceof Integer) {
+            return (int) value;
+        } else if (value instanceof Long) {
+            return (long) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -868,18 +867,18 @@ public final class Def {
     }
 
     public static float defTofloatImplicit(final Object value) {
-        if (value instanceof Byte b) {
-            return b;
-        } else if (value instanceof Short s) {
-            return s;
-        } else if (value instanceof Character c) {
-            return c;
-        } else if (value instanceof Integer i) {
-            return i;
-        } else if (value instanceof Long l) {
-            return l;
-        } else if (value instanceof Float f) {
-            return f;
+        if (value instanceof Byte) {
+            return (byte) value;
+        } else if (value instanceof Short) {
+            return (short) value;
+        } else if (value instanceof Character) {
+            return (char) value;
+        } else if (value instanceof Integer) {
+            return (int) value;
+        } else if (value instanceof Long) {
+            return (long) value;
+        } else if (value instanceof Float) {
+            return (float) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -892,20 +891,20 @@ public final class Def {
     }
 
     public static double defTodoubleImplicit(final Object value) {
-        if (value instanceof Byte b) {
-            return b;
-        } else if (value instanceof Short s) {
-            return s;
-        } else if (value instanceof Character c) {
-            return c;
-        } else if (value instanceof Integer i) {
-            return i;
-        } else if (value instanceof Long l) {
-            return l;
-        } else if (value instanceof Float f) {
-            return f;
-        } else if (value instanceof Double d) {
-            return d;
+        if (value instanceof Byte) {
+            return (byte) value;
+        } else if (value instanceof Short) {
+            return (short) value;
+        } else if (value instanceof Character) {
+            return (char) value;
+        } else if (value instanceof Integer) {
+            return (int) value;
+        } else if (value instanceof Long) {
+            return (long) value;
+        } else if (value instanceof Float) {
+            return (float) value;
+        } else if (value instanceof Double) {
+            return (double) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -918,8 +917,8 @@ public final class Def {
     }
 
     public static byte defTobyteExplicit(final Object value) {
-        if (value instanceof Character c) {
-            return (byte) (char) c;
+        if (value instanceof Character) {
+            return (byte) (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -939,8 +938,8 @@ public final class Def {
     }
 
     public static short defToshortExplicit(final Object value) {
-        if (value instanceof Character c) {
-            return (short) (char) c;
+        if (value instanceof Character) {
+            return (short) (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -960,10 +959,10 @@ public final class Def {
     }
 
     public static char defTocharExplicit(final Object value) {
-        if (value instanceof String s) {
-            return Utility.StringTochar(s);
-        } else if (value instanceof Character c) {
-            return c;
+        if (value instanceof String) {
+            return Utility.StringTochar((String) value);
+        } else if (value instanceof Character) {
+            return (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -983,8 +982,8 @@ public final class Def {
     }
 
     public static int defTointExplicit(final Object value) {
-        if (value instanceof Character c) {
-            return c;
+        if (value instanceof Character) {
+            return (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -1004,8 +1003,8 @@ public final class Def {
     }
 
     public static long defTolongExplicit(final Object value) {
-        if (value instanceof Character c) {
-            return c;
+        if (value instanceof Character) {
+            return (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -1025,8 +1024,8 @@ public final class Def {
     }
 
     public static float defTofloatExplicit(final Object value) {
-        if (value instanceof Character c) {
-            return c;
+        if (value instanceof Character) {
+            return (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -1046,8 +1045,8 @@ public final class Def {
     }
 
     public static double defTodoubleExplicit(final Object value) {
-        if (value instanceof Character c) {
-            return c;
+        if (value instanceof Character) {
+            return (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -1071,8 +1070,8 @@ public final class Def {
     public static Boolean defToBoolean(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Boolean b) {
-            return b;
+        } else if (value instanceof Boolean) {
+            return (Boolean) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -1087,8 +1086,8 @@ public final class Def {
     public static Byte defToByteImplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Byte b) {
-            return b;
+        } else if (value instanceof Byte) {
+            return (Byte) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -1103,10 +1102,10 @@ public final class Def {
     public static Short defToShortImplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Byte b) {
-            return b.shortValue();
-        } else if (value instanceof Short s) {
-            return s;
+        } else if (value instanceof Byte) {
+            return (short) (byte) value;
+        } else if (value instanceof Short) {
+            return (Short) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -1121,8 +1120,8 @@ public final class Def {
     public static Character defToCharacterImplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Character c) {
-            return c;
+        } else if (value instanceof Character) {
+            return (Character) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -1137,14 +1136,14 @@ public final class Def {
     public static Integer defToIntegerImplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Byte b) {
-            return b.intValue();
-        } else if (value instanceof Short s) {
-            return s.intValue();
-        } else if (value instanceof Character c) {
-            return (int) (char) c;
-        } else if (value instanceof Integer i) {
-            return i;
+        } else if (value instanceof Byte) {
+            return (int) (byte) value;
+        } else if (value instanceof Short) {
+            return (int) (short) value;
+        } else if (value instanceof Character) {
+            return (int) (char) value;
+        } else if (value instanceof Integer) {
+            return (Integer) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -1159,16 +1158,16 @@ public final class Def {
     public static Long defToLongImplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Byte b) {
-            return b.longValue();
-        } else if (value instanceof Short s) {
-            return s.longValue();
-        } else if (value instanceof Character c) {
-            return (long) (char) c;
-        } else if (value instanceof Integer i) {
-            return i.longValue();
-        } else if (value instanceof Long l) {
-            return l;
+        } else if (value instanceof Byte) {
+            return (long) (byte) value;
+        } else if (value instanceof Short) {
+            return (long) (short) value;
+        } else if (value instanceof Character) {
+            return (long) (char) value;
+        } else if (value instanceof Integer) {
+            return (long) (int) value;
+        } else if (value instanceof Long) {
+            return (Long) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -1183,18 +1182,18 @@ public final class Def {
     public static Float defToFloatImplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Byte b) {
-            return b.floatValue();
-        } else if (value instanceof Short s) {
-            return s.floatValue();
-        } else if (value instanceof Character c) {
-            return (float) (char) c;
-        } else if (value instanceof Integer i) {
-            return i.floatValue();
-        } else if (value instanceof Long l) {
-            return l.floatValue();
-        } else if (value instanceof Float f) {
-            return f;
+        } else if (value instanceof Byte) {
+            return (float) (byte) value;
+        } else if (value instanceof Short) {
+            return (float) (short) value;
+        } else if (value instanceof Character) {
+            return (float) (char) value;
+        } else if (value instanceof Integer) {
+            return (float) (int) value;
+        } else if (value instanceof Long) {
+            return (float) (long) value;
+        } else if (value instanceof Float) {
+            return (Float) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -1209,20 +1208,20 @@ public final class Def {
     public static Double defToDoubleImplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Byte b) {
-            return b.doubleValue();
-        } else if (value instanceof Short s) {
-            return s.doubleValue();
-        } else if (value instanceof Character c) {
-            return (double) (char) c;
-        } else if (value instanceof Integer i) {
-            return i.doubleValue();
-        } else if (value instanceof Long l) {
-            return l.doubleValue();
-        } else if (value instanceof Float f) {
-            return f.doubleValue();
-        } else if (value instanceof Double d) {
-            return d;
+        } else if (value instanceof Byte) {
+            return (double) (byte) value;
+        } else if (value instanceof Short) {
+            return (double) (short) value;
+        } else if (value instanceof Character) {
+            return (double) (char) value;
+        } else if (value instanceof Integer) {
+            return (double) (int) value;
+        } else if (value instanceof Long) {
+            return (double) (long) value;
+        } else if (value instanceof Float) {
+            return (double) (float) value;
+        } else if (value instanceof Double) {
+            return (Double) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -1237,8 +1236,8 @@ public final class Def {
     public static Byte defToByteExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Character c) {
-            return (byte) (char) c;
+        } else if (value instanceof Character) {
+            return (byte) (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -1260,8 +1259,8 @@ public final class Def {
     public static Short defToShortExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Character c) {
-            return (short) (char) c;
+        } else if (value instanceof Character) {
+            return (short) (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -1283,10 +1282,10 @@ public final class Def {
     public static Character defToCharacterExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof String s) {
-            return Utility.StringTochar(s);
-        } else if (value instanceof Character c) {
-            return c;
+        } else if (value instanceof String) {
+            return Utility.StringTochar((String) value);
+        } else if (value instanceof Character) {
+            return (Character) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -1308,8 +1307,8 @@ public final class Def {
     public static Integer defToIntegerExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Character c) {
-            return (int) (char) c;
+        } else if (value instanceof Character) {
+            return (int) (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -1331,8 +1330,8 @@ public final class Def {
     public static Long defToLongExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Character c) {
-            return (long) (char) c;
+        } else if (value instanceof Character) {
+            return (long) (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -1354,8 +1353,8 @@ public final class Def {
     public static Float defToFloatExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Character c) {
-            return (float) (char) c;
+        } else if (value instanceof Character) {
+            return (float) (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -1377,8 +1376,8 @@ public final class Def {
     public static Double defToDoubleExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Character c) {
-            return (double) (char) c;
+        } else if (value instanceof Character) {
+            return (double) (char) value;
         } else if (value instanceof Byte
             || value instanceof Short
             || value instanceof Integer
@@ -1400,8 +1399,8 @@ public final class Def {
     public static String defToStringImplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof String s) {
-            return s;
+        } else if (value instanceof String) {
+            return (String) value;
         } else {
             throw new ClassCastException(
                 "cannot implicitly cast "
@@ -1416,10 +1415,10 @@ public final class Def {
     public static String defToStringExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Character c) {
-            return Utility.charToString(c);
-        } else if (value instanceof String s) {
-            return s;
+        } else if (value instanceof Character) {
+            return Utility.charToString((char) value);
+        } else if (value instanceof String) {
+            return (String) value;
         } else {
             throw new ClassCastException(
                 "cannot explicitly cast "

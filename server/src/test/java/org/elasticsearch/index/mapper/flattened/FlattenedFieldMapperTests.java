@@ -399,4 +399,13 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assumeFalse("Test implemented in a follow up", true);
         return null;
     }
+
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
 }

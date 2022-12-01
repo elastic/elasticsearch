@@ -886,6 +886,11 @@ public class TextFieldMapper extends FieldMapper {
             );
         }
 
+        @Override
+        public boolean isAggregatable() {
+            return fielddata;
+        }
+
     }
 
     private final Version indexCreatedVersion;

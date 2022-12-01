@@ -191,4 +191,12 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         b.field("type", "token_count").field("analyzer", "standard");
     }
+
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
 }

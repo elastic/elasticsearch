@@ -374,6 +374,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isAggregatable() {
+            return true;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return (cache, breakerService) -> new IndexAggregateDoubleMetricFieldData(
                 name(),

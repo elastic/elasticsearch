@@ -82,6 +82,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
     @Override
     protected String[] getParseMaximalWarnings() {
         return new String[] { "Parameter [boost] on field [field] is deprecated and will be removed in 8.0" };

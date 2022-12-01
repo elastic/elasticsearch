@@ -73,6 +73,14 @@ public class DateFieldMapperTests extends MapperTestCase {
         return new String[] { "Parameter [boost] on field [field] is deprecated and will be removed in 8.0" };
     }
 
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
     public void testDefaults() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));

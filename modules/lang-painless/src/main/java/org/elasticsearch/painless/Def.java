@@ -675,7 +675,6 @@ public final class Def {
         );
     }
 
-    // TODO: separate out into combination of each behaviour for each type
     private abstract static class BaseIterator<T> implements ValueIterator<T> {
         @Override
         public boolean nextBoolean() {
@@ -713,7 +712,7 @@ public final class Def {
             try {
                 return (char) next;
             } catch (ClassCastException e) {
-                throw castException(next.getClass(), short.class, null);
+                throw castException(next.getClass(), char.class, null);
             }
         }
 
@@ -723,7 +722,7 @@ public final class Def {
             try {
                 return ((Number) next).intValue();
             } catch (ClassCastException e) {
-                throw castException(next.getClass(), short.class, null);
+                throw castException(next.getClass(), int.class, null);
             }
         }
 
@@ -733,7 +732,7 @@ public final class Def {
             try {
                 return ((Number) next).longValue();
             } catch (ClassCastException e) {
-                throw castException(next.getClass(), short.class, null);
+                throw castException(next.getClass(), long.class, null);
             }
         }
 
@@ -743,7 +742,7 @@ public final class Def {
             try {
                 return ((Number) next).floatValue();
             } catch (ClassCastException e) {
-                throw castException(next.getClass(), short.class, null);
+                throw castException(next.getClass(), float.class, null);
             }
         }
 
@@ -753,7 +752,7 @@ public final class Def {
             try {
                 return ((Number) next).doubleValue();
             } catch (ClassCastException e) {
-                throw castException(next.getClass(), short.class, null);
+                throw castException(next.getClass(), double.class, null);
             }
         }
     }

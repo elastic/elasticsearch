@@ -154,6 +154,7 @@ public class GetProfilingActionIT extends ESIntegTestCase {
         assertNotNull("libc.so.6", response.getExecutables().get("QCCDqjSg3bMK1C4YRK6Tiw"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92039")
     public void testAutomaticCancellation() throws Exception {
         Request restRequest = new Request("POST", "/_profiling/stacktraces");
         restRequest.setEntity(new StringEntity("""

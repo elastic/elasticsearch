@@ -17,6 +17,7 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +26,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 
 public final class GrokProcessor extends AbstractProcessor {
 
-    public static final String TYPE = "grok";
+    public static final String TYPE = "redact";
     public static final String DEFAULT_ECS_COMPATIBILITY_MODE = Grok.ECS_COMPATIBILITY_MODES[0];
 
     private static final String PATTERN_MATCH_KEY = "_ingest._grok_match_index";
@@ -33,7 +34,7 @@ public final class GrokProcessor extends AbstractProcessor {
 
     private final String matchField;
     private final List<String> matchPatterns;
-    private final Grok grok;
+    private final List<Grok> groks;
     private final boolean traceMatch;
     private final boolean ignoreMissing;
 
@@ -50,7 +51,10 @@ public final class GrokProcessor extends AbstractProcessor {
         super(tag, description);
         this.matchField = matchField;
         this.matchPatterns = matchPatterns;
-        this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::debug);
+        this.groks = new ArrayList<>(matchPatterns.size());
+        for (var matchPattern : matchPatterns) {
+            this.groks.add(new Grok(patternBank, matchPattern, matcherWatchdog, logger::debug));
+        }
         this.traceMatch = traceMatch;
         this.ignoreMissing = ignoreMissing;
         // Joni warnings are only emitted on an attempt to match, and the warning emitted for every call to match which is too verbose
@@ -68,12 +72,15 @@ public final class GrokProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + matchField + "] is null, cannot process it.");
         }
 
-        Map<String, Object> matches = grok.captures(fieldValue);
-        if (matches == null) {
-            throw new IllegalArgumentException("Provided Grok expressions do not match field value: [" + fieldValue + "]");
+        for (var grok : groks) {
+            Map<String, Object> matches = grok.captures(fieldValue);
+            if (matches != null) {
+                for (var entry : matches.entrySet()) {
+                    fieldValue = fieldValue.replace((String) entry.getValue(), '<' + entry.getKey() + '>');
+                }
+            }
         }
-
-        matches.forEach(ingestDocument::setFieldValue);
+        ingestDocument.setFieldValue(matchField, fieldValue);
 
         if (traceMatch) {
             if (matchPatterns.size() > 1) {
@@ -93,7 +100,7 @@ public final class GrokProcessor extends AbstractProcessor {
     }
 
     Grok getGrok() {
-        return grok;
+        return groks.get(0);
     }
 
     boolean isIgnoreMissing() {

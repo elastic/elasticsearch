@@ -1,0 +1,5 @@
+pr: 92036
+summary: Don't use `fielddataBuilder` to test for aggregatability
+area: Search
+type: enhancement
+issues: []

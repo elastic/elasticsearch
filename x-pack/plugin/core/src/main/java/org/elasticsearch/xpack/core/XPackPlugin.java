@@ -447,11 +447,17 @@ public class XPackPlugin extends XPackClientPlugin
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        if (DiscoveryNode.isStateless(settings)) {
+            return List.of();
+        }
         return Collections.singleton(DataTierAllocationDecider.INSTANCE);
     }
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+        if (DiscoveryNode.isStateless(settings)) {
+            return List.of();
+        }
         return Collections.singleton(new DataTier.DefaultHotAllocationSettingProvider());
     }
 

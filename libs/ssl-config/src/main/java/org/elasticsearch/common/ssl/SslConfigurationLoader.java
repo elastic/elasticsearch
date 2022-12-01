@@ -355,6 +355,10 @@ public abstract class SslConfigurationLoader {
         return resolveSetting(settingKey, basePath::resolve, null);
     }
 
+    protected List<String> resolveList(String settingKey, List<String> defaultList) {
+        return resolveListSetting(settingKey, Function.identity(), defaultList);
+    }
+
     private String expandSettingKey(String key) {
         return settingPrefix + key;
     }

@@ -154,7 +154,7 @@ public class GetSettingsResponse extends ActionResponse implements ChunkedToXCon
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         final boolean omitEmptySettings = indexToDefaultSettings.isEmpty();
         return toXContentChunked(omitEmptySettings);
     }

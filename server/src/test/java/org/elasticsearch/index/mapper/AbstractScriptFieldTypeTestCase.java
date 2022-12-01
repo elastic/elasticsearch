@@ -189,7 +189,13 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static FieldDataContext mockFielddataContext() {
-        return new FieldDataContext("test", mockContext()::lookup, mockContext()::sourcePath, MappedFieldType.FielddataOperation.SCRIPT);
+        SearchExecutionContext searchExecutionContext = mockContext();
+        return new FieldDataContext(
+            "test",
+            searchExecutionContext::lookup,
+            mockContext()::sourcePath,
+            MappedFieldType.FielddataOperation.SCRIPT
+        );
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries) {

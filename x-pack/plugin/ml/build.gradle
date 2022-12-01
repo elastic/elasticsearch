@@ -1,8 +1,10 @@
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.dra.DraResolvePlugin
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.dra-artifacts'
 
 esplugin {
   name 'x-pack-ml'
@@ -13,39 +15,41 @@ esplugin {
 }
 
 def localRepo = providers.systemProperty('build.ml_cpp.repo').orNull
-
-repositories {
-  exclusiveContent {
-    filter {
-      includeGroup 'org.elasticsearch.ml'
-    }
-    forRepository {
-      ivy {
-        name "ml-cpp"
-        metadataSources {
-          // no repository metadata, look directly for the artifact
-          artifact()
-        }
-        if (localRepo) {
-          url localRepo
-          patternLayout {
-            artifact "maven/[orgPath]/[module]/[revision]/[module]-[revision](-[classifier]).[ext]"
+if (useDra == false) {
+  repositories {
+    exclusiveContent {
+      filter {
+        includeGroup 'org.elasticsearch.ml'
+      }
+      forRepository {
+        ivy {
+          name "ml-cpp"
+          metadataSources {
+            // no repository metadata, look directly for the artifact
+            artifact()
           }
-        } else {
-          url "https://artifacts-snapshot.elastic.co/"
-          patternLayout {
-            if (VersionProperties.isElasticsearchSnapshot()) {
-              artifact '/ml-cpp/[revision]/downloads/ml-cpp/[module]-[revision]-[classifier].[ext]'
-            } else {
-              // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
-              // Release builds are always done with a local repo.
-              artifact '/ml-cpp/[revision]-SNAPSHOT/downloads/ml-cpp/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+          if (localRepo) {
+            url localRepo
+            patternLayout {
+              artifact "maven/[orgPath]/[module]/[revision]/[module]-[revision](-[classifier]).[ext]"
+            }
+          } else {
+            url "https://artifacts-snapshot.elastic.co/"
+            patternLayout {
+              if (VersionProperties.isElasticsearchSnapshot()) {
+                artifact '/ml-cpp/[revision]/downloads/ml-cpp/[module]-[revision]-[classifier].[ext]'
+              } else {
+                // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
+                // Release builds are always done with a local repo.
+                artifact '/ml-cpp/[revision]-SNAPSHOT/downloads/ml-cpp/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+              }
             }
           }
         }
       }
     }
   }
+
 }
 
 configurations {

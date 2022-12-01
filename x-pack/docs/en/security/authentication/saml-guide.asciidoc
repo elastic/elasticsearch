@@ -256,7 +256,8 @@ URI such as `urn:oid:0.9.2342.19200300.100.1.1`, however there are some
 additional names that can be used:
 
 `nameid`::
-    This uses the SAML `NameID` value instead of a SAML attribute. SAML
+    This uses the SAML `NameID` value (all leading and trailing whitespace removed)
+    instead of a SAML attribute. SAML
     `NameID` elements are an optional, but frequently provided, field within a
     SAML Assertion that the IdP may use to identify the Subject of that
     Assertion. In some cases the `NameID` will relate to the user's login
@@ -265,7 +266,8 @@ additional names that can be used:
     of the IdP.
 
 `nameid:persistent`::
-    This uses the SAML `NameID` value, but only if the NameID format is
+    This uses the SAML `NameID` value (all leading and trailing whitespace removed),
+    but only if the NameID format is
     `urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`.
     A SAML `NameID` element has an optional `Format` attribute that indicates
     the semantics of the provided name. It is common for IdPs to be configured
@@ -326,13 +328,13 @@ groups:: _(Recommended)_
 +
 [NOTE]
 ====
-Some IdPs are configured to send the `groups` list as a comma-separated string, 
-but {es} can't parse this string into an array of groups. To map this SAML 
-attribute to the `attributes.groups` setting in the {es} realm, a cluster 
+Some IdPs are configured to send the `groups` list as a comma-separated string,
+but {es} can't parse this string into an array of groups. To map this SAML
+attribute to the `attributes.groups` setting in the {es} realm, a cluster
 security administrator can use a wildcard when
 <<saml-role-mapping,configuring role mappings>>. While flexible, wildcards are
-less accurate and can match on unwanted patterns. Instead, a cluster security 
-administrator can use a regular expression to create a role mapping rule that 
+less accurate and can match on unwanted patterns. Instead, a cluster security
+administrator can use a regular expression to create a role mapping rule that
 matches only a single group. For example, the following regular expression
 matches only on the `elasticsearch-admins` group:
 
@@ -342,7 +344,7 @@ matches only on the `elasticsearch-admins` group:
 ----
 
 These regular expressions are based on Lucene’s
-{ref}/regexp-syntax.html[regular expression syntax], and can match more complex 
+{ref}/regexp-syntax.html[regular expression syntax], and can match more complex
 patterns. All regular expressions must start and end with a forward slash.
 ====
 
@@ -732,7 +734,7 @@ PUT /_security/role_mapping/saml-finance
 }
 --------------------------------------------------
 <1> The `groups` attribute supports using wildcards (`*`). Refer to the
-<<security-api-put-role-mapping-example,create or update role mappings API>> for 
+<<security-api-put-role-mapping-example,create or update role mappings API>> for
 more information.
 
 If your users also exist in a repository that can be directly accessed by {es}

@@ -86,7 +86,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return builder;
         }
 
-        private final String modelId;
+        private String modelId;
         private final List<Map<String, Object>> docs;
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
@@ -163,6 +163,10 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         public TimeValue getInferenceTimeout() {
             return inferenceTimeout == null ? DEFAULT_TIMEOUT : inferenceTimeout;
+        }
+
+        public void setModelId(String modelId) {
+            this.modelId = modelId;
         }
 
         /**

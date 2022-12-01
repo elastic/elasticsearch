@@ -217,7 +217,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper = new ScaledFloatFieldMapper.Builder("field", false, false).scalingFactor(100)
-            .build(MapperBuilderContext.ROOT)
+            .build(MapperBuilderContext.root(false))
             .fieldType();
         assertEquals(List.of(3.14), fetchSourceValue(mapper, 3.1415926));
         assertEquals(List.of(3.14), fetchSourceValue(mapper, "3.1415"));
@@ -225,7 +225,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false).scalingFactor(100)
             .nullValue(2.71)
-            .build(MapperBuilderContext.ROOT)
+            .build(MapperBuilderContext.root(false))
             .fieldType();
         assertEquals(List.of(2.71), fetchSourceValue(nullValueMapper, ""));
     }

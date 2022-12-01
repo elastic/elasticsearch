@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.structure;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -230,7 +231,9 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
                     .localNodeId("node1")
             )
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         assertThat(
@@ -333,7 +336,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1"))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);

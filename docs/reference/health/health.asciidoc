@@ -46,6 +46,10 @@ A diagnosis contains a cause detailing a root cause analysis, an action containi
 of the steps to take to fix the problem, the list of affected resources (if applicable), and a detailed
 step by step troubleshooting guide to fix the diagnosed problem.
 
+NOTE: The health indicators perform root cause analysis of non-green health statuses. This can
+be computationally expensive when called frequently. When setting up automated polling of the API
+for health status set `verbose` to `false` to disable the more expensive analysis logic.
+
 [[health-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -83,14 +87,10 @@ step by step troubleshooting guide to fix the diagnosed problem.
 [[health-api-query-params]]
 ==== {api-query-parms-title}
 
-`explain`::
+`verbose`::
     (Optional, Boolean) If `true`, the response includes additional details that help explain the status of each non-green indicator.
     These details include additional troubleshooting metrics and sometimes a root cause analysis of a health status.
     Defaults to `true`.
-
-NOTE: Some health indicators perform root cause analysis of non-green health statuses. This can
-be computationally expensive when called frequently. When setting up automated polling of the API
-for health status set `explain` to `false` to disable the more expensive analysis logic.
 
 [role="child_attributes"]
 [[health-api-response-body]]
@@ -152,7 +152,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
     (Optional, object) An object that contains additional information about the cluster that
     has lead to the current health status result. This data is unstructured, and each
     indicator returns <<health-api-response-details, a unique set of details>>. Details will not be calculated if the
-    `explain` property is set to false.
+    `verbose` property is set to false.
 
 `impacts`::
     (Optional, array) If a non-healthy status is returned, indicators may include a list of
@@ -184,7 +184,7 @@ for health status set `explain` to `false` to disable the more expensive analysi
 `diagnosis`::
     (Optional, array) If a non-healthy status is returned, indicators may include a list of
     diagnosis that encapsulate the cause of the health issue and an action to take in order to remediate the problem.
-    The diagnosis will not be calculated if the `explain` property is false.
+    The diagnosis will not be calculated if the `verbose` property is false.
 +
 .Properties of `diagnosis`
 [%collapsible%open]
@@ -395,7 +395,7 @@ The API returns a response for just the shard availability indicator.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health?explain=false
+GET _internal/_health?verbose=false
 --------------------------------------------------
 
 The API returns a response with all health indicators but will

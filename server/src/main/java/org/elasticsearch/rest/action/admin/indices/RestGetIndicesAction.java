@@ -17,8 +17,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,6 +38,12 @@ public class RestGetIndicesAction extends BaseRestHandler {
         + " is deprecated. The parameter will be removed in the next major version.";
 
     private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, INCLUDE_TYPE_NAME_PARAMETER);
+
+    private final ThreadPool threadPool;
+
+    public RestGetIndicesAction(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
 
     @Override
     public List<Route> routes() {
@@ -69,7 +76,10 @@ public class RestGetIndicesAction extends BaseRestHandler {
         final var httpChannel = request.getHttpChannel();
         return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
             .indices()
-            .getIndex(getIndexRequest, new RestChunkedToXContentListener<>(channel));
+            .getIndex(
+                getIndexRequest,
+                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
+            );
     }
 
     /**

@@ -25,7 +25,6 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.nullValue;
 
 public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
     public void testHeadRoot() throws IOException {
@@ -60,8 +59,8 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testIndexExists() throws IOException {
         createTestDoc();
-        headTestCase("/test", emptyMap(), nullValue(Integer.class));
-        headTestCase("/test", singletonMap("pretty", "true"), nullValue(Integer.class));
+        headTestCase("/test", emptyMap(), greaterThan(0));
+        headTestCase("/test", singletonMap("pretty", "true"), greaterThan(0));
     }
 
     public void testAliasExists() throws IOException {
@@ -178,8 +177,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         request.setOptions(expectWarnings(expectedWarnings));
         Response response = client().performRequest(request);
         assertEquals(expectedStatusCode, response.getStatusLine().getStatusCode());
-        final var contentLength = response.getHeader("Content-Length");
-        assertThat(contentLength == null ? null : Integer.valueOf(contentLength), matcher);
+        assertThat(Integer.valueOf(response.getHeader("Content-Length")), matcher);
         assertNull("HEAD requests shouldn't have a response body but " + url + " did", response.getEntity());
     }
 

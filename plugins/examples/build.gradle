@@ -29,7 +29,7 @@ subprojects {
         }
       }
     }
-    if(gradle.includedBuilds.isEmpty()) {
+    if (gradle.includedBuilds.isEmpty()) {
       maven {
         url = "https://artifacts-snapshot.elastic.co/elasticsearch/${elasticsearchVersion}/maven"
         mavenContent {

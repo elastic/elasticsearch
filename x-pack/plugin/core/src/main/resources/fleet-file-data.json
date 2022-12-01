@@ -16,7 +16,7 @@
     "mappings": {
       "_doc": {
         "_meta": {
-          "version": "${fleet.version}"
+          "version": "${xpack.fleet.template.version}"
         },
         "properties": {
           "data": {

@@ -23,6 +23,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class FleetSystemIndicesIT extends ESRestTestCase {
 
@@ -104,6 +105,7 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         request = new Request("GET", ".fleet-files-agent-00001/_mapping");
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, not(containsString("xpack.fleet.template.version"))); // assert templating worked
         assertThat(responseBody, containsString("action_id"));
     }
 
@@ -116,6 +118,7 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         request = new Request("GET", ".fleet-file-data-agent-00001/_mapping");
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, not(containsString("xpack.fleet.template.version"))); // assert templating worked
         assertThat(responseBody, containsString("data"));
         assertThat(responseBody, containsString("bid"));
     }

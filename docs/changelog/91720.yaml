@@ -1,0 +1,6 @@
+pr: 91720
+summary: Mark empty `_terms_enum` results due to DLS as incomplete
+area: Search
+type: enhancement
+issues:
+ - 88321

@@ -360,7 +360,6 @@ public class InboundHandler {
                 @Override
                 public void onAfter() {
                     Releasables.closeExpectNoException(releaseBuffer);
-                    super.onAfter();
                 }
             });
         }

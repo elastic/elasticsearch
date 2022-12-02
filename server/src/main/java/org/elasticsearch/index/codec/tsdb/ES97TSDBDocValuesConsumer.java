@@ -81,6 +81,7 @@ final class ES97TSDBDocValuesConsumer extends DocValuesConsumer {
     @Override
     public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
+        meta.writeByte(ES97TSDBDocValuesFormat.NUMERIC);
         writeValues(field, new EmptyDocValuesProducer() {
             @Override
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {

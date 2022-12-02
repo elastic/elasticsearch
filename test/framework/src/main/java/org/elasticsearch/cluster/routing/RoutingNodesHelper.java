@@ -24,7 +24,7 @@ public final class RoutingNodesHelper {
     public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState state) {
         return state == ShardRoutingState.UNASSIGNED
             ? iterableAsArrayList(routingNodes.unassigned())
-            : routingNodes.stream().flatMap(routingNode -> routingNode.shardsWithState(state).stream()).toList();
+            : routingNodes.stream().flatMap(routingNode -> routingNode.shardsWithState(state)).toList();
     }
 
     public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, String index, ShardRoutingState states) {

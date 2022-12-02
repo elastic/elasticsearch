@@ -102,10 +102,35 @@ public class BigArrayAvgTuplesBenchmark {
     }
 
     private static void longDoubleDoubleArraySet(LongDoubleDoubleArray triple, int[] indices) {
+        var opaqueIndex = new LongDoubleDoubleArray.OpaqueIndex();
         int len = (int) triple.size();
         for (int i = 0; i < len; i++) {
             int index = indices[i];
-            triple.set(index, triple.getLong0(index) + i + 1, triple.getDouble0(index) + i + 2, triple.getDouble1(index) + i + 3);
+            opaqueIndex.setForIndex(index);
+            triple.set(
+                opaqueIndex,
+                triple.getLong0(opaqueIndex) + i + 1,
+                triple.getDouble0(opaqueIndex) + i + 2,
+                triple.getDouble1(opaqueIndex) + i + 3
+            );
+        }
+    }
+
+    @Benchmark
+    public void testLongDoubleDoubleArraySetHolder(Blackhole bh) {
+        longDoubleDoubleArraySetHolder(triple, indices);
+        bh.consume(triple);
+    }
+
+    private static void longDoubleDoubleArraySetHolder(LongDoubleDoubleArray triple, int[] indices) {
+        LongDoubleDoubleArray.Holder holder = new LongDoubleDoubleArray.Holder();
+        var opaqueIndex = new LongDoubleDoubleArray.OpaqueIndex();
+        int len = (int) triple.size();
+        for (int i = 0; i < len; i++) {
+            int index = indices[i];
+            opaqueIndex.setForIndex(index);
+            triple.get(opaqueIndex, holder);
+            triple.set(opaqueIndex, holder.getLong0() + i + 1, holder.getDouble0() + i + 2, holder.getDouble1() + i + 3);
         }
     }
 
@@ -116,10 +141,12 @@ public class BigArrayAvgTuplesBenchmark {
     }
 
     private static void longDoubleDoubleArrayInc(LongDoubleDoubleArray triple, int[] indices) {
+        var opaqueIndex = new LongDoubleDoubleArray.OpaqueIndex();
         int len = (int) triple.size();
         for (int i = 0; i < len; i++) {
             int index = indices[i];
-            triple.increment(index, i + 1, i + 2, i + 3);
+            opaqueIndex.setForIndex(index);
+            triple.increment(opaqueIndex, i + 1, i + 2, i + 3);
         }
     }
 
@@ -158,18 +185,28 @@ public class BigArrayAvgTuplesBenchmark {
             longDoubleDoubleArrayInc(test2.triple, test2.indices);
             assertValues(test2);
         }
+        {
+            BigArrayAvgTuplesBenchmark test3 = new BigArrayAvgTuplesBenchmark();
+            test3.size = 10000;
+            test3.setup();
+            threeSeparateArrays(test3.counts, test3.sums, test3.compensations, test3.indices);
+            longDoubleDoubleArraySetHolder(test3.triple, test3.indices);
+            assertValues(test3);
+        }
     }
 
     private static void assertValues(BigArrayAvgTuplesBenchmark test) {
+        var opaqueIndex = new LongDoubleDoubleArray.OpaqueIndex();
         for (int i = 0; i < test.size; i++) {
-            if (test.triple.getLong0(i) != test.counts.get(i)) {
-                throw new AssertionError(test.triple.getLong0(i) + " != " + test.counts.get(i));
+            opaqueIndex.setForIndex(i);
+            if (test.triple.getLong0(opaqueIndex) != test.counts.get(i)) {
+                throw new AssertionError(test.triple.getLong0(opaqueIndex) + " != " + test.counts.get(i));
             }
-            if (test.triple.getDouble0(i) != test.sums.get(i)) {
-                throw new AssertionError(test.triple.getDouble0(i) + " != " + test.sums.get(i));
+            if (test.triple.getDouble0(opaqueIndex) != test.sums.get(i)) {
+                throw new AssertionError(test.triple.getDouble0(opaqueIndex) + " != " + test.sums.get(i));
             }
-            if (test.triple.getDouble1(i) != test.compensations.get(i)) {
-                throw new AssertionError(test.triple.getDouble0(i) + " != " + test.compensations.get(i));
+            if (test.triple.getDouble1(opaqueIndex) != test.compensations.get(i)) {
+                throw new AssertionError(test.triple.getDouble0(opaqueIndex) + " != " + test.compensations.get(i));
             }
         }
     }

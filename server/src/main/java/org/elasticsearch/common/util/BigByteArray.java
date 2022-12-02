@@ -20,7 +20,7 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  * Byte array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigByteArray extends AbstractBigArray implements ByteArray {
+final class BigByteArray extends AbstractBigArray.PowerOfTwoAbstractBigArray implements ByteArray {
 
     private static final BigByteArray ESTIMATOR = new BigByteArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 

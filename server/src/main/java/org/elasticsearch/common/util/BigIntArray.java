@@ -25,7 +25,7 @@ import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
  * Int array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigIntArray extends AbstractBigArray implements IntArray {
+final class BigIntArray extends AbstractBigArray.PowerOfTwoAbstractBigArray implements IntArray {
     private static final BigIntArray ESTIMATOR = new BigIntArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     static final VarHandle VH_PLATFORM_NATIVE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());

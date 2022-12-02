@@ -24,7 +24,7 @@ import static org.elasticsearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
  * Long array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigLongArray extends AbstractBigArray implements LongArray {
+final class BigLongArray extends AbstractBigArray.PowerOfTwoAbstractBigArray implements LongArray {
 
     private static final BigLongArray ESTIMATOR = new BigLongArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 

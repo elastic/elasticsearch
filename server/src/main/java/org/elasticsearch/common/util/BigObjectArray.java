@@ -19,7 +19,7 @@ import static org.elasticsearch.common.util.PageCacheRecycler.OBJECT_PAGE_SIZE;
  * Int array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T> {
+final class BigObjectArray<T> extends AbstractBigArray.PowerOfTwoAbstractBigArray implements ObjectArray<T> {
 
     private static final BigObjectArray<Long> ESTIMATOR = new BigObjectArray<Long>(0, BigArrays.NON_RECYCLING_INSTANCE);
 

@@ -45,7 +45,7 @@ import java.util.function.BiConsumer;
 public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     /** Don't try to dynamically prune fields that have more than 1024 unique terms, there is a chance we never get to 128 unseen terms, and we'd be paying the overhead of dynamic pruning without getting any benefits. */
-    private static final int MAX_UNIQUE_TERMS_FOR_DYNAMIC_PRUNING = 1024;
+    private static final int MAX_FIELD_CARDINALITY_FOR_DYNAMIC_PRUNING = 1024;
 
     /** Only start dynamic pruning when 128 ordinals or less have not been seen yet. */
     private static final int MAX_TERMS_FOR_DYNAMIC_PRUNING = 128;
@@ -88,7 +88,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     public ScoreMode scoreMode() {
-        if (field != null && valuesSource.needsScores() == false && maxOrd <= MAX_UNIQUE_TERMS_FOR_DYNAMIC_PRUNING) {
+        if (field != null && valuesSource.needsScores() == false && maxOrd <= MAX_FIELD_CARDINALITY_FOR_DYNAMIC_PRUNING) {
             return ScoreMode.TOP_DOCS;
         } else if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
@@ -206,7 +206,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
             if (indexTerms != null) {
                 BitArray bits = visitedOrds.get(0);
                 final int numNonVisitedOrds = maxOrd - (bits == null ? 0 : (int) bits.cardinality());
-                if (maxOrd <= MAX_UNIQUE_TERMS_FOR_DYNAMIC_PRUNING || numNonVisitedOrds <= MAX_TERMS_FOR_DYNAMIC_PRUNING) {
+                if (maxOrd <= MAX_FIELD_CARDINALITY_FOR_DYNAMIC_PRUNING || numNonVisitedOrds <= MAX_TERMS_FOR_DYNAMIC_PRUNING) {
                     dynamicPruningAttempts++;
                     return new LeafBucketCollector() {
 

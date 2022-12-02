@@ -25,7 +25,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
     }
 
     // NOTE: here and below we disable tests dealing with non-numeric fields
-    // because ES97TSDBDocValuesFormat only deals with numeric fields.
+    // because ES87TSDBDocValuesFormat only deals with numeric fields.
     @Override
     public void testTwoBinaryValues() {
         assumeTrue("doc values format only supports numerics", false);

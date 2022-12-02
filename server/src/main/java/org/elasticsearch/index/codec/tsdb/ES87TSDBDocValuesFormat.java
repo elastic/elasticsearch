@@ -20,10 +20,10 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final int DEFAULT_NUMERIC_BLOCK_SHIFT = 7;
     static final int DEFAULT_NUMERIC_BLOCK_SIZE = 1 << DEFAULT_NUMERIC_BLOCK_SHIFT;
     static final int DEFAULT_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
-    static final String CODEC_NAME = "ES97TSDB";
-    static final String DATA_CODEC = "ES97TSDBDocValuesData";
+    static final String CODEC_NAME = "ES87TSDB";
+    static final String DATA_CODEC = "ES87TSDBDocValuesData";
     static final String DATA_EXTENSION = "dvd";
-    static final String META_CODEC = "ES97TSDBDocValuesMetadata";
+    static final String META_CODEC = "ES87TSDBDocValuesMetadata";
     static final String META_EXTENSION = "dvm";
     static final int VERSION_START = 0;
     static final int VERSION_CURRENT = VERSION_START;

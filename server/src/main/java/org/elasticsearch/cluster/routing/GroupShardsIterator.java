@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.util.Countable;
 
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
@@ -30,6 +31,14 @@ public final class GroupShardsIterator<ShardIt extends Comparable<ShardIt> & Cou
      */
     public static <ShardIt extends Comparable<ShardIt> & Countable> GroupShardsIterator<ShardIt> sortAndCreate(List<ShardIt> iterators) {
         CollectionUtil.timSort(iterators);
+        return new GroupShardsIterator<>(iterators);
+    }
+
+    public static <ShardIt extends Comparable<ShardIt> & Countable> GroupShardsIterator<ShardIt> sortAndCreate(
+        List<ShardIt> iterators,
+        Comparator<ShardIt> comp
+    ) {
+        CollectionUtil.timSort(iterators, comp);
         return new GroupShardsIterator<>(iterators);
     }
 

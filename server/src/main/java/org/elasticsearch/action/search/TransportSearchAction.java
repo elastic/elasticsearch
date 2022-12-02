@@ -993,6 +993,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 return new SearchShardIterator(searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), finalIndices);
             }).toList();
         }
+
+        /**
+         * TODO: if we move the mergeShardsIterators to the search async action, they can decide about the order of execution
+         *
+         * head can query shards by descending creation date and 1 shard per remote
+         *
+
+        List<SearchShardIterator> shards = new ArrayList<>(remoteShardIterators);
+        shards.addAll(localShardIterators);
+
+         // todo: works only for local shards
+        final GroupShardsIterator<SearchShardIterator> shardIterators = GroupShardsIterator.sortAndCreate(
+            shards,
+            (shard1, shard2) -> Long.compare(
+                searchService.getIndicesService().indexService(shard1.shardId().getIndex()).getMetadata().getCreationDate(),
+                searchService.getIndicesService().indexService(shard2.shardId().getIndex()).getMetadata().getCreationDate()
+            )
+        );*/
+
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
@@ -1194,7 +1213,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 shardIterators.size(),
                 exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
             );
-            AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction = switch (searchRequest.searchType()) {
+
+            SearchPhase searchAsyncAction = switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH -> new SearchDfsQueryThenFetchAsyncAction(
                     logger,
                     searchTransportService,
@@ -1212,6 +1232,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     clusters
                 );
                 case QUERY_THEN_FETCH -> new SearchQueryThenFetchAsyncAction(
+                    logger,
+                    searchTransportService,
+                    connectionLookup,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    executor,
+                    queryResultConsumer,
+                    searchRequest,
+                    listener,
+                    shardIterators,
+                    timeProvider,
+                    clusterState,
+                    task,
+                    clusters
+                );
+                case HEAD -> new SearchHeadAsyncAction(
                     logger,
                     searchTransportService,
                     connectionLookup,

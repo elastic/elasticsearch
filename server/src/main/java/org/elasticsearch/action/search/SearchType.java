@@ -25,9 +25,14 @@ public enum SearchType {
      * document content. The return number of hits is exactly as specified in size, since they are the only ones that
      * are fetched. This is very handy when the index has a lot of shards (not replicas, shard id groups).
      */
-    QUERY_THEN_FETCH((byte) 1);
+    QUERY_THEN_FETCH((byte) 1),
     // 2 used to be DFS_QUERY_AND_FETCH
     // 3 used to be QUERY_AND_FETCH
+
+    /**
+     * The query is executed against as many shards as required to provide enough results to return some data(preview).
+     */
+    HEAD((byte) 4);
 
     /**
      * The default search type ({@link #QUERY_THEN_FETCH}.
@@ -37,7 +42,7 @@ public enum SearchType {
     /**
      * Non-deprecated types
      */
-    public static final SearchType[] CURRENTLY_SUPPORTED = { QUERY_THEN_FETCH, DFS_QUERY_THEN_FETCH };
+    public static final SearchType[] CURRENTLY_SUPPORTED = { QUERY_THEN_FETCH, DFS_QUERY_THEN_FETCH, HEAD };
 
     private byte id;
 
@@ -77,6 +82,8 @@ public enum SearchType {
             return SearchType.DFS_QUERY_THEN_FETCH;
         } else if ("query_then_fetch".equals(searchType)) {
             return SearchType.QUERY_THEN_FETCH;
+        } else if ("head".equals(searchType)) {
+            return SearchType.HEAD;
         } else {
             throw new IllegalArgumentException("No search type for [" + searchType + "]");
         }

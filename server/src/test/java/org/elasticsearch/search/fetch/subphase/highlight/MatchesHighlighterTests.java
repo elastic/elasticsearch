@@ -38,6 +38,30 @@ public class MatchesHighlighterTests extends HighlighterTestCase {
         assertHighlights(highlights, "field", "this is <em>some</em> text");
     }
 
+    public void testMultipleFieldHighlighting() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "title" : { "type" : "text" },
+                "description" : { "type" : "text" },
+                "category" : { "type" : "keyword" }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "title" : "A tale of two cities",
+              "description" : "It's a story about two cities",
+              "category" : [ "fiction", "dickens" ] }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(
+            QueryBuilders.queryStringQuery("dickens OR cities").field("title").field("description").field("category"))
+            .highlighter(new HighlightBuilder().highlighterType("matches").field("title").field("category"));
+
+        Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
+        assertHighlights(highlights, "title", "A tale of two <em>cities</em>");
+        assertHighlights(highlights, "category", "<em>dickens</em>");
+    }
+
     public void testScoring() throws Exception {
 
         MapperService mapperService = createMapperService("""
@@ -105,7 +129,38 @@ public class MatchesHighlighterTests extends HighlighterTestCase {
         );
     }
 
-    // multiple fields
-    // analyzed offset limit
     // matched_fields - use matches from a set of different fields to highlight this one
+    public void testMatchedFields() throws IOException {
+
+        // note that this doesn't actually use a different analyzer for the subfield,
+        // given restrictions on analyzers in unit tests
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "description" : {
+                  "type" : "text",
+                  "fields" : {
+                    "stemmed" : { "type" : "text" }
+                  }
+                }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "description" : "Here is some text" }
+            """));
+
+        HighlightBuilder highlight = new HighlightBuilder()
+            .field(new HighlightBuilder.Field("description").matchedFields("description", "description.stemmed"))
+            .highlighterType("matches");
+        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.termQuery("description.stemmed", "some"))
+            .highlighter(highlight);
+
+        Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
+        assertHighlights(
+            highlights,
+            "description",
+            "Here is <em>some</em> text"
+        );
+
+    }
 }

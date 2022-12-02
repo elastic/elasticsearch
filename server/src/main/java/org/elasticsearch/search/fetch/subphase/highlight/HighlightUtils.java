@@ -43,11 +43,8 @@ public final class HighlightUtils {
         FetchSubPhase.HitContext hitContext,
         boolean forceSource
     ) throws IOException {
-        if (forceSource == false && fieldType.isStored()) {
-            CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
-            hitContext.reader().document(hitContext.docId(), fieldVisitor);
-            List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());
-            return Objects.requireNonNullElse(textsToHighlight, Collections.emptyList());
+        if (forceSource == false && hitContext.loadedFields().containsKey(fieldType.name())) {
+            return hitContext.loadedFields().get(fieldType.name());
         }
         ValueFetcher fetcher = fieldType.valueFetcher(searchContext, null);
         fetcher.setNextReader(hitContext.readerContext());

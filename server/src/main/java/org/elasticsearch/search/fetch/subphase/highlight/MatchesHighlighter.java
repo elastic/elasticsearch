@@ -14,6 +14,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * A highlighter that uses the output of a query's Matches to highlight tokens
+ */
 public class MatchesHighlighter implements Highlighter {
 
     private static final String MATCHES_HIGHLIGHTER_CONFIG_KEY = "matches_highlighter_config_key";
@@ -28,7 +31,7 @@ public class MatchesHighlighter implements Highlighter {
 
         MatchesHighlighterState state = (MatchesHighlighterState) fieldContext.cache.computeIfAbsent(
             MATCHES_HIGHLIGHTER_CONFIG_KEY,
-            k -> new MatchesHighlighterState(fieldContext)
+            k -> new MatchesHighlighterState(fieldContext.context.searcher().getIndexReader())
         );
 
         MatchesFieldHighlighter fieldHighlighter = new MatchesFieldHighlighter(fieldContext, state);

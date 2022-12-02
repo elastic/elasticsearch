@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MatchesIterator;
@@ -22,7 +24,14 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-public class MatchesHighlighterState {
+/**
+ * Shared state for the matches highlighter
+ *
+ * This holds two caches, one for the query's Weight which is global across all documents,
+ * and one for Matches for each query, which will be cached per document.  This avoids having
+ * to regenerate the weight and matches for each field being highlighted.
+ */
+class MatchesHighlighterState {
 
     private static final Matches NO_MATCHES = new Matches() {
         @Override
@@ -41,22 +50,23 @@ public class MatchesHighlighterState {
         }
     };
 
-    private final FieldHighlightContext context;
     private final IndexSearcher searcher;
     private final Map<Query, Weight> weightCache = new HashMap<>();
     private final Map<Query, Matches> matchesCache = new HashMap<>();
 
     private int currentDoc = -1;
+    private int currentLeafOrd = -1;
 
-    public MatchesHighlighterState(FieldHighlightContext context) {
-        this.context = context;
-        this.searcher = context.context.searcher();
+    MatchesHighlighterState(IndexReader reader) {
+        this.searcher = new IndexSearcher(reader);
+        this.searcher.setQueryCache(null);  // disable caching
     }
 
-    public Matches getMatches(Query query, int doc) throws IOException {
-        if (currentDoc != doc) {
+    Matches getMatches(Query query, LeafReaderContext ctx, int doc) throws IOException {
+        if (currentDoc != doc || currentLeafOrd != ctx.ord) {
             matchesCache.clear();
             currentDoc = doc;
+            currentLeafOrd = ctx.ord;
         }
         Weight w = weightCache.get(query);
         if (w == null) {
@@ -65,7 +75,7 @@ public class MatchesHighlighterState {
         }
         Matches m = matchesCache.get(query);
         if (m == null) {
-            m = w.matches(context.hitContext.readerContext(), doc);
+            m = w.matches(ctx, doc);
             if (m == null) {
                 m = NO_MATCHES;
             }
@@ -75,9 +85,5 @@ public class MatchesHighlighterState {
             return null;
         }
         return m;
-    }
-
-    public MatchesFieldHighlighter getMatchesFieldHighlighter(FieldHighlightContext fieldContext) throws IOException {
-        return new MatchesFieldHighlighter(fieldContext, this);
     }
 }

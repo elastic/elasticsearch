@@ -64,6 +64,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -106,7 +107,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class HighlighterSearchIT extends ESIntegTestCase {
     // TODO as we move analyzers out of the core we need to move some of these into HighlighterWithAnalyzersTests
-    private static final String[] ALL_TYPES = new String[] { "plain", "fvh", "unified" };
+    private static final String[] ALL_TYPES = new String[] { "plain", "fvh", "unified", "matches" };
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -3508,6 +3509,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         // but we highlight the root text field since nested documents cannot be highlighted with postings nor term vectors
         // directly.
         for (String type : ALL_TYPES) {
+            if (Objects.equals("matches", type)) {
+                continue; // matches highlighter doesn't support nested fields
+            }
             SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(nestedQuery("foo", prefixQuery("foo.text", "bro"), ScoreMode.None))
                 .highlighter(new HighlightBuilder().field(new Field("text").highlighterType(type).requireFieldMatch(false)))

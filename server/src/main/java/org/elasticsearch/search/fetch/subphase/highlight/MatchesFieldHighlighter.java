@@ -9,61 +9,68 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.search.FilterMatchesIterator;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MatchesIterator;
-import org.apache.lucene.search.highlight.OffsetLimitTokenFilter;
+import org.apache.lucene.search.MatchesUtils;
+import org.apache.lucene.search.matchhighlight.MatchRegionRetriever;
 import org.apache.lucene.search.matchhighlight.OffsetRange;
 import org.apache.lucene.search.matchhighlight.OffsetsFromTokens;
 import org.apache.lucene.search.matchhighlight.OffsetsRetrievalStrategy;
 import org.apache.lucene.search.matchhighlight.Passage;
 import org.apache.lucene.search.matchhighlight.PassageFormatter;
-import org.apache.lucene.search.matchhighlight.PassageSelector;
-import org.apache.lucene.search.uhighlight.PassageScorer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
-public class MatchesFieldHighlighter {
+/**
+ * Highlights individual fields using components from lucene's match highlighter
+ */
+class MatchesFieldHighlighter {
 
     private final FieldHighlightContext context;
     private final Matches matches;
     private final Analyzer analyzer;
     private final String field;
 
-    public MatchesFieldHighlighter(FieldHighlightContext context, MatchesHighlighterState state) throws IOException {
+    MatchesFieldHighlighter(FieldHighlightContext context, MatchesHighlighterState state) throws IOException {
         this.context = context;
         // TODO term vectors and require_field_match=false should intercept things here
-        this.matches = state.getMatches(context.query, context.hitContext.docId());
+        this.matches = state.getMatches(context.query, context.hitContext.readerContext(), context.hitContext.docId());
         this.analyzer = context.context.getSearchExecutionContext().getIndexAnalyzer(s -> Lucene.STANDARD_ANALYZER);
         this.field = context.fieldType.name();
     }
 
-    public MatchesIterator getMatchesIterator() throws IOException {
+    /**
+     * @return a MatchesIterator for this field, based on the field highlighter configuration
+     */
+    MatchesIterator getMatchesIterator() throws IOException {
         if (this.matches == null) {
             return null;
         }
-        MatchesIterator it = this.matches.getMatches(field);
-        if (it == null || context.field.fieldOptions().maxAnalyzedOffset() == null) {
-            return it;
+
+        Set<String> matchFields = context.field.fieldOptions().matchedFields();
+        if (matchFields == null || matchFields.isEmpty()) {
+            matchFields = Set.of(field);
         }
-        int positionCutOff = context.field.fieldOptions().maxAnalyzedOffset() / 5;
-        return new FilterMatchesIterator(it) {
-            @Override
-            public boolean next() throws IOException {
-                if (it.next() == false) {
-                    return false;
-                }
-                return it.startPosition() <= positionCutOff;
+
+        List<MatchesIterator> fieldIterators = new ArrayList<>();
+        for (String field : matchFields) {
+            MatchesIterator it = this.matches.getMatches(field);
+            if (it != null) {
+                fieldIterators.add(it);
             }
-        };
+        }
+        return MatchesUtils.disjunction(fieldIterators);
     }
 
+    /**
+     * Uses a MatchesIterator to highlight a list of source inputs
+     */
     public List<String> buildHighlights(MatchesIterator it, List<CharSequence> sourceValues) throws IOException {
         String contiguousSourceText = buildContiguousSourceText(sourceValues);
         OffsetsRetrievalStrategy offsetsStrategy = getOffsetStrategy();
@@ -93,23 +100,31 @@ public class MatchesFieldHighlighter {
                 field,
                 new XOffsetsFromPositions(field, analyzer)
             );
-            case DOCS_AND_FREQS_AND_POSITIONS -> new XOffsetsFromPositions(field, analyzer);
+            case DOCS_AND_FREQS_AND_POSITIONS -> limitOffsets(new XOffsetsFromPositions(field, analyzer));
             case DOCS_AND_FREQS, DOCS ->
-                // By default retrieve offsets from individual tokens
-                // retrieved by the analyzer (possibly narrowed down to
-                // only those terms that the query hinted at when passed
-                // a QueryVisitor.
-                //
-                // Alternative strategies are also possible and may make sense
-                // depending on the use case (OffsetsFromValues, for example).
                 new OffsetsFromTokens(field, analyzer);
-            case NONE -> (matchesIterator, doc) -> {
-                throw new IOException(
-                    "Field is indexed without positions and/or offsets: "
-                        + field
-                        + ", "
-                        + tsi.luceneFieldType().indexOptions());
+            // This should be unreachable because we won't get a MatchesIterator from an unindexed field
+            case NONE -> (matchesIterator, doc) -> { throw new IllegalStateException("Field [ " + field + "] is not indexed"); };
+        };
+    }
+
+    // TODO might be more sensible to push this back into OffsetsFromPositions
+    private OffsetsRetrievalStrategy limitOffsets(OffsetsRetrievalStrategy in) {
+        if (context.field.fieldOptions().maxAnalyzedOffset() == null) {
+            return in;
+        }
+        return (matchesIterator, doc) -> {
+            int positionCutOff = context.field.fieldOptions().maxAnalyzedOffset() / 5;
+            MatchesIterator wrapped = new FilterMatchesIterator(matchesIterator) {
+                @Override
+                public boolean next() throws IOException {
+                    if (matchesIterator.next() == false) {
+                        return false;
+                    }
+                    return matchesIterator.startPosition() <= positionCutOff;
+                }
             };
+            return in.get(wrapped, doc);
         };
     }
 

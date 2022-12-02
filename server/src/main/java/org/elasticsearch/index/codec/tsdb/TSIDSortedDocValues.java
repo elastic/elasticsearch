@@ -16,7 +16,6 @@ import java.io.IOException;
 
 public class TSIDSortedDocValues extends SortedDocValues {
 
-
     public static TSIDSortedDocValues toTSIDSortedDocValues(SortedDocValues sortedDocValues) {
         if (sortedDocValues instanceof TSIDSortedDocValues tsidSortedDocValues) {
             return tsidSortedDocValues;

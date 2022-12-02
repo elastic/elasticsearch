@@ -18,7 +18,7 @@ public class DocValuesForUtil {
     private final int blockSize;
 
     public DocValuesForUtil() {
-        this(ES97TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE);
+        this(ES87TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE);
     }
 
     public DocValuesForUtil(int blockSize) {

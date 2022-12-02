@@ -16,15 +16,15 @@ import org.apache.lucene.util.packed.PackedInts;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class ES97TSDBDocValuesEncoder {
+public class ES87TSDBDocValuesEncoder {
     private final DocValuesForUtil forUtil;
     private final int blockSize;
 
-    public ES97TSDBDocValuesEncoder() {
-        this(ES97TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE);
+    public ES87TSDBDocValuesEncoder() {
+        this(ES87TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE);
     }
 
-    public ES97TSDBDocValuesEncoder(int blockSize) {
+    public ES87TSDBDocValuesEncoder(int blockSize) {
         this.blockSize = blockSize;
         this.forUtil = new DocValuesForUtil(blockSize);
     }

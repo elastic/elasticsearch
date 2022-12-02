@@ -28,7 +28,7 @@ import org.elasticsearch.core.IOUtils;
 import java.io.IOException;
 import java.util.Arrays;
 
-final class ES97TSDBDocValuesConsumer extends DocValuesConsumer {
+final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     IndexOutput data, meta;
     final int maxDoc;
@@ -36,7 +36,7 @@ final class ES97TSDBDocValuesConsumer extends DocValuesConsumer {
     private final int numericBlockSize;
     private final int directMonotonicBlockShift;
 
-    ES97TSDBDocValuesConsumer(
+    ES87TSDBDocValuesConsumer(
         SegmentWriteState state,
         String dataCodec,
         String dataExtension,
@@ -56,7 +56,7 @@ final class ES97TSDBDocValuesConsumer extends DocValuesConsumer {
             CodecUtil.writeIndexHeader(
                 data,
                 dataCodec,
-                ES97TSDBDocValuesFormat.VERSION_CURRENT,
+                ES87TSDBDocValuesFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -65,7 +65,7 @@ final class ES97TSDBDocValuesConsumer extends DocValuesConsumer {
             CodecUtil.writeIndexHeader(
                 meta,
                 metaCodec,
-                ES97TSDBDocValuesFormat.VERSION_CURRENT,
+                ES87TSDBDocValuesFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -81,7 +81,7 @@ final class ES97TSDBDocValuesConsumer extends DocValuesConsumer {
     @Override
     public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
-        meta.writeByte(ES97TSDBDocValuesFormat.NUMERIC);
+        meta.writeByte(ES87TSDBDocValuesFormat.NUMERIC);
         writeValues(field, new EmptyDocValuesProducer() {
             @Override
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
@@ -135,7 +135,7 @@ final class ES97TSDBDocValuesConsumer extends DocValuesConsumer {
             final long[] buffer = new long[numericBlockSize];
             int bufferSize = 0;
             final long valuesDataOffset = data.getFilePointer();
-            final ES97TSDBDocValuesEncoder encoder = new ES97TSDBDocValuesEncoder(numericBlockSize);
+            final ES87TSDBDocValuesEncoder encoder = new ES87TSDBDocValuesEncoder(numericBlockSize);
 
             values = valuesProducer.getSortedNumeric(field);
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {

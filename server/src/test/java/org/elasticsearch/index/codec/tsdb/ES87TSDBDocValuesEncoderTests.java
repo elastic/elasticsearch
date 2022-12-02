@@ -18,13 +18,13 @@ import org.apache.lucene.util.NumericUtils;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class ES97TSDBDocValuesEncoderTests extends LuceneTestCase {
+public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
 
-    private final ES97TSDBDocValuesEncoder encoder;
-    private final int blockSize = ES97TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE;
+    private final ES87TSDBDocValuesEncoder encoder;
+    private final int blockSize = ES87TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE;
 
-    public ES97TSDBDocValuesEncoderTests() {
-        this.encoder = new ES97TSDBDocValuesEncoder(blockSize);
+    public ES87TSDBDocValuesEncoderTests() {
+        this.encoder = new ES87TSDBDocValuesEncoder(blockSize);
     }
 
     public void testRandomValues() throws IOException {

@@ -15,7 +15,7 @@ import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
-public class ES97TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
+public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
 
     static final int DEFAULT_NUMERIC_BLOCK_SHIFT = 7;
     static final int DEFAULT_NUMERIC_BLOCK_SIZE = 1 << DEFAULT_NUMERIC_BLOCK_SHIFT;
@@ -38,11 +38,11 @@ public class ES97TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     private final int numericBlockMask;
     private final int directMonotonicBlockShift;
 
-    public ES97TSDBDocValuesFormat() {
+    public ES87TSDBDocValuesFormat() {
         this(DEFAULT_NUMERIC_BLOCK_SHIFT, DEFAULT_DIRECT_MONOTONIC_BLOCK_SHIFT);
     }
 
-    public ES97TSDBDocValuesFormat(int numericBlockShift, int directMonotonicBlockShift) {
+    public ES87TSDBDocValuesFormat(int numericBlockShift, int directMonotonicBlockShift) {
         super(CODEC_NAME);
         this.numericBlockShift = numericBlockShift;
         this.numericBlockSize = 1 << numericBlockShift;
@@ -52,7 +52,7 @@ public class ES97TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ES97TSDBDocValuesConsumer(
+        return new ES87TSDBDocValuesConsumer(
             state,
             DATA_CODEC,
             DATA_EXTENSION,
@@ -66,7 +66,7 @@ public class ES97TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new ES97TSDBDocValuesProducer(
+        return new ES87TSDBDocValuesProducer(
             state,
             DATA_CODEC,
             DATA_EXTENSION,

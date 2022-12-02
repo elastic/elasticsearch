@@ -15,9 +15,9 @@ import org.apache.lucene.tests.util.TestUtil;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-public class ES97TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
+public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
-    private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES97TSDBDocValuesFormat());
+    private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
 
     @Override
     protected Codec getCodec() {

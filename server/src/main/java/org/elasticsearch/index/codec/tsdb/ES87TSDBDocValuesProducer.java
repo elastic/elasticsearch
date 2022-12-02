@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ES97TSDBDocValuesProducer extends DocValuesProducer {
+public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     private final Map<String, NumericEntry> numerics = new HashMap<>();
     private final IndexInput data;
     private final int maxDoc;
@@ -40,7 +40,7 @@ public class ES97TSDBDocValuesProducer extends DocValuesProducer {
     private final int numericBlockSize;
     private final int numericBlockMask;
 
-    ES97TSDBDocValuesProducer(
+    ES87TSDBDocValuesProducer(
         SegmentReadState state,
         String dataCodec,
         String dataExtension,
@@ -65,8 +65,8 @@ public class ES97TSDBDocValuesProducer extends DocValuesProducer {
                 version = CodecUtil.checkIndexHeader(
                     in,
                     metaCodec,
-                    ES97TSDBDocValuesFormat.VERSION_START,
-                    ES97TSDBDocValuesFormat.VERSION_CURRENT,
+                    ES87TSDBDocValuesFormat.VERSION_START,
+                    ES87TSDBDocValuesFormat.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
@@ -87,8 +87,8 @@ public class ES97TSDBDocValuesProducer extends DocValuesProducer {
             final int version2 = CodecUtil.checkIndexHeader(
                 data,
                 dataCodec,
-                ES97TSDBDocValuesFormat.VERSION_START,
-                ES97TSDBDocValuesFormat.VERSION_CURRENT,
+                ES87TSDBDocValuesFormat.VERSION_START,
+                ES87TSDBDocValuesFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -208,9 +208,9 @@ public class ES97TSDBDocValuesProducer extends DocValuesProducer {
             // dense
             return new NumericDocValues() {
 
-                private final int maxDoc = ES97TSDBDocValuesProducer.this.maxDoc;
+                private final int maxDoc = ES87TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
-                private final ES97TSDBDocValuesEncoder decoder = new ES97TSDBDocValuesEncoder(numericBlockSize);
+                private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder(numericBlockSize);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
 
@@ -270,7 +270,7 @@ public class ES97TSDBDocValuesProducer extends DocValuesProducer {
             );
             return new NumericDocValues() {
 
-                private final ES97TSDBDocValuesEncoder decoder = new ES97TSDBDocValuesEncoder(numericBlockSize);
+                private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder(numericBlockSize);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
 

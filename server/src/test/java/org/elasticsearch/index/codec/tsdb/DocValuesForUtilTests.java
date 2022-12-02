@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.Arrays;
 
 public class DocValuesForUtilTests extends LuceneTestCase {
-    private final ES97TSDBDocValuesEncoder encoder = new ES97TSDBDocValuesEncoder();
+    private final ES87TSDBDocValuesEncoder encoder = new ES87TSDBDocValuesEncoder();
 
     public void testEncodeDecode() throws IOException {
         final int iterations = RandomNumbers.randomIntBetween(random(), 50, 1000);

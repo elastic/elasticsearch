@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
-import org.elasticsearch.index.codec.tsdb.ES97TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -41,7 +41,7 @@ public class PerFieldMapperCodec extends Lucene94Codec {
 
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final ES85BloomFilterPostingsFormat bloomFilterPostingsFormat;
-    private final ES97TSDBDocValuesFormat tsdbDocValuesFormat;
+    private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
     private final IndexSettings indexSettings;
 
     static {
@@ -54,7 +54,7 @@ public class PerFieldMapperCodec extends Lucene94Codec {
         this.indexSettings = indexSettings;
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES85BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
-        this.tsdbDocValuesFormat = new ES97TSDBDocValuesFormat();
+        this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
     }
 
     @Override

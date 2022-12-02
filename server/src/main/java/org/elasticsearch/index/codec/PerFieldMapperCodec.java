@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -101,8 +102,10 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean isTimeSeriesCounter(String field) {
-        return mapperService.fieldType(field) != null
-            && TimeSeriesParams.MetricType.counter.equals(mapperService.fieldType(field).getMetricType());
+        MappedFieldType fieldType = mapperService.fieldType(field);
+        return fieldType != null
+            && (TimeSeriesParams.MetricType.counter.equals(fieldType.getMetricType())
+                || TimeSeriesParams.MetricType.gauge.equals(fieldType.getMetricType()));
     }
 
     private boolean isTimestampField(String field) {

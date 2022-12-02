@@ -158,33 +158,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         SharedGroupFactory sharedGroupFactory,
-        Tracer tracer
-    ) {
-        this(
-            settings,
-            networkService,
-            threadPool,
-            xContentRegistry,
-            dispatcher,
-            clusterSettings,
-            sharedGroupFactory,
-            tracer,
-            TLSConfig.noTLS(),
-            null
-        );
-    }
-
-    public Netty4HttpServerTransport(
-        Settings settings,
-        NetworkService networkService,
-        ThreadPool threadPool,
-        NamedXContentRegistry xContentRegistry,
-        Dispatcher dispatcher,
-        ClusterSettings clusterSettings,
-        SharedGroupFactory sharedGroupFactory,
         Tracer tracer,
         TLSConfig tlsConfig,
-        AcceptChannelHandler.AcceptPredicate acceptChannelPredicate
+        @Nullable AcceptChannelHandler.AcceptPredicate acceptChannelPredicate
 
     ) {
         super(
@@ -378,13 +354,13 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
             if (acceptChannelPredicate != null) {
                 ch.pipeline()
-                    .addFirst(
+                    .addLast(
                         "accept_channel_handler",
                         new AcceptChannelHandler(acceptChannelPredicate, HttpServerTransport.HTTP_PROFILE_NAME)
                     );
             }
             if (tlsConfig.isTLSEnabled()) {
-                ch.pipeline().addFirst("ssl", new SslHandler(tlsConfig.createServerSSLEngine()));
+                ch.pipeline().addLast("ssl", new SslHandler(tlsConfig.createServerSSLEngine()));
             }
             ch.pipeline()
                 .addLast("chunked_writer", new Netty4WriteThrottlingHandler(transport.getThreadPool().getThreadContext()))

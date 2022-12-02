@@ -1,0 +1,5 @@
+pr: 92068
+summary: Add a new highlighter based on lucene's match highlighter
+area: Highlighting
+type: feature
+issues: []

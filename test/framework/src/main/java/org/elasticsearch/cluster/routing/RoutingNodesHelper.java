@@ -10,13 +10,11 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 
 public final class RoutingNodesHelper {
@@ -26,15 +24,13 @@ public final class RoutingNodesHelper {
     public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState state) {
         return state == ShardRoutingState.UNASSIGNED
             ? iterableAsArrayList(routingNodes.unassigned())
-            : routingNodes.stream()
-                .flatMap(routingNode -> routingNode.shardsWithState(state).stream())
-                .collect(toCollection(ArrayList::new));
+            : routingNodes.stream().flatMap(routingNode -> routingNode.shardsWithState(state).stream()).toList();
     }
 
     public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, String index, ShardRoutingState states) {
         return shardsWithState(routingNodes, states).stream()
             .filter(shardRouting -> Objects.equals(shardRouting.getIndexName(), index))
-            .collect(toCollection(ArrayList::new));
+            .toList();
     }
 
     /**

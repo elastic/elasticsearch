@@ -267,26 +267,6 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
     }
 
     @Override
-    public void testSortedNumericsSingleValuedVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedNumericsSingleValuedMissingVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedNumericsMultipleValuesVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedNumericsFewUniqueSetsVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
     public void testSortedSetVariableLengthVsStoredFields() {
         assumeTrue("doc values format only supports numerics", false);
     }
@@ -403,11 +383,6 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     @Override
     public void testSortedSetMergeAwayAllValuesLargeSegment() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedNumericMergeAwayAllValuesLargeSegment() throws IOException {
         assumeTrue("doc values format only supports numerics", false);
     }
 

@@ -25,6 +25,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.elasticsearch.core.IOUtils;
 
@@ -34,6 +35,7 @@ import java.util.Map;
 
 public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     private final Map<String, NumericEntry> numerics = new HashMap<>();
+    private final Map<String, SortedNumericEntry> sortedNumerics = new HashMap<>();
     private final IndexInput data;
     private final int maxDoc;
     private final int numericBlockShift;
@@ -128,7 +130,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
-        throw new UnsupportedOperationException("Unsupported sorted numeric doc values for field [" + field.name + "]");
+        SortedNumericEntry entry = sortedNumerics.get(field.name);
+        return getSortedNumeric(entry);
     }
 
     @Override
@@ -152,7 +155,14 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             if (info == null) {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
-            numerics.put(info.name, readNumeric(meta));
+            byte type = meta.readByte();
+            if (type == ES87TSDBDocValuesFormat.NUMERIC) {
+                numerics.put(info.name, readNumeric(meta));
+            } else if (type == ES87TSDBDocValuesFormat.SORTED_NUMERIC) {
+                sortedNumerics.put(info.name, readSortedNumeric(meta));
+            } else {
+                throw new CorruptIndexException("invalid type: " + type, meta);
+            }
         }
     }
 
@@ -178,17 +188,26 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private static class NumericEntry {
-        long docsWithFieldOffset;
-        long docsWithFieldLength;
-        short jumpTableEntryCount;
-        byte denseRankPower;
-        long numValues;
-        long indexOffset;
-        long indexLength;
-        DirectMonotonicReader.Meta indexMeta;
-        long valuesOffset;
-        long valuesLength;
+    private SortedNumericEntry readSortedNumeric(IndexInput meta) throws IOException {
+        SortedNumericEntry entry = new SortedNumericEntry();
+        readSortedNumeric(meta, entry);
+        return entry;
+    }
+
+    private SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry) throws IOException {
+        readNumeric(meta, entry);
+        entry.numDocsWithField = meta.readInt();
+        if (entry.numDocsWithField != entry.numValues) {
+            entry.addressesOffset = meta.readLong();
+            final int blockShift = meta.readVInt();
+            entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, entry.numDocsWithField + 1, blockShift);
+            entry.addressesLength = meta.readLong();
+        }
+        return entry;
+    }
+
+    private abstract static class NumericValues {
+        abstract long advance(long index) throws IOException;
     }
 
     private NumericDocValues getNumeric(NumericEntry entry) throws IOException {
@@ -316,6 +335,187 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 }
             };
         }
+    }
+
+    private NumericValues getValues(NumericEntry entry) throws IOException {
+        assert entry.numValues > 0;
+        final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
+        final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice);
+
+        final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
+        return new NumericValues() {
+
+            private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder();
+            private long currentBlockIndex = -1;
+            private final long[] currentBlock = new long[numericBlockSize];
+
+            @Override
+            long advance(long index) throws IOException {
+                final long blockIndex = index >>> numericBlockShift;
+                final int blockInIndex = (int) (index & numericBlockMask);
+                if (blockIndex != currentBlockIndex) {
+                    assert blockIndex > currentBlockIndex;
+                    if (blockIndex - 1 > currentBlockIndex) {
+                        valuesData.seek(indexReader.get(blockIndex));
+                    }
+                    currentBlockIndex = blockIndex;
+                    decoder.decode(valuesData, currentBlock);
+                }
+                return currentBlock[blockInIndex];
+            }
+        };
+    }
+
+    private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry) throws IOException {
+        if (entry.numValues == entry.numDocsWithField) {
+            return DocValues.singleton(getNumeric(entry));
+        }
+
+        final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
+        final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesInput);
+
+        final NumericValues values = getValues(entry);
+
+        if (entry.docsWithFieldOffset == -1) {
+            // dense
+            return new SortedNumericDocValues() {
+
+                int doc = -1;
+                long start, end;
+                int count;
+
+                @Override
+                public int nextDoc() throws IOException {
+                    return advance(doc + 1);
+                }
+
+                @Override
+                public int docID() {
+                    return doc;
+                }
+
+                @Override
+                public long cost() {
+                    return maxDoc;
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    if (target >= maxDoc) {
+                        return doc = NO_MORE_DOCS;
+                    }
+                    start = addresses.get(target);
+                    end = addresses.get(target + 1L);
+                    count = (int) (end - start);
+                    return doc = target;
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    start = addresses.get(target);
+                    end = addresses.get(target + 1L);
+                    count = (int) (end - start);
+                    doc = target;
+                    return true;
+                }
+
+                @Override
+                public long nextValue() throws IOException {
+                    return values.advance(start++);
+                }
+
+                @Override
+                public int docValueCount() {
+                    return count;
+                }
+            };
+        } else {
+            // sparse
+            final IndexedDISI disi = new IndexedDISI(
+                data,
+                entry.docsWithFieldOffset,
+                entry.docsWithFieldLength,
+                entry.jumpTableEntryCount,
+                entry.denseRankPower,
+                entry.numDocsWithField
+            );
+            return new SortedNumericDocValues() {
+
+                boolean set;
+                long start, end;
+                int count;
+
+                @Override
+                public int nextDoc() throws IOException {
+                    set = false;
+                    return disi.nextDoc();
+                }
+
+                @Override
+                public int docID() {
+                    return disi.docID();
+                }
+
+                @Override
+                public long cost() {
+                    return disi.cost();
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    set = false;
+                    return disi.advance(target);
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    set = false;
+                    return disi.advanceExact(target);
+                }
+
+                @Override
+                public long nextValue() throws IOException {
+                    set();
+                    return values.advance(start++);
+                }
+
+                @Override
+                public int docValueCount() {
+                    set();
+                    return count;
+                }
+
+                private void set() {
+                    if (set == false) {
+                        final int index = disi.index();
+                        start = addresses.get(index);
+                        end = addresses.get(index + 1L);
+                        count = (int) (end - start);
+                        set = true;
+                    }
+                }
+            };
+        }
+    }
+
+    private static class NumericEntry {
+        long docsWithFieldOffset;
+        long docsWithFieldLength;
+        short jumpTableEntryCount;
+        byte denseRankPower;
+        long numValues;
+        long indexOffset;
+        long indexLength;
+        DirectMonotonicReader.Meta indexMeta;
+        long valuesOffset;
+        long valuesLength;
+    }
+
+    private static class SortedNumericEntry extends NumericEntry {
+        int numDocsWithField;
+        DirectMonotonicReader.Meta addressesMeta;
+        long addressesOffset;
+        long addressesLength;
     }
 
 }

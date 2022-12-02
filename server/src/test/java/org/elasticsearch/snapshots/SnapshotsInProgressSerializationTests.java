@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -418,115 +419,123 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             )
         );
 
+        String json;
+        long chunkCount = 0;
         try (XContentBuilder builder = jsonBuilder()) {
             builder.humanReadable(true);
             builder.startObject();
-            sip.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            final var iterator = sip.toXContentChunked(EMPTY_PARAMS);
+            while (iterator.hasNext()) {
+                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                chunkCount += 1;
+            }
             builder.endObject();
-            String json = Strings.toString(builder);
-            assertThat(
-                json,
-                anyOf(
-                    equalTo(XContentHelper.stripWhitespace("""
-                        {
-                          "snapshots": [
-                            {
-                              "repository": "repo",
-                              "snapshot": "name",
-                              "uuid": "uuid",
-                              "include_global_state": true,
-                              "partial": true,
-                              "state": "SUCCESS",
-                              "indices": [ { "name": "index", "id": "uuid" } ],
-                              "start_time": "1970-01-01T00:20:34.567Z",
-                              "start_time_millis": 1234567,
-                              "repository_state_id": 0,
-                              "shards": [
-                                {
-                                  "index": {
-                                    "index_name": "index",
-                                    "index_uuid": "uuid"
-                                  },
-                                  "shard": 0,
-                                  "state": "SUCCESS",
-                                  "generation": "shardgen",
-                                  "node": "nodeId",
-                                  "result": {
-                                    "generation": "shardgen",
-                                    "size": "1b",
-                                    "size_in_bytes": 1,
-                                    "segments": 1
-                                  }
-                                },
-                                {
-                                  "index": {
-                                    "index_name": "index",
-                                    "index_uuid": "uuid"
-                                  },
-                                  "shard": 1,
-                                  "state": "FAILED",
-                                  "generation": "fail-gen",
-                                  "node": "nodeId",
-                                  "reason": "failure-reason"
-                                }
-                              ],
-                              "feature_states": [],
-                              "data_streams": []
-                            }
-                          ]
-                        }""")),
-                    // or the shards might be in the other order:
-                    equalTo(XContentHelper.stripWhitespace("""
-                        {
-                          "snapshots": [
-                            {
-                              "repository": "repo",
-                              "snapshot": "name",
-                              "uuid": "uuid",
-                              "include_global_state": true,
-                              "partial": true,
-                              "state": "SUCCESS",
-                              "indices": [ { "name": "index", "id": "uuid" } ],
-                              "start_time": "1970-01-01T00:20:34.567Z",
-                              "start_time_millis": 1234567,
-                              "repository_state_id": 0,
-                              "shards": [
-                                {
-                                  "index": {
-                                    "index_name": "index",
-                                    "index_uuid": "uuid"
-                                  },
-                                  "shard": 1,
-                                  "state": "FAILED",
-                                  "generation": "fail-gen",
-                                  "node": "nodeId",
-                                  "reason": "failure-reason"
-                                },
-                                {
-                                  "index": {
-                                    "index_name": "index",
-                                    "index_uuid": "uuid"
-                                  },
-                                  "shard": 0,
-                                  "state": "SUCCESS",
-                                  "generation": "shardgen",
-                                  "node": "nodeId",
-                                  "result": {
-                                    "generation": "shardgen",
-                                    "size": "1b",
-                                    "size_in_bytes": 1,
-                                    "segments": 1
-                                  }
-                                }
-                              ],
-                              "feature_states": [],
-                              "data_streams": []
-                            }
-                          ]
-                        }"""))
-                )
-            );
+            json = Strings.toString(builder);
         }
+
+        assertEquals(2 + sip.asStream().count(), chunkCount);
+        assertThat(
+            json,
+            anyOf(
+                equalTo(XContentHelper.stripWhitespace("""
+                    {
+                      "snapshots": [
+                        {
+                          "repository": "repo",
+                          "snapshot": "name",
+                          "uuid": "uuid",
+                          "include_global_state": true,
+                          "partial": true,
+                          "state": "SUCCESS",
+                          "indices": [ { "name": "index", "id": "uuid" } ],
+                          "start_time": "1970-01-01T00:20:34.567Z",
+                          "start_time_millis": 1234567,
+                          "repository_state_id": 0,
+                          "shards": [
+                            {
+                              "index": {
+                                "index_name": "index",
+                                "index_uuid": "uuid"
+                              },
+                              "shard": 0,
+                              "state": "SUCCESS",
+                              "generation": "shardgen",
+                              "node": "nodeId",
+                              "result": {
+                                "generation": "shardgen",
+                                "size": "1b",
+                                "size_in_bytes": 1,
+                                "segments": 1
+                              }
+                            },
+                            {
+                              "index": {
+                                "index_name": "index",
+                                "index_uuid": "uuid"
+                              },
+                              "shard": 1,
+                              "state": "FAILED",
+                              "generation": "fail-gen",
+                              "node": "nodeId",
+                              "reason": "failure-reason"
+                            }
+                          ],
+                          "feature_states": [],
+                          "data_streams": []
+                        }
+                      ]
+                    }""")),
+                // or the shards might be in the other order:
+                equalTo(XContentHelper.stripWhitespace("""
+                    {
+                      "snapshots": [
+                        {
+                          "repository": "repo",
+                          "snapshot": "name",
+                          "uuid": "uuid",
+                          "include_global_state": true,
+                          "partial": true,
+                          "state": "SUCCESS",
+                          "indices": [ { "name": "index", "id": "uuid" } ],
+                          "start_time": "1970-01-01T00:20:34.567Z",
+                          "start_time_millis": 1234567,
+                          "repository_state_id": 0,
+                          "shards": [
+                            {
+                              "index": {
+                                "index_name": "index",
+                                "index_uuid": "uuid"
+                              },
+                              "shard": 1,
+                              "state": "FAILED",
+                              "generation": "fail-gen",
+                              "node": "nodeId",
+                              "reason": "failure-reason"
+                            },
+                            {
+                              "index": {
+                                "index_name": "index",
+                                "index_uuid": "uuid"
+                              },
+                              "shard": 0,
+                              "state": "SUCCESS",
+                              "generation": "shardgen",
+                              "node": "nodeId",
+                              "result": {
+                                "generation": "shardgen",
+                                "size": "1b",
+                                "size_in_bytes": 1,
+                                "segments": 1
+                              }
+                            }
+                          ],
+                          "feature_states": [],
+                          "data_streams": []
+                        }
+                      ]
+                    }"""))
+            )
+        );
     }
 
     public static State randomState(Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {

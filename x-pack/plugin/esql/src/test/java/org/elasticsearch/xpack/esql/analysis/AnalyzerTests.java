@@ -296,6 +296,15 @@ public class AnalyzerTests extends ESTestCase {
             """, "Cannot use field [unsupported] with unsupported type");
     }
 
+    public void testProjectAggGroupsRefs() {
+        assertProjection("""
+            from test
+            | stats c = count(languages) by last_name
+            | eval d = c + 1
+            | project d, last_name
+            """, "d", "last_name");
+    }
+
     public void testExplicitProject() {
         var plan = analyze("""
             from test

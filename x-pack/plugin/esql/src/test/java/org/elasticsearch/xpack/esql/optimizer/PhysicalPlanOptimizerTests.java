@@ -135,13 +135,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("first_name"));
 
-        var limit = as(extract.child(), LimitExec.class);
-        var filter = as(limit.child(), FilterExec.class);
-
+        var filter = as(extract.child(), FilterExec.class);
         extract = as(filter.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
+        var limit = as(extract.child(), LimitExec.class);
 
-        var source = as(extract.child(), EsQueryExec.class);
+        var source = as(limit.child(), EsQueryExec.class);
     }
 
     public void testTripleExtractorPerField() {
@@ -166,13 +165,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         extract = as(eval.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("first_name"));
 
-        var limit = as(extract.child(), LimitExec.class);
-        var filter = as(limit.child(), FilterExec.class);
-
+        var filter = as(extract.child(), FilterExec.class);
         extract = as(filter.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
-
-        var source = as(extract.child(), EsQueryExec.class);
+        var limit = as(extract.child(), LimitExec.class);
+        var source = as(limit.child(), EsQueryExec.class);
     }
 
     public void testExtractorForField() {
@@ -197,17 +194,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         extract = as(eval.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("first_name"));
 
+        var filter = as(extract.child(), FilterExec.class);
+
+        extract = as(filter.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
+
         var topNFinal = as(extract.child(), TopNExec.class);
         var exchange = as(topNFinal.child(), ExchangeExec.class);
         var topNPartial = as(exchange.child(), TopNExec.class);
 
         extract = as(topNPartial.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("languages"));
-
-        var filter = as(extract.child(), FilterExec.class);
-
-        extract = as(filter.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
     }
 
     public void testExtractorMultiEvalWithDifferentNames() {

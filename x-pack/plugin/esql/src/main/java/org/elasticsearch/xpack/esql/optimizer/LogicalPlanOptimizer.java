@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.LocalExecutable;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -27,13 +30,13 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsTo
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 
@@ -216,5 +220,65 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
             }
         });
+    }
+
+    protected static class PushDownAndCombineFilters extends OptimizerRules.OptimizerRule<Filter> {
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+            LogicalPlan plan = filter;
+            LogicalPlan child = filter.child();
+            Expression condition = filter.condition();
+
+            if (child instanceof Filter f) {
+                // combine nodes into a single Filter with updated ANDed condition
+                plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
+            } else if (child instanceof UnaryPlan unary) {
+                if (unary instanceof Aggregate agg) { // TODO: re-evaluate along with multi-value support
+                    // Only push [parts of] a filter past an agg if these/it operates on agg's grouping[s], not output.
+                    plan = maybePushDownPastUnary(
+                        filter,
+                        agg,
+                        e -> e instanceof Attribute && agg.output().contains(e) && agg.groupings().contains(e) == false
+                            || e instanceof AggregateFunction
+                    );
+                } else if (unary instanceof Eval eval) {
+                    // Don't push if Filter (still) contains references of Eval's fields.
+                    List<Attribute> attributes = new ArrayList<>(eval.fields().size());
+                    for (NamedExpression ne : eval.fields()) {
+                        attributes.add(ne.toAttribute());
+                    }
+                    plan = maybePushDownPastUnary(filter, eval, e -> e instanceof Attribute && attributes.contains(e));
+                } else { // Project, OrderBy, Limit
+                    if (unary instanceof Project || unary instanceof OrderBy) {
+                        // swap the filter with its child
+                        plan = unary.replaceChild(filter.with(unary.child(), condition));
+                    }
+                    // cannot push past a Limit, this could change the tailing result set returned
+                }
+            }
+            return plan;
+        }
+
+        private static LogicalPlan maybePushDownPastUnary(Filter filter, UnaryPlan unary, Predicate<Expression> cannotPush) {
+            LogicalPlan plan;
+            List<Expression> pushable = new ArrayList<>();
+            List<Expression> nonPushable = new ArrayList<>();
+            for (Expression exp : Predicates.splitAnd(filter.condition())) {
+                (exp.anyMatch(cannotPush) ? nonPushable : pushable).add(exp);
+            }
+            // Push the filter down even if it might not be pushable all the way to ES eventually: eval'ing it closer to the source,
+            // potentially still in the Exec Engine, distributes the computation.
+            if (pushable.size() > 0) {
+                if (nonPushable.size() > 0) {
+                    Filter pushed = new Filter(filter.source(), unary.child(), Predicates.combineAnd(pushable));
+                    plan = filter.with(unary.replaceChild(pushed), Predicates.combineAnd(nonPushable));
+                } else {
+                    plan = unary.replaceChild(filter.with(unary.child(), filter.condition()));
+                }
+            } else {
+                plan = filter;
+            }
+            return plan;
+        }
     }
 }

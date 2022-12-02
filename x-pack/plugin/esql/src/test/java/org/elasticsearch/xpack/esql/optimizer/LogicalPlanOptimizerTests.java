@@ -15,33 +15,58 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.BeforeClass;
 
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
+import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
+import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 
 public class LogicalPlanOptimizerTests extends ESTestCase {
+
+    private static final Literal ONE = L(1);
+    private static final Literal TWO = L(2);
+    private static final Literal THREE = L(3);
 
     private static EsqlParser parser;
     private static Analyzer analyzer;
@@ -56,7 +81,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer();
-
         analyzer = new Analyzer(getIndexResult, new EsqlFunctionRegistry(), new Verifier(), TEST_CFG);
     }
 
@@ -136,11 +160,202 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals(new Limit(EMPTY, L(minimum), emptySource()), new LogicalPlanOptimizer().optimize(plan));
     }
 
+    public void testCombineFilters() {
+        EsRelation relation = relation();
+        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
+        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+
+        Filter fa = new Filter(EMPTY, relation, conditionA);
+        Filter fb = new Filter(EMPTY, fa, conditionB);
+
+        assertEquals(
+            new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
+            new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb)
+        );
+    }
+
+    public void testPushDownFilter() {
+        EsRelation relation = relation();
+        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
+        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+
+        Filter fa = new Filter(EMPTY, relation, conditionA);
+        List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
+        Project project = new ProjectReorderRenameRemove(EMPTY, fa, projections, emptyList());
+        Filter fb = new Filter(EMPTY, project, conditionB);
+
+        Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
+        assertEquals(
+            new ProjectReorderRenameRemove(EMPTY, combinedFilter, projections, emptyList()),
+            new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb)
+        );
+    }
+
+    // from ... | where a > 1 | stats count(1) by b | where count(1) >= 3 and b < 2
+    // => ... | where a > 1 and b < 2 | stats count(1) by b | where count(1) >= 3
+    public void testSelectivelyPushDownFilterPastFunctionAgg() {
+        EsRelation relation = relation();
+        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
+        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+        GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(EMPTY, ONE, false), THREE);
+
+        Filter fa = new Filter(EMPTY, relation, conditionA);
+        // invalid aggregate but that's fine cause its properties are not used by this rule
+        Aggregate aggregate = new Aggregate(EMPTY, fa, singletonList(getFieldAttribute("b")), emptyList());
+        Filter fb = new Filter(EMPTY, aggregate, new And(EMPTY, aggregateCondition, conditionB));
+
+        // expected
+        Filter expected = new Filter(
+            EMPTY,
+            new Aggregate(
+                EMPTY,
+                new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
+                singletonList(getFieldAttribute("b")),
+                emptyList()
+            ),
+            aggregateCondition
+        );
+        assertEquals(expected, new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
+    }
+
+    public void testSelectivelyPushDownFilterPastRefAgg() {
+        // expected plan: "from test | where emp_no > 1 and emp_no < 3 | stats x = count(1) by emp_no | where x > 7"
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where emp_no > 1
+            | stats x = count(1) by emp_no
+            | where x + 2 > 9
+            | where emp_no < 3""");
+        var filter = as(plan, Filter.class);
+
+        assertTrue(filter.condition() instanceof GreaterThan);
+        var gt = (GreaterThan) filter.condition();
+        assertTrue(gt.left() instanceof ReferenceAttribute);
+        var refAttr = (ReferenceAttribute) gt.left();
+        assertEquals("x", refAttr.name());
+        assertEquals(L(7), gt.right());
+
+        var agg = as(filter.child(), Aggregate.class);
+
+        filter = as(agg.child(), Filter.class);
+        assertTrue(filter.condition() instanceof And);
+        var and = (And) filter.condition();
+        assertTrue(and.left() instanceof GreaterThan);
+        gt = (GreaterThan) and.left();
+        assertTrue(gt.left() instanceof FieldAttribute);
+        assertEquals("emp_no", ((FieldAttribute) gt.left()).name());
+        assertTrue(and.right() instanceof LessThan);
+        var lt = (LessThan) and.right();
+        assertTrue(lt.left() instanceof FieldAttribute);
+        assertEquals("emp_no", ((FieldAttribute) lt.left()).name());
+
+        assertTrue(filter.child() instanceof EsRelation);
+    }
+
+    public void testNoPushDownOrFilterPastAgg() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | stats x = count(1) by emp_no
+            | where emp_no < 3 or x > 9""");
+        var filter = as(plan, Filter.class);
+
+        assertTrue(filter.condition() instanceof Or);
+        var or = (Or) filter.condition();
+        assertTrue(or.left() instanceof LessThan);
+        assertTrue(or.right() instanceof GreaterThan);
+
+        var stats = as(filter.child(), Aggregate.class);
+        assertTrue(stats.child() instanceof EsRelation);
+    }
+
+    public void testSelectivePushDownComplexFilterPastAgg() {
+        // expected plan: from test | emp_no > 0 | stats x = count(1) by emp_no | where emp_no < 3 or x > 9
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | stats x = count(1) by emp_no
+            | where (emp_no < 3 or x > 9) and emp_no > 0""");
+        var filter = as(plan, Filter.class);
+
+        assertTrue(filter.condition() instanceof Or);
+        var or = (Or) filter.condition();
+        assertTrue(or.left() instanceof LessThan);
+        assertTrue(or.right() instanceof GreaterThan);
+
+        var stats = as(filter.child(), Aggregate.class);
+        filter = as(stats.child(), Filter.class);
+        assertTrue(filter.condition() instanceof GreaterThan);
+        var gt = (GreaterThan) filter.condition();
+        assertTrue(gt.left() instanceof FieldAttribute);
+        assertEquals("emp_no", ((FieldAttribute) gt.left()).name());
+        assertEquals(L(0), gt.right());
+
+        assertTrue(filter.child() instanceof EsRelation);
+    }
+
+    public void testSelectivelyPushDownFilterPastEval() {
+        // expected plan: "from test | where emp_no > 1 and emp_no < 3 | eval x = emp_no + 1 | where x < 7"
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where emp_no > 1
+            | eval x = emp_no + 1
+            | where x + 2 < 9
+            | where emp_no < 3""");
+        var project = as(plan, Project.class);
+        var filter = as(project.child(), Filter.class);
+
+        assertTrue(filter.condition() instanceof LessThan);
+        var lt = (LessThan) filter.condition();
+        assertTrue(lt.left() instanceof ReferenceAttribute);
+        var refAttr = (ReferenceAttribute) lt.left();
+        assertEquals("x", refAttr.name());
+        assertEquals(L(7), lt.right());
+
+        var eval = as(filter.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        assertTrue(eval.fields().get(0) instanceof Alias);
+        assertEquals("x", (eval.fields().get(0)).name());
+
+        filter = as(eval.child(), Filter.class);
+        assertTrue(filter.condition() instanceof And);
+        var and = (And) filter.condition();
+        assertTrue(and.left() instanceof GreaterThan);
+        var gt = (GreaterThan) and.left();
+        assertTrue(gt.left() instanceof FieldAttribute);
+        assertEquals("emp_no", ((FieldAttribute) gt.left()).name());
+        assertTrue(and.right() instanceof LessThan);
+        lt = (LessThan) and.right();
+        assertTrue(lt.left() instanceof FieldAttribute);
+        assertEquals("emp_no", ((FieldAttribute) lt.left()).name());
+
+        assertTrue(filter.child() instanceof EsRelation);
+    }
+
+    public void testNoPushDownOrFilterPastLimit() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | limit 3
+            | where emp_no < 3 or languages > 9""");
+        var project = as(plan, Project.class);
+        var filter = as(project.child(), Filter.class);
+
+        assertTrue(filter.condition() instanceof Or);
+        var or = (Or) filter.condition();
+        assertTrue(or.left() instanceof LessThan);
+        assertTrue(or.right() instanceof GreaterThan);
+
+        var limit = as(filter.child(), Limit.class);
+        assertTrue(limit.child() instanceof EsRelation);
+    }
+
     public void testBasicNullFolding() {
         FoldNull rule = new FoldNull();
         assertNullLiteral(rule.rule(new Add(EMPTY, L(randomInt()), Literal.NULL)));
         assertNullLiteral(rule.rule(new Round(EMPTY, Literal.NULL, null)));
         assertNullLiteral(rule.rule(new Length(EMPTY, Literal.NULL)));
+    }
+
+    private LogicalPlan optimizedPlan(String query) {
+        return logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
     }
 
     private LogicalPlan plan(String query) {
@@ -150,5 +365,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private void assertNullLiteral(Expression expression) {
         assertEquals(Literal.class, expression.getClass());
         assertNull(expression.fold());
+    }
+
+    // TODO: move these from org.elasticsearch.xpack.ql.optimizer.OptimizerRulesTests to org.elasticsearch.xpack.ql.TestUtils
+    private static FieldAttribute getFieldAttribute(String name) {
+        return getFieldAttribute(name, INTEGER);
+    }
+
+    private static FieldAttribute getFieldAttribute(String name, DataType dataType) {
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 }

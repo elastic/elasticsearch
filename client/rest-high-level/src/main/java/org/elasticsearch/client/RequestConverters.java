@@ -9,9 +9,6 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
@@ -19,41 +16,26 @@ import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.explain.ExplainRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.core.CountRequest;
-import org.elasticsearch.client.core.GetSourceRequest;
-import org.elasticsearch.client.core.TermVectorsRequest;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -73,27 +55,6 @@ final class RequestConverters {
 
     private RequestConverters() {
         // Contains only status utility methods
-    }
-
-    static Request delete(DeleteRequest deleteRequest) {
-        String endpoint = endpoint(deleteRequest.index(), deleteRequest.id());
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
-        Params parameters = new Params();
-        parameters.withRouting(deleteRequest.routing());
-        parameters.withTimeout(deleteRequest.timeout());
-        parameters.withVersion(deleteRequest.version());
-        parameters.withVersionType(deleteRequest.versionType());
-        parameters.withIfSeqNo(deleteRequest.ifSeqNo());
-        parameters.withIfPrimaryTerm(deleteRequest.ifPrimaryTerm());
-        parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
-        parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
-        request.addParameters(parameters.asMap());
-        return request;
-    }
-
-    static Request info() {
-        return new Request(HttpGet.METHOD_NAME, "/");
     }
 
     static Request bulk(BulkRequest bulkRequest) throws IOException {
@@ -229,64 +190,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request exists(GetRequest getRequest) {
-        return getStyleRequest(HttpHead.METHOD_NAME, getRequest);
-    }
-
-    static Request get(GetRequest getRequest) {
-        return getStyleRequest(HttpGet.METHOD_NAME, getRequest);
-    }
-
-    private static Request getStyleRequest(String method, GetRequest getRequest) {
-        Request request = new Request(method, endpoint(getRequest.index(), getRequest.id()));
-
-        Params parameters = new Params();
-        parameters.withPreference(getRequest.preference());
-        parameters.withRouting(getRequest.routing());
-        parameters.withRefresh(getRequest.refresh());
-        parameters.withRealtime(getRequest.realtime());
-        parameters.withStoredFields(getRequest.storedFields());
-        parameters.withVersion(getRequest.version());
-        parameters.withVersionType(getRequest.versionType());
-        parameters.withFetchSourceContext(getRequest.fetchSourceContext());
-        request.addParameters(parameters.asMap());
-        return request;
-    }
-
-    static Request sourceExists(GetSourceRequest getSourceRequest) {
-        return sourceRequest(getSourceRequest, HttpHead.METHOD_NAME);
-    }
-
-    static Request getSource(GetSourceRequest getSourceRequest) {
-        return sourceRequest(getSourceRequest, HttpGet.METHOD_NAME);
-    }
-
-    private static Request sourceRequest(GetSourceRequest getSourceRequest, String httpMethodName) {
-        Params parameters = new Params();
-        parameters.withPreference(getSourceRequest.preference());
-        parameters.withRouting(getSourceRequest.routing());
-        parameters.withRefresh(getSourceRequest.refresh());
-        parameters.withRealtime(getSourceRequest.realtime());
-        parameters.withFetchSourceContext(getSourceRequest.fetchSourceContext());
-
-        String endpoint = endpoint(getSourceRequest.index(), "_source", getSourceRequest.id());
-        Request request = new Request(httpMethodName, endpoint);
-        request.addParameters(parameters.asMap());
-        return request;
-    }
-
-    static Request multiGet(MultiGetRequest multiGetRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, "/_mget");
-
-        Params parameters = new Params();
-        parameters.withPreference(multiGetRequest.preference());
-        parameters.withRealtime(multiGetRequest.realtime());
-        parameters.withRefresh(multiGetRequest.refresh());
-        request.addParameters(parameters.asMap());
-        request.setEntity(createEntity(multiGetRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
     static Request index(IndexRequest indexRequest) {
         String method = Strings.hasLength(indexRequest.id()) ? HttpPut.METHOD_NAME : HttpPost.METHOD_NAME;
 
@@ -315,53 +218,6 @@ final class RequestConverters {
         ContentType contentType = createContentType(indexRequest.getContentType());
         request.addParameters(parameters.asMap());
         request.setEntity(new NByteArrayEntity(source.bytes, source.offset, source.length, contentType));
-        return request;
-    }
-
-    static Request update(UpdateRequest updateRequest) throws IOException {
-        String endpoint = endpoint(updateRequest.index(), "_update", updateRequest.id());
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-
-        Params parameters = new Params();
-        parameters.withRouting(updateRequest.routing());
-        parameters.withTimeout(updateRequest.timeout());
-        parameters.withRefreshPolicy(updateRequest.getRefreshPolicy());
-        parameters.withWaitForActiveShards(updateRequest.waitForActiveShards());
-        parameters.withDocAsUpsert(updateRequest.docAsUpsert());
-        parameters.withFetchSourceContext(updateRequest.fetchSource());
-        parameters.withRetryOnConflict(updateRequest.retryOnConflict());
-        parameters.withVersion(updateRequest.version());
-        parameters.withVersionType(updateRequest.versionType());
-        parameters.withRequireAlias(updateRequest.isRequireAlias());
-
-        // The Java API allows update requests with different content types
-        // set for the partial document and the upsert document. This client
-        // only accepts update requests that have the same content types set
-        // for both doc and upsert.
-        XContentType xContentType = null;
-        if (updateRequest.doc() != null) {
-            xContentType = updateRequest.doc().getContentType();
-        }
-        if (updateRequest.upsertRequest() != null) {
-            XContentType upsertContentType = updateRequest.upsertRequest().getContentType();
-            if ((xContentType != null) && (xContentType != upsertContentType)) {
-                throw new IllegalStateException(
-                    "Update request cannot have different content types for doc ["
-                        + xContentType
-                        + "]"
-                        + " and upsert ["
-                        + upsertContentType
-                        + "] documents"
-                );
-            } else {
-                xContentType = upsertContentType;
-            }
-        }
-        if (xContentType == null) {
-            xContentType = Requests.INDEX_CONTENT_TYPE;
-        }
-        request.addParameters(parameters.asMap());
-        request.setEntity(createEntity(updateRequest, xContentType));
         return request;
     }
 
@@ -415,116 +271,6 @@ final class RequestConverters {
     static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_search/scroll");
         request.setEntity(createEntity(searchScrollRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, "/_msearch");
-
-        Params params = new Params();
-        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
-        if (multiSearchRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
-            params.putParam("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
-        }
-
-        XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
-        byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
-        request.addParameters(params.asMap());
-        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
-        return request;
-    }
-
-    static Request count(CountRequest countRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint(countRequest.indices(), countRequest.types(), "_count"));
-        Params params = new Params();
-        params.withRouting(countRequest.routing());
-        params.withPreference(countRequest.preference());
-        params.withIndicesOptions(countRequest.indicesOptions());
-        if (countRequest.terminateAfter() != 0) {
-            params.withTerminateAfter(countRequest.terminateAfter());
-        }
-        if (countRequest.minScore() != null) {
-            params.putParam("min_score", String.valueOf(countRequest.minScore()));
-        }
-        request.addParameters(params.asMap());
-        request.setEntity(createEntity(countRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request explain(ExplainRequest explainRequest) throws IOException {
-        String endpoint = endpoint(explainRequest.index(), "_explain", explainRequest.id());
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        Params params = new Params();
-        params.withStoredFields(explainRequest.storedFields());
-        params.withFetchSourceContext(explainRequest.fetchSourceContext());
-        params.withRouting(explainRequest.routing());
-        params.withPreference(explainRequest.preference());
-        request.addParameters(params.asMap());
-        request.setEntity(createEntity(explainRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) throws IOException {
-        String methodName = fieldCapabilitiesRequest.indexFilter() != null ? HttpPost.METHOD_NAME : HttpGet.METHOD_NAME;
-        Request request = new Request(methodName, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
-
-        Params params = new Params();
-        params.withFields(fieldCapabilitiesRequest.fields());
-        if (FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS.equals(fieldCapabilitiesRequest.indicesOptions()) == false) {
-            params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
-        }
-        request.addParameters(params.asMap());
-        if (fieldCapabilitiesRequest.indexFilter() != null) {
-            request.setEntity(createEntity(fieldCapabilitiesRequest, REQUEST_BODY_CONTENT_TYPE));
-        }
-        return request;
-    }
-
-    static Request reindex(ReindexRequest reindexRequest) throws IOException {
-        return prepareReindexRequest(reindexRequest, true);
-    }
-
-    private static Request prepareReindexRequest(ReindexRequest reindexRequest, boolean waitForCompletion) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params().withWaitForCompletion(waitForCompletion)
-            .withRefresh(reindexRequest.isRefresh())
-            .withTimeout(reindexRequest.getTimeout())
-            .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
-            .withRequestsPerSecond(reindexRequest.getRequestsPerSecond())
-            .withSlices(reindexRequest.getSlices())
-            .withRequireAlias(reindexRequest.getDestination().isRequireAlias());
-
-        if (reindexRequest.getScrollTime() != null) {
-            params.putParam("scroll", reindexRequest.getScrollTime());
-        }
-
-        request.addParameters(params.asMap());
-        request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request termVectors(TermVectorsRequest tvrequest) throws IOException {
-        String endpoint;
-        if (tvrequest.getType() != null) {
-            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId())
-                .addPathPartAsIs("_termvectors")
-                .build();
-        } else {
-            endpoint = new EndpointBuilder().addPathPart(tvrequest.getIndex())
-                .addPathPartAsIs("_termvectors")
-                .addPathPart(tvrequest.getId())
-                .build();
-        }
-
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        Params params = new Params();
-        params.withRouting(tvrequest.getRouting());
-        params.withPreference(tvrequest.getPreference());
-        params.withRealtime(tvrequest.getRealtime());
-        request.addParameters(params.asMap());
-        request.setEntity(createEntity(tvrequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -607,35 +353,6 @@ final class RequestConverters {
             return parameters;
         }
 
-        Params withDocAsUpsert(boolean docAsUpsert) {
-            if (docAsUpsert) {
-                return putParam("doc_as_upsert", Boolean.TRUE.toString());
-            }
-            return this;
-        }
-
-        Params withFetchSourceContext(FetchSourceContext fetchSourceContext) {
-            if (fetchSourceContext != null) {
-                if (fetchSourceContext.fetchSource() == false) {
-                    putParam("_source", Boolean.FALSE.toString());
-                }
-                if (CollectionUtils.isEmpty(fetchSourceContext.includes()) == false) {
-                    putParam("_source_includes", String.join(",", fetchSourceContext.includes()));
-                }
-                if (CollectionUtils.isEmpty(fetchSourceContext.excludes()) == false) {
-                    putParam("_source_excludes", String.join(",", fetchSourceContext.excludes()));
-                }
-            }
-            return this;
-        }
-
-        Params withFields(String[] fields) {
-            if (CollectionUtils.isEmpty(fields) == false) {
-                return putParam("fields", String.join(",", fields));
-            }
-            return this;
-        }
-
         Params withPipeline(String pipeline) {
             return putParam("pipeline", pipeline);
         }
@@ -664,20 +381,6 @@ final class RequestConverters {
             return putParam("allow_partial_search_results", Boolean.toString(allowPartialSearchResults));
         }
 
-        Params withRealtime(boolean realtime) {
-            if (realtime == false) {
-                return putParam("realtime", Boolean.FALSE.toString());
-            }
-            return this;
-        }
-
-        Params withRefresh(boolean refresh) {
-            if (refresh) {
-                return withRefreshPolicy(RefreshPolicy.IMMEDIATE);
-            }
-            return this;
-        }
-
         Params withRefreshPolicy(RefreshPolicy refreshPolicy) {
             if (refreshPolicy != RefreshPolicy.NONE) {
                 return putParam("refresh", refreshPolicy.getValue());
@@ -685,44 +388,8 @@ final class RequestConverters {
             return this;
         }
 
-        Params withRequestsPerSecond(float requestsPerSecond) {
-            // the default in AbstractBulkByScrollRequest is Float.POSITIVE_INFINITY,
-            // but we don't want to add that to the URL parameters, instead we use -1
-            if (Float.isFinite(requestsPerSecond)) {
-                return putParam(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, Float.toString(requestsPerSecond));
-            } else {
-                return putParam(RethrottleRequest.REQUEST_PER_SECOND_PARAMETER, "-1");
-            }
-        }
-
-        Params withRetryOnConflict(int retryOnConflict) {
-            if (retryOnConflict > 0) {
-                return putParam("retry_on_conflict", String.valueOf(retryOnConflict));
-            }
-            return this;
-        }
-
         Params withRouting(String routing) {
             return putParam("routing", routing);
-        }
-
-        Params withSlices(int slices) {
-            if (slices == 0) {
-                // translate to "auto" value in rest request so the receiving end doesn't throw error
-                return putParam("slices", AbstractBulkByScrollRequest.AUTO_SLICES_VALUE);
-            }
-            return putParam("slices", String.valueOf(slices));
-        }
-
-        Params withStoredFields(String[] storedFields) {
-            if (CollectionUtils.isEmpty(storedFields) == false) {
-                return putParam("stored_fields", String.join(",", storedFields));
-            }
-            return this;
-        }
-
-        Params withTerminateAfter(int terminateAfter) {
-            return putParam("terminate_after", String.valueOf(terminateAfter));
         }
 
         Params withTimeout(TimeValue timeout) {
@@ -802,10 +469,6 @@ final class RequestConverters {
             // Always explicitly place the ignore_unavailable value.
             putParam("ignore_unavailable", Boolean.toString(ignoreUnavailable));
             return this;
-        }
-
-        Params withWaitForCompletion(Boolean waitForCompletion) {
-            return putParam("wait_for_completion", waitForCompletion.toString());
         }
     }
 

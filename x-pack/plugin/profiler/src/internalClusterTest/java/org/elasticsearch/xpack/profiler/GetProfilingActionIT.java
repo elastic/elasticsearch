@@ -222,7 +222,13 @@ public class GetProfilingActionIT extends ESIntegTestCase {
             }
         }
         assertNotNull(profilingTask.get());
-        return taskToParent.get(profilingTask.get().taskId());
+        Set<TaskId> childTaskIds = taskToParent.get(profilingTask.get().taskId());
+        Set<TaskId> profilingTaskIds = new HashSet<>();
+        profilingTaskIds.add(profilingTask.get().taskId());
+        if (childTaskIds != null) {
+            profilingTaskIds.addAll(childTaskIds);
+        }
+        return profilingTaskIds;
     }
 
     private static void ensureTasksAreCancelled(Collection<TaskId> taskIds, Function<String, String> nodeIdToName) throws Exception {
@@ -231,8 +237,12 @@ public class GetProfilingActionIT extends ESIntegTestCase {
                 String nodeName = nodeIdToName.apply(taskId.getNodeId());
                 TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
                 Task task = taskManager.getTask(taskId.getId());
-                assertThat(task, instanceOf(CancellableTask.class));
-                assertTrue(((CancellableTask) task).isCancelled());
+                // as we capture the task hierarchy at the beginning but cancel in the middle of execution, some tasks have been
+                // unregistered already by the time we verify cancellation.
+                if (task != null) {
+                    assertThat(task, instanceOf(CancellableTask.class));
+                    assertTrue(((CancellableTask) task).isCancelled());
+                }
             }
         });
     }

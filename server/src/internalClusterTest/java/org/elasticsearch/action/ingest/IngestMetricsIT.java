@@ -19,9 +19,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestStats;
@@ -46,6 +48,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -124,6 +127,14 @@ public class IngestMetricsIT extends ESSingleNodeTestCase {
         BytesReference pipeline1Reference = new BytesArray(pipeline1);
         client().admin().cluster().putPipeline(new PutPipelineRequest("pipeline1", pipeline1Reference, XContentType.JSON)).actionGet();
 
+        client().admin()
+            .indices()
+            .preparePutTemplate("final_pipeline_template")
+            .setPatterns(Collections.singletonList("*"))
+            .setOrder(0)
+            .setSettings(Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "pipeline3"))
+            .get();
+
         BulkRequest bulkRequest = new BulkRequest();
         int numDocsToPipeline1 = randomIntBetween(1, 200);
         for (int i = 0; i < numDocsToPipeline1; i++) {
@@ -156,7 +167,7 @@ public class IngestMetricsIT extends ESSingleNodeTestCase {
         Map<String, Object> ingest = (Map<String, Object>) ingestStatsMap.get("ingest");
         Map<String, Object> total = (Map<String, Object>) ingest.get("total");
         int totalCount = (int) total.get("count");
-        assertThat(totalCount, equalTo(totalDocs));
+        assertThat(totalCount, equalTo(totalDocs * 2)); // because we have a final pipeline
         int totalTime = (int) total.get("time_in_millis");
         assertThat(totalTime, greaterThan(0));
         Map<String, Object> pipelines = (Map<String, Object>) ingest.get("pipelines");
@@ -171,7 +182,7 @@ public class IngestMetricsIT extends ESSingleNodeTestCase {
         assertThat(pipeline2Map.get("count"), equalTo(numDocsToPipeline2));
         int pipeline2Time = (int) pipeline2Map.get("time_in_millis");
         Map<String, Object> pipeline3Map = (Map<String, Object>) pipelines.get("pipeline3");
-        assertThat(pipeline3Map.get("count"), equalTo(0));
+        assertThat(pipeline3Map.get("count"), equalTo(numDocsToPipeline1 + numDocsToPipeline2)); // because it's the final pipeline
         int pipeline3Time = (int) pipeline3Map.get("time_in_millis");
         assertThat(pipeline1Time + pipeline2Time + pipeline3Time, lessThanOrEqualTo(totalTime));
     }

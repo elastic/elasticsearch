@@ -119,6 +119,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-java-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin'
     }
+    newJavaRestTest {
+      id = 'elasticsearch.new-java-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.NewJavaRestTestPlugin'
+    }
     jdkDownload {
       id = 'elasticsearch.jdk-download'
       implementationClass = 'org.elasticsearch.gradle.internal.JdkDownloadPlugin'
@@ -171,9 +175,17 @@ gradlePlugin {
       id = 'elasticsearch.yaml-rest-compat-test'
       implementationClass = 'org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin'
     }
+    newYamlRestCompatTest {
+      id = 'elasticsearch.new-yaml-rest-compat-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.rest.compat.NewYamlRestCompatTestPlugin'
+    }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
+    }
+    newYamlRestTest {
+      id = 'elasticsearch.new-yaml-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.NewYamlRestTestPlugin'
     }
   }
 }

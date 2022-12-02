@@ -21,7 +21,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -690,7 +689,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("ef_construction", efConstruction);
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, randomFrom(IndexMode.values()));
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, mapperService.getIndexSettings());
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");

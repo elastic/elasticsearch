@@ -267,7 +267,7 @@ public class FollowingEngineTests extends ESTestCase {
             newMergePolicy(),
             indexWriterConfig.getAnalyzer(),
             indexWriterConfig.getSimilarity(),
-            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, randomFrom(IndexMode.values())),
+            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, indexSettings),
             new Engine.EventListener() {
                 @Override
                 public void onFailedEngine(String reason, Exception e) {

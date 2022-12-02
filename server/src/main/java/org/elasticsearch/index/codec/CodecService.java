@@ -39,11 +39,8 @@ public class CodecService {
             codecs.put(DEFAULT_CODEC, new Lucene94Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene94Codec(Lucene94Codec.Mode.BEST_COMPRESSION));
         } else {
-            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Lucene94Codec.Mode.BEST_SPEED, mapperService, bigArrays, indexSettings));
-            codecs.put(
-                BEST_COMPRESSION_CODEC,
-                new PerFieldMapperCodec(Lucene94Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays, indexSettings)
-            );
+            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Lucene94Codec.Mode.BEST_SPEED, mapperService, bigArrays));
+            codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMapperCodec(Lucene94Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays));
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {

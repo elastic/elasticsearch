@@ -42,16 +42,14 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final ES85BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
-    private final IndexSettings indexSettings;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
             : "PerFieldMapperCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays, IndexSettings indexSettings) {
+    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
         super(compressionMode);
-        this.indexSettings = indexSettings;
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES85BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
@@ -104,7 +102,7 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean isES97OrAbove() {
-        return indexSettings.getIndexMetadata().getCreationVersion().onOrAfter(Version.V_8_7_0);
+        return mapperService.getIndexSettings().getIndexMetadata().getCreationVersion().onOrAfter(Version.V_8_7_0);
     }
 
     private boolean isTimeSeriesCounter(String field) {
@@ -117,6 +115,6 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean isTimeSeriesModeIndex() {
-        return IndexMode.TIME_SERIES.equals(indexSettings.getMode());
+        return IndexMode.TIME_SERIES.equals(mapperService.getIndexSettings().getMode());
     }
 }

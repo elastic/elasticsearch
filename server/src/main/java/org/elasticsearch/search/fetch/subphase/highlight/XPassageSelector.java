@@ -68,7 +68,7 @@ public class XPassageSelector {
         this.passageScorer = passageScorer;
         this.passageAdjuster = passageAdjuster;
         // https://github.com/apache/lucene/pull/11990
-        assert org.apache.lucene.util.Version.fromBits(9, 5, 0).onOrAfter(Version.CURRENT.luceneVersion) == false;
+        assert Version.CURRENT.luceneVersion.onOrAfter(org.apache.lucene.util.Version.fromBits(9, 5, 0)) == false;
     }
 
     public List<Passage> pickBest(CharSequence value, List<? extends OffsetRange> markers, int maxPassageWindow, int maxPassages) {

@@ -89,7 +89,7 @@ public class HighlightFieldTests extends ESTestCase {
         builder.endObject();
         assertEquals("""
             {
-              "foo" : null
+              "foo" : [ ]
             }""", Strings.toString(builder));
     }
 

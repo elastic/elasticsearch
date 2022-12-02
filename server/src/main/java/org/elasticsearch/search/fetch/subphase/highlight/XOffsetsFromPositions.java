@@ -41,7 +41,7 @@ public final class XOffsetsFromPositions implements OffsetsRetrievalStrategy {
         this.field = field;
         this.analyzer = analyzer;
         // https://github.com/apache/lucene/pull/11983
-        assert org.apache.lucene.util.Version.fromBits(9, 5, 0).onOrAfter(Version.CURRENT.luceneVersion) == false;
+        assert Version.CURRENT.luceneVersion.onOrAfter(org.apache.lucene.util.Version.fromBits(9, 5, 0)) == false;
     }
 
     @Override

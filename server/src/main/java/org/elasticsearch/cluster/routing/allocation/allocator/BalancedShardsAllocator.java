@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
@@ -159,6 +160,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.balance();
+
+        balancer.debugWeights();
     }
 
     @Override
@@ -1217,6 +1220,81 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
             logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
             return false;
+        }
+
+        public void debugWeights() {
+            var nodeSummary = new StringBuilder();
+            var indexSummary = new StringBuilder();
+
+            for (var node : nodes.entrySet()) {
+                indexSummary.append(System.lineSeparator()).append(node.getKey()).append(":").append(System.lineSeparator());
+                float weightIndexNode = 0.0f;
+                float weightShardNode = 0.0f;
+                float ingestLoadNode = 0.0f;
+                float diskUsageNode = 0.0f;
+                double actualIngestLoadNode = 0.0;
+                long actualDiskUsageNode = 0;
+                int actualShardsNode = 0;
+
+                for (var index : node.getValue().indices.entrySet()) {
+                    for (var shard : index.getValue().shards) {
+
+                        final float weightIndex = node.getValue().numShards(index.getKey()) - avgShardsPerNode(index.getKey()) * weight.theta1;
+                        final float weightShard = (node.getValue().numShards() - avgShardsPerNode) * weight.theta0;
+                        final float ingestLoad = (float) (node.getValue().writeLoad() - avgWriteLoadPerNode) * weight.theta2;
+                        final float diskUsage = (float) (node.getValue().diskUsageInBytes() - avgDiskUsageInBytesPerNode) * weight.theta3;
+
+                        float indexResult = weightShard + weightIndex + ingestLoad + diskUsage;
+
+                        final double actualIngestLoad = metadata.index(index.getKey()).getForecastedWriteLoad().orElse(0.0);
+                        final long actualDiskUsage = metadata.index(index.getKey()).getForecastedShardSizeInBytes().orElse(0);
+
+                        weightIndexNode += weightIndex;
+                        weightShardNode += weightShard;
+                        ingestLoadNode += ingestLoad;
+                        diskUsageNode += diskUsage;
+
+                        actualIngestLoadNode += actualIngestLoad;
+                        actualDiskUsageNode += actualDiskUsage;
+                        actualShardsNode++;
+
+                        indexSummary.append(shard.shardId())
+                            .append(" ").append(indexResult)
+                            .append(" ").append(weightIndex)
+                            .append(" ").append(weightShard)
+                            .append(" ").append(ingestLoad)
+                            .append(" ").append(diskUsage)
+                            .append(" x")
+                            .append(" ").append(actualIngestLoad)
+                            .append(" ").append(ByteSizeValue.ofBytes(actualDiskUsage))
+                            .append(System.lineSeparator());
+                    }
+                }
+                float nodeResult = weightShardNode + weightIndexNode + ingestLoadNode + diskUsageNode;
+
+                indexSummary.append("          ").append(node.getKey())
+                    .append(" ").append(nodeResult)
+                    .append(" ").append(weightIndexNode)
+                    .append(" ").append(weightShardNode)
+                    .append(" ").append(ingestLoadNode)
+                    .append(" ").append(diskUsageNode)
+                    .append(" ").append(actualShardsNode)
+                    .append(" ").append(actualIngestLoadNode)
+                    .append(" ").append(ByteSizeValue.ofBytes(actualDiskUsageNode))
+                    .append(System.lineSeparator());
+
+                nodeSummary.append(node.getKey())
+                    .append(" ").append(nodeResult)
+                    .append(" ").append(weightIndexNode)
+                    .append(" ").append(weightShardNode)
+                    .append(" ").append(ingestLoadNode)
+                    .append(" ").append(diskUsageNode)
+                    .append("  ").append(actualShardsNode)
+                    .append(" ").append(actualIngestLoadNode)
+                    .append(" ").append(ByteSizeValue.ofBytes(actualDiskUsageNode))
+                    .append(System.lineSeparator());
+            }
+            logger.info("-->\n{}\n{}", indexSummary.toString(), nodeSummary.toString());
         }
     }
 

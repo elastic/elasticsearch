@@ -175,7 +175,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             )
         ) {
             transport.start();
@@ -224,7 +226,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 new NullDispatcher(),
                 clusterSettings,
                 new SharedGroupFactory(Settings.EMPTY),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             )
         ) {
             transport.start();
@@ -242,7 +246,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     new NullDispatcher(),
                     clusterSettings,
                     new SharedGroupFactory(settings),
-                    Tracer.NOOP
+                    Tracer.NOOP,
+                    TLSConfig.noTLS(),
+                    null
                 )
             ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
@@ -294,7 +300,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             )
         ) {
             transport.start();
@@ -362,7 +370,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(Settings.EMPTY),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             ) {
                 @Override
                 public ChannelHandler configureServerChannelHandler() {
@@ -459,7 +469,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             )
         ) {
             transport.start();
@@ -529,7 +541,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             )
         ) {
             transport.start();
@@ -599,7 +613,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
-                Tracer.NOOP
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null
             )
         ) {
             transport.start();

@@ -8,10 +8,14 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -26,11 +30,15 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.BeforeClass;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -38,6 +46,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
@@ -63,9 +72,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testSingleFieldExtractor() {
+        // using a function (round()) here and following tests to prevent the optimizer from pushing the
+        // filter down to the source and thus change the shape of the expected physical tree.
         var plan = physicalPlan("""
             from test
-            | where emp_no > 10
+            | where round(emp_no) > 10
             """);
 
         var optimized = fieldExtractorRule(plan);
@@ -85,7 +96,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testExactlyOneExtractorPerFieldWithPruning() {
         var plan = physicalPlan("""
             from test
-            | where emp_no > 10
+            | where round(emp_no) > 10
             | eval c = emp_no
             """);
 
@@ -110,7 +121,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plan = physicalPlan("""
             from test
             | limit 10
-            | where emp_no > 10
+            | where round(emp_no) > 10
             | eval c = first_name
             | stats x = avg(c)
             """);
@@ -137,7 +148,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plan = physicalPlan("""
             from test
             | limit 10
-            | where emp_no > 10
+            | where round(emp_no) > 10
             | eval c = first_name
             | stats x = avg(salary)
             """);
@@ -169,7 +180,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             from test
             | sort languages
             | limit 10
-            | where emp_no > 10
+            | where round(emp_no) > 10
             | eval c = first_name
             | stats x = avg(salary)
             """);
@@ -274,6 +285,189 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
+    }
+
+    public void testPushAndInequalitiesFilter() {
+        var plan = physicalPlan("""
+            from test
+            | where emp_no + 1 > 0
+            | where languages < 10
+            """);
+
+        var optimized = fieldExtractorRule(plan);
+        var exchange = as(optimized, ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = as(fieldExtract.child(), EsQueryExec.class);
+
+        QueryBuilder query = source.query();
+        assertTrue(query instanceof BoolQueryBuilder);
+        List<QueryBuilder> mustClauses = ((BoolQueryBuilder) query).must();
+        assertEquals(2, mustClauses.size());
+        assertTrue(mustClauses.get(0) instanceof RangeQueryBuilder);
+        assertThat(mustClauses.get(0).toString(), containsString("""
+                "emp_no" : {
+                  "gt" : -1,
+            """));
+        assertTrue(mustClauses.get(1) instanceof RangeQueryBuilder);
+        assertThat(mustClauses.get(1).toString(), containsString("""
+                "languages" : {
+                  "lt" : 10,
+            """));
+    }
+
+    public void testOnlyPushTranslatableConditionsInFilter() {
+        var plan = physicalPlan("""
+            from test
+            | where round(emp_no) + 1 > 0
+            | where languages < 10
+            """);
+
+        var optimized = fieldExtractorRule(plan);
+        var exchange = as(optimized, ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var filter = as(extractRest.child(), FilterExec.class);
+        var extract = as(filter.child(), FieldExtractExec.class);
+        var source = as(extract.child(), EsQueryExec.class);
+
+        assertTrue(filter.condition() instanceof GreaterThan);
+        assertTrue(((GreaterThan) filter.condition()).left() instanceof Round);
+
+        QueryBuilder query = source.query();
+        assertTrue(query instanceof RangeQueryBuilder);
+        assertEquals(10, ((RangeQueryBuilder) query).to());
+    }
+
+    public void testNoPushDownNonFoldableInComparisonFilter() {
+        var plan = physicalPlan("""
+            from test
+            | where emp_no > languages
+            """);
+
+        var optimized = fieldExtractorRule(plan);
+        var exchange = as(optimized, ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var filter = as(extractRest.child(), FilterExec.class);
+        var extract = as(filter.child(), FieldExtractExec.class);
+        var source = as(extract.child(), EsQueryExec.class);
+
+        assertThat(Expressions.names(filter.condition().collect(x -> x instanceof FieldAttribute)), contains("emp_no", "languages"));
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no", "languages"));
+        assertNull(source.query());
+    }
+
+    public void testNoPushDownNonFieldAttributeInComparisonFilter() {
+        var plan = physicalPlan("""
+            from test
+            | where round(emp_no) > 0
+            """);
+
+        var optimized = fieldExtractorRule(plan);
+        var exchange = as(optimized, ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var filter = as(extractRest.child(), FilterExec.class);
+        var extract = as(filter.child(), FieldExtractExec.class);
+        var source = as(extract.child(), EsQueryExec.class);
+
+        assertTrue(filter.condition() instanceof BinaryComparison);
+        assertTrue(((BinaryComparison) filter.condition()).left() instanceof Round);
+        assertNull(source.query());
+    }
+
+    public void testCombineUserAndPhysicalFilters() {
+        var plan = physicalPlan("""
+            from test
+            | where languages < 10
+            """);
+        var userFilter = new RangeQueryBuilder("emp_no").gt(-1);
+        plan = plan.transformUp(EsQueryExec.class, node -> new EsQueryExec(node.source(), node.index(), userFilter));
+
+        var optimized = fieldExtractorRule(plan);
+        var exchange = as(optimized, ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = as(fieldExtract.child(), EsQueryExec.class);
+
+        QueryBuilder query = source.query();
+        assertTrue(query instanceof BoolQueryBuilder);
+        List<QueryBuilder> mustClauses = ((BoolQueryBuilder) query).must();
+        assertEquals(2, mustClauses.size());
+        assertTrue(mustClauses.get(0) instanceof RangeQueryBuilder);
+        assertThat(mustClauses.get(0).toString(), containsString("""
+                "emp_no" : {
+                  "gt" : -1,
+            """));
+        assertTrue(mustClauses.get(1) instanceof RangeQueryBuilder);
+        assertThat(mustClauses.get(1).toString(), containsString("""
+                "languages" : {
+                  "lt" : 10,
+            """));
+    }
+
+    public void testPushBinaryLogicFilters() {
+        var plan = physicalPlan("""
+            from test
+            | where emp_no + 1 > 0 or languages < 10
+            """);
+
+        var optimized = fieldExtractorRule(plan);
+        var exchange = as(optimized, ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = as(fieldExtract.child(), EsQueryExec.class);
+
+        QueryBuilder query = source.query();
+        assertTrue(query instanceof BoolQueryBuilder);
+        List<QueryBuilder> shouldClauses = ((BoolQueryBuilder) query).should();
+        assertEquals(2, shouldClauses.size());
+        assertTrue(shouldClauses.get(0) instanceof RangeQueryBuilder);
+        assertThat(shouldClauses.get(0).toString(), containsString("""
+                "emp_no" : {
+                  "gt" : -1,
+            """));
+        assertTrue(shouldClauses.get(1) instanceof RangeQueryBuilder);
+        assertThat(shouldClauses.get(1).toString(), containsString("""
+                "languages" : {
+                  "lt" : 10,
+            """));
+    }
+
+    public void testPushMultipleBinaryLogicFilters() {
+        var plan = physicalPlan("""
+            from test
+            | where emp_no + 1 > 0 or languages < 10
+            | where salary <= 10000 or salary >= 50000
+            """);
+
+        var optimized = fieldExtractorRule(plan);
+        var exchange = as(optimized, ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = as(fieldExtract.child(), EsQueryExec.class);
+
+        QueryBuilder query = source.query();
+        assertTrue(query instanceof BoolQueryBuilder);
+        List<QueryBuilder> mustClauses = ((BoolQueryBuilder) query).must();
+        assertEquals(2, mustClauses.size());
+
+        assertTrue(mustClauses.get(0) instanceof BoolQueryBuilder);
+        assertThat(mustClauses.get(0).toString(), containsString("""
+            "emp_no" : {
+                        "gt" : -1"""));
+        assertThat(mustClauses.get(0).toString(), containsString("""
+            "languages" : {
+                        "lt" : 10"""));
+
+        assertTrue(mustClauses.get(1) instanceof BoolQueryBuilder);
+        assertThat(mustClauses.get(1).toString(), containsString("""
+            "salary" : {
+                        "lte" : 10000"""));
+        assertThat(mustClauses.get(1).toString(), containsString("""
+            "salary" : {
+                        "gte" : 50000"""));
     }
 
     private static PhysicalPlan fieldExtractorRule(PhysicalPlan plan) {

@@ -104,6 +104,12 @@ public class EsQueryExec extends LeafExec {
 
     @Override
     public String nodeString() {
-        return nodeName() + "[" + index + "], query[" + Strings.toString(query, false, true) + "]" + NodeUtils.limitedToString(attrs);
+        return nodeName()
+            + "["
+            + index
+            + "], query["
+            + (query != null ? Strings.toString(query, false, true) : "")
+            + "]"
+            + NodeUtils.limitedToString(attrs);
     }
 }

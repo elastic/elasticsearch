@@ -56,6 +56,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -284,6 +285,39 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final float ingestLoad = (float) (node.writeLoad() - balancer.avgWriteLoadPerNode());
             final float diskUsage = (float) (node.diskUsageInBytes() - balancer.avgDiskUsageInBytesPerNode());
             return theta0 * weightShard + theta1 * weightIndex + theta2 * ingestLoad + theta3 * diskUsage;
+        }
+
+        float weight2(Balancer balancer, ModelNode node, String index) {
+            final float weightShard = node.numShards() - balancer.avgShardsPerNode();
+            final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
+            final float ingestLoad = (float) (node.writeLoad() - balancer.avgWriteLoadPerNode());
+            final float diskUsage = (float) (node.diskUsageInBytes() - balancer.avgDiskUsageInBytesPerNode());
+            return theta0 * weightShard * weightShard //
+                + theta1 * weightIndex * weightIndex //
+                + theta2 * ingestLoad * ingestLoad //
+                + theta3 * diskUsage * diskUsage;
+        }
+
+        float weight2WithAdded(Balancer balancer, ModelNode node, String index, IndexMetadata extra) {
+            final float weightShard = node.numShards() + 1 - balancer.avgShardsPerNode();
+            final float weightIndex = node.numShards(index) + 1 - balancer.avgShardsPerNode(index);
+            final float ingestLoad = (float) (node.writeLoad() + extra.getForecastedWriteLoad().orElse(0.0) - balancer.avgWriteLoadPerNode());
+            final float diskUsage = (float) (node.diskUsageInBytes() + extra.getForecastedShardSizeInBytes().orElse(0) - balancer.avgDiskUsageInBytesPerNode());
+            return theta0 * weightShard * weightShard //
+                + theta1 * weightIndex * weightIndex //
+                + theta2 * ingestLoad * ingestLoad //
+                + theta3 * diskUsage * diskUsage;
+        }
+
+        float weight2WithRemoved(Balancer balancer, ModelNode node, String index, IndexMetadata extra) {
+            final float weightShard = node.numShards() - 1 - balancer.avgShardsPerNode();
+            final float weightIndex = node.numShards(index) - 1 - balancer.avgShardsPerNode(index);
+            final float ingestLoad = (float) (node.writeLoad() - extra.getForecastedWriteLoad().orElse(0.0) - balancer.avgWriteLoadPerNode());
+            final float diskUsage = (float) (node.diskUsageInBytes() - extra.getForecastedShardSizeInBytes().orElse(0) - balancer.avgDiskUsageInBytesPerNode());
+            return theta0 * weightShard * weightShard //
+                + theta1 * weightIndex * weightIndex //
+                + theta2 * ingestLoad * ingestLoad //
+                + theta3 * diskUsage * diskUsage;
         }
 
         float minWeightDelta(Balancer balancer, String index) {
@@ -705,7 +739,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 maxNode.getNodeId(),
                                 minNode.getNodeId()
                             );
-                        } else if (tryRelocateShard(minNode, maxNode, index)) {
+                        } else if (tryRelocateShard(minNode, maxNode, index, false)) {
                             /*
                              * TODO we could be a bit smarter here, we don't need to fully sort necessarily
                              * we could just find the place to insert linearly but the win might be minor
@@ -735,6 +769,81 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         /* we are done here, we either can't relocate anymore or we are balanced */
                         break;
                     }
+                }
+            }
+        }
+
+        private record NodeAndWeight(ModelNode node, double weight) {
+
+            private NodeAndWeight withRecomputedWeight(ToDoubleFunction<ModelNode> weightComputer) {
+                return new NodeAndWeight(node, weightComputer.applyAsDouble(node));
+            }
+        }
+        private record PossibleRebalance(NodeAndWeight from, NodeAndWeight to, double improvement) {}
+
+        private static final Comparator<PossibleRebalance> POSSIBLE_REBALANCE_COMPARATOR = Comparator
+            .comparing(PossibleRebalance::improvement).reversed();
+
+        private void balanceByWeights2() {
+            final AllocationDeciders deciders = allocation.deciders();
+            final ModelNode[] modelNodes = sorter.modelNodes;
+
+            // TODO range indexes by weights
+            String[] indices = allocation.metadata().indices().keySet().toArray(String[]::new);
+            final List<NodeAndWeight> relevantNodes = new ArrayList<>(modelNodes.length);
+            final List<PossibleRebalance> rebalanceCandidates = new ArrayList<>();
+
+            for (String index : indices) {
+                //find relevant nodes
+                IndexMetadata indexMetadata = metadata.index(index);
+                relevantNodes.clear();
+                for (ModelNode modelNode : modelNodes) {
+                    if (modelNode.getIndex(index) != null ||
+                        deciders.canAllocate(indexMetadata, modelNode.getRoutingNode(), allocation).type() != Type.NO) {
+                        relevantNodes.add(new NodeAndWeight(modelNode, sorter.function.weight2(this, modelNode, index)));
+                    }
+                }
+
+                // TODO better decision on when to stop
+                for (int attempt = 0; attempt < 10; attempt++) {
+                    // find best pairs
+                    rebalanceCandidates.clear();
+                    // TODO optimize comparisons
+                    for (int i = 0; i < relevantNodes.size(); i++) {
+                        for (int j = 0; j < relevantNodes.size(); j++) {
+                            if (i != j) {
+                                var from = relevantNodes.get(i);
+                                var to = relevantNodes.get(j);
+                                var canMove = tryRelocateShard(to.node, from.node, index, true);
+                                if (canMove) {
+                                    var before = from.weight + to.weight;
+                                    var after = sorter.function.weight2WithRemoved(this, from.node, index, indexMetadata) //
+                                        + sorter.function.weight2WithAdded(this, to.node, index, indexMetadata);
+
+                                    if ((before - after) / before > 0.20) {
+                                        rebalanceCandidates.add(new PossibleRebalance(from, to, before - after));
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (rebalanceCandidates.isEmpty()) {
+                        break;
+                    }
+
+                    // rebalance
+                    var actualRebalance = rebalanceCandidates.stream().max(POSSIBLE_REBALANCE_COMPARATOR).get();
+//                    logger.info("Rebalancing {} from {} to {}, {}, ({} candidates)",
+//                        index, actualRebalance.from.getNodeId(), actualRebalance.to.getNodeId(),
+//                        actualRebalance.improvement, rebalanceCandidates.size());
+                    assert tryRelocateShard(actualRebalance.to.node, actualRebalance.from.node, index, false);
+
+                    // rebuild affected weights
+                    relevantNodes.remove(actualRebalance.to);
+                    relevantNodes.add(actualRebalance.to.withRecomputedWeight(node -> sorter.function.weight(this, node, index)));
+                    relevantNodes.remove(actualRebalance.from);
+                    relevantNodes.add(actualRebalance.from.withRecomputedWeight(node -> sorter.function.weight2(this, node, index)));
                 }
             }
         }
@@ -1175,7 +1284,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * balance model. Iff this method returns a <code>true</code> the relocation has already been executed on the
          * simulation model as well as on the cluster.
          */
-        private boolean tryRelocateShard(ModelNode minNode, ModelNode maxNode, String idx) {
+        private boolean tryRelocateShard(ModelNode minNode, ModelNode maxNode, String idx, boolean simulate) {
             final ModelIndex index = maxNode.getIndex(idx);
             if (index != null) {
                 logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
@@ -1198,7 +1307,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                     final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
 
-                    maxNode.removeShard(shard);
+                    if (simulate == false) {
+                        maxNode.removeShard(shard);
+                    }
                     long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
                     assert decision.type() == Type.YES || decision.type() == Type.THROTTLE : decision.type();
@@ -1209,12 +1320,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         maxNode.getNodeId(),
                         minNode.getNodeId()
                     );
-                    minNode.addShard(
-                        decision.type() == Type.YES
-                            /* only allocate on the cluster if we are not throttled */
-                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1()
-                            : shard.relocate(minNode.getNodeId(), shardSize)
-                    );
+                    if (simulate == false) {
+                        minNode.addShard(
+                            decision.type() == Type.YES
+                                /* only allocate on the cluster if we are not throttled */
+                                ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1()
+                                : shard.relocate(minNode.getNodeId(), shardSize)
+                        );
+                    }
                     return true;
                 }
             }

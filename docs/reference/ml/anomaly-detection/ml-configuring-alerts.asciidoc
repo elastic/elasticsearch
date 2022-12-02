@@ -53,7 +53,7 @@ them from the {anomaly-job} wizard after you start the job or from the
 [[creating-anomaly-alert-rules]]
 === {anomaly-detect-cap} alert
 
-When you create an {anomaly-detect-cap} alert rule, you must select the job that
+When you create an {anomaly-detect} alert rule, you must select the job that
 the rule applies to.
 
 You must also select a type of {ml} result. In particular, you can create rules

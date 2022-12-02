@@ -12,7 +12,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.HashMap;
@@ -33,7 +32,7 @@ public class CodecService {
     /** the raw unfiltered lucene default. useful for testing */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
-    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, IndexSettings indexSettings) {
+    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays) {
         final var codecs = new HashMap<String, Codec>();
         if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene94Codec());

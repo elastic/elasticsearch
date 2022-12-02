@@ -386,7 +386,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, config.getIndexSettings()),
+            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),

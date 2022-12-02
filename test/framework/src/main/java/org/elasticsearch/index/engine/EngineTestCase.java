@@ -1621,6 +1621,6 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     static CodecService newCodecService(IndexSettings indexSettings) {
-        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, indexSettings);
+        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
     }
 }

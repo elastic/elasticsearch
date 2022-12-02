@@ -162,7 +162,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         balancer.moveShards();
         balancer.balance();
 
-        balancer.debugWeights();
+//        balancer.debugWeights();
     }
 
     @Override

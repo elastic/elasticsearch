@@ -13,7 +13,6 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class RollupShardStatusSerializingTests extends AbstractXContentSerializingTestCase<RollupShardStatus> {
     @Override
@@ -31,10 +30,10 @@ public class RollupShardStatusSerializingTests extends AbstractXContentSerializi
         RollupShardStatus rollupShardStatus = new RollupShardStatus(
             new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt(5)),
             randomMillisUpToYear9999(),
-            new AtomicLong(randomNonNegativeLong()),
-            new AtomicLong(randomNonNegativeLong()),
-            new AtomicLong(randomNonNegativeLong()),
-            new AtomicLong(randomNonNegativeLong())
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
         return rollupShardStatus;
     }

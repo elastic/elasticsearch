@@ -200,7 +200,7 @@ public abstract class TransportBroadcastAction<
             }
         }
 
-        protected void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, int shardIndex, Exception e) {
+        void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, int shardIndex, Exception e) {
             // we set the shard failure always, even if its the first in the replication group, and the next one
             // will work (it will just override it...)
             setFailure(shardIt, shardIndex, e);

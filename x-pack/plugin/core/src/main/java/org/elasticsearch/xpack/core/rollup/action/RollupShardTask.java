@@ -53,7 +53,7 @@ public class RollupShardTask extends CancellableTask {
 
     @Override
     public Status getStatus() {
-        return new RollupShardStatus(shardId, rollupStartTime, numReceived, numSent, numIndexed, numFailed);
+        return new RollupShardStatus(shardId, rollupStartTime, numReceived.get(), numSent.get(), numIndexed.get(), numFailed.get());
     }
 
     public long getNumReceived() {

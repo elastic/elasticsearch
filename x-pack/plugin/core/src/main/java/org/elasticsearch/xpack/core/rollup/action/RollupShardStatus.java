@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -35,10 +34,10 @@ public class RollupShardStatus implements Task.Status {
 
     private final ShardId shardId;
     private final long rollupStart;
-    private final AtomicLong numReceived;
-    private final AtomicLong numSent;
-    private final AtomicLong numIndexed;
-    private final AtomicLong numFailed;
+    private final long numReceived;
+    private final long numSent;
+    private final long numIndexed;
+    private final long numFailed;
 
     private static final ConstructingObjectParser<RollupShardStatus, Void> PARSER;
     static {
@@ -46,11 +45,11 @@ public class RollupShardStatus implements Task.Status {
             NAME,
             args -> new RollupShardStatus(
                 ShardId.fromString((String) args[0]),
-                Instant.parse((String) args[2]).toEpochMilli(),
-                new AtomicLong((Long) args[3]),
-                new AtomicLong((Long) args[4]),
-                new AtomicLong((Long) args[5]),
-                new AtomicLong((Long) args[6])
+                Instant.parse((String) args[1]).toEpochMilli(),
+                (Long) args[2],
+                (Long) args[3],
+                (Long) args[4],
+                (Long) args[5]
             )
         );
 
@@ -65,20 +64,13 @@ public class RollupShardStatus implements Task.Status {
     public RollupShardStatus(StreamInput in) throws IOException {
         shardId = new ShardId(in);
         rollupStart = in.readLong();
-        numReceived = new AtomicLong(in.readLong());
-        numSent = new AtomicLong(in.readLong());
-        numIndexed = new AtomicLong(in.readLong());
-        numFailed = new AtomicLong(in.readLong());
+        numReceived = in.readLong();
+        numSent = in.readLong();
+        numIndexed = in.readLong();
+        numFailed = in.readLong();
     }
 
-    public RollupShardStatus(
-        ShardId shardId,
-        long rollupStart,
-        AtomicLong numReceived,
-        AtomicLong numSent,
-        AtomicLong numIndexed,
-        AtomicLong numFailed
-    ) {
+    public RollupShardStatus(ShardId shardId, long rollupStart, long numReceived, long numSent, long numIndexed, long numFailed) {
         this.shardId = shardId;
         this.rollupStart = rollupStart;
         this.numReceived = numReceived;
@@ -96,10 +88,10 @@ public class RollupShardStatus implements Task.Status {
         builder.startObject();
         builder.field(SHARD_FIELD.getPreferredName(), shardId);
         builder.field(START_TIME_FIELD.getPreferredName(), Instant.ofEpochMilli(rollupStart).toString());
-        builder.field(IN_NUM_DOCS_RECEIVED_FIELD.getPreferredName(), numReceived.get());
-        builder.field(OUT_NUM_DOCS_SENT_FIELD.getPreferredName(), numSent.get());
-        builder.field(OUT_NUM_DOCS_INDEXED_FIELD.getPreferredName(), numIndexed.get());
-        builder.field(OUT_NUM_DOCS_FAILED_FIELD.getPreferredName(), numFailed.get());
+        builder.field(IN_NUM_DOCS_RECEIVED_FIELD.getPreferredName(), numReceived);
+        builder.field(OUT_NUM_DOCS_SENT_FIELD.getPreferredName(), numSent);
+        builder.field(OUT_NUM_DOCS_INDEXED_FIELD.getPreferredName(), numIndexed);
+        builder.field(OUT_NUM_DOCS_FAILED_FIELD.getPreferredName(), numFailed);
         builder.endObject();
         return builder;
     }
@@ -113,10 +105,10 @@ public class RollupShardStatus implements Task.Status {
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
         out.writeLong(rollupStart);
-        out.writeLong(numReceived.get());
-        out.writeLong(numSent.get());
-        out.writeLong(numIndexed.get());
-        out.writeLong(numFailed.get());
+        out.writeLong(numReceived);
+        out.writeLong(numSent);
+        out.writeLong(numIndexed);
+        out.writeLong(numFailed);
     }
 
     @Override
@@ -131,23 +123,15 @@ public class RollupShardStatus implements Task.Status {
         return rollupStart == that.rollupStart
             && Objects.equals(shardId.getIndexName(), that.shardId.getIndexName())
             && Objects.equals(shardId.id(), that.shardId.id())
-            && Objects.equals(numReceived.get(), that.numReceived.get())
-            && Objects.equals(numSent.get(), that.numSent.get())
-            && Objects.equals(numIndexed.get(), that.numIndexed.get())
-            && Objects.equals(numFailed.get(), that.numFailed.get());
+            && Objects.equals(numReceived, that.numReceived)
+            && Objects.equals(numSent, that.numSent)
+            && Objects.equals(numIndexed, that.numIndexed)
+            && Objects.equals(numFailed, that.numFailed);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            shardId.getIndexName(),
-            shardId.id(),
-            rollupStart,
-            numReceived.get(),
-            numSent.get(),
-            numIndexed.get(),
-            numFailed.get()
-        );
+        return Objects.hash(shardId.getIndexName(), shardId.id(), rollupStart, numReceived, numSent, numIndexed, numFailed);
     }
 
     @Override

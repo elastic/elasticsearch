@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.downsample;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.client.internal.Client;
@@ -19,17 +18,14 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
@@ -37,7 +33,6 @@ import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
@@ -177,12 +172,9 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     private class Async extends AsyncBroadcastAction {
         private final RollupIndexerAction.Request request;
         private final ActionListener<RollupIndexerAction.Response> listener;
-        private final Task task;
-        private volatile boolean hasCancelledOtherShardOperations = false;
 
         protected Async(Task task, RollupIndexerAction.Request request, ActionListener<RollupIndexerAction.Response> listener) {
             super(task, request, listener);
-            this.task = task;
             this.request = request;
             this.listener = listener;
         }
@@ -194,43 +186,6 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
                 listener.onResponse(resp);
             } catch (Exception e) {
                 listener.onFailure(e);
-            }
-        }
-
-        @Override
-        protected void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, int shardIndex, Exception e) {
-            // when this shard operation failed, cancel other shard operations
-            cancelOtherShardIndexers();
-            // to avoid retry, set the shardIt to the last shard
-            super.onOperation(shard, new PlainShardIterator(shard.shardId(), Collections.emptyList()), shardIndex, e);
-        }
-
-        private void cancelOtherShardIndexers() {
-            if (false == hasCancelledOtherShardOperations) {
-                client.admin()
-                    .cluster()
-                    .cancelTasks(
-                        new CancelTasksRequest().setTargetParentTaskId(new TaskId(clusterService.localNode().getId(), task.getId())),
-                        ActionListener.wrap(r -> {
-                            if (r.getNodeFailures().size() > 0 || r.getTaskFailures().size() > 0) {
-                                logger.info(
-                                    "[{}] rollup cancel other shard indexers response failed, response is {}",
-                                    request.getRollupRequest().getSourceIndex(),
-                                    r
-                                );
-                                return;
-                            }
-                            logger.info("[{}] rollup cancel other shard indexers", request.getRollupRequest().getSourceIndex());
-                            hasCancelledOtherShardOperations = true;
-                        },
-                            e -> {
-                                logger.warn(
-                                    () -> "[" + request.getRollupRequest().getSourceIndex() + "] rollup cancel other shard indexers failed",
-                                    e
-                                );
-                            }
-                        )
-                    );
             }
         }
     }

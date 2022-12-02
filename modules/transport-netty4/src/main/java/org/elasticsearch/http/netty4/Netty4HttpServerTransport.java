@@ -24,7 +24,9 @@ import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
@@ -324,7 +326,18 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline()
                 .addLast("decoder", decoder)
                 .addLast("decoder_compress", new HttpContentDecompressor())
-                .addLast("encoder", new HttpResponseEncoder())
+                .addLast("encoder", new HttpResponseEncoder() {
+                    @Override
+                    protected boolean isContentAlwaysEmpty(HttpResponse msg) {
+                        // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
+                        // encoding are only sent by us in response to HEAD requests and must always have an empty body
+                        if (msg instanceof Netty4HttpResponse netty4HttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
+                            assert netty4HttpResponse.content().isReadable() == false;
+                            return true;
+                        }
+                        return super.isContentAlwaysEmpty(msg);
+                    }
+                })
                 .addLast("aggregator", aggregator);
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));

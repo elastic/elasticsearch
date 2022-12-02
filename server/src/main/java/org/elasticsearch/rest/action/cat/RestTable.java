@@ -187,8 +187,12 @@ public class RestTable {
                     }
 
                     final var chunkOutput = currentOutput;
+                    final var result = new ReleasableBytesReference(
+                        chunkOutput.bytes(),
+                        () -> Releasables.closeExpectNoException(chunkOutput)
+                    );
                     currentOutput = null;
-                    return new ReleasableBytesReference(chunkOutput.bytes(), () -> Releasables.closeExpectNoException(chunkOutput));
+                    return result;
                 } finally {
                     if (currentOutput != null) {
                         assert false : "failure encoding table chunk";

@@ -16,11 +16,14 @@ import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.tsdb.ES97TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -32,9 +35,11 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * configured for a specific field the default postings or vector format is used.
  */
 public class PerFieldMapperCodec extends Lucene94Codec {
+    private final IndexSettings indexSettings;
     private final MapperService mapperService;
 
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
+    private final DocValuesFormat tsidDocValuesFormat;
     private final ES85BloomFilterPostingsFormat bloomFilterPostingsFormat;
 
     static {
@@ -42,10 +47,12 @@ public class PerFieldMapperCodec extends Lucene94Codec {
             : "PerFieldMapperCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
+    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays, IndexSettings indexSettings) {
         super(compressionMode);
+        this.indexSettings = indexSettings;
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES85BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
+        this.tsidDocValuesFormat = new ES97TSDBDocValuesFormat(docValuesFormat);
     }
 
     @Override
@@ -57,9 +64,11 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private PostingsFormat internalGetPostingsFormatForField(String field) {
-        final PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
-        if (format != null) {
-            return format;
+        if (mapperService != null) {
+            final PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
+            if (format != null) {
+                return format;
+            }
         }
         return super.getPostingsFormatForField(field);
     }
@@ -68,6 +77,10 @@ public class PerFieldMapperCodec extends Lucene94Codec {
         return IdFieldMapper.NAME.equals(field)
             && mapperService.mappingLookup().isDataStreamTimestampFieldEnabled() == false
             && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(mapperService.getIndexSettings().getSettings());
+    }
+
+    private boolean isTsIdField(String field) {
+        return IndexMode.TIME_SERIES.equals(indexSettings.getMode()) && TimeSeriesIdFieldMapper.NAME.equals(field);
     }
 
     @Override
@@ -84,6 +97,9 @@ public class PerFieldMapperCodec extends Lucene94Codec {
 
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
+        if (isTsIdField(field)) {
+            return tsidDocValuesFormat;
+        }
         return docValuesFormat;
     }
 }

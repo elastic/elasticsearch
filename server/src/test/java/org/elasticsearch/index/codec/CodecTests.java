@@ -94,7 +94,7 @@ public class CodecTests extends ESTestCase {
             settings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE
         );
-        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
+        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE, settings);
     }
 
 }

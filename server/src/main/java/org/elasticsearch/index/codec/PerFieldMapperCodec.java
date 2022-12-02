@@ -14,7 +14,6 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
@@ -98,11 +97,7 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean useTSDBDocValuesFormat(final String field) {
-        return isTimeSeriesModeIndex() && isES97OrAbove() && (isTimestampField(field) || isTimeSeriesCounter(field));
-    }
-
-    private boolean isES97OrAbove() {
-        return mapperService.getIndexSettings().getIndexMetadata().getCreationVersion().onOrAfter(Version.V_8_7_0);
+        return isTimeSeriesModeIndex() && (isTimestampField(field) || isTimeSeriesCounter(field));
     }
 
     private boolean isTimeSeriesCounter(String field) {

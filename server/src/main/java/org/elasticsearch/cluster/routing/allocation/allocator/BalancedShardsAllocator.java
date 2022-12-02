@@ -287,7 +287,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return theta0 * weightShard + theta1 * weightIndex + theta2 * ingestLoad + theta3 * diskUsage;
         }
 
-        float weight2(Balancer balancer, ModelNode node, String index) {
+        double weight2(Balancer balancer, ModelNode node, String index) {
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
             final float ingestLoad = (float) (node.writeLoad() - balancer.avgWriteLoadPerNode());
@@ -298,7 +298,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 + theta3 * diskUsage * diskUsage;
         }
 
-        float weight2WithAdded(Balancer balancer, ModelNode node, String index, IndexMetadata extra) {
+        double weight2WithAdded(Balancer balancer, ModelNode node, String index, IndexMetadata extra) {
             final float weightShard = node.numShards() + 1 - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) + 1 - balancer.avgShardsPerNode(index);
             final float ingestLoad = (float) (node.writeLoad() + extra.getForecastedWriteLoad().orElse(0.0) - balancer.avgWriteLoadPerNode());
@@ -309,7 +309,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 + theta3 * diskUsage * diskUsage;
         }
 
-        float weight2WithRemoved(Balancer balancer, ModelNode node, String index, IndexMetadata extra) {
+        double weight2WithRemoved(Balancer balancer, ModelNode node, String index, IndexMetadata extra) {
             final float weightShard = node.numShards() - 1 - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - 1 - balancer.avgShardsPerNode(index);
             final float ingestLoad = (float) (node.writeLoad() - extra.getForecastedWriteLoad().orElse(0.0) - balancer.avgWriteLoadPerNode());
@@ -514,7 +514,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 logger.trace("skipping rebalance as single node only");
                 return;
             }
-            balanceByWeights();
+//            balanceByWeights();
+            balanceByWeights2();
         }
 
         /**
@@ -782,7 +783,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private record PossibleRebalance(NodeAndWeight from, NodeAndWeight to, double improvement) {}
 
         private static final Comparator<PossibleRebalance> POSSIBLE_REBALANCE_COMPARATOR = Comparator
-            .comparing(PossibleRebalance::improvement).reversed();
+            .comparing(PossibleRebalance::improvement);
 
         private void balanceByWeights2() {
             final AllocationDeciders deciders = allocation.deciders();
@@ -819,9 +820,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                     var before = from.weight + to.weight;
                                     var after = sorter.function.weight2WithRemoved(this, from.node, index, indexMetadata) //
                                         + sorter.function.weight2WithAdded(this, to.node, index, indexMetadata);
-
-                                    if ((before - after) / before > 0.20) {
-                                        rebalanceCandidates.add(new PossibleRebalance(from, to, before - after));
+                                    var improvement = (before - after) / before;
+                                    // TODO pick good threshold
+                                    if (improvement > 0.005) {
+                                        rebalanceCandidates.add(new PossibleRebalance(from, to, improvement));
                                     }
                                 }
                             }
@@ -835,7 +837,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // rebalance
                     var actualRebalance = rebalanceCandidates.stream().max(POSSIBLE_REBALANCE_COMPARATOR).get();
 //                    logger.info("Rebalancing {} from {} to {}, {}, ({} candidates)",
-//                        index, actualRebalance.from.getNodeId(), actualRebalance.to.getNodeId(),
+//                        index, actualRebalance.from.node.getNodeId(), actualRebalance.to.node.getNodeId(),
 //                        actualRebalance.improvement, rebalanceCandidates.size());
                     assert tryRelocateShard(actualRebalance.to.node, actualRebalance.from.node, index, false);
 

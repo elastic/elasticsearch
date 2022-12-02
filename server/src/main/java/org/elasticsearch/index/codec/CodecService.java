@@ -12,7 +12,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.HashMap;
@@ -33,16 +33,16 @@ public class CodecService {
     /** the raw unfiltered lucene default. useful for testing */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
-    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, IndexMode indexMode) {
+    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, IndexSettings indexSettings) {
         final var codecs = new HashMap<String, Codec>();
         if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene94Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene94Codec(Lucene94Codec.Mode.BEST_COMPRESSION));
         } else {
-            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Lucene94Codec.Mode.BEST_SPEED, mapperService, bigArrays, indexMode));
+            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Lucene94Codec.Mode.BEST_SPEED, mapperService, bigArrays, indexSettings));
             codecs.put(
                 BEST_COMPRESSION_CODEC,
-                new PerFieldMapperCodec(Lucene94Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays, indexMode)
+                new PerFieldMapperCodec(Lucene94Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays, indexSettings)
             );
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());

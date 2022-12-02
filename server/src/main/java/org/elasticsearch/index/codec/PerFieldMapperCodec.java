@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
@@ -41,16 +42,16 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final ES85BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final ES97TSDBDocValuesFormat tsdbDocValuesFormat;
-    private final IndexMode indexMode;
+    private final IndexSettings indexSettings;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
             : "PerFieldMapperCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays, IndexMode indexMode) {
+    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays, IndexSettings indexSettings) {
         super(compressionMode);
-        this.indexMode = indexMode;
+        this.indexSettings = indexSettings;
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES85BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.tsdbDocValuesFormat = new ES97TSDBDocValuesFormat();
@@ -99,7 +100,11 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean useTSDBDocValuesFormat(final String field) {
-        return isTimeSeriesModeIndex() && (isTimestampField(field) || isTimeSeriesCounter(field));
+        return isTimeSeriesModeIndex() && isES97OrAbove() && (isTimestampField(field) || isTimeSeriesCounter(field));
+    }
+
+    private boolean isES97OrAbove() {
+        return indexSettings.getIndexMetadata().getCreationVersion().onOrAfter(Version.V_8_7_0);
     }
 
     private boolean isTimeSeriesCounter(String field) {
@@ -112,6 +117,6 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean isTimeSeriesModeIndex() {
-        return IndexMode.TIME_SERIES.equals(indexMode);
+        return IndexMode.TIME_SERIES.equals(indexSettings.getMode());
     }
 }

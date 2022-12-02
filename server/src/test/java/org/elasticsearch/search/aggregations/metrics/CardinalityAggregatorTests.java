@@ -778,7 +778,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 final String value = Integer.toString(i);
                 iw.addDocument(
                     Arrays.asList(
-                        new StringField("keyword", Integer.toString(i%2), Field.Store.NO),
+                        new StringField("keyword", Integer.toString(i % 2), Field.Store.NO),
                         new StringField("str_value", value, Field.Store.NO),
                         new SortedDocValuesField("str_value", new BytesRef(value))
                     )

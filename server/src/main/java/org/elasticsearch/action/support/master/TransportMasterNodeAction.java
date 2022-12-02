@@ -245,7 +245,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             masterNode,
                             actionName,
                             request,
-                            new ActionListenerResponseHandler<Response>(listener, responseReader) {
+                            new ActionListenerResponseHandler<>(listener, responseReader) {
                                 @Override
                                 public void handleException(final TransportException exp) {
                                     Throwable cause = exp.unwrapCause();
@@ -267,6 +267,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                         );
                                         listener.onFailure(exp);
                                     }
+                                }
+
+                                @Override
+                                public String executor() {
+                                    return executor;
                                 }
                             }
                         );

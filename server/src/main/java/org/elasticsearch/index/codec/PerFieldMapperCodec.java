@@ -104,6 +104,7 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean isNumericType(String field) {
-        return (mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper) && field.startsWith("_") == false;
+        return (mapperService != null && mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper)
+            && field.startsWith("_") == false;
     }
 }

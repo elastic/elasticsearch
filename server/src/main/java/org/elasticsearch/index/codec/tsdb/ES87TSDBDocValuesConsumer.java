@@ -82,7 +82,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(ES87TSDBDocValuesFormat.NUMERIC);
-        writeValues(field, new EmptyDocValuesProducer() {
+        writeNumericField(field, new EmptyDocValuesProducer() {
             @Override
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
                 return DocValues.singleton(valuesProducer.getNumeric(field));
@@ -90,7 +90,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         });
     }
 
-    private long[] writeValues(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
+    private long[] writeNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         int numDocsWithValue = 0;
         long numValues = 0;
 

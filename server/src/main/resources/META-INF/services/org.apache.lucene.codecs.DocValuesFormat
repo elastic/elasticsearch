@@ -6,4 +6,4 @@
 # Side Public License, v 1.
 #
 
-org.elasticsearch.index.codec.tsdb.ES97TSDBDocValuesFormat
+org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat

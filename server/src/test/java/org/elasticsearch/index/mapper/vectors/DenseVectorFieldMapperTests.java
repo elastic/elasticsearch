@@ -689,7 +689,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("ef_construction", efConstruction);
             b.endObject();
         }));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, mapperService.getIndexSettings());
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");

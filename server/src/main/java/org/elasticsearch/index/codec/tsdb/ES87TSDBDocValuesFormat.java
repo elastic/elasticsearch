@@ -34,7 +34,7 @@ import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 
-public final class ES97TSDBDocValuesFormat extends DocValuesFormat {
+public final class ES87TSDBDocValuesFormat extends DocValuesFormat {
 
     private static final String CODEC_NAME = "ES97TSDB";
 
@@ -50,12 +50,12 @@ public final class ES97TSDBDocValuesFormat extends DocValuesFormat {
 
     private final DocValuesFormat format;
 
-    public ES97TSDBDocValuesFormat(DocValuesFormat format) {
+    public ES87TSDBDocValuesFormat(DocValuesFormat format) {
         super(CODEC_NAME);
         this.format = format;
     }
 
-    public ES97TSDBDocValuesFormat() {
+    public ES87TSDBDocValuesFormat() {
         super(CODEC_NAME);
         // This constructor seems to be called during merges
         format = new Lucene90DocValuesFormat();

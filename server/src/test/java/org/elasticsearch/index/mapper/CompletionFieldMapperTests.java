@@ -142,7 +142,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
     public void testPostingsFormat() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, mapperService.getIndexSettings());
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         PerFieldMapperCodec perFieldCodec = (PerFieldMapperCodec) codec;

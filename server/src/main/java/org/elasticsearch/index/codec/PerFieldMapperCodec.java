@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
-import org.elasticsearch.index.codec.tsdb.ES97TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * configured for a specific field the default postings or vector format is used.
  */
 public class PerFieldMapperCodec extends Lucene94Codec {
-    private final IndexSettings indexSettings;
     private final MapperService mapperService;
 
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
@@ -47,12 +46,11 @@ public class PerFieldMapperCodec extends Lucene94Codec {
             : "PerFieldMapperCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays, IndexSettings indexSettings) {
+    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
         super(compressionMode);
-        this.indexSettings = indexSettings;
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES85BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
-        this.tsidDocValuesFormat = new ES97TSDBDocValuesFormat(docValuesFormat);
+        this.tsidDocValuesFormat = new ES87TSDBDocValuesFormat(docValuesFormat);
     }
 
     @Override
@@ -80,7 +78,7 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean isTsIdField(String field) {
-        return IndexMode.TIME_SERIES.equals(indexSettings.getMode()) && TimeSeriesIdFieldMapper.NAME.equals(field);
+        return IndexMode.TIME_SERIES.equals(mapperService.getIndexSettings().getMode()) && TimeSeriesIdFieldMapper.NAME.equals(field);
     }
 
     @Override

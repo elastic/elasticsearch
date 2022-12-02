@@ -3135,7 +3135,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSettings() {
-        CodecService codecService = newCodecService(engine.config().getIndexSettings());
+        CodecService codecService = newCodecService();
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -3573,7 +3573,7 @@ public class InternalEngineTests extends EngineTestCase {
             newMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            newCodecService(config.getIndexSettings()),
+            newCodecService(),
             config.getEventListener(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -7242,7 +7242,7 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getMergePolicy(),
                 config.getAnalyzer(),
                 config.getSimilarity(),
-                newCodecService(config.getIndexSettings()),
+                newCodecService(),
                 config.getEventListener(),
                 config.getQueryCache(),
                 config.getQueryCachingPolicy(),

@@ -10,8 +10,6 @@ package org.elasticsearch.index.codec.docValue;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene94.Lucene94Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -25,51 +23,25 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
-import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.TSIDSortedDocValues;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
-import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
-
-/** Tests ES97TSDBDocValuesFormat */
-public class ES97TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
-
-    @Override
-    protected Codec getCodec() {
-        long endTime = System.currentTimeMillis();
-        long startTime = endTime - TimeUnit.DAYS.toMillis(1);
-        final Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .put(TIME_SERIES_START_TIME.getKey(), startTime)
-            .put(TIME_SERIES_END_TIME.getKey(), endTime)
-            .build();
-        return new PerFieldMapperCodec(
-            Lucene94Codec.Mode.BEST_SPEED,
-            null,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            IndexSettingsModule.newIndexSettings("test", settings)
-        );
-    }
+/** Tests TSID file  */
+public class ES87TSDBDocValuesTests extends LuceneTestCase {
 
     public void testSortedManyTSID() throws IOException {
         Analyzer analyzer = new MockAnalyzer(random());
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(analyzer);
+        conf.setCodec(TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat()));
         conf.setIndexSort(new Sort(new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING)));
         conf.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter writer = new RandomIndexWriter(random(), directory, conf);
@@ -92,7 +64,7 @@ public class ES97TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
             writer.forceMerge(1);
         }
         writer.close();
-        IndexReader reader = this.maybeWrapWithMergingReader(DirectoryReader.open(directory));
+        IndexReader reader = DirectoryReader.open(directory);
         for (LeafReaderContext context : reader.leaves()) {
             assertTSIDSortedDocValues(context.reader());
             assertRandomTSIDSortedDocValues(context.reader());

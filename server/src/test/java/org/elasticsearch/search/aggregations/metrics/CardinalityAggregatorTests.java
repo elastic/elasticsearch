@@ -17,9 +17,11 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -771,18 +773,19 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
         final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, new TermQuery(new Term("keyword", "0")), iw -> {
             for (int i = 0; i < 200; ++i) {
                 final String value = Integer.toString(i);
                 iw.addDocument(
                     Arrays.asList(
+                        new StringField("keyword", Integer.toString(i%2), Field.Store.NO),
                         new StringField("str_value", value, Field.Store.NO),
                         new SortedDocValuesField("str_value", new BytesRef(value))
                     )
                 );
             }
         }, card -> {
-            assertEquals(200, card.getValue(), 0);
+            assertEquals(100, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, mappedFieldTypes);
     }

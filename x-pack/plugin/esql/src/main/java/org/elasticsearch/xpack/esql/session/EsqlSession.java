@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 
 public class EsqlSession {
@@ -75,7 +76,12 @@ public class EsqlSession {
         optimizedPhysicalPlan(parse(request.query()), listener.map(plan -> plan.transformUp(EsQueryExec.class, q -> {
             // TODO: have an ESFilter and push down to EsQueryExec
             // This is an ugly hack to push the filter parameter to Lucene
-            final QueryBuilder filter = request.filter() != null ? request.filter() : new MatchAllQueryBuilder();
+            // TODO: filter integration testing
+            QueryBuilder filter = request.filter();
+            if (q.query() != null) {
+                filter = filter != null ? boolQuery().must(filter).must(q.query()) : q.query();
+            }
+            filter = filter == null ? new MatchAllQueryBuilder() : filter;
             LOGGER.debug("Fold filter {} to EsQueryExec", filter);
             return new EsQueryExec(q.source(), q.index(), q.output(), filter);
         })));

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -34,7 +33,7 @@ public class Mapper {
     public PhysicalPlan map(LogicalPlan p) {
         if (p instanceof EsRelation esRelation) {
             // TODO: Fold with filter
-            return new EsQueryExec(esRelation.source(), esRelation.index(), new MatchAllQueryBuilder());
+            return new EsQueryExec(esRelation.source(), esRelation.index(), null);
         }
 
         if (p instanceof Filter f) {

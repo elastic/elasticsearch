@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -23,7 +25,11 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
+import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.util.Holder;
@@ -33,10 +39,14 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
+
 @Experimental
 public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
 
     private static Setting<Boolean> ADD_TASK_PARALLELISM_ABOVE_QUERY = Setting.boolSetting("add_task_parallelism_above_query", false);
+    private static final QlTranslatorHandler TRANSLATOR_HANDLER = new QlTranslatorHandler();
 
     private final EsqlConfiguration configuration;
 
@@ -58,6 +68,8 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
         List<Batch> batches = new ArrayList<>();
         batches.add(new Batch("Create topN", Limiter.ONCE, new CreateTopN()));
 
+        // keep filters pushing before field extraction insertion
+        batches.add(new Batch("Push filters to source", Limiter.ONCE, new PushFiltersToSource()));
         batches.add(new Batch("Lazy field extraction", Limiter.ONCE, new InsertFieldExtraction()));
 
         batches.add(new Batch("Split nodes", Limiter.ONCE, new SplitAggregate(), new SplitTopN()));
@@ -281,4 +293,44 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
             return expressionTypeToken;
         }
     }
+
+    private static class PushFiltersToSource extends OptimizerRule<FilterExec> {
+        @Override
+        protected PhysicalPlan rule(FilterExec filterExec) {
+            PhysicalPlan plan = filterExec;
+            if (filterExec.child()instanceof EsQueryExec queryExec) {
+                List<Expression> pushable = new ArrayList<>();
+                List<Expression> nonPushable = new ArrayList<>();
+                for (Expression exp : splitAnd(filterExec.condition())) {
+                    (canPushToSource(exp) ? pushable : nonPushable).add(exp);
+                }
+                if (pushable.size() > 0) { // update the executable with pushable conditions
+                    QueryBuilder planQuery = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable)).asBuilder();
+                    QueryBuilder query = planQuery;
+                    QueryBuilder filterQuery = queryExec.query();
+                    if (filterQuery != null) {
+                        query = boolQuery().must(filterQuery).must(planQuery);
+                    }
+                    queryExec = new EsQueryExec(queryExec.source(), queryExec.index(), query);
+                    if (nonPushable.size() > 0) { // update filter with remaining non-pushable conditions
+                        plan = new FilterExec(filterExec.source(), queryExec, Predicates.combineAnd(nonPushable));
+                    } else { // prune Filter entirely
+                        plan = queryExec;
+                    }
+                } // else: nothing changes
+            }
+
+            return plan;
+        }
+
+        private static boolean canPushToSource(Expression exp) {
+            if (exp instanceof BinaryComparison bc) {
+                return bc.left() instanceof FieldAttribute && bc.right().foldable();
+            } else if (exp instanceof BinaryLogic bl) {
+                return canPushToSource(bl.left()) && canPushToSource(bl.right());
+            }
+            return false;
+        }
+    }
+
 }

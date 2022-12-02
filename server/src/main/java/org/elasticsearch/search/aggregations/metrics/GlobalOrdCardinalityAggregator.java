@@ -44,14 +44,16 @@ import java.util.function.BiConsumer;
  */
 public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
-    /** Don't try to dynamically prune fields that have more than 1024 unique terms, there is a chance we never get to 128 unseen terms, and we'd be paying the overhead of dynamic pruning without getting any benefits. */
+    // Don't try to dynamically prune fields that have more than 1024 unique terms, there is a chance we never get to 128 unseen terms, and
+    // we'd be paying the overhead of dynamic pruning without getting any benefits.
     private static final int MAX_FIELD_CARDINALITY_FOR_DYNAMIC_PRUNING = 1024;
 
-    /** Only start dynamic pruning when 128 ordinals or less have not been seen yet. */
+    // Only start dynamic pruning when 128 ordinals or less have not been seen yet.
     private static final int MAX_TERMS_FOR_DYNAMIC_PRUNING = 128;
 
     private final ValuesSource.Bytes.WithOrdinals valuesSource;
-    /* The field that this cardinality aggregation runs on, or null if there is no field, or the field doesn't directly map to an index field. */
+    // The field that this cardinality aggregation runs on, or null if there is no field, or the field doesn't directly map to an index
+    // field.
     private final String field;
     private final BigArrays bigArrays;
     private final int maxOrd;

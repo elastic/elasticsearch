@@ -182,7 +182,39 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void addSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
-        throw new UnsupportedOperationException("Unsupported sorted numeric doc values for field [" + field.name + "]");
+        meta.writeInt(field.number);
+        meta.writeByte(ES87TSDBDocValuesFormat.SORTED_NUMERIC);
+        writeSortedNumericField(field, valuesProducer);
+    }
+
+    private void writeSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
+        long[] stats = writeNumericField(field, valuesProducer);
+        int numDocsWithField = Math.toIntExact(stats[0]);
+        long numValues = stats[1];
+        assert numValues >= numDocsWithField;
+
+        meta.writeInt(numDocsWithField);
+        if (numValues > numDocsWithField) {
+            long start = data.getFilePointer();
+            meta.writeLong(start);
+            meta.writeVInt(directMonotonicBlockShift);
+
+            final DirectMonotonicWriter addressesWriter = DirectMonotonicWriter.getInstance(
+                meta,
+                data,
+                numDocsWithField + 1L,
+                directMonotonicBlockShift
+            );
+            long addr = 0;
+            addressesWriter.add(addr);
+            SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                addr += values.docValueCount();
+                addressesWriter.add(addr);
+            }
+            addressesWriter.finish();
+            meta.writeLong(data.getFilePointer() - start);
+        }
     }
 
     @Override

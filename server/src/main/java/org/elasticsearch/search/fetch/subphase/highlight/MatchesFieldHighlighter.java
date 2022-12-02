@@ -13,7 +13,6 @@ import org.apache.lucene.search.FilterMatchesIterator;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MatchesIterator;
 import org.apache.lucene.search.MatchesUtils;
-import org.apache.lucene.search.matchhighlight.MatchRegionRetriever;
 import org.apache.lucene.search.matchhighlight.OffsetRange;
 import org.apache.lucene.search.matchhighlight.OffsetsFromTokens;
 import org.apache.lucene.search.matchhighlight.OffsetsRetrievalStrategy;
@@ -82,7 +81,7 @@ class MatchesFieldHighlighter {
             context.field.fieldOptions().preTags()[0],
             context.field.fieldOptions().postTags()[0]
         ); // TODO multiple field markers a la FVH
-        List<Passage> passages =  passageSelector.pickBest(
+        List<Passage> passages = passageSelector.pickBest(
             contiguousSourceText,
             matchRanges,
             context.field.fieldOptions().fragmentCharSize(),
@@ -101,8 +100,7 @@ class MatchesFieldHighlighter {
                 new XOffsetsFromPositions(field, analyzer)
             );
             case DOCS_AND_FREQS_AND_POSITIONS -> limitOffsets(new XOffsetsFromPositions(field, analyzer));
-            case DOCS_AND_FREQS, DOCS ->
-                new OffsetsFromTokens(field, analyzer);
+            case DOCS_AND_FREQS, DOCS -> new OffsetsFromTokens(field, analyzer);
             // This should be unreachable because we won't get a MatchesIterator from an unindexed field
             case NONE -> (matchesIterator, doc) -> { throw new IllegalStateException("Field [ " + field + "] is not indexed"); };
         };

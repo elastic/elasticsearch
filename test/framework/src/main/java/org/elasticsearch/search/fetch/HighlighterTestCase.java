@@ -9,9 +9,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperService;
@@ -99,7 +97,13 @@ public class HighlighterTestCase extends MapperServiceTestCase {
         when(fetchContext.parsedQuery()).thenReturn(new ParsedQuery(search.query().toQuery(context)));
         when(fetchContext.getSearchExecutionContext()).thenReturn(context);
         when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(false));
-        ContextIndexSearcher cis = new ContextIndexSearcher(context.searcher().getIndexReader(), new BM25Similarity(), null, TrivialQueryCachingPolicy.NEVER, false);
+        ContextIndexSearcher cis = new ContextIndexSearcher(
+            context.searcher().getIndexReader(),
+            new BM25Similarity(),
+            null,
+            TrivialQueryCachingPolicy.NEVER,
+            false
+        );
         when(fetchContext.searcher()).thenReturn(cis);
         return fetchContext;
     }

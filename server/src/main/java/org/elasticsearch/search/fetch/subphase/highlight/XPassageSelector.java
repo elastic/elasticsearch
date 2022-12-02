@@ -1,11 +1,20 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * @notice
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.matchhighlight.OffsetRange;
@@ -23,29 +32,28 @@ import java.util.List;
 import java.util.RandomAccess;
 
 public class XPassageSelector {
-    public static final Comparator<Passage> DEFAULT_SCORER =
-        (a, b) -> {
-            // Compare the number of highlights first.
-            int v;
-            v = Integer.compare(a.markers.size(), b.markers.size());
-            if (v != 0) {
-                return v;
-            }
+    public static final Comparator<Passage> DEFAULT_SCORER = (a, b) -> {
+        // Compare the number of highlights first.
+        int v;
+        v = Integer.compare(a.markers.size(), b.markers.size());
+        if (v != 0) {
+            return v;
+        }
 
-            // Total number of characters covered by the highlights.
-            int len1 = 0, len2 = 0;
-            for (OffsetRange o : a.markers) {
-                len1 += o.length();
-            }
-            for (OffsetRange o : b.markers) {
-                len2 += o.length();
-            }
-            if (len1 != len2) {
-                return Integer.compare(len1, len2);
-            }
+        // Total number of characters covered by the highlights.
+        int len1 = 0, len2 = 0;
+        for (OffsetRange o : a.markers) {
+            len1 += o.length();
+        }
+        for (OffsetRange o : b.markers) {
+            len2 += o.length();
+        }
+        if (len1 != len2) {
+            return Integer.compare(len1, len2);
+        }
 
-            return Integer.compare(b.from, a.from);
-        };
+        return Integer.compare(b.from, a.from);
+    };
 
     private final Comparator<Passage> passageScorer;
     private final PassageAdjuster passageAdjuster;
@@ -59,13 +67,8 @@ public class XPassageSelector {
         this.passageAdjuster = passageAdjuster;
     }
 
-    public List<Passage> pickBest(
-        CharSequence value,
-        List<? extends OffsetRange> markers,
-        int maxPassageWindow,
-        int maxPassages) {
-        return pickBest(
-            value, markers, maxPassageWindow, maxPassages, List.of(new OffsetRange(0, value.length())));
+    public List<Passage> pickBest(CharSequence value, List<? extends OffsetRange> markers, int maxPassageWindow, int maxPassages) {
+        return pickBest(value, markers, maxPassageWindow, maxPassages, List.of(new OffsetRange(0, value.length())));
     }
 
     public List<Passage> pickBest(
@@ -73,7 +76,8 @@ public class XPassageSelector {
         List<? extends OffsetRange> markers,
         int maxPassageWindow,
         int maxPassages,
-        List<OffsetRange> permittedPassageRanges) {
+        List<OffsetRange> permittedPassageRanges
+    ) {
         assert markers instanceof RandomAccess;
         assert permittedPassageRanges instanceof RandomAccess;
         assert sortedAndNonOverlapping(permittedPassageRanges);
@@ -84,13 +88,12 @@ public class XPassageSelector {
         }
 
         // Best passages so far.
-        PriorityQueue<Passage> pq =
-            new PriorityQueue<>(markers.size()) {
-                @Override
-                protected boolean lessThan(Passage a, Passage b) {
-                    return passageScorer.compare(a, b) < 0;
-                }
-            };
+        PriorityQueue<Passage> pq = new PriorityQueue<>(markers.size()) {
+            @Override
+            protected boolean lessThan(Passage a, Passage b) {
+                return passageScorer.compare(a, b) < 0;
+            }
+        };
 
         markers = splitOrTruncateToWindows(markers, maxPassageWindow, permittedPassageRanges);
 
@@ -99,8 +102,7 @@ public class XPassageSelector {
 
         final int max = markers.size();
         int markerIndex = 0;
-        nextRange:
-        for (OffsetRange range : permittedPassageRanges) {
+        nextRange: for (OffsetRange range : permittedPassageRanges) {
             final int rangeTo = Math.min(range.to, value.length());
 
             // Skip ranges outside of the value window anyway.
@@ -151,7 +153,7 @@ public class XPassageSelector {
                             }
                         }
 
-                        if (!inside.isEmpty()) {
+                        if (inside.isEmpty() == false) {
                             pq.insertWithOverflow(new Passage(from, to, inside));
                         }
                     }
@@ -166,7 +168,7 @@ public class XPassageSelector {
         Passage[] passages;
         if (pq.size() > 0) {
             passages = new Passage[pq.size()];
-            for (int i = pq.size(); --i >= 0; ) {
+            for (int i = pq.size(); --i >= 0;) {
                 passages[i] = pq.pop();
             }
         } else {
@@ -183,10 +185,7 @@ public class XPassageSelector {
                 OffsetRange newRange = passageAdjuster.adjust(p);
                 if (newRange.from != p.from || newRange.to != p.to) {
                     assert newRange.from >= p.from && newRange.to <= p.to
-                        : "Adjusters must not expand the passage's range: was "
-                        + p
-                        + " => changed to "
-                        + newRange;
+                        : "Adjusters must not expand the passage's range: was " + p + " => changed to " + newRange;
                     passages[x] = new Passage(newRange.from, newRange.to, p.markers);
                 }
             }
@@ -225,7 +224,8 @@ public class XPassageSelector {
     private List<? extends OffsetRange> splitOrTruncateToWindows(
         List<? extends OffsetRange> markers,
         int maxPassageWindow,
-        List<OffsetRange> permittedPassageRanges) {
+        List<OffsetRange> permittedPassageRanges
+    ) {
         // Process markers overlapping with each permitted window.
         ArrayList<OffsetRange> processedMarkers = new ArrayList<>(markers.size());
         for (OffsetRange marker : markers) {
@@ -266,8 +266,7 @@ public class XPassageSelector {
             for (OffsetRange next, previous = i.next(); i.hasNext(); previous = next) {
                 next = i.next();
                 if (previous.to > next.from) {
-                    throw new AssertionError(
-                        "Ranges must be sorted and non-overlapping: " + permittedPassageRanges);
+                    throw new AssertionError("Ranges must be sorted and non-overlapping: " + permittedPassageRanges);
                 }
             }
         }
@@ -282,7 +281,8 @@ public class XPassageSelector {
         CharSequence value,
         int maxCharacterWindow,
         int maxPassages,
-        List<OffsetRange> permittedPassageRanges) {
+        List<OffsetRange> permittedPassageRanges
+    ) {
         // Search for the first range that is not empty.
         ArrayList<Passage> defaultPassages = new ArrayList<>();
         for (OffsetRange o : permittedPassageRanges) {
@@ -292,11 +292,7 @@ public class XPassageSelector {
 
             int to = Math.min(value.length(), o.to);
             if (o.from < to) {
-                defaultPassages.add(
-                    new Passage(
-                        o.from,
-                        o.from + Math.min(maxCharacterWindow, o.length()),
-                        Collections.emptyList()));
+                defaultPassages.add(new Passage(o.from, o.from + Math.min(maxCharacterWindow, o.length()), Collections.emptyList()));
             }
         }
 

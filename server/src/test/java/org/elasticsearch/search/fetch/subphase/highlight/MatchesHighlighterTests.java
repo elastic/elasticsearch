@@ -54,8 +54,8 @@ public class MatchesHighlighterTests extends HighlighterTestCase {
             """));
 
         SearchSourceBuilder search = new SearchSourceBuilder().query(
-            QueryBuilders.queryStringQuery("dickens OR cities").field("title").field("description").field("category"))
-            .highlighter(new HighlightBuilder().highlighterType("matches").field("title").field("category"));
+            QueryBuilders.queryStringQuery("dickens OR cities").field("title").field("description").field("category")
+        ).highlighter(new HighlightBuilder().highlighterType("matches").field("title").field("category"));
 
         Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
         assertHighlights(highlights, "title", "A tale of two <em>cities</em>");
@@ -79,8 +79,7 @@ public class MatchesHighlighterTests extends HighlighterTestCase {
             }
             """));
 
-        HighlightBuilder highlight = new HighlightBuilder()
-            .field("description")
+        HighlightBuilder highlight = new HighlightBuilder().field("description")
             .highlighterType("matches")
             .numOfFragments(2)
             .fragmentSize(50);
@@ -112,8 +111,7 @@ public class MatchesHighlighterTests extends HighlighterTestCase {
             }
             """));
 
-        HighlightBuilder highlight = new HighlightBuilder()
-            .field("description")
+        HighlightBuilder highlight = new HighlightBuilder().field("description")
             .highlighterType("matches")
             .maxAnalyzedOffset(70)
             .numOfFragments(2)
@@ -122,11 +120,7 @@ public class MatchesHighlighterTests extends HighlighterTestCase {
             .highlighter(highlight);
 
         Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
-        assertHighlights(
-            highlights,
-            "description",
-            "Lorem Ipsum <em>string</em> Generator that helps to create ..."
-        );
+        assertHighlights(highlights, "description", "Lorem Ipsum <em>string</em> Generator that helps to create ...");
     }
 
     // matched_fields - use matches from a set of different fields to highlight this one
@@ -149,18 +143,14 @@ public class MatchesHighlighterTests extends HighlighterTestCase {
             { "description" : "Here is some text" }
             """));
 
-        HighlightBuilder highlight = new HighlightBuilder()
-            .field(new HighlightBuilder.Field("description").matchedFields("description", "description.stemmed"))
-            .highlighterType("matches");
+        HighlightBuilder highlight = new HighlightBuilder().field(
+            new HighlightBuilder.Field("description").matchedFields("description", "description.stemmed")
+        ).highlighterType("matches");
         SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.termQuery("description.stemmed", "some"))
             .highlighter(highlight);
 
         Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
-        assertHighlights(
-            highlights,
-            "description",
-            "Here is <em>some</em> text"
-        );
+        assertHighlights(highlights, "description", "Here is <em>some</em> text");
 
     }
 }

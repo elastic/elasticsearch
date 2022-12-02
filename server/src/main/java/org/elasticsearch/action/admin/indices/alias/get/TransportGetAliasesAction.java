@@ -26,6 +26,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -40,6 +42,7 @@ import java.util.function.Predicate;
 
 public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportGetAliasesAction.class);
 
     private final SystemIndices systemIndices;
 
@@ -135,11 +138,13 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
+        logger.info("--> requested streams: {}", requestedDataStreams);
         for (String requestedDataStream : requestedDataStreams) {
             List<DataStreamAlias> aliases = state.metadata()
                 .dataStreamAliases()
                 .values()
                 .stream()
+                .peek(dsa -> logger.info("--> found DSA: {}, filter: {}", dsa.getDataStreams(), dsa.getFilter()))
                 .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
                 .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
                 .toList();

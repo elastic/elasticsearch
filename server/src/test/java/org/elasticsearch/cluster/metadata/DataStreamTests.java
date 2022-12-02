@@ -109,7 +109,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ds.isReplicated(),
             ds.isSystem(),
             ds.isAllowCustomRouting(),
-            indexMode
+            indexMode,
+            ds.getAliases()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -134,7 +135,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ds.isReplicated(),
             ds.isSystem(),
             ds.isAllowCustomRouting(),
-            IndexMode.TIME_SERIES
+            IndexMode.TIME_SERIES,
+            ds.getAliases()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -494,7 +496,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             preSnapshotDataStream.isReplicated() && randomBoolean(),
             preSnapshotDataStream.isSystem(),
             preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.getIndexMode()
+            preSnapshotDataStream.getIndexMode(),
+            preSnapshotDataStream.getAliases()
         );
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
@@ -536,7 +539,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             preSnapshotDataStream.isReplicated(),
             preSnapshotDataStream.isSystem(),
             preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.getIndexMode()
+            preSnapshotDataStream.getIndexMode(),
+            preSnapshotDataStream.getAliases()
         );
 
         assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));

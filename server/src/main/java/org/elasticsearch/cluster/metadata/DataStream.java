@@ -82,6 +82,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final boolean system;
     private final boolean allowCustomRouting;
     private final IndexMode indexMode;
+    private final Map<String, DataStreamAlias> dataStreamAliases;
 
     public DataStream(
         String name,
@@ -92,9 +93,22 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean replicated,
         boolean system,
         boolean allowCustomRouting,
-        IndexMode indexMode
+        IndexMode indexMode,
+        @Nullable Map<String, DataStreamAlias> dataStreamAliases
     ) {
-        this(name, indices, generation, metadata, hidden, replicated, system, System::currentTimeMillis, allowCustomRouting, indexMode);
+        this(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            System::currentTimeMillis,
+            allowCustomRouting,
+            indexMode,
+            dataStreamAliases
+        );
     }
 
     // visible for testing
@@ -108,7 +122,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean system,
         LongSupplier timeProvider,
         boolean allowCustomRouting,
-        IndexMode indexMode
+        IndexMode indexMode,
+        @Nullable Map<String, DataStreamAlias> dataStreamAliases
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
@@ -121,6 +136,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
+        this.dataStreamAliases = dataStreamAliases == null ? Map.of() : dataStreamAliases;
         assert assertConsistent(this.indices);
     }
 
@@ -153,6 +169,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public Index getWriteIndex() {
         return indices.get(indices.size() - 1);
+    }
+
+    public Map<String, DataStreamAlias> getAliases() {
+        return this.dataStreamAliases;
     }
 
     /**
@@ -302,7 +322,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
-        return new DataStream(name, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation,
+            metadata,
+            hidden,
+            false,
+            system,
+            allowCustomRouting,
+            indexMode,
+            dataStreamAliases
+        );
     }
 
     /**
@@ -367,7 +398,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            dataStreamAliases
+        );
     }
 
     /**
@@ -399,7 +441,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            dataStreamAliases
+        );
     }
 
     /**
@@ -446,11 +499,34 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(0, index);
         assert backingIndices.size() == indices.size() + 1;
-        return new DataStream(name, backingIndices, generation + 1, metadata, hidden, replicated, system, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            dataStreamAliases
+        );
     }
 
     public DataStream promoteDataStream() {
-        return new DataStream(name, indices, getGeneration(), metadata, hidden, false, system, timeProvider, allowCustomRouting, indexMode);
+        return new DataStream(
+            name,
+            indices,
+            getGeneration(),
+            metadata,
+            hidden,
+            false,
+            system,
+            timeProvider,
+            allowCustomRouting,
+            indexMode,
+            dataStreamAliases
+        );
     }
 
     /**
@@ -482,7 +558,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             replicated,
             system,
             allowCustomRouting,
-            indexMode
+            indexMode,
+            dataStreamAliases
         );
     }
 
@@ -527,7 +604,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.readBoolean(),
             in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false,
-            in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null
+            in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
+            in.readMap(StreamInput::readString, DataStreamAlias::new)
         );
     }
 
@@ -556,6 +634,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
+        out.writeMap(dataStreamAliases, StreamOutput::writeString, (o, dsa) -> dsa.writeTo(o));
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -568,6 +647,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
     public static final ParseField INDEX_MODE = new ParseField("index_mode");
+    public static final ParseField ALIASES = new ParseField("aliases");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
@@ -581,7 +661,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
             args[8] != null && (boolean) args[8],
-            args[9] != null ? IndexMode.fromString((String) args[9]) : null
+            args[9] != null ? IndexMode.fromString((String) args[9]) : null,
+            (Map<String, DataStreamAlias>) args[10]
         );
     });
 
@@ -596,6 +677,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), ALIASES);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {

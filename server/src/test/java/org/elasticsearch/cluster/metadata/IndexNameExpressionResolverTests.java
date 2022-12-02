@@ -2723,6 +2723,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                             false,
                             false,
                             false,
+                            null,
                             null
                         )
                     )

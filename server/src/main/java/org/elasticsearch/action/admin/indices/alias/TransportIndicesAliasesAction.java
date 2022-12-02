@@ -154,6 +154,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                         }
                         for (String dataStreamName : concreteDataStreams) {
                             for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
+                                logger.info("--> adding filter for {} with filter: {}", dataStreamName, action.filter());
                                 finalActions.add(new AddDataStreamAlias(alias, dataStreamName, action.writeIndex(), action.filter()));
                             }
                         }

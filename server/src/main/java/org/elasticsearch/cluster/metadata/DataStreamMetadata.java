@@ -20,6 +20,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -40,6 +42,7 @@ import java.util.Set;
  * Custom {@link Metadata} implementation for storing a map of {@link DataStream}s and their names.
  */
 public class DataStreamMetadata implements Metadata.Custom {
+    private static final Logger logger = LogManager.getLogger(DataStreamMetadata.class);
 
     public static final String TYPE = "data_stream";
 
@@ -118,12 +121,15 @@ public class DataStreamMetadata implements Metadata.Custom {
         if (alias == null) {
             String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
             alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream, filterAsMap);
+            logger.info("--> adding new alias: {}", alias);
         } else {
             DataStreamAlias copy = alias.update(dataStream, isWriteDataStream, filterAsMap);
+            logger.info("--> updating alias with new filter: {}, copy: {}", filterAsMap, copy);
             if (copy == alias) {
                 return this;
             }
             alias = copy;
+            logger.info("--> updating alias: {}", alias);
         }
         return new DataStreamMetadata(dataStreams, ImmutableOpenMap.builder(dataStreamAliases).fPut(aliasName, alias).build());
     }

@@ -22,6 +22,7 @@ import org.apache.lucene.search.matchhighlight.Passage;
 import org.apache.lucene.search.matchhighlight.PassageAdjuster;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.Version;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.RandomAccess;
 
 public class XPassageSelector {
+
     public static final Comparator<Passage> DEFAULT_SCORER = (a, b) -> {
         // Compare the number of highlights first.
         int v;
@@ -65,6 +67,8 @@ public class XPassageSelector {
     public XPassageSelector(Comparator<Passage> passageScorer, PassageAdjuster passageAdjuster) {
         this.passageScorer = passageScorer;
         this.passageAdjuster = passageAdjuster;
+        // https://github.com/apache/lucene/pull/11990
+        assert org.apache.lucene.util.Version.fromBits(9, 5, 0).onOrAfter(Version.CURRENT.luceneVersion) == false;
     }
 
     public List<Passage> pickBest(CharSequence value, List<? extends OffsetRange> markers, int maxPassageWindow, int maxPassages) {

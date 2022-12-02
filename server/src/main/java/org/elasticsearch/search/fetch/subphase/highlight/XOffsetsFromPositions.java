@@ -26,13 +26,13 @@ import org.apache.lucene.search.MatchesIterator;
 import org.apache.lucene.search.matchhighlight.MatchRegionRetriever;
 import org.apache.lucene.search.matchhighlight.OffsetRange;
 import org.apache.lucene.search.matchhighlight.OffsetsRetrievalStrategy;
+import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-// https://github.com/apache/lucene/pull/11983
 public final class XOffsetsFromPositions implements OffsetsRetrievalStrategy {
     private final String field;
     private final Analyzer analyzer;
@@ -40,6 +40,8 @@ public final class XOffsetsFromPositions implements OffsetsRetrievalStrategy {
     public XOffsetsFromPositions(String field, Analyzer analyzer) {
         this.field = field;
         this.analyzer = analyzer;
+        // https://github.com/apache/lucene/pull/11983
+        assert org.apache.lucene.util.Version.fromBits(9, 5, 0).onOrAfter(Version.CURRENT.luceneVersion) == false;
     }
 
     @Override

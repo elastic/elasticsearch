@@ -23,6 +23,7 @@ import org.apache.lucene.search.matchhighlight.MatchRegionRetriever;
 import org.apache.lucene.search.matchhighlight.OffsetRange;
 import org.apache.lucene.search.matchhighlight.OffsetsFromPositions;
 import org.apache.lucene.search.matchhighlight.OffsetsRetrievalStrategy;
+import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,7 +34,6 @@ import java.util.Objects;
  * This strategy retrieves offsets directly from {@link MatchesIterator}, if they are available,
  * otherwise it falls back to using {@link OffsetsFromPositions}.
  */
-// https://github.com/apache/lucene/pull/11983
 public final class XOffsetsFromMatchIterator implements OffsetsRetrievalStrategy {
     private final String field;
     private final XOffsetsFromPositions noOffsetsFallback;
@@ -41,6 +41,8 @@ public final class XOffsetsFromMatchIterator implements OffsetsRetrievalStrategy
     XOffsetsFromMatchIterator(String field, XOffsetsFromPositions noOffsetsFallback) {
         this.field = field;
         this.noOffsetsFallback = Objects.requireNonNull(noOffsetsFallback);
+        // https://github.com/apache/lucene/pull/11983
+        assert org.apache.lucene.util.Version.fromBits(9, 5, 0).onOrAfter(Version.CURRENT.luceneVersion) == false;
     }
 
     @Override

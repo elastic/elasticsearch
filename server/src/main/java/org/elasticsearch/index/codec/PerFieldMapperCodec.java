@@ -14,7 +14,6 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
@@ -22,10 +21,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -98,21 +96,14 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean useTSDBDocValuesFormat(final String field) {
-        return isTimeSeriesModeIndex() && (isTimestampField(field) || isTimeSeriesMetric(field));
-    }
-
-    private boolean isTimeSeriesMetric(String field) {
-        MappedFieldType fieldType = mapperService.fieldType(field);
-        return fieldType != null
-            && (TimeSeriesParams.MetricType.counter.equals(fieldType.getMetricType())
-                || TimeSeriesParams.MetricType.gauge.equals(fieldType.getMetricType()));
-    }
-
-    private boolean isTimestampField(String field) {
-        return mapperService.mappingLookup().hasTimestampField() && DataStream.TimestampField.FIXED_TIMESTAMP_FIELD.equals(field);
+        return isTimeSeriesModeIndex() && isNumericType(field);
     }
 
     private boolean isTimeSeriesModeIndex() {
         return IndexMode.TIME_SERIES.equals(mapperService.getIndexSettings().getMode());
+    }
+
+    private boolean isNumericType(String field) {
+        return (mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper) && field.startsWith("_") == false;
     }
 }

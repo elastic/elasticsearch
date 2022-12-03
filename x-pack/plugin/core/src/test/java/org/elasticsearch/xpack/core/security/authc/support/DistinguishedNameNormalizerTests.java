@@ -44,14 +44,14 @@ public class DistinguishedNameNormalizerTests extends ESTestCase {
         Mockito.clearInvocations(dnNormalizer);
         final String dn = randomDn();
         parseDnMultipleTimes(dn);
-        verify(dnNormalizer, times(1)).doParse(dn);
+        verify(dnNormalizer, times(1)).doNormalize(dn);
 
         // The cache is keyed by the literal string form.
         // Therefore if the literal string changes, it needs to be parsed again even though it is still the same DN
         Mockito.clearInvocations(dnNormalizer);
         final String mutatedDn = mutateDn(dn);
         parseDnMultipleTimes(mutatedDn);
-        verify(dnNormalizer, times(1)).doParse(mutatedDn);
+        verify(dnNormalizer, times(1)).doNormalize(mutatedDn);
 
         // Invalid DNs should also be cached
         Mockito.clearInvocations(dnNormalizer);
@@ -63,41 +63,41 @@ public class DistinguishedNameNormalizerTests extends ESTestCase {
             "=" + randomAlphaOfLengthBetween(1, 8)
         );
         parseDnMultipleTimes(invalidDn);
-        verify(dnNormalizer, times(1)).doParse(invalidDn);
+        verify(dnNormalizer, times(1)).doNormalize(invalidDn);
     }
 
     public void testDnNormalizingIsCachedForDnPredicate() {
         final String dn = randomDn();
         final Predicate<FieldValue> predicate = new UserRoleMapper.DistinguishedNamePredicate(dn, dnNormalizer);
-        verify(dnNormalizer, times(1)).doParse(dn);
+        verify(dnNormalizer, times(1)).doNormalize(dn);
 
         // Same DN, it's cached
         runPredicateMultipleTimes(predicate, dn);
-        verify(dnNormalizer, times(1)).doParse(dn);
+        verify(dnNormalizer, times(1)).doNormalize(dn);
 
         // Predicate short-circuits for case differences
         Mockito.clearInvocations(dnNormalizer);
         final String casedDn = randomFrom(dn.toLowerCase(Locale.ENGLISH), dn.toUpperCase(Locale.ENGLISH));
         runPredicateMultipleTimes(predicate, casedDn);
-        verify(dnNormalizer, never()).doParse(anyString());
+        verify(dnNormalizer, never()).doNormalize(anyString());
 
         // Literal string form changes, it will be parsed again
         Mockito.clearInvocations(dnNormalizer);
         final String mutatedDn = randomFrom(dn.replace(" ", ""), dn.replace(",", " ,"));
         runPredicateMultipleTimes(predicate, mutatedDn);
-        verify(dnNormalizer, times(1)).doParse(mutatedDn);
+        verify(dnNormalizer, times(1)).doNormalize(mutatedDn);
 
         // Subtree DN is also cached
         Mockito.clearInvocations(dnNormalizer);
         final String subtreeDn = "*," + randomDn();
         runPredicateMultipleTimes(predicate, subtreeDn);
-        verify(dnNormalizer, times(1)).doParse(subtreeDn.substring(2));
+        verify(dnNormalizer, times(1)).doNormalize(subtreeDn.substring(2));
 
         // Subtree DN is also keyed by the literal form, so they are space sensitive
         Mockito.clearInvocations(dnNormalizer);
         final String mutatedSubtreeDn = "*, " + subtreeDn.substring(2);
         runPredicateMultipleTimes(predicate, mutatedSubtreeDn);
-        verify(dnNormalizer, times(1)).doParse(mutatedSubtreeDn.substring(2));
+        verify(dnNormalizer, times(1)).doNormalize(mutatedSubtreeDn.substring(2));
     }
 
     public void testUserDataUsesCachedDnNormalizer() {
@@ -130,7 +130,7 @@ public class DistinguishedNameNormalizerTests extends ESTestCase {
         expressionModel.test("groups", fieldValues);
 
         final ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
-        verify(spyDnNormalizer, times(dnList.size())).doParse(argumentCaptor.capture());
+        verify(spyDnNormalizer, times(dnList.size())).doNormalize(argumentCaptor.capture());
         assertThat(argumentCaptor.getAllValues(), equalTo(dnList));
     }
 

@@ -188,7 +188,7 @@ public interface UserRoleMapper {
                     return normalizedDn;
                 }
             }
-            final String normalizedDn = doParse(str);
+            final String normalizedDn = doNormalize(str);
             if (normalizedDn == null) {
                 cache.put(str, NULL_REF);
             } else {
@@ -197,15 +197,17 @@ public interface UserRoleMapper {
             return normalizedDn;
         }
 
-        String doParse(String str) {
+        String doNormalize(String str) {
+            final DN dn;
             try {
-                return new DN(str).toNormalizedString();
+                dn = new DN(str);
             } catch (LDAPException | LDAPSDKUsageException e) {
                 if (LOGGER.isTraceEnabled()) {
                     LOGGER.trace(() -> "failed to parse [" + str + "] as a DN", e);
                 }
                 return null;
             }
+            return dn.toNormalizedString();
         }
     }
 

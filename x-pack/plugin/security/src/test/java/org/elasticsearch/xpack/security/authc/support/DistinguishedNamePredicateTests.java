@@ -34,7 +34,7 @@ public class DistinguishedNamePredicateTests extends ESTestCase {
         } else {
             inputDn = randomDn;
         }
-        final Predicate<FieldValue> predicate = new UserRoleMapper.DistinguishedNamePredicate(inputDn);
+        final Predicate<FieldValue> predicate = new UserRoleMapper.DistinguishedNamePredicate(inputDn, getDnNormalizer());
 
         assertPredicate(predicate, randomDn, true);
         assertPredicate(predicate, randomDn.toLowerCase(Locale.ROOT), true);
@@ -55,20 +55,20 @@ public class DistinguishedNamePredicateTests extends ESTestCase {
     }
 
     public void testParsingMalformedInput() {
-        Predicate<FieldValue> predicate = new UserRoleMapper.DistinguishedNamePredicate("");
+        Predicate<FieldValue> predicate = new UserRoleMapper.DistinguishedNamePredicate("", getDnNormalizer());
         assertPredicate(predicate, null, false);
         assertPredicate(predicate, "", true);
         assertPredicate(predicate, randomAlphaOfLengthBetween(1, 8), false);
         assertPredicate(predicate, randomAlphaOfLengthBetween(1, 8) + "*", false);
 
-        predicate = new UserRoleMapper.DistinguishedNamePredicate("foo=");
+        predicate = new UserRoleMapper.DistinguishedNamePredicate("foo=", getDnNormalizer());
         assertPredicate(predicate, null, false);
         assertPredicate(predicate, "foo", false);
         assertPredicate(predicate, "foo=", true);
         assertPredicate(predicate, randomAlphaOfLengthBetween(5, 12), false);
         assertPredicate(predicate, randomAlphaOfLengthBetween(5, 12) + "*", false);
 
-        predicate = new UserRoleMapper.DistinguishedNamePredicate("=bar");
+        predicate = new UserRoleMapper.DistinguishedNamePredicate("=bar", getDnNormalizer());
         assertPredicate(predicate, null, false);
         assertPredicate(predicate, "bar", false);
         assertPredicate(predicate, "=bar", true);
@@ -78,5 +78,9 @@ public class DistinguishedNamePredicateTests extends ESTestCase {
 
     private void assertPredicate(Predicate<FieldValue> predicate, Object value, boolean expected) {
         assertThat("Predicate [" + predicate + "] match [" + value + "]", predicate.test(new FieldValue(value)), equalTo(expected));
+    }
+
+    private UserRoleMapper.DistinguishedNameNormalizer getDnNormalizer() {
+        return new UserRoleMapper.DistinguishedNameNormalizer();
     }
 }

@@ -109,7 +109,6 @@ import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Featu
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.RemoteClusterSecurityTransportInterceptor;
-import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
 import java.io.Closeable;
 import java.io.IOException;

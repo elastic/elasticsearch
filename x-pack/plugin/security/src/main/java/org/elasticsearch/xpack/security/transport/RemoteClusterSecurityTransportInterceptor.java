@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;

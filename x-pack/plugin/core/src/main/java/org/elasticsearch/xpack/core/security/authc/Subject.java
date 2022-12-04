@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersecti
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -229,14 +230,19 @@ public class Subject {
     }
 
     private RoleReferenceIntersection buildRoleReferencesForRemoteAccess() {
-        // TODO shortcut, remove
-        final RoleReferenceIntersection apiKeyRoleReferenceIntersection = buildRoleReferencesForApiKey();
+        final List<RoleReference> roleReferences = new ArrayList<>(buildRoleReferencesForApiKey().getRoleReferences());
         @SuppressWarnings("unchecked")
         final List<BytesReference> remoteAccessRoleDescriptorsBytes = (List<BytesReference>) metadata.get(
             REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY
         );
-
-        return apiKeyRoleReferenceIntersection;
+        if (remoteAccessRoleDescriptorsBytes.isEmpty()) {
+            // TODO hack. fail earlier, and assert here instead
+            return new RoleReferenceIntersection(List.of(new RoleReference.NamedRoleReference(new String[] {})));
+        }
+        for (BytesReference roleDescriptorsBytes : remoteAccessRoleDescriptorsBytes) {
+            roleReferences.add(new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes));
+        }
+        return new RoleReferenceIntersection(List.copyOf(roleReferences));
     }
 
     private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {

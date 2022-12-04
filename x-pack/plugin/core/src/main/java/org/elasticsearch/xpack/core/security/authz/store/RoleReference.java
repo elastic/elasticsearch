@@ -116,6 +116,38 @@ public interface RoleReference {
         }
     }
 
+    final class RemoteAccessRoleReference implements RoleReference {
+
+        private final BytesReference roleDescriptorsBytes;
+        private RoleKey id = null;
+
+        public RemoteAccessRoleReference(BytesReference roleDescriptorsBytes) {
+            this.roleDescriptorsBytes = roleDescriptorsBytes;
+        }
+
+        @Override
+        public RoleKey id() {
+            // Hashing can be expensive. memorize the result in case the method is called multiple times.
+            if (id == null) {
+                final String roleDescriptorsHash = MessageDigests.toHexString(
+                    MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
+                );
+                id = new RoleKey(Set.of("remote_access:" + roleDescriptorsHash), "remote_access");
+            }
+            return id;
+        }
+
+        @Override
+        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+            resolver.resolveRemoteAccessRoleReference(this, listener);
+        }
+
+        public BytesReference getRoleDescriptorsBytes() {
+            return roleDescriptorsBytes;
+        }
+
+    }
+
     /**
      * Same as {@link ApiKeyRoleReference} but for BWC purpose (prior to v7.9.0)
      */

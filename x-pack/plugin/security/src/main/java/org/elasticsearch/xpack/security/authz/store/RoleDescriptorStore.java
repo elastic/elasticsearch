@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -99,6 +100,20 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             apiKeyRoleReference.getApiKeyId(),
             apiKeyRoleReference.getRoleDescriptorsBytes(),
             apiKeyRoleReference.getRoleType()
+        );
+        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        listener.onResponse(rolesRetrievalResult);
+    }
+
+    @Override
+    public void resolveRemoteAccessRoleReference(
+        RoleReference.RemoteAccessRoleReference remoteAccessRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    ) {
+        logger.debug("Resolving remote access role reference [{}]", remoteAccessRoleReference);
+        final Set<RoleDescriptor> roleDescriptors = RemoteAccessAuthentication.parseRoleDescriptorsBytes(
+            remoteAccessRoleReference.getRoleDescriptorsBytes()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));

@@ -549,18 +549,25 @@ teardown:
   - length: { terms: 1 }
 
   - do:
-      headers: { Authorization: "Basic ZGxzX3NvbWVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # dls_some_user sees selected docs
+      headers: { Authorization: "Basic ZGxzX3NvbWVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # dls_some_user doesn't see all docs
       terms_enum:
-        index:  test_security
-        body:  {"field": "foo", "string":"b"}
-  - length: {terms: 0}
+        index: test_security
+        body: { "field": "foo", "string": "b" }
+
+  - length: { terms: 0 }
+  - match: { complete: false }
+  - match: { _shards.failed: 1 }
+  - match: { _shards.failures.0.reason.type: "broadcast_shard_operation_failed_exception" }
+  - match: { _shards.failures.0.reason.reason: "cannot execute [_terms_enum] request on index [test_security] due to DLS/FLS security restrictions." }
 
   - do:
       headers: { Authorization: "Basic ZmxzX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" } # fls_user can't see field
       terms_enum:
-        index:  test_security
-        body:  {"field": "foo", "string":"b"}
-  - length: {terms: 0}
+        index: test_security
+        body: { "field": "foo", "string": "b" }
+  - length: { terms: 0 }
+  - match: { complete: true }
+  - match: { _shards.failed: 0 }
 
 ---
 "Test security with API keys":
@@ -612,7 +619,7 @@ teardown:
             }
           }
   - match: { name: "dls_all_user_bad_key" }
-  - set: { encoded: login_creds}
+  - set: { encoded: login_creds }
   - do:
       headers:
         Authorization: ApiKey ${login_creds}  # dls_all_user bad API key sees selected docs
@@ -620,6 +627,9 @@ teardown:
         index: test_security
         body: { "field": "foo", "string": "b" }
   - length: { terms: 0 }
+  - match: { complete: false }
+  - match: { _shards.failed: 1 }
+  - match: { _shards.failures.0.reason.type: "broadcast_shard_operation_failed_exception" }
 
   - do:
       headers: { Authorization: "Basic ZGxzX3NvbWVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # dls_some_user
@@ -641,7 +651,7 @@ teardown:
             }
           }
   - match: { name: "dls_some_user_key" }
-  - set: { encoded: login_creds}
+  - set: { encoded: login_creds }
   - do:
       headers:
         Authorization: ApiKey ${login_creds}  # dls_some_user's API key sees selected user regardless of the key's role descriptor
@@ -649,3 +659,6 @@ teardown:
         index: test_security
         body: { "field": "foo", "string": "b" }
   - length: { terms: 0 }
+  - match: { complete: false }
+  - match: { _shards.failed: 1 }
+  - match: { _shards.failures.0.reason.type: "broadcast_shard_operation_failed_exception" }

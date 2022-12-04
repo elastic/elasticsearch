@@ -25,7 +25,6 @@ tasks.register("copyCerts", Sync) {
 boolean proxyMode = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
-  setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.client_authentication', 'required'
@@ -42,7 +41,6 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
 }
 
 def queryingCluster = testClusters.register('querying-cluster') {
-  setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.client_authentication', 'required'

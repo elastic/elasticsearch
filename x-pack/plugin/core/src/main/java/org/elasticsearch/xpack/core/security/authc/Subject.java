@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -37,6 +39,8 @@ import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
  * queries in a better encapsulated way.
  */
 public class Subject {
+
+    private static final Logger logger = LogManager.getLogger(Subject.class);
 
     public enum Type {
         USER,
@@ -239,6 +243,8 @@ public class Subject {
             // TODO hack. fail earlier, and assert here instead
             return new RoleReferenceIntersection(List.of(new RoleReference.NamedRoleReference(new String[] {})));
         }
+        // TODO handle this once we support API keys as querying subjects
+        assert remoteAccessRoleDescriptorsBytes.size() == 1;
         for (BytesReference roleDescriptorsBytes : remoteAccessRoleDescriptorsBytes) {
             roleReferences.add(new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes));
         }

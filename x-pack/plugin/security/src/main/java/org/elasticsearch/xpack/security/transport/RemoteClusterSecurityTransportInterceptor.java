@@ -70,8 +70,9 @@ public class RemoteClusterSecurityTransportInterceptor implements TransportInter
 
     boolean shouldSendWithRemoteAccessHeaders(final Transport.Connection connection, final TransportRequest request) {
         if (false == TcpTransport.isUntrustedRemoteClusterEnabled()
-            // TODO more request types here
-            || false == (request instanceof SearchRequest || request instanceof ClusterSearchShardsRequest)) {
+        // TODO more request types here
+        // || false == (request instanceof SearchRequest || request instanceof ClusterSearchShardsRequest)
+        ) {
             return false;
         }
         final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);

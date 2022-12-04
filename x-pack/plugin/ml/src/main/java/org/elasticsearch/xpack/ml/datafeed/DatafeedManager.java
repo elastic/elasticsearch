@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
@@ -106,7 +107,12 @@ public final class DatafeedManager {
     ) {
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
-                final String[] indices = request.getDatafeed().getIndices().toArray(new String[0]);
+                // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
+                final String[] indices = request.getDatafeed()
+                    .getIndices()
+                    .stream()
+                    .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
+                    .toArray(String[]::new);
 
                 final String username = securityContext.getUser().principal();
                 final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
@@ -128,8 +134,12 @@ public final class DatafeedManager {
                     } else {
                         indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
                     }
-                    privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
-                    client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                    if (indices.length == 0) {
+                        privResponseListener.onResponse(new HasPrivilegesResponse());
+                    } else {
+                        privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
+                        client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                    }
                 }, e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                         indicesPrivilegesBuilder.privileges(SearchAction.NAME);

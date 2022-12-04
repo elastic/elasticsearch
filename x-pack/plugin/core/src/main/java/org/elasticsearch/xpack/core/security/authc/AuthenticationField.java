@@ -33,5 +33,9 @@ public final class AuthenticationField {
     public static final String ATTACH_REALM_NAME = "__attach";
     public static final String ATTACH_REALM_TYPE = "__attach";
 
+    public static final String REMOTE_ACCESS_REALM_NAME = "_es_remote_access";
+    public static final String REMOTE_ACCESS_REALM_TYPE = "_es_remote_access";
+
+
     private AuthenticationField() {}
 }

@@ -122,7 +122,7 @@ public class RemoteClusterSecurityTransportInterceptor implements TransportInter
                     final String clusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get());
                     // TODO race condition: what if settings have changed after we called shouldSendWithRemoteAccessHeaders?
                     assert clusterCredential != null : "there should be a remote cluster credential";
-                    threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER, clusterCredential);
+                    threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER, withApiKeyPrefix(clusterCredential));
                     sender.sendRequest(
                         connection,
                         action,
@@ -135,4 +135,7 @@ public class RemoteClusterSecurityTransportInterceptor implements TransportInter
         );
     }
 
+    private String withApiKeyPrefix(final String clusterCredential) {
+        return "ApiKey " + clusterCredential;
+    }
 }

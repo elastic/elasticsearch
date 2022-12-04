@@ -940,6 +940,7 @@ public final class Authentication implements ToXContentObject {
     public enum AuthenticationType {
         REALM,
         API_KEY,
+        REMOTE_ACCESS,
         TOKEN,
         ANONYMOUS,
         INTERNAL

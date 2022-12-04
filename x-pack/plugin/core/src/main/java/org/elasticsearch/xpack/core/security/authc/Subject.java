@@ -39,6 +39,7 @@ public class Subject {
         USER,
         API_KEY,
         SERVICE_ACCOUNT,
+        REMOTE_ACCESS,
     }
 
     private final Version version;

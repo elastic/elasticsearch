@@ -65,7 +65,14 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
-        this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
+        this.allAuthenticators = List.of(
+            serviceAccountAuthenticator,
+            oAuth2TokenAuthenticator,
+            apiKeyAuthenticator,
+            realmsAuthenticator,
+            // TODO shortcut, remove
+            new RemoteAccessAuthenticator(apiKeyAuthenticator.getApiKeyService(), nodeName)
+        );
     }
 
     void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> originalListener) {

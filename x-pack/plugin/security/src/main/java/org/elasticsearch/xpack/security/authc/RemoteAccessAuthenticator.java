@@ -12,12 +12,17 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class RemoteAccessAuthenticator implements Authenticator {
 
@@ -68,7 +73,15 @@ public class RemoteAccessAuthenticator implements Authenticator {
             remoteAccessCredentials.apiKeyCredentials(),
             ActionListener.wrap(authResult -> {
                 if (authResult.isAuthenticated()) {
-                    final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);
+                    final Map<String, Object> authMetadata = new HashMap<>(authResult.getMetadata());
+                    authMetadata.put(
+                        AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
+                        remoteAccessCredentials.remoteAccessAuthentication().roleDescriptorsBytesIntersection()
+                    );
+                    final Authentication authentication = Authentication.newRemoteAccessAuthentication(
+                        AuthenticationResult.success(authResult.getValue(), Map.copyOf(authMetadata)),
+                        nodeName
+                    );
                     listener.onResponse(AuthenticationResult.success(authentication));
                 } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                     listener.onFailure(

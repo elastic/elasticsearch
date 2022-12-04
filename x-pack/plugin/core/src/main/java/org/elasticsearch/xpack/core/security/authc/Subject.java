@@ -19,12 +19,14 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersecti
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 
 /**
@@ -100,6 +102,8 @@ public class Subject {
                 return buildRoleReferencesForApiKey();
             case SERVICE_ACCOUNT:
                 return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
+            case REMOTE_ACCESS:
+                return buildRoleReferencesForRemoteAccess();
             default:
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");
@@ -219,6 +223,17 @@ public class Subject {
             new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
             limitedByRoleReference
         );
+    }
+
+    private RoleReferenceIntersection buildRoleReferencesForRemoteAccess() {
+        // TODO shortcut, remove
+        final RoleReferenceIntersection apiKeyRoleReferenceIntersection = buildRoleReferencesForApiKey();
+        @SuppressWarnings("unchecked")
+        final List<BytesReference> remoteAccessRoleDescriptorsBytes = (List<BytesReference>) metadata.get(
+            REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY
+        );
+
+        return apiKeyRoleReferenceIntersection;
     }
 
     private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {

@@ -64,7 +64,7 @@ public class ParentChildNavigationTests extends ESTestCase {
         }
         long result = 0;
         for (int i = 0; i < H3.h3ToChildrenSize(h3Address); i++) {
-            result += numChildren(H3.childPosToCell(h3Address, i), finalRes);
+            result += numChildren(H3.childPosToH3(h3Address, i), finalRes);
         }
         return result;
     }
@@ -142,7 +142,7 @@ public class ParentChildNavigationTests extends ESTestCase {
     private void assertIntersectingChildren(String h3Address, String[] children) {
         int size = H3.h3ToNotIntersectingChildrenSize(h3Address);
         for (int i = 0; i < size; i++) {
-            GeoPolygon p = getGeoPolygon(H3.noChildIntersectingPosToCell(h3Address, i));
+            GeoPolygon p = getGeoPolygon(H3.noChildIntersectingPosToH3(h3Address, i));
             int intersections = 0;
             for (String o : children) {
                 if (p.intersects(getGeoPolygon(o))) {

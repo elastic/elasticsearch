@@ -231,7 +231,7 @@ public final class H3 {
     public static long[] h3ToChildren(long h3) {
         final long[] children = new long[h3ToChildrenSize(h3)];
         for (int i = 0; i < children.length; i++) {
-            children[i] = childPosToCell(h3, i);
+            children[i] = childPosToH3(h3, i);
         }
         return children;
     }
@@ -247,7 +247,7 @@ public final class H3 {
     /**
      * Returns the child cell at the given position
      */
-    public static long childPosToCell(long h3, int childPos) {
+    public static long childPosToH3(long h3, int childPos) {
         final int childrenRes = H3Index.H3_get_resolution(h3) + 1;
         if (childrenRes > MAX_H3_RES) {
             throw new IllegalArgumentException("Resolution overflow");
@@ -271,8 +271,8 @@ public final class H3 {
     /**
      * Returns the child address at the given position
      */
-    public static String childPosToCell(String h3Address, int childPos) {
-        return h3ToString(childPosToCell(stringToH3(h3Address), childPos));
+    public static String childPosToH3(String h3Address, int childPos) {
+        return h3ToString(childPosToH3(stringToH3(h3Address), childPos));
     }
 
     private static final int[] PEN_INTERSECTING_CHILDREN_DIRECTIONS = new int[] { 3, 1, 6, 4, 2 };
@@ -286,7 +286,7 @@ public final class H3 {
         final boolean isPentagon = isPentagon(h3);
         final long[] noChildren = new long[isPentagon ? 5 : 6];
         for (int i = 0; i < noChildren.length; i++) {
-            noChildren[i] = noChildIntersectingPosToCell(h3, i);
+            noChildren[i] = noChildIntersectingPosToH3(h3, i);
         }
         return noChildren;
     }
@@ -302,7 +302,7 @@ public final class H3 {
     /**
      * Returns the no child intersecting cell at the given position
      */
-    public static long noChildIntersectingPosToCell(long h3, int childPos) {
+    public static long noChildIntersectingPosToH3(long h3, int childPos) {
         final int childrenRes = H3Index.H3_get_resolution(h3) + 1;
         if (childrenRes > MAX_H3_RES) {
             throw new IllegalArgumentException("Resolution overflow");
@@ -325,8 +325,8 @@ public final class H3 {
     /**
      * Returns the no child intersecting cell at the given position
      */
-    public static String noChildIntersectingPosToCell(String h3Address, int childPos) {
-        return h3ToString(noChildIntersectingPosToCell(stringToH3(h3Address), childPos));
+    public static String noChildIntersectingPosToH3(String h3Address, int childPos) {
+        return h3ToString(noChildIntersectingPosToH3(stringToH3(h3Address), childPos));
     }
 
     /**
@@ -378,17 +378,17 @@ public final class H3 {
      * @param h3         H3Index to find the number of children of
      * @param childRes  The child resolution you're interested in
      *
-     * @return int      Exact number of children (handles hexagons and pentagons
+     * @return long      Exact number of children (handles hexagons and pentagons
      *                  correctly)
      */
-    public static int h3ToChildrenSize(long h3, int childRes) {
+    public static long h3ToChildrenSize(long h3, int childRes) {
         final int parentRes = H3Index.H3_get_resolution(h3);
         if (childRes <= parentRes || childRes > MAX_H3_RES) {
             throw new IllegalArgumentException("Invalid child resolution [" + childRes + "]");
         }
         final int n = childRes - parentRes;
         if (H3Index.H3_is_pentagon(h3)) {
-            return (1 + 5 * (_ipow(7, n) - 1) / 6);
+            return (1L + 5L * (_ipow(7, n) - 1L) / 6L);
         } else {
             return _ipow(7, n);
         }
@@ -404,7 +404,7 @@ public final class H3 {
      * @return int      Exact number of children (handles hexagons and pentagons
      *                  correctly)
      */
-    public static int h3ToChildrenSize(String h3Address, int childRes) {
+    public static long h3ToChildrenSize(String h3Address, int childRes) {
         return h3ToChildrenSize(stringToH3(h3Address), childRes);
     }
 
@@ -468,8 +468,8 @@ public final class H3 {
      *
      * @return the exponentiated value
      */
-    private static int _ipow(int base, int exp) {
-        int result = 1;
+    private static long _ipow(int base, int exp) {
+        long result = 1;
         while (exp != 0) {
             if ((exp & 1) != 0) {
                 result *= base;

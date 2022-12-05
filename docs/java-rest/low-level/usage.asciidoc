@@ -212,7 +212,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-client
 --------------------------------------------------
 <1> Set a callback that allows to modify the http client configuration
 (e.g. encrypted communication over ssl, or anything that the
-https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+https://hc.apache.org/httpcomponents-asyncclient-4.1.x/current/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
  allows to set)
 
 

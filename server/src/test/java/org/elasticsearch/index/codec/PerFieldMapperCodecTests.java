@@ -10,47 +10,40 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.RootObjectMapper;
-import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
-import java.util.Collections;
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
 
 public class PerFieldMapperCodecTests extends ESTestCase {
 
-    public void testUseBloomFilter() {
+    public void testUseBloomFilter() throws IOException {
         PerFieldMapperCodec perFieldMapperCodec = createCodec(false, randomBoolean(), false, VersionUtils.randomVersion(random()));
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
     }
 
-    public void testUseBloomFilterWithTimestampFieldEnabled() {
+    public void testUseBloomFilterWithTimestampFieldEnabled() throws IOException {
         PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, false, Version.V_8_7_0);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
     }
 
-    public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() {
+    public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
         PerFieldMapperCodec perFieldMapperCodec = createCodec(true, false, false, Version.V_8_7_0);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
     }
 
-    public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() {
+    public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {
         PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, true, Version.V_8_7_0);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
         assertWarnings(
@@ -58,17 +51,17 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         );
     }
 
-    public void testUseBloomFilterWithTimestampFieldEnabled_olderVersion() {
+    public void testUseBloomFilterWithTimestampFieldEnabled_olderVersion() throws IOException {
         PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, false, Version.V_8_6_0);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
     }
 
-    private static PerFieldMapperCodec createCodec(
+    private PerFieldMapperCodec createCodec(
         boolean timestampField,
         boolean timeSeries,
         boolean disableBloomFilter,
         Version createdVersion
-    ) {
+    ) throws IOException {
         Settings.Builder settings = Settings.builder();
         settings.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
         if (timeSeries) {
@@ -78,30 +71,25 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (disableBloomFilter) {
             settings.put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false);
         }
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings.build());
-        RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
-
-        MetadataFieldMapper[] metaFieldMappers;
+        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         if (timestampField) {
-            metaFieldMappers = new MetadataFieldMapper[] { DataStreamTestHelper.getDataStreamTimestampFieldMapper() };
-            root.add(
-                new DateFieldMapper.Builder(
-                    "@timestamp",
-                    DateFieldMapper.Resolution.MILLISECONDS,
-                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-                    ScriptCompiler.NONE,
-                    true,
-                    Version.CURRENT
-                )
-            );
-        } else {
-            metaFieldMappers = new MetadataFieldMapper[] {};
+            String mapping = """
+                {
+                    "_data_stream_timestamp": {
+                        "enabled": true
+                    },
+                    "properties": {
+                        "@timestamp": {
+                            "type": "date"
+                        }
+                    }
+                }
+                """;
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         }
-        Mapping mapping = new Mapping(root.build(MapperBuilderContext.root(false)), metaFieldMappers, Collections.emptyMap());
         return new PerFieldMapperCodec(
             Lucene94Codec.Mode.BEST_SPEED,
-            indexSettings,
-            MappingLookup.fromMapping(mapping),
+            mapperService,
             BigArrays.NON_RECYCLING_INSTANCE
         );
     }

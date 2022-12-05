@@ -12,19 +12,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
-import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
-import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -33,8 +26,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
@@ -74,11 +65,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
-    private static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(
-        "x_pack_rest_user",
-        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
-    );
-
     static final String BASE_64_ENCODED_MODEL =
         "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWlpaWlpaWlpaWoACY19fdG9yY2hfXwp"
             + "TdXBlclNpbXBsZQpxACmBfShYCAAAAHRyYWluaW5ncQGIdWJxAi5QSwcIXOpBBDQAAAA0AAAAUEsDBBQACAgIAAAAAAAAAAAAAAAAAA"
@@ -105,13 +91,6 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
     static final long RAW_MODEL_SIZE; // size of the model before base64 encoding
     static {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
-    }
-
-    private final ExecutorService executorService = Executors.newFixedThreadPool(5);
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
     }
 
     public void testEvaluate() throws IOException, InterruptedException {

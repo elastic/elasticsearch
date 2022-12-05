@@ -176,6 +176,12 @@ PUT image-index
         "index": true,
         "similarity": "l2_norm"
       },
+      "title-vector": {
+        "type": "dense_vector",
+        "dims": 5,
+        "index": true,
+        "similarity": "l2_norm"
+      },
       "title": {
         "type": "text"
       },
@@ -194,11 +200,11 @@ PUT image-index
 ----
 POST image-index/_bulk?refresh=true
 { "index": { "_id": "1" } }
-{ "image-vector": [1, 5, -20], "title": "moose family", "file-type": "jpg" }
+{ "image-vector": [1, 5, -20], "title-vector": [12, 50, -10, 0, 1], "title": "moose family", "file-type": "jpg" }
 { "index": { "_id": "2" } }
-{ "image-vector": [42, 8, -15], "title": "alpine lake", "file-type": "png" }
+{ "image-vector": [42, 8, -15], "title-vector": [25, 1, 4, -12, 2], "title": "alpine lake", "file-type": "png" }
 { "index": { "_id": "3" } }
-{ "image-vector": [15, 11, 23], "title": "full moon", "file-type": "jpg" }
+{ "image-vector": [15, 11, 23], "title-vector": [1, 5, 25, 50, 20], "title": "full moon", "file-type": "jpg" }
 ...
 ----
 //TEST[continued]
@@ -430,7 +436,7 @@ POST image-index/_search
     "num_candidates": 50,
     "boost": 0.1
   },{"field": "title-vector",
-    "query_vector": [0.23, 1.2, -0.52, 0.023],
+    "query_vector": [1, 20, -52, 23, 10],
     "k": 10,
     "num_candidates": 10,
     "boost": 0.5

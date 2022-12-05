@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -167,9 +166,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
     }
 
     public void testRandomBuilder() {
-        String[] indices = IntStream.range(0, randomIntBetween(1, 50))
-            .mapToObj(n -> String.format(Locale.ROOT, "index_%2d", n))
-            .toArray(String[]::new);
+        String[] indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> formatted("index_%2d", n)).toArray(String[]::new);
 
         List<String> nonSearchableIndices = new ArrayList<>();
         List<String> nonAggregatableIndices = new ArrayList<>();

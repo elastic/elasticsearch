@@ -19,8 +19,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.TransportInfo;
 
-import java.util.Locale;
-
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -39,7 +37,7 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         if (randomPort == -1) {
             randomPort = randomIntBetween(49152, 65525);
-            randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort + 10);
+            randomPortRange = formatted("%s-%s", randomPort, randomPort + 10);
         }
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))

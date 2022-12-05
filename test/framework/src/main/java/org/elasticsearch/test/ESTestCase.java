@@ -1812,7 +1812,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "%s: %s", level.name(), message);
+            return formatted("%s: %s", level.name(), message);
         }
     }
 

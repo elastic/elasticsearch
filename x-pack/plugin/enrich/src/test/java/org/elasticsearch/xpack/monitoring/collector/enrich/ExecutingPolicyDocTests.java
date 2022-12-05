@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -124,7 +123,7 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
                         executingPolicy.getTaskInfo().cancellable()
                             ? formatted("\"cancelled\": %s,", executingPolicy.getTaskInfo().cancelled())
                             : "",
-                        header.map(entry -> String.format(Locale.ROOT, """
+                        header.map(entry -> formatted("""
                             {"%s":"%s"}""", entry.getKey(), entry.getValue())).orElse("{}")
                     )
                 )

@@ -38,7 +38,6 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.OptionalDouble;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -200,7 +199,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
             String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
             bulkRequest.add(
                 new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                    .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+                    .source(formatted("{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
             );
         }
         client().bulk(bulkRequest).actionGet();

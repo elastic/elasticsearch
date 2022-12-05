@@ -1248,7 +1248,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             }
         } else {
             for (String expectedSuggestion : suggestions) {
-                String errMsg = String.format(Locale.ROOT, "Expected elem %s to be in list %s", expectedSuggestion, suggestionList);
+                String errMsg = formatted("Expected elem %s to be in list %s", expectedSuggestion, suggestionList);
                 assertThat(errMsg, suggestionList, hasItem(expectedSuggestion));
             }
         }

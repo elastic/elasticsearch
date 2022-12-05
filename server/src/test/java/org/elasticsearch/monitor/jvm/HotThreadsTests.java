@@ -219,7 +219,7 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedMXBean.getThreadCpuTime(threadId)).thenReturn(0L).thenReturn(threadId * cpuMultiplier);
         ThreadInfo mockedThreadInfo = mock(ThreadInfo.class);
         when(mockedMXBean.getThreadInfo(eq(threadId), anyInt())).thenReturn(mockedThreadInfo);
-        when(mockedThreadInfo.getThreadName()).thenReturn(String.format(Locale.ROOT, "%s %d", threadPrefix, threadId));
+        when(mockedThreadInfo.getThreadName()).thenReturn(formatted("%s %d", threadPrefix, threadId));
 
         // We create some variability for the blocked and waited times. Odd and even.
         when(mockedThreadInfo.getBlockedCount()).thenReturn(0L).thenReturn(threadId % 2);

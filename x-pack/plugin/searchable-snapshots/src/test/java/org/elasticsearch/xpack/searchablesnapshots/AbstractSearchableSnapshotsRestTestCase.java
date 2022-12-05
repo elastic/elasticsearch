@@ -157,7 +157,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
                         long n;
                         while ((n = remainingDocs.decrementAndGet()) >= 0) {
-                            bulkBody.append(String.format(Locale.ROOT, """
+                            bulkBody.append(formatted("""
                                     {"index": {"_id":"%d"} }
                                     {"field": %d, "text": "Document number %d"}
                                 """, n, n, n));

@@ -2108,10 +2108,7 @@ public class IngestServiceTests extends ESTestCase {
 
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> executeFailingPut(request, clusterState));
-        assertThat(
-            e.getMessage(),
-            equalTo(String.format(Locale.ROOT, "cannot update pipeline [%s] with the same version [%s]", pipelineId, version))
-        );
+        assertThat(e.getMessage(), equalTo(formatted("cannot update pipeline [%s] with the same version [%s]", pipelineId, version)));
     }
 
     public void testPutPipelineWithVersionedUpdateSpecifiesValidVersion() throws Exception {

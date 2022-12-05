@@ -48,7 +48,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
@@ -483,7 +482,7 @@ public class HttpClientTests extends ESTestCase {
             request = HttpRequest.builder("localhost", webServer.getPort()).path(path).build();
         } else {
             // ensure that fromUrl acts the same way than the above builder
-            request = HttpRequest.builder().fromUrl(String.format(Locale.ROOT, "http://localhost:%s%s", webServer.getPort(), path)).build();
+            request = HttpRequest.builder().fromUrl(formatted("http://localhost:%s%s", webServer.getPort(), path)).build();
         }
         httpClient.execute(request);
 
@@ -822,6 +821,6 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private String getWebserverUri() {
-        return String.format(Locale.ROOT, "http://%s:%s", webServer.getHostName(), webServer.getPort());
+        return formatted("http://%s:%s", webServer.getHostName(), webServer.getPort());
     }
 }

@@ -15,7 +15,6 @@ import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -30,7 +29,7 @@ public class TemplateUtilsTests extends ESTestCase {
 
     public void testLoadTemplate() throws IOException {
         final int version = randomIntBetween(0, 10_000);
-        String resource = String.format(Locale.ROOT, SIMPLE_TEST_TEMPLATE, "test");
+        String resource = formatted(SIMPLE_TEST_TEMPLATE, "test");
         String source = TemplateUtils.loadTemplate(resource, String.valueOf(version), "monitoring.template.version");
 
         assertThat(source, notNullValue());
@@ -86,7 +85,7 @@ public class TemplateUtilsTests extends ESTestCase {
     }
 
     public void testLoad() throws IOException {
-        String resource = String.format(Locale.ROOT, SIMPLE_TEST_TEMPLATE, "test");
+        String resource = formatted(SIMPLE_TEST_TEMPLATE, "test");
         String source = TemplateUtils.load(resource);
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
@@ -111,7 +110,7 @@ public class TemplateUtilsTests extends ESTestCase {
     }
 
     public void testValidate() throws IOException {
-        String resource = String.format(Locale.ROOT, SIMPLE_TEST_TEMPLATE, "test");
+        String resource = formatted(SIMPLE_TEST_TEMPLATE, "test");
         TemplateUtils.validate(TemplateUtils.load(resource));
     }
 

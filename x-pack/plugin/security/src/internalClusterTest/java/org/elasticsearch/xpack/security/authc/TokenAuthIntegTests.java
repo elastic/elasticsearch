@@ -44,7 +44,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -675,7 +674,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(ObjectPath.evaluate(authenticateMap, "authentication_realm.name"), equalTo("file"));
         assertThat(ObjectPath.evaluate(authenticateMap, "authentication_type"), is("token"));
 
-        final TokenInvalidation tokenInvalidation = getSecurityClient().invalidateTokens(String.format(Locale.ROOT, """
+        final TokenInvalidation tokenInvalidation = getSecurityClient().invalidateTokens(formatted("""
             {
               "realm_name":"%s",
               "username":"%s"

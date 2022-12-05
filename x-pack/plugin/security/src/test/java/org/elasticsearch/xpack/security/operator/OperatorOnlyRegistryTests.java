@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -90,7 +89,7 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
                 violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
                 assertThat(
                     violation.message(),
-                    containsString(String.format(Locale.ROOT, "settings [%s,%s]", transientSetting.getKey(), persistentSetting.getKey()))
+                    containsString(formatted("settings [%s,%s]", transientSetting.getKey(), persistentSetting.getKey()))
                 );
             }
             case 1 -> {

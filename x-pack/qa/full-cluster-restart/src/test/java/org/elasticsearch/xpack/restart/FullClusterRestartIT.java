@@ -42,7 +42,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -448,7 +447,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final StringBuilder bulk = new StringBuilder();
             for (int i = 0; i < numDocs; i++) {
                 bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
-                String date = String.format(Locale.ROOT, "%04d-01-01T00:%02d:00Z", year, i);
+                String date = formatted("%04d-01-01T00:%02d:00Z", year, i);
                 bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
             }
             bulk.append("\r\n");

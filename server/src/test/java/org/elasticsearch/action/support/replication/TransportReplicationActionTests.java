@@ -88,7 +88,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -1582,7 +1581,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             final long primaryTerm = indexShard.getPendingPrimaryTerm();
             if (term < primaryTerm) {
                 throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "%s operation term [%d] is too old (current [%d])", shardId, term, primaryTerm)
+                    formatted("%s operation term [%d] is too old (current [%d])", shardId, term, primaryTerm)
                 );
             }
             count.incrementAndGet();

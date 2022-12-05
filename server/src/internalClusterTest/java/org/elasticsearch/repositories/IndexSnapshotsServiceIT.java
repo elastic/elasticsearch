@@ -31,7 +31,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -234,7 +233,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         assertThat(error.isPresent(), is(equalTo(true)));
         assertThat(
             error.get().getMessage(),
-            equalTo(String.format(Locale.ROOT, "[%s] Unable to find the latest snapshot for shard [[%s][0]]", failingRepoName, indexName))
+            equalTo(formatted("[%s] Unable to find the latest snapshot for shard [[%s][0]]", failingRepoName, indexName))
         );
 
         for (String workingRepoName : workingRepoNames) {

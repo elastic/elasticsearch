@@ -35,7 +35,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -280,11 +279,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(
             responseAsMap(response),
             equalTo(
-                XContentHelper.convertToMap(
-                    new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1", "file")),
-                    false,
-                    XContentType.JSON
-                ).v2()
+                XContentHelper.convertToMap(new BytesArray(formatted(AUTHENTICATE_RESPONSE, "token1", "file")), false, XContentType.JSON)
+                    .v2()
             )
         );
     }
@@ -373,7 +369,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseAsMap(response),
             equalTo(
                 XContentHelper.convertToMap(
-                    new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1", "index")),
+                    new BytesArray(formatted(AUTHENTICATE_RESPONSE, "api-token-1", "index")),
                     false,
                     XContentType.JSON
                 ).v2()

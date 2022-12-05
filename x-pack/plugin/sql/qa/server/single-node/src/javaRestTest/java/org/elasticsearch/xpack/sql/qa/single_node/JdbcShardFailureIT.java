@@ -15,7 +15,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
-import java.util.Locale;
 import java.util.Properties;
 
 import static org.hamcrest.Matchers.containsString;
@@ -101,7 +100,7 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
             String indexName = "/test" + i;
             Request request = new Request("PUT", indexName);
             boolean indexWithDocVals = i < okShards;
-            request.setJsonEntity(String.format(Locale.ROOT, mappingTemplate, indexWithDocVals, indexWithDocVals));
+            request.setJsonEntity(formatted(mappingTemplate, indexWithDocVals, indexWithDocVals));
             assertOK(provisioningClient().performRequest(request));
 
             request = new Request("POST", indexName + "/_doc");

@@ -21,7 +21,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -132,7 +131,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         // Search for fields that are not allowed in Query DSL but used internally by the service itself
         final String fieldName = randomFrom("doc_type", "api_key_invalidated");
-        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, String.format(Locale.ROOT, """
+        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, formatted( """
             { "query": { "term": {"%s": "%s"} } }""", fieldName, randomAlphaOfLengthBetween(3, 8)));
 
         // Search for api keys won't return other entities
@@ -260,7 +259,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             } else {
                 searchAfter.append(sortValues.get(0));
             }
-            request2.setJsonEntity(String.format(Locale.ROOT, """
+            request2.setJsonEntity(formatted( """
                 {"size":%s,"sort":["%s"],"search_after":[%s]}
                 """, size, sortField, searchAfter));
             actualSize = collectApiKeys(apiKeyInfos, request2, total, size);
@@ -599,10 +598,10 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final String metadataString = XContentTestUtils.convertToXContent(metadata == null ? Map.of() : metadata, XContentType.JSON)
             .utf8ToString();
         if (expiration == null) {
-            request.setJsonEntity(String.format(Locale.ROOT, """
+            request.setJsonEntity(formatted("""
                 {"name":"%s", "role_descriptors":%s, "metadata":%s}""", name, roleDescriptorsString, metadataString));
         } else {
-            request.setJsonEntity(String.format(Locale.ROOT, """
+            request.setJsonEntity(formatted("""
                 {"name":"%s", "expiration": "%s", "role_descriptors":%s,\
                 "metadata":%s}""", name, expiration, roleDescriptorsString, metadataString));
         }

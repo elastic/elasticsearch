@@ -19,7 +19,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -642,7 +641,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             sections
         );
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertEquals(String.format(Locale.ROOT, """
+        assertEquals(formatted("""
             api/name:
             attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] so runners that \
             do not support the [contains] assertion can skip the test at line [%d],

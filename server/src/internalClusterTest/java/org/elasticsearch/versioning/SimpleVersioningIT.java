@@ -25,7 +25,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -471,7 +470,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 // zero-pad sequential
                 logger.info("--> use zero-padded sequential ids");
                 yield new IDSource() {
-                    final String zeroPad = String.format(Locale.ROOT, "%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
+                    final String zeroPad = formatted("%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
                     int upto;
 
                     @Override

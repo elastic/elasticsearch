@@ -30,7 +30,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -330,11 +329,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         for (int i = 0; i < 120; i++) {
             long byteCount = randomNonNegativeLong();
             bulk.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
-            bulk.append(String.format(Locale.ROOT, docTemplate, date.getTime(), "hostA", byteCount)).append('\n');
+            bulk.append(formatted(docTemplate, date.getTime(), "hostA", byteCount)).append('\n');
 
             byteCount = randomNonNegativeLong();
             bulk.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
-            bulk.append(String.format(Locale.ROOT, docTemplate, date.getTime(), "hostB", byteCount)).append('\n');
+            bulk.append(formatted(docTemplate, date.getTime(), "hostB", byteCount)).append('\n');
 
             date = new Date(date.getTime() + 10_000);
         }

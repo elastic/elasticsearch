@@ -23,7 +23,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
@@ -190,7 +189,7 @@ public class XContentRecordReaderTests extends ESTestCase {
             """;
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < XContentRecordReader.PARSE_ERRORS_LIMIT; i++) {
-            builder.append(String.format(Locale.ROOT, format, i));
+            builder.append(formatted(format, i));
         }
 
         XContentParser parser = createParser(builder.toString());

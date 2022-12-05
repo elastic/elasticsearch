@@ -371,7 +371,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                         return;
                     } else {
-                        exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d/%d", rangeStart, rangeEnd));
+                        exchange.getResponseHeaders().add("Range", formatted("bytes=%d/%d", rangeStart, rangeEnd));
                         exchange.getResponseHeaders().add("Content-Length", "0");
                         exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
                         return;

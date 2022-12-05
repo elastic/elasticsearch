@@ -94,7 +94,7 @@ public class DateTimeDateFormatProcessorTests extends ESTestCase {
             .makePipe()
             .asProcessor()
             .process(null);
-        assertEquals(String.format(Locale.ROOT, """
+        assertEquals(formatted("""
 
             Testfile: %s
             Line number: %s

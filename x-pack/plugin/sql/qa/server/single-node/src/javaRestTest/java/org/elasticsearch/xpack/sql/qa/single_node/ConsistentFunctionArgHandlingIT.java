@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -204,7 +203,7 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
                 if (results.stream().map(Tuple::v2).distinct().count() > 1) {
                     int maxResultWidth = results.stream().map(Tuple::v2).mapToInt(o -> asLiteralInQuery(o).length()).max().orElse(20);
                     String resultsAsString = results.stream()
-                        .map(r -> String.format(Locale.ROOT, "%2$-" + maxResultWidth + "s // %1$s", r.v1(), asLiteralInQuery(r.v2())))
+                        .map(r -> formatted("%2$-" + maxResultWidth + "s // %1$s", r.v1(), asLiteralInQuery(r.v2())))
                         .collect(joining("\n"));
                     fail("The result of the last call differs from the other calls:\n" + resultsAsString);
                 }

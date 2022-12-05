@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -44,7 +43,7 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
         when(secondHttpResponseInputStream.read(any(), anyInt(), anyInt())).thenReturn(blobSize - firstChunkSize).thenReturn(-1);
         final Map<String, String> secondResponseHeaders = Map.of(
             "Content-Range",
-            String.format(Locale.ROOT, "bytes %d-%d/%d", firstChunkSize, blobSize - 1, blobSize)
+            formatted("bytes %d-%d/%d", firstChunkSize, blobSize - 1, blobSize)
         );
 
         final List<MockHttpResponse> responses = List.of(

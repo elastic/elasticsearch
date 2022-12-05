@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -150,7 +149,7 @@ public class MustacheTests extends ESTestCase {
         data.put("list", randomList);
         Map<String, Object> vars = new HashMap<>();
         vars.put("data", data);
-        String expectedString = String.format(Locale.ROOT, "%s %s", randomArrayValues.length, randomList.size());
+        String expectedString = formatted("%s %s", randomArrayValues.length, randomList.size());
         assertThat(factory.newInstance(vars).execute(), equalTo(expectedString));
     }
 

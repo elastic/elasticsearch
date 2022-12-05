@@ -64,7 +64,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter());
+        uri = formatted("something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("p"), equalTo("v"));
@@ -94,7 +94,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("p"), equalTo("v"));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter());
+        uri = formatted("something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(3));
         assertThat(params.get("a"), equalTo(""));
@@ -102,7 +102,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("p1"), equalTo("v1"));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?p=v%ca%cb%cp1=v1", randomDelimiter(), randomDelimiter(), randomDelimiter());
+        uri = formatted("something?p=v%ca%cb%cp1=v1", randomDelimiter(), randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(4));
         assertThat(params.get("a"), equalTo(""));
@@ -167,7 +167,7 @@ public class RestUtilsTests extends ESTestCase {
         Pattern pattern = RestUtils.checkCorsSettingForRegex(settingsValue);
         for (String candidate : candidates) {
             assertThat(
-                String.format(Locale.ROOT, "Expected pattern %s to match against %s: %s", settingsValue, candidate, expectMatch),
+                formatted("Expected pattern %s to match against %s: %s", settingsValue, candidate, expectMatch),
                 pattern.matcher(candidate).matches(),
                 is(expectMatch)
             );

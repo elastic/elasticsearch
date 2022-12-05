@@ -42,7 +42,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -154,7 +153,7 @@ public class ExportersTests extends ESTestCase {
         int year = zonedDateTime.getYear();
         int month = zonedDateTime.getMonthValue();
         int day = zonedDateTime.getDayOfMonth();
-        String expecdateDate = String.format(Locale.ROOT, "%02d.%02d.%02d", year, month, day);
+        String expecdateDate = formatted("%02d.%02d.%02d", year, month, day);
         String formattedDate = formatter.format(instant);
         assertThat("input date was " + instant, expecdateDate, is(formattedDate));
     }

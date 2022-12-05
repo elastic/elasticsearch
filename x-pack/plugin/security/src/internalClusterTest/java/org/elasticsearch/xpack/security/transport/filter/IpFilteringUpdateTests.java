@@ -16,7 +16,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
-import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -184,7 +183,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         }
 
         IPFilter ipFilter = internalCluster().getDataNodeInstance(IPFilter.class);
-        String message = String.format(Locale.ROOT, "Expected allowed connection for profile %s against host %s", profile, host);
+        String message = formatted("Expected allowed connection for profile %s against host %s", profile, host);
         assertThat(message, ipFilter.accept(profile, new InetSocketAddress(InetAddress.getByName(host), 0)), is(true));
     }
 
@@ -195,7 +194,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
         }
 
         IPFilter ipFilter = internalCluster().getDataNodeInstance(IPFilter.class);
-        String message = String.format(Locale.ROOT, "Expected rejection for profile %s against host %s", profile, host);
+        String message = formatted("Expected rejection for profile %s against host %s", profile, host);
         assertThat(message, ipFilter.accept(profile, new InetSocketAddress(InetAddress.getByName(host), 0)), is(false));
     }
 }

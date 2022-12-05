@@ -117,7 +117,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                 logger.trace("--> creating new cache files and randomly read/write them");
                 for (int i = 0; i < between(1, 25); i++) {
                     final ShardId shardId = new ShardId(index, randomIntBetween(0, numShards - 1));
-                    final String fileName = String.format(Locale.ROOT, "file_%d_%d", iteration, i);
+                    final String fileName = formatted("file_%d_%d", iteration, i);
                     final CacheKey cacheKey = new CacheKey(snapshotUUID, snapshotIndexName, shardId, fileName);
                     final CacheFile cacheFile = cacheService.get(cacheKey, randomIntBetween(0, 10_000), shardsCacheDirs[shardId.id()]);
 

@@ -291,7 +291,7 @@ public class JvmOptionsParserTests extends ESTestCase {
 
         final int javaMajorVersion = randomIntBetween(8, Integer.MAX_VALUE);
         final int smallerJavaMajorVersion = randomIntBetween(7, javaMajorVersion - 1);
-        final String invalidRangeLine = String.format(Locale.ROOT, "%d:%d-XX:+UseG1GC", javaMajorVersion, smallerJavaMajorVersion);
+        final String invalidRangeLine = formatted("%d:%d-XX:+UseG1GC", javaMajorVersion, smallerJavaMajorVersion);
         try (StringReader sr = new StringReader(invalidRangeLine); BufferedReader br = new BufferedReader(sr)) {
             assertInvalidLines(br, Collections.singletonMap(1, invalidRangeLine));
         }
@@ -321,7 +321,7 @@ public class JvmOptionsParserTests extends ESTestCase {
 
         final int lowerBound = randomIntBetween(9, 16);
         final int upperBound = randomIntBetween(8, lowerBound - 1);
-        final String upperBoundGreaterThanLowerBound = String.format(Locale.ROOT, "%d-%d-XX:+UseG1GC", lowerBound, upperBound);
+        final String upperBoundGreaterThanLowerBound = formatted("%d-%d-XX:+UseG1GC", lowerBound, upperBound);
         try (StringReader sr = new StringReader(upperBoundGreaterThanLowerBound); BufferedReader br = new BufferedReader(sr)) {
             assertInvalidLines(br, Collections.singletonMap(1, upperBoundGreaterThanLowerBound));
         }

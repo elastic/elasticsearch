@@ -152,7 +152,7 @@ public class ProfileIT extends ESRestTestCase {
 
         // Create the profile documents
         for (String uid : uids) {
-            final String source = String.format(Locale.ROOT, SAMPLE_PROFILE_DOCUMENT_TEMPLATE, uid, uid, Instant.now().toEpochMilli());
+            final String source = formatted(SAMPLE_PROFILE_DOCUMENT_TEMPLATE, uid, uid, Instant.now().toEpochMilli());
             final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
             indexRequest.setJsonEntity(source);
             indexRequest.addParameter("refresh", "wait_for");
@@ -286,7 +286,7 @@ public class ProfileIT extends ESRestTestCase {
                     """, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
             }
             default -> {
-                payload = String.format(Locale.ROOT, """
+                payload = formatted("""
                     {
                       "name": "rac",
                       "hint": {
@@ -463,7 +463,7 @@ public class ProfileIT extends ESRestTestCase {
 
     private Map<String, Object> doActivateProfile(String username, String password) throws IOException {
         final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
-        activateProfileRequest.setJsonEntity(String.format(Locale.ROOT, """
+        activateProfileRequest.setJsonEntity(formatted("""
             {
               "grant_type": "password",
               "username": "%s",

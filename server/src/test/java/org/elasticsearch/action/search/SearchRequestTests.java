@@ -88,6 +88,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     public void testSerializationMultiKNN() throws Exception {
         SearchRequest searchRequest = createSearchRequest();
+        if (searchRequest.source() == null) {
+            searchRequest.source(new SearchSourceBuilder());
+        }
         searchRequest.source()
             .knnSearch(
                 List.of(

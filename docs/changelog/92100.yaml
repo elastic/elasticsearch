@@ -1,7 +1,7 @@
 pr: 92100
 summary: Ensure balance threshold is at least 1
 area: Allocation
-type: "bug, deprecation"
+type: deprecation
 issues: []
 deprecation:
   title: Ensure balance threshold is at least 1

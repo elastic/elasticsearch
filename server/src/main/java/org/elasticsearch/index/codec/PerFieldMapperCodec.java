@@ -14,13 +14,16 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -32,7 +35,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * configured for a specific field the default postings or vector format is used.
  */
 public class PerFieldMapperCodec extends Lucene94Codec {
-    private final MapperService mapperService;
+    private final IndexSettings indexSettings;
+    private final MappingLookup mappingLookup;
 
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final ES85BloomFilterPostingsFormat bloomFilterPostingsFormat;
@@ -43,8 +47,13 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
+        this(compressionMode, mapperService.getIndexSettings(), mapperService.mappingLookup(), bigArrays);
+    }
+
+    PerFieldMapperCodec(Mode compressionMode, IndexSettings indexSettings, MappingLookup mappingLookup, BigArrays bigArrays) {
         super(compressionMode);
-        this.mapperService = mapperService;
+        this.indexSettings = indexSettings;
+        this.mappingLookup = mappingLookup;
         this.bloomFilterPostingsFormat = new ES85BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
     }
 
@@ -57,22 +66,27 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private PostingsFormat internalGetPostingsFormatForField(String field) {
-        final PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
+        final PostingsFormat format = mappingLookup.getPostingsFormat(field);
         if (format != null) {
             return format;
         }
         return super.getPostingsFormatForField(field);
     }
 
-    private boolean useBloomFilter(String field) {
-        return IdFieldMapper.NAME.equals(field)
-            && mapperService.mappingLookup().isDataStreamTimestampFieldEnabled() == false
-            && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(mapperService.getIndexSettings().getSettings());
+    boolean useBloomFilter(String field) {
+        if (mappingLookup.isDataStreamTimestampFieldEnabled()) {
+            return indexSettings.getIndexVersionCreated().onOrAfter(Version.V_8_7_0)
+                && indexSettings.getMode() == IndexMode.TIME_SERIES
+                && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings())
+                && IdFieldMapper.NAME.equals(field);
+        } else {
+            return IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings()) && IdFieldMapper.NAME.equals(field);
+        }
     }
 
     @Override
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-        Mapper mapper = mapperService.mappingLookup().getMapper(field);
+        Mapper mapper = mappingLookup.getMapper(field);
         if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
             KnnVectorsFormat format = vectorMapper.getKnnVectorsFormatForField();
             if (format != null) {

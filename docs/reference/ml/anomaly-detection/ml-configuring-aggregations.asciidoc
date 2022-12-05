@@ -439,3 +439,12 @@ the `error` field.
 ----------------------------------
 // NOTCONSOLE
 
+
+[discrete]
+[[aggs-amd-dfeeds]]
+== Using `aggregate_metric_double` field type in {dfeeds}
+
+You can use fields with the 
+<<aggregate-metric-double,`aggregate_metric_double`>> field type in a {dfeed} 
+with aggregations. 
+

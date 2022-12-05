@@ -1200,7 +1200,11 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logShardStates(clusterState);
 
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(shouldAllocate ? 0 : 1));
-        assertThat(shardsWithState(clusterState.getRoutingNodes(), "test", INITIALIZING, STARTED).size(), equalTo(shouldAllocate ? 1 : 0));
+        assertThat(
+            shardsWithState(clusterState.getRoutingNodes(), "test", INITIALIZING).size() //
+                + shardsWithState(clusterState.getRoutingNodes(), "test", STARTED).size(),
+            equalTo(shouldAllocate ? 1 : 0)
+        );
     }
 
     public void testDiskThresholdWithSnapshotShardSizesWithPercentages() {

@@ -147,11 +147,7 @@ public class ParentChildNavigationTests extends ESTestCase {
         // this polygons are disjoint but due to https://github.com/apache/lucene/issues/11883
         // they are reported as intersects. Once this is fixed this test will fail, we should adjust
         // testNoChildrenIntersecting
-        assertEquals(
-            "see https://github.com/elastic/elasticsearch/issues/91915",
-            GeoArea.OVERLAPS,
-            polygon1.getRelationship(polygon2)
-        );
+        assertEquals("see https://github.com/elastic/elasticsearch/issues/91915", GeoArea.OVERLAPS, polygon1.getRelationship(polygon2));
     }
 
     private void assertIntersectingChildren(String h3Address, String[] children) {

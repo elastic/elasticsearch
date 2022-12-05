@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests that snapshot restore behaves correctly when we have file based settings that reserve part of the
  * cluster state
  */
-public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
+public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testFileSettingsJSON = """
@@ -96,6 +96,7 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
                 Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
                 return;
             } catch (IOException e) {
+                logger.info("--> retrying writing a settings file [" + retryCount + "]");
                 if (retryCount == 4) { // retry 5 times
                     throw e;
                 }

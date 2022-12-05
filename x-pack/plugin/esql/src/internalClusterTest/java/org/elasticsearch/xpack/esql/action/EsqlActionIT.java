@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 @Experimental
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
@@ -389,6 +390,55 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(new ColumnInfo("count", "long"), results.columns().get(countIndex));
         for (List<Object> values : results.values()) {
             assertThat((Long) values.get(countIndex), greaterThanOrEqualTo(42L));
+        }
+    }
+
+    public void testProjectRename() {
+        EsqlQueryResponse results = run("from test | project x = count, y = count");
+        logger.info(results);
+        Assert.assertEquals(40, results.values().size());
+        assertThat(results.columns(), contains(new ColumnInfo("x", "long"), new ColumnInfo("y", "long")));
+        for (List<Object> values : results.values()) {
+            assertThat((Long) values.get(0), greaterThanOrEqualTo(40L));
+            assertThat(values.get(1), is(values.get(0)));
+        }
+    }
+
+    public void testProjectRenameEval() {
+        EsqlQueryResponse results = run("from test | project x = count, y = count | eval x2 = x + 1 | eval y2 = y + 2");
+        logger.info(results);
+        Assert.assertEquals(40, results.values().size());
+        assertThat(
+            results.columns(),
+            contains(new ColumnInfo("x", "long"), new ColumnInfo("y", "long"), new ColumnInfo("x2", "long"), new ColumnInfo("y2", "long"))
+        );
+        for (List<Object> values : results.values()) {
+            assertThat((Long) values.get(0), greaterThanOrEqualTo(40L));
+            assertThat(values.get(1), is(values.get(0)));
+            assertThat(values.get(2), is(((Long) values.get(0)) + 1));
+            assertThat(values.get(3), is(((Long) values.get(0)) + 2));
+        }
+    }
+
+    public void testProjectRenameEvalProject() {
+        EsqlQueryResponse results = run("from test | project x = count, y = count | eval z = x + y | project x, y, z");
+        logger.info(results);
+        Assert.assertEquals(40, results.values().size());
+        assertThat(results.columns(), contains(new ColumnInfo("x", "long"), new ColumnInfo("y", "long"), new ColumnInfo("z", "long")));
+        for (List<Object> values : results.values()) {
+            assertThat((Long) values.get(0), greaterThanOrEqualTo(40L));
+            assertThat(values.get(1), is(values.get(0)));
+            assertThat(values.get(2), is((Long) values.get(0) * 2));
+        }
+    }
+
+    public void testProjectOverride() {
+        EsqlQueryResponse results = run("from test | project count, data = count");
+        logger.info(results);
+        Assert.assertEquals(40, results.values().size());
+        assertThat(results.columns(), contains(new ColumnInfo("count", "long"), new ColumnInfo("data", "long")));
+        for (List<Object> values : results.values()) {
+            assertThat(values.get(1), is(values.get(0)));
         }
     }
 

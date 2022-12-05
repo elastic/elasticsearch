@@ -82,7 +82,14 @@ public class ArrayTests extends ArrayLikeObjectTestCase {
         assertEquals(1, exec("def[] x = new def[1]; x[0] = 2; return x[0] / 2"));
     }
 
-    public void testLongIteration() {
+    public void testPrimitiveIteration() {
+        assertEquals(true, exec("def x = new boolean[] { true, false }; boolean s = false; for (boolean l : x) s |= l; return s"));
+        assertEquals((byte) 30, exec("def x = new byte[] { (byte)10, (byte)20 }; byte s = 0; for (byte l : x) s += l; return s"));
+        assertEquals((short) 300, exec("def x = new short[] { (short)100, (short)200 }; short s = 0; for (short l : x) s += l; return s"));
+        assertEquals('b', exec("def x = new char[] { (char)'a', (char)'b' }; char s = 0; for (char l : x) s = l; return s"));
+        assertEquals(300, exec("def x = new int[] { 100, 200 }; int s = 0; for (int l : x) s += l; return s"));
         assertEquals(300L, exec("def x = new long[] { 100, 200 }; long s = 0; for (long l : x) s += l; return s"));
+        assertEquals(300f, exec("def x = new float[] { 100, 200 }; float s = 0; for (float l : x) s += l; return s"));
+        assertEquals(300d, exec("def x = new double[] { 100, 200 }; double s = 0; for (double l : x) s += l; return s"));
     }
 }

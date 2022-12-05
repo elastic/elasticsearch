@@ -3,3 +3,12 @@ summary: TSDB numeric compression
 area: TSDB
 type: feature
 issues: []
+highlight:
+  title: TSDB numeric compression
+  body: |-
+    This PR introduces a new doc values format meant to be used by TSDB. It
+    provides compression using delta encoding, gcd encoding and bit-packing
+    encoding. The expectation is that such encodings work well for fields
+    whose values are monotonically increasing, like the timestamp field and
+    counter metric fields.
+  notable: true

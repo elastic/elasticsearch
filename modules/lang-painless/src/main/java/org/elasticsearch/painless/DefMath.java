@@ -526,12 +526,8 @@ public class DefMath {
     }
 
     private static boolean eq(Object left, Object right) {
-        if (left == right) {
-            return true;
-        } else if (left != null && right != null) {
-            if (left.getClass() == right.getClass()) {
-                return left.equals(right);
-            } else if (left instanceof Double) {
+        if (left != null && right != null) {
+            if (left instanceof Double) {
                 if (right instanceof Number) {
                     return (double) left == ((Number) right).doubleValue();
                 } else if (right instanceof Character) {
@@ -541,7 +537,7 @@ public class DefMath {
                 if (left instanceof Number) {
                     return ((Number) left).doubleValue() == (double) right;
                 } else if (left instanceof Character) {
-                    return (char) left == (double) right;
+                    return (char) left == ((Number) right).doubleValue();
                 }
             } else if (left instanceof Float) {
                 if (right instanceof Number) {
@@ -553,7 +549,7 @@ public class DefMath {
                 if (left instanceof Number) {
                     return ((Number) left).floatValue() == (float) right;
                 } else if (left instanceof Character) {
-                    return (char) left == (float) right;
+                    return (char) left == ((Number) right).floatValue();
                 }
             } else if (left instanceof Long) {
                 if (right instanceof Number) {
@@ -565,7 +561,7 @@ public class DefMath {
                 if (left instanceof Number) {
                     return ((Number) left).longValue() == (long) right;
                 } else if (left instanceof Character) {
-                    return (char) left == (long) right;
+                    return (char) left == ((Number) right).longValue();
                 }
             } else if (left instanceof Number) {
                 if (right instanceof Number) {
@@ -582,7 +578,7 @@ public class DefMath {
             return left.equals(right);
         }
 
-        return false;
+        return left == null && right == null;
     }
 
     // comparison operators: applicable for any numeric type

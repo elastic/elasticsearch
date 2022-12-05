@@ -25,13 +25,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-
-import java.io.IOException;
 
 /**
  * The server transport filter that should be used in nodes as it ensures that an incoming

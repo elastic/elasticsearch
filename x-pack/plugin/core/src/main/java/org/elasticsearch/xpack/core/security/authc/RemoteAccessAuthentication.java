@@ -12,7 +12,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,20 +29,20 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 
 public final class RemoteAccessAuthentication {
     public static final String REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY = "_remote_access_authentication";
     private final Authentication authentication;
-    private final Supplier<List<BytesReference>> roleDescriptorsBytesSupplier;
+    private final List<BytesReference> roleDescriptorsBytes;
 
-    private RemoteAccessAuthentication(Authentication authentication, Supplier<List<BytesReference>> roleDescriptorsBytesSupplier) {
-        this.authentication = authentication;
-        this.roleDescriptorsBytesSupplier = roleDescriptorsBytesSupplier;
+    public RemoteAccessAuthentication(Authentication authentication, RoleDescriptorsIntersection roleDescriptorsIntersection)
+        throws IOException {
+        this(authentication, roleDescriptorsToBytes(roleDescriptorsIntersection));
     }
 
-    public RemoteAccessAuthentication(Authentication authentication, RoleDescriptorsIntersection roleDescriptorsIntersection) {
-        this(authentication, new CachedSupplier<>(() -> roleDescriptorsToBytes(roleDescriptorsIntersection)));
+    private RemoteAccessAuthentication(Authentication authentication, List<BytesReference> roleDescriptorsBytes) {
+        this.authentication = authentication;
+        this.roleDescriptorsBytes = roleDescriptorsBytes;
     }
 
     public void writeToContext(final ThreadContext ctx) throws IOException {
@@ -72,31 +71,26 @@ public final class RemoteAccessAuthentication {
     }
 
     private String encode() throws IOException {
-        final List<BytesReference> roleDescriptorsByteRefs = roleDescriptorsBytesSupplier.get();
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(authentication.getEffectiveSubject().getVersion());
         Version.writeVersion(authentication.getEffectiveSubject().getVersion(), out);
         authentication.writeTo(out);
-        out.writeCollection(roleDescriptorsByteRefs, StreamOutput::writeBytesReference);
+        out.writeCollection(roleDescriptorsBytes, StreamOutput::writeBytesReference);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
-    private static List<BytesReference> roleDescriptorsToBytes(RoleDescriptorsIntersection rdsIntersection) {
-        try {
-            final List<BytesReference> bytes = new ArrayList<>();
-            for (Set<RoleDescriptor> roleDescriptors : rdsIntersection.roleDescriptorsList()) {
-                final XContentBuilder builder = XContentFactory.jsonBuilder();
-                builder.startObject();
-                for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                    builder.field(roleDescriptor.getName(), roleDescriptor);
-                }
-                builder.endObject();
-                bytes.add(BytesReference.bytes(builder));
+    private static List<BytesReference> roleDescriptorsToBytes(RoleDescriptorsIntersection rdsIntersection) throws IOException {
+        final List<BytesReference> bytes = new ArrayList<>();
+        for (Set<RoleDescriptor> roleDescriptors : rdsIntersection.roleDescriptorsList()) {
+            final XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            for (RoleDescriptor roleDescriptor : roleDescriptors) {
+                builder.field(roleDescriptor.getName(), roleDescriptor);
             }
-            return bytes;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            builder.endObject();
+            bytes.add(BytesReference.bytes(builder));
         }
+        return bytes;
     }
 
     private static RemoteAccessAuthentication decode(final String header) throws IOException {
@@ -107,7 +101,7 @@ public final class RemoteAccessAuthentication {
         in.setVersion(version);
         final Authentication authentication = new Authentication(in);
         final List<BytesReference> roleDescriptorsBytesIntersection = in.readImmutableList(StreamInput::readBytesReference);
-        return new RemoteAccessAuthentication(authentication, () -> roleDescriptorsBytesIntersection);
+        return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesIntersection);
     }
 
     public Authentication authentication() {
@@ -115,6 +109,6 @@ public final class RemoteAccessAuthentication {
     }
 
     public List<BytesReference> roleDescriptorsBytesIntersection() {
-        return roleDescriptorsBytesSupplier.get();
+        return roleDescriptorsBytes;
     }
 }

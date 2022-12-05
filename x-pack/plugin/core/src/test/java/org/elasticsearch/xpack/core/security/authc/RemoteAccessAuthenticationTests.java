@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -34,10 +36,13 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
         new RemoteAccessAuthentication(expectedAuthentication, expectedRoleDescriptorsIntersection).writeToContext(ctx);
         final RemoteAccessAuthentication actual = RemoteAccessAuthentication.readFromContext(ctx);
 
-        assertThat(actual.authentication(), equalTo(expectedAuthentication));
-        final var actualRoleDescriptorIntersection = new RoleDescriptorsIntersection(
-            actual.roleDescriptorsBytesIntersection().stream().map(RemoteAccessAuthentication.RoleDescriptorsBytes::parse).toList()
-        );
+        assertThat(actual.getAuthentication(), equalTo(expectedAuthentication));
+        final List<Set<RoleDescriptor>> list = new ArrayList<>();
+        for (BytesReference bytesReference : actual.getRoleDescriptorsBytesList()) {
+            Set<RoleDescriptor> roleDescriptors = new RemoteAccessAuthentication.RoleDescriptorsBytes(bytesReference).toRoleDescriptors();
+            list.add(roleDescriptors);
+        }
+        final var actualRoleDescriptorIntersection = new RoleDescriptorsIntersection(list);
         assertThat(actualRoleDescriptorIntersection, equalTo(expectedRoleDescriptorsIntersection));
     }
 
@@ -60,7 +65,7 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(expectedRoleDescriptors.stream().collect(Collectors.toMap(RoleDescriptor::getName, Function.identity())));
         final Set<RoleDescriptor> actualRoleDescriptors = new RemoteAccessAuthentication.RoleDescriptorsBytes(BytesReference.bytes(builder))
-            .parse();
+            .toRoleDescriptors();
         assertThat(actualRoleDescriptors, equalTo(expectedRoleDescriptors));
     }
 

@@ -74,7 +74,7 @@ public class RemoteAccessAuthenticator implements Authenticator {
                     final Map<String, Object> authMetadata = new HashMap<>(authResult.getMetadata());
                     authMetadata.put(
                         AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
-                        remoteAccessCredentials.remoteAccessAuthentication().roleDescriptorsBytesIntersection()
+                        remoteAccessCredentials.remoteAccessAuthentication().getRoleDescriptorsBytesList()
                     );
                     final Authentication authentication = Authentication.newRemoteAccessAuthentication(
                         AuthenticationResult.success(authResult.getValue(), Map.copyOf(authMetadata)),

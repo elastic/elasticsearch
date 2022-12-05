@@ -111,7 +111,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         ActionListener<RolesRetrievalResult> listener
     ) {
         logger.debug("Resolving remote access role reference [{}]", remoteAccessRoleReference);
-        final Set<RoleDescriptor> roleDescriptors = remoteAccessRoleReference.getRoleDescriptorsBytes().parse();
+        final Set<RoleDescriptor> roleDescriptors = remoteAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
         listener.onResponse(rolesRetrievalResult);

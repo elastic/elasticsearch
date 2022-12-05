@@ -131,7 +131,7 @@ public interface RoleReference {
             // Hashing can be expensive. memorize the result in case the method is called multiple times.
             if (id == null) {
                 final String roleDescriptorsHash = MessageDigests.toHexString(
-                    MessageDigests.digest(roleDescriptorsBytes.rawBytes(), MessageDigests.sha256())
+                    MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
                 );
                 id = new RoleKey(Set.of("remote_access:" + roleDescriptorsHash), "remote_access");
             }

@@ -25,8 +25,12 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.TRUST_RESTRICTIONS_X509_FIELDS;
+import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE;
 
 /**
  * A configuration loader for SSL Settings
@@ -117,7 +121,16 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         if (trustRestrictions == null) {
             return trustConfig;
         }
-        return new RestrictedTrustConfig(trustRestrictions, trustConfig);
+        return new RestrictedTrustConfig(
+            trustRestrictions,
+            Set.copyOf(
+                super.resolveList(
+                    TRUST_RESTRICTIONS_X509_FIELDS.rawSetting().getKey(),
+                    TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE.apply("").getDefault(settings)
+                )
+            ),
+            trustConfig
+        );
     }
 
     public SslConfiguration load(Environment env) {

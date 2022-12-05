@@ -229,13 +229,9 @@ public final class H3 {
      * Returns the children of the given index.
      */
     public static long[] h3ToChildren(long h3) {
-        long[] children = new long[cellToChildrenSize(h3)];
-        int res = H3Index.H3_get_resolution(h3);
-        Iterator.IterCellsChildren it = Iterator.iterInitParent(h3, res + 1);
-        int pos = 0;
-        while (it.h != Iterator.H3_NULL) {
-            children[pos++] = it.h;
-            Iterator.iterStepChild(it);
+        final long[] children = new long[h3ToChildrenSize(h3)];
+        for (int i = 0; i < children.length; i++) {
+            children[i] = childPosToH3(h3, i);
         }
         return children;
     }
@@ -248,6 +244,39 @@ public final class H3 {
         return h3ToStringList(h3ToChildren(stringToH3(h3Address)));
     }
 
+    /**
+     * Returns the child cell at the given position
+     */
+    public static long childPosToH3(long h3, int childPos) {
+        final int childrenRes = H3Index.H3_get_resolution(h3) + 1;
+        if (childrenRes > MAX_H3_RES) {
+            throw new IllegalArgumentException("Resolution overflow");
+        }
+        final long childH = H3Index.H3_set_resolution(h3, childrenRes);
+        if (childPos == 0) {
+            return H3Index.H3_set_index_digit(childH, childrenRes, CoordIJK.Direction.CENTER_DIGIT.digit());
+        }
+        final boolean isPentagon = isPentagon(h3);
+        final int maxPos = isPentagon ? 5 : 6;
+        if (childPos < 0 || childPos > maxPos) {
+            throw new IllegalArgumentException("invalid child position");
+        }
+        if (isPentagon) {
+            // Pentagon skip digit (position) is the number 1, therefore we add one
+            // to the current position.
+            return H3Index.H3_set_index_digit(childH, childrenRes, childPos + 1);
+        } else {
+            return H3Index.H3_set_index_digit(childH, childrenRes, childPos);
+        }
+    }
+
+    /**
+     * Returns the child address at the given position
+     */
+    public static String childPosToH3(String h3Address, int childPos) {
+        return h3ToString(childPosToH3(stringToH3(h3Address), childPos));
+    }
+
     private static final int[] PEN_INTERSECTING_CHILDREN_DIRECTIONS = new int[] { 3, 1, 6, 4, 2 };
     private static final int[] HEX_INTERSECTING_CHILDREN_DIRECTIONS = new int[] { 3, 6, 2, 5, 1, 4 };
 
@@ -256,16 +285,12 @@ public final class H3 {
      * intersects with it.
      */
     public static long[] h3ToNoChildrenIntersecting(long h3) {
-        final long[] children = new long[cellToChildrenSize(h3) - 1];
-        final Iterator.IterCellsChildren it = Iterator.iterInitParent(h3, H3Index.H3_get_resolution(h3) + 1);
-        final int[] directions = H3.isPentagon(it.h) ? PEN_INTERSECTING_CHILDREN_DIRECTIONS : HEX_INTERSECTING_CHILDREN_DIRECTIONS;
-        int pos = 0;
-        Iterator.iterStepChild(it);
-        while (it.h != Iterator.H3_NULL) {
-            children[pos] = HexRing.h3NeighborInDirection(it.h, directions[pos++]);
-            Iterator.iterStepChild(it);
+        final boolean isPentagon = isPentagon(h3);
+        final long[] noChildren = new long[isPentagon ? 5 : 6];
+        for (int i = 0; i < noChildren.length; i++) {
+            noChildren[i] = noChildIntersectingPosToH3(h3, i);
         }
-        return children;
+        return noChildren;
     }
 
     /**
@@ -274,6 +299,39 @@ public final class H3 {
      */
     public static String[] h3ToNoChildrenIntersecting(String h3Address) {
         return h3ToStringList(h3ToNoChildrenIntersecting(stringToH3(h3Address)));
+    }
+
+    /**
+     * Returns the no child intersecting cell at the given position
+     */
+    public static long noChildIntersectingPosToH3(long h3, int childPos) {
+        final int childrenRes = H3Index.H3_get_resolution(h3) + 1;
+        if (childrenRes > MAX_H3_RES) {
+            throw new IllegalArgumentException("Resolution overflow");
+        }
+        final boolean isPentagon = isPentagon(h3);
+        final int maxPos = isPentagon ? 4 : 5;
+        if (childPos < 0 || childPos > maxPos) {
+            throw new IllegalArgumentException("invalid child position");
+        }
+        final long childH = H3Index.H3_set_resolution(h3, childrenRes);
+        if (isPentagon) {
+            // Pentagon skip digit (position) is the number 1, therefore we add one
+            // for the skip digit and one for the 0 (center) digit.
+            final long child = H3Index.H3_set_index_digit(childH, childrenRes, childPos + 2);
+            return HexRing.h3NeighborInDirection(child, PEN_INTERSECTING_CHILDREN_DIRECTIONS[childPos]);
+        } else {
+            // we add one for the 0 (center) digit.
+            final long child = H3Index.H3_set_index_digit(childH, childrenRes, childPos + 1);
+            return HexRing.h3NeighborInDirection(child, HEX_INTERSECTING_CHILDREN_DIRECTIONS[childPos]);
+        }
+    }
+
+    /**
+     * Returns the no child intersecting cell at the given position
+     */
+    public static String noChildIntersectingPosToH3(String h3Address, int childPos) {
+        return h3ToString(noChildIntersectingPosToH3(stringToH3(h3Address), childPos));
     }
 
     /**
@@ -319,21 +377,92 @@ public final class H3 {
     }
 
     /**
-     * cellToChildrenSize returns the exact number of children for a cell at a
+     * h3ToChildrenSize returns the exact number of children for a cell at a
      * given child resolution.
      *
-     * @param h         H3Index to find the number of children of
+     * @param h3         H3Index to find the number of children of
+     * @param childRes  The child resolution you're interested in
+     *
+     * @return long      Exact number of children (handles hexagons and pentagons
+     *                  correctly)
+     */
+    public static long h3ToChildrenSize(long h3, int childRes) {
+        final int parentRes = H3Index.H3_get_resolution(h3);
+        if (childRes <= parentRes || childRes > MAX_H3_RES) {
+            throw new IllegalArgumentException("Invalid child resolution [" + childRes + "]");
+        }
+        final int n = childRes - parentRes;
+        if (H3Index.H3_is_pentagon(h3)) {
+            return (1L + 5L * (_ipow(7, n) - 1L) / 6L);
+        } else {
+            return _ipow(7, n);
+        }
+    }
+
+    /**
+     * h3ToChildrenSize returns the exact number of children for a h3 affress at a
+     * given child resolution.
+     *
+     * @param h3Address  H3 address to find the number of children of
+     * @param childRes  The child resolution you're interested in
      *
      * @return int      Exact number of children (handles hexagons and pentagons
      *                  correctly)
      */
-    private static int cellToChildrenSize(long h) {
-        int n = 1;
-        if (H3Index.H3_is_pentagon(h)) {
-            return (1 + 5 * (_ipow(7, n) - 1) / 6);
-        } else {
-            return _ipow(7, n);
+    public static long h3ToChildrenSize(String h3Address, int childRes) {
+        return h3ToChildrenSize(stringToH3(h3Address), childRes);
+    }
+
+    /**
+     * h3ToChildrenSize returns the exact number of children
+     *
+     * @param h3         H3Index to find the number of children.
+     *
+     * @return int      Exact number of children, 6 for Pentagons and 7 for hexagons,
+     */
+    public static int h3ToChildrenSize(long h3) {
+        if (H3Index.H3_get_resolution(h3) == MAX_H3_RES) {
+            throw new IllegalArgumentException("Invalid child resolution [" + MAX_H3_RES + "]");
         }
+        return isPentagon(h3) ? 6 : 7;
+    }
+
+    /**
+     * h3ToChildrenSize returns the exact number of children
+     *
+     * @param h3Address H3 address to find the number of children.
+     *
+     * @return int      Exact number of children, 6 for Pentagons and 7 for hexagons,
+     */
+    public static int h3ToChildrenSize(String h3Address) {
+        return h3ToChildrenSize(stringToH3(h3Address));
+    }
+
+    /**
+     * h3ToNotIntersectingChildrenSize returns the exact number of children intersecting
+     * the given parent but not part of the children set.
+     *
+     * @param h3         H3Index to find the number of children.
+     *
+     * @return int      Exact number of children, 5 for Pentagons and 6 for hexagons,
+     */
+    public static int h3ToNotIntersectingChildrenSize(long h3) {
+        if (H3Index.H3_get_resolution(h3) == MAX_H3_RES) {
+            throw new IllegalArgumentException("Invalid child resolution [" + MAX_H3_RES + "]");
+        }
+        return isPentagon(h3) ? 5 : 6;
+    }
+
+    /**
+     * h3ToNotIntersectingChildrenSize returns the exact number of children intersecting
+     * the given parent but not part of the children set.
+     *
+     * @param h3Address H3 address to find the number of children.
+     *
+     * @return int      Exact number of children, 5 for Pentagons and 6 for hexagons,
+     */
+    public static int h3ToNotIntersectingChildrenSize(String h3Address) {
+        return h3ToNotIntersectingChildrenSize(stringToH3(h3Address));
     }
 
     /**
@@ -344,8 +473,8 @@ public final class H3 {
      *
      * @return the exponentiated value
      */
-    private static int _ipow(int base, int exp) {
-        int result = 1;
+    private static long _ipow(int base, int exp) {
+        long result = 1;
         while (exp != 0) {
             if ((exp & 1) != 0) {
                 result *= base;

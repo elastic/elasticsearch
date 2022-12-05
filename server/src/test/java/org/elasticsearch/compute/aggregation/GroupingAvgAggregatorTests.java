@@ -27,6 +27,14 @@ public class GroupingAvgAggregatorTests extends ESTestCase {
         assertSimple(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofKb(1)));
     }
 
+    public void testCircuitBreaking() {
+        Exception e = expectThrows(
+            CircuitBreakingException.class,
+            () -> assertSimple(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(between(1, 32))))
+        );
+        assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
+    }
+
     public void testWithCranky() {
         AggregatorTestCase.CrankyCircuitBreakerService breaker = new AggregatorTestCase.CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker).withCircuitBreaking();
@@ -36,15 +44,7 @@ public class GroupingAvgAggregatorTests extends ESTestCase {
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), equalTo(AggregatorTestCase.CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
-    }
-
-    public void testCircuitBreaking() {
-        Exception e = expectThrows(
-            CircuitBreakingException.class,
-            () -> assertSimple(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(between(1, 32))))
-        );
-        assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
-    }
+    }1
 
     private void assertSimple(BigArrays bigArrays) {
         try (GroupingAvgAggregator agg = GroupingAvgAggregator.create(bigArrays.withCircuitBreaking(), 0)) {

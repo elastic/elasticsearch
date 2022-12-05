@@ -119,14 +119,15 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
     }
 
     // The prevalidation result of a node
-    public record Result(boolean isSafe, String message) implements ToXContentObject, Writeable {
+    public record Result(boolean isSafe, Reason reason, String message) implements ToXContentObject, Writeable {
 
         private static final ParseField IS_SAFE_FIELD = new ParseField("is_safe");
+        private static final ParseField REASON_FIELD = new ParseField("reason");
         private static final ParseField MESSAGE_FIELD = new ParseField("message");
 
         private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
             "nodes_removal_prevalidation_result",
-            objects -> new Result((boolean) objects[0], (String) objects[1])
+            objects -> new Result((boolean) objects[0], Reason.fromString((String) objects[1]), (String) objects[2])
         );
 
         static {
@@ -135,23 +136,26 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
 
         static <T> void configureParser(ConstructingObjectParser<T, Void> parser) {
             parser.declareBoolean(ConstructingObjectParser.constructorArg(), IS_SAFE_FIELD);
+            parser.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
             parser.declareString(ConstructingObjectParser.constructorArg(), MESSAGE_FIELD);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(isSafe);
+            reason.writeTo(out);
             out.writeString(message);
         }
 
         public static Result readFrom(final StreamInput in) throws IOException {
-            return new Result(in.readBoolean(), in.readString());
+            return new Result(in.readBoolean(), Reason.readFrom(in), in.readString());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(IS_SAFE_FIELD.getPreferredName(), isSafe);
+            builder.field(REASON_FIELD.getPreferredName(), reason.reason);
             builder.field(MESSAGE_FIELD.getPreferredName(), message);
             builder.endObject();
             return builder;
@@ -159,6 +163,42 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
 
         public static Result fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
+        }
+    }
+
+    public enum Reason implements Writeable {
+        NO_PROBLEMS("no_problems"),
+        NO_RED_SHARDS_ON_NODE("no_red_shards_on_node"),
+        NO_RED_SHARDS_EXCEPT_SEARCHABLE_SNAPSHOTS("no_red_shards_except_searchable_snapshots"),
+        RED_SHARDS_ON_NODE("red_shards_on_node"),
+        UNABLE_TO_VERIFY("unable_to_verify_red_shards");
+
+        private final String reason;
+
+        Reason(String reason) {
+            this.reason = reason;
+        }
+
+        public String reason() {
+            return reason;
+        }
+
+        public static Reason readFrom(final StreamInput in) throws IOException {
+            return fromString(in.readString());
+        }
+
+        public static Reason fromString(String s) {
+            for (Reason r : values()) {
+                if (s.equalsIgnoreCase(r.reason)) {
+                    return r;
+                }
+            }
+            throw new IllegalArgumentException("unexpected Reason value [" + s + "]");
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(reason);
         }
     }
 }

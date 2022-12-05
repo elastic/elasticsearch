@@ -44,7 +44,7 @@ public class GroupingAvgAggregatorTests extends ESTestCase {
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), equalTo(AggregatorTestCase.CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
-    }1
+    }
 
     private void assertSimple(BigArrays bigArrays) {
         try (GroupingAvgAggregator agg = GroupingAvgAggregator.create(bigArrays.withCircuitBreaking(), 0)) {

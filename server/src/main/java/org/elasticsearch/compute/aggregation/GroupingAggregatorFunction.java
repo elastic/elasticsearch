@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
@@ -46,10 +47,11 @@ public interface GroupingAggregatorFunction {
     GroupingAggregatorFunctionFactory avg = new GroupingAggregatorFunctionFactory("avg") {
         @Override
         public GroupingAggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+            // TODO real BigArrays
             if (mode.isInputPartial()) {
-                return GroupingAvgAggregator.createIntermediate();
+                return GroupingAvgAggregator.createIntermediate(BigArrays.NON_RECYCLING_INSTANCE);
             } else {
-                return GroupingAvgAggregator.create(inputChannel);
+                return GroupingAvgAggregator.create(BigArrays.NON_RECYCLING_INSTANCE, inputChannel);
             }
         }
     };

@@ -236,16 +236,15 @@ public class Subject {
     private RoleReferenceIntersection buildRoleReferencesForRemoteAccess() {
         final List<RoleReference> roleReferences = new ArrayList<>(buildRoleReferencesForApiKey().getRoleReferences());
         @SuppressWarnings("unchecked")
-        final List<BytesReference> remoteAccessRoleDescriptorsBytes = (List<BytesReference>) metadata.get(
-            REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY
-        );
+        final List<RemoteAccessAuthentication.RoleDescriptorsBytes> remoteAccessRoleDescriptorsBytes = (List<
+            RemoteAccessAuthentication.RoleDescriptorsBytes>) metadata.get(REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY);
         if (remoteAccessRoleDescriptorsBytes.isEmpty()) {
             // TODO hack. fail earlier, and assert here instead
             return new RoleReferenceIntersection(List.of(new RoleReference.NamedRoleReference(new String[] {})));
         }
         // TODO handle this once we support API keys as querying subjects
         assert remoteAccessRoleDescriptorsBytes.size() == 1;
-        for (BytesReference roleDescriptorsBytes : remoteAccessRoleDescriptorsBytes) {
+        for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessRoleDescriptorsBytes) {
             roleReferences.add(new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes));
         }
         return new RoleReferenceIntersection(List.copyOf(roleReferences));

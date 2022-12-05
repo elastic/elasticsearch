@@ -36,7 +36,7 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
 
         assertThat(actual.authentication(), equalTo(expectedAuthentication));
         final var actualRoleDescriptorIntersection = new RoleDescriptorsIntersection(
-            actual.roleDescriptorsBytesIntersection().stream().map(RemoteAccessAuthentication::parseRoleDescriptorsBytes).toList()
+            actual.roleDescriptorsBytesIntersection().stream().map(RemoteAccessAuthentication.RoleDescriptorsBytes::parse).toList()
         );
         assertThat(actualRoleDescriptorIntersection, equalTo(expectedRoleDescriptorsIntersection));
     }
@@ -59,9 +59,8 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
         final Set<RoleDescriptor> expectedRoleDescriptors = Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 3));
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(expectedRoleDescriptors.stream().collect(Collectors.toMap(RoleDescriptor::getName, Function.identity())));
-        final Set<RoleDescriptor> actualRoleDescriptors = RemoteAccessAuthentication.parseRoleDescriptorsBytes(
-            BytesReference.bytes(builder)
-        );
+        final Set<RoleDescriptor> actualRoleDescriptors = new RemoteAccessAuthentication.RoleDescriptorsBytes(BytesReference.bytes(builder))
+            .parse();
         assertThat(actualRoleDescriptors, equalTo(expectedRoleDescriptors));
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 
 import java.util.HashSet;
 import java.util.List;
@@ -118,10 +119,10 @@ public interface RoleReference {
 
     final class RemoteAccessRoleReference implements RoleReference {
 
-        private final BytesReference roleDescriptorsBytes;
+        private final RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes;
         private RoleKey id = null;
 
-        public RemoteAccessRoleReference(BytesReference roleDescriptorsBytes) {
+        public RemoteAccessRoleReference(RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes) {
             this.roleDescriptorsBytes = roleDescriptorsBytes;
         }
 
@@ -130,7 +131,7 @@ public interface RoleReference {
             // Hashing can be expensive. memorize the result in case the method is called multiple times.
             if (id == null) {
                 final String roleDescriptorsHash = MessageDigests.toHexString(
-                    MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
+                    MessageDigests.digest(roleDescriptorsBytes.rawBytes(), MessageDigests.sha256())
                 );
                 id = new RoleKey(Set.of("remote_access:" + roleDescriptorsHash), "remote_access");
             }
@@ -142,7 +143,7 @@ public interface RoleReference {
             resolver.resolveRemoteAccessRoleReference(this, listener);
         }
 
-        public BytesReference getRoleDescriptorsBytes() {
+        public RemoteAccessAuthentication.RoleDescriptorsBytes getRoleDescriptorsBytes() {
             return roleDescriptorsBytes;
         }
 

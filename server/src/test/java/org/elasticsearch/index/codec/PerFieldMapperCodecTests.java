@@ -56,12 +56,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
     }
 
-    private PerFieldMapperCodec createCodec(
-        boolean timestampField,
-        boolean timeSeries,
-        boolean disableBloomFilter,
-        Version createdVersion
-    ) throws IOException {
+    private PerFieldMapperCodec createCodec(boolean timestampField, boolean timeSeries, boolean disableBloomFilter, Version createdVersion)
+        throws IOException {
         Settings.Builder settings = Settings.builder();
         settings.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
         if (timeSeries) {
@@ -87,11 +83,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 """;
             mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         }
-        return new PerFieldMapperCodec(
-            Lucene94Codec.Mode.BEST_SPEED,
-            mapperService,
-            BigArrays.NON_RECYCLING_INSTANCE
-        );
+        return new PerFieldMapperCodec(Lucene94Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
 }

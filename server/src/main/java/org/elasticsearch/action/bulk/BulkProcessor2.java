@@ -217,7 +217,7 @@ public class BulkProcessor2 implements Closeable {
         this.bulkRequest = new BulkRequest();
         this.consumer = consumer;
         this.listener = listener;
-        this.retry = new Retry2(maxNumberOfRetries, maxBytesInFlight, totalBytesInFlight);
+        this.retry = new Retry2(maxNumberOfRetries);
         this.flushInterval = flushInterval;
         this.threadPool = threadPool;
     }
@@ -309,10 +309,10 @@ public class BulkProcessor2 implements Closeable {
     private void internalAdd(DocWriteRequest<?> request) throws EsRejectedExecutionException {
         // bulkRequest and instance swapping is not threadsafe, so execute the mutations under a mutex.
         // once the bulk request is ready to be shipped swap the instance reference unlock and send the local reference to the handler.
-        Tuple<BulkRequest, Long> bulkRequestToExecute = null;
+        Tuple<BulkRequest, Long> bulkRequestToExecute;
         synchronized (mutex) {
             ensureOpen();
-            if (totalBytesInFlight.get() + BulkRequest.getEstimatedSizeInBytes(request) > maxBytesInFlight.getBytes()) {
+            if (totalBytesInFlight.get() >= maxBytesInFlight.getBytes()) {
                 throw new EsRejectedExecutionException(
                     "Cannot index request of size "
                         + bulkRequest.estimatedSizeInBytes()
@@ -379,24 +379,25 @@ public class BulkProcessor2 implements Closeable {
      * @param executionId
      */
     private void execute(BulkRequest bulkRequest, long executionId) {
-        // We're taking it off the books as far as BulkProcessor2 is concerned, and letting Retry2 account for it from here on out:
-        totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
         try {
             listener.beforeBulk(executionId, bulkRequest);
             retry.withBackoff(consumer, bulkRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkResponse response) {
                     listener.afterBulk(executionId, bulkRequest, response);
+                    totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     listener.afterBulk(executionId, bulkRequest, e);
+                    totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
                 }
             });
         } catch (Exception e) {
             logger.warn(() -> "Failed to execute bulk request " + executionId + ".", e);
             listener.afterBulk(executionId, bulkRequest, e);
+            totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
         }
     }
 

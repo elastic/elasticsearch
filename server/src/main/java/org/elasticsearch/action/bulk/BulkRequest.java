@@ -150,43 +150,9 @@ public class BulkRequest extends ActionRequest
 
         requests.add(request);
         // lack of source is validated in validate() method
-        sizeInBytes += getEstimatedSizeInBytes(request);
+        sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
         indices.add(request.index());
         return this;
-    }
-
-    public static long getEstimatedSizeInBytes(DocWriteRequest<?> request) {
-        if (request instanceof IndexRequest indexRequest) {
-            return getEstimatedSizeInBytes(indexRequest);
-        } else if (request instanceof DeleteRequest deleteRequest) {
-            return getEstimatedSizeInBytes(deleteRequest);
-        } else if (request instanceof UpdateRequest updateRequest) {
-            return getEstimatedSizeInBytes(updateRequest);
-        } else {
-            throw new IllegalArgumentException("No support for request [" + request + "]");
-        }
-    }
-
-    public static long getEstimatedSizeInBytes(IndexRequest request) {
-        return (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
-    }
-
-    public static long getEstimatedSizeInBytes(UpdateRequest request) {
-        long estimatedSizeInBytes = 0;
-        if (request.doc() != null) {
-            estimatedSizeInBytes += request.doc().source().length();
-        }
-        if (request.upsertRequest() != null) {
-            estimatedSizeInBytes += request.upsertRequest().source().length();
-        }
-        if (request.script() != null) {
-            estimatedSizeInBytes += request.script().getIdOrCode().length() * 2;
-        }
-        return estimatedSizeInBytes;
-    }
-
-    public static long getEstimatedSizeInBytes(DeleteRequest request) {
-        return REQUEST_OVERHEAD;
     }
 
     /**
@@ -201,7 +167,15 @@ public class BulkRequest extends ActionRequest
         applyGlobalMandatoryParameters(request);
 
         requests.add(request);
-        sizeInBytes += getEstimatedSizeInBytes(request);
+        if (request.doc() != null) {
+            sizeInBytes += request.doc().source().length();
+        }
+        if (request.upsertRequest() != null) {
+            sizeInBytes += request.upsertRequest().source().length();
+        }
+        if (request.script() != null) {
+            sizeInBytes += request.script().getIdOrCode().length() * 2;
+        }
         indices.add(request.index());
         return this;
     }
@@ -214,7 +188,7 @@ public class BulkRequest extends ActionRequest
         applyGlobalMandatoryParameters(request);
 
         requests.add(request);
-        sizeInBytes += getEstimatedSizeInBytes(request);
+        sizeInBytes += REQUEST_OVERHEAD;
         indices.add(request.index());
         return this;
     }
@@ -362,11 +336,11 @@ public class BulkRequest extends ActionRequest
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
      *
-      - {@link BulkRequest#add(IndexRequest)}
-      - {@link BulkRequest#add(UpdateRequest)}
-      - {@link BulkRequest#add(DocWriteRequest)}
-      - {@link BulkRequest#add(DocWriteRequest[])} )}
-      - {@link BulkRequest#add(Iterable)}
+     - {@link BulkRequest#add(IndexRequest)}
+     - {@link BulkRequest#add(UpdateRequest)}
+     - {@link BulkRequest#add(DocWriteRequest)}
+     - {@link BulkRequest#add(DocWriteRequest[])} )}
+     - {@link BulkRequest#add(Iterable)}
      * @param globalRouting the global default setting
      * @return Bulk request with global setting set
      */

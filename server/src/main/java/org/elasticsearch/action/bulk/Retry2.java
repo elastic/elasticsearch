@@ -13,7 +13,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -23,7 +22,6 @@ import java.util.List;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
@@ -40,15 +38,6 @@ class Retry2 {
      * be rejected by sending EsRejectedExecutionExceptions to their listeners.
      */
     private boolean isClosing = false;
-
-    /*
-     * This is an approximation of the total number of bytes in the bulk requests that are with consumers.
-     */
-    private final AtomicLong totalBytesInFlight;
-    /*
-     * This is the approximate maximum number of bytes that this object will allow to be in flight to consumers.
-     */
-    private final long maxBytesInFlight;
     /*
      * We register in-flight calls with this Phaser so that we know whether there are any still in flight when we call awaitClose().
      */
@@ -57,15 +46,10 @@ class Retry2 {
     /**
      * Creates a Retry2.
      * @param maxNumberOfRetries This is the maximum number of times a BulkRequest will be retried
-     * @param maxBytesInFlight This is the maximum number of bytes that we want this object to keep in flight to the consumers
-     * @param totalBytesInFlight The total bytes in flight between bulk requests being sent to consumers (tracked by this class) and bulk
-     *                          requests that are currently being built up.
      */
-    Retry2(int maxNumberOfRetries, ByteSizeValue maxBytesInFlight, AtomicLong totalBytesInFlight) {
+    Retry2(int maxNumberOfRetries) {
         this.logger = LogManager.getLogger(getClass());
         this.maxNumberOfRetries = maxNumberOfRetries;
-        this.maxBytesInFlight = maxBytesInFlight.getBytes();
-        this.totalBytesInFlight = totalBytesInFlight;
     }
 
     /**
@@ -88,28 +72,8 @@ class Retry2 {
         }
         List<BulkItemResponse> responsesAccumulator = new ArrayList<>();
         logger.trace("Sending a bulk request with {} bytes in {} items", bulkRequest.estimatedSizeInBytes(), bulkRequest.requests.size());
-        /*
-         * Here we have a risk that multiple threads will do this check at once, and each will think it has room to run. So we could end
-         * up with slightly more bytes in flight than totalBytesInFlight. But this is acceptable risk, and preferable to using a lock or
-         * a while loop with compareAndSet.
-         */
-        long bytesInFlight = totalBytesInFlight.get();
-        if (bytesInFlight + bulkRequest.estimatedSizeInBytes() > maxBytesInFlight) {
-            listener.onFailure(
-                new EsRejectedExecutionException(
-                    "Cannot index request of size "
-                        + bulkRequest.estimatedSizeInBytes()
-                        + " because "
-                        + totalBytesInFlight.get()
-                        + " bytes are already in flight and the max is "
-                        + maxBytesInFlight
-                )
-            );
-        } else {
-            totalBytesInFlight.addAndGet(bulkRequest.estimatedSizeInBytes());
-            inFlightRequestsPhaser.register();
-            consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, maxNumberOfRetries));
-        }
+        inFlightRequestsPhaser.register();
+        consumer.accept(bulkRequest, new RetryHandler(bulkRequest, responsesAccumulator, consumer, listener, maxNumberOfRetries));
     }
 
     /**
@@ -128,7 +92,6 @@ class Retry2 {
         int retriesRemaining
     ) {
         if (isClosing) {
-            totalBytesInFlight.addAndGet(-1 * bulkRequestForRetry.estimatedSizeInBytes());
             listener.onFailure(new EsRejectedExecutionException("The bulk processor is closing"));
             return;
         }
@@ -139,7 +102,6 @@ class Retry2 {
                 new RetryHandler(bulkRequestForRetry, responsesAccumulator, consumer, listener, retriesRemaining - 1)
             );
         } else {
-            totalBytesInFlight.addAndGet(-1 * bulkRequestForRetry.estimatedSizeInBytes());
             listener.onFailure(
                 new EsRejectedExecutionException(
                     "Could not queue bulk request for retry because the backoff policy does not allow any more retries"
@@ -199,7 +161,6 @@ class Retry2 {
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
             if (bulkItemResponses.hasFailures() == false) {
-                totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
                 logger.trace(
                     "Got a response in {} with {} items, no failures",
                     bulkItemResponses.getTook(),
@@ -217,10 +178,8 @@ class Retry2 {
                     );
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
                     BulkRequest retryRequest = createBulkRequestForRetry(bulkItemResponses);
-                    totalBytesInFlight.addAndGet(-1 * (bulkRequest.estimatedSizeInBytes() - retryRequest.estimatedSizeInBytes()));
                     retry(retryRequest, responsesAccumulator, consumer, listener, retriesRemaining);
                 } else {
-                    totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
                     logger.trace(
                         "Got a response in {} with {} items including failures, cannot retry",
                         bulkItemResponses.getTook(),
@@ -240,7 +199,6 @@ class Retry2 {
                 inFlightRequestsPhaser.arriveAndDeregister();
                 retry(bulkRequest, responsesAccumulator, consumer, listener, retriesRemaining);
             } else {
-                totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
                 listener.onFailure(e);
                 inFlightRequestsPhaser.arriveAndDeregister();
             }

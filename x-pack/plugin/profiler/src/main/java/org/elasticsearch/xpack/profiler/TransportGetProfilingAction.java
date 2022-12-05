@@ -63,21 +63,21 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
                 }
 
-            @Override
-            public void onFailure(Exception e) {
-                // Apart from profiling-events-all, indices are created lazily. In a relatively empty cluster it can happen
-                // that there are so few data that we need to resort to the full index. As this is an edge case we'd rather
-                // fail instead of prematurely checking for existence in all cases.
-                if (e instanceof IndexNotFoundException) {
-                    String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
-                    EventsIndex fullIndex = EventsIndex.FULL_INDEX;
-                    log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
-                    searchEventGroupByStackTrace(client, request, fullIndex, submitListener);
-                } else {
-                    submitListener.onFailure(e);
+                @Override
+                public void onFailure(Exception e) {
+                    // Apart from profiling-events-all, indices are created lazily. In a relatively empty cluster it can happen
+                    // that there are so few data that we need to resort to the full index. As this is an edge case we'd rather
+                    // fail instead of prematurely checking for existence in all cases.
+                    if (e instanceof IndexNotFoundException) {
+                        String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
+                        EventsIndex fullIndex = EventsIndex.FULL_INDEX;
+                        log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
+                        searchEventGroupByStackTrace(client, request, fullIndex, submitListener);
+                    } else {
+                        submitListener.onFailure(e);
+                    }
                 }
-            }
-        });
+            });
     }
 
     private void searchEventGroupByStackTrace(

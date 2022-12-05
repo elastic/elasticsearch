@@ -60,21 +60,21 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
-        return Iterators.concat(Iterators.single((builder, params) -> {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(Iterators.single((builder, p) -> {
             builder.startObject();
             builder.startObject("stats");
-            stats.toXContent(builder, params);
+            stats.toXContent(builder, p);
             builder.endObject();
             return builder.startObject("routing_table");
-        }), routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, params) -> {
+        }), routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, p) -> {
             builder.startObject(indexEntry.getKey());
             for (Map.Entry<Integer, DesiredShards> shardEntry : indexEntry.getValue().entrySet()) {
                 builder.field(String.valueOf(shardEntry.getKey()));
-                shardEntry.getValue().toXContent(builder, params);
+                shardEntry.getValue().toXContent(builder, p);
             }
             return builder.endObject();
-        }).iterator(), Iterators.single((builder, params) -> builder.endObject().endObject()));
+        }).iterator(), Iterators.single((builder, p) -> builder.endObject().endObject()));
     }
 
     public DesiredBalanceStats getStats() {

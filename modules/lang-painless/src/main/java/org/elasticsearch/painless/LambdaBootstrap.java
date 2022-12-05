@@ -441,11 +441,11 @@ public final class LambdaBootstrap {
                 delegateClassType = Type.getType(clazz);
 
                 // functionalInterfaceWithCaptures needs to add the receiver and other captures
-                Type[] parameters = new Type[1 + captures.length + interfaceMethodType.parameterList().size()];
+                Type[] parameters = new Type[captures.length + interfaceMethodType.parameterList().size()];
                 int p = 0;
                 parameters[p++] = delegateClassType;
-                for (Capture capture : captures) {
-                    parameters[p++] = capture.type;
+                for (int i = 1; i < captures.length; i++) {
+                    parameters[p++] = captures[i].type;
                 }
                 for (Class<?> pCls : interfaceMethodType.parameterList()) {
                     parameters[p++] = Type.getType(pCls);

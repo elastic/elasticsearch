@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.SemanticSearchAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TransportSemanticSearchAction extends HandledTransportAction<SemanticSearchAction.Request, SemanticSearchAction.Response> {
@@ -98,7 +100,7 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        sourceBuilder.knnSearch(knnSearchBuilder);
+        sourceBuilder.knnSearch(List.of(knnSearchBuilder));
         if (request.getSize() != -1) {
             sourceBuilder.size(request.getSize());
         }

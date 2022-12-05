@@ -151,7 +151,7 @@ page cache for it to be efficient. Please consult the
 configuration and sizing.
 
 To run an approximate kNN search, use the <<search-api-knn, `knn` option>>
-to search a `dense_vector` field with indexing enabled.
+to search one or more `dense_vector` fields with indexing enabled.
 
 . Explicitly map one or more `dense_vector` fields. Approximate kNN search
 requires the following mapping options:
@@ -405,6 +405,51 @@ The `knn` option can also be used with <<search-aggregations, `aggregations`>>. 
 over all documents that match the search. So for approximate kNN search, aggregations are calculated on the top `k`
 nearest documents. If the search also includes a `query`, then aggregations are calculated on the combined set of `knn`
 and `query` matches.
+
+[discrete]
+==== Search multiple KNN fields
+
+In addition to 'hybrid retrieval', you can search more than on KNN vector field at a time:
+
+[source,console]
+----
+POST image-index/_search
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "mountain lake",
+        "boost": 0.9
+      }
+    }
+  },
+  "knn": [ {
+    "field": "image-vector",
+    "query_vector": [54, 10, -2],
+    "k": 5,
+    "num_candidates": 50,
+    "boost": 0.1
+  },{"field": "title-vector",
+    "query_vector": [0.23, 1.2, -0.52, 0.023],
+    "k": 10,
+    "num_candidates": 10,
+    "boost": 0.5
+  }]
+  "size": 10
+}
+----
+// TEST[continued]
+
+This search finds the global top `k = 5` vector matches for `image-vector` and the global `k = 10` for the `title-vector`.
+These top values are then combined with the matches from the `match` query, and
+finally returns the 10 top-scoring results. The multiple `knn` entries and the `query` matches are combined through a
+disjunction, as if you took a boolean 'or' between them. The top `k` vector results represent the global nearest neighbors across all index
+shards.
+The scoring for a doc with the above configured boosts would be:
+
+```
+score = 0.9 * match_score + 0.1 * knn_score_image-vector + 0.5 * knn_score_title-vector
+```
 
 [discrete]
 [[knn-indexing-considerations]]

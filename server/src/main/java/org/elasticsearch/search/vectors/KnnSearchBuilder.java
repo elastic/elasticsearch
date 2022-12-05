@@ -70,6 +70,25 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return PARSER.parse(parser, null);
     }
 
+    public static List<KnnSearchBuilder> fromXContentList(XContentParser parser) throws IOException {
+        List<KnnSearchBuilder> knnSearchBuilders = new ArrayList<>();
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.START_ARRAY) {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    knnSearchBuilders.add(fromXContent(parser));
+                } else {
+                    throw new IllegalArgumentException("malformed knn format, within the knn search array only objects are allowed");
+                }
+            }
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            knnSearchBuilders.add(fromXContent(parser));
+        } else {
+            throw new IllegalArgumentException("malformed knn format, either start with array or object");
+        }
+        return knnSearchBuilders;
+    }
+
     final String field;
     final float[] queryVector;
     final int k;

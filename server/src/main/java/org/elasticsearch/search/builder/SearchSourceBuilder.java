@@ -130,7 +130,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private QueryBuilder postQueryBuilder;
 
-    private KnnSearchBuilder knnSearch;
+    private List<KnnSearchBuilder> knnSearch;
 
     private int from = -1;
 
@@ -249,7 +249,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             runtimeMappings = in.readMap();
         }
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-            knnSearch = in.readOptionalWriteable(KnnSearchBuilder::new);
+            if (in.getVersion().before(Version.V_8_7_0)) {
+                KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
+                knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
+            } else {
+                knnSearch = in.readOptionalList(KnnSearchBuilder::new);
+            }
         }
     }
 
@@ -319,7 +324,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-            out.writeOptionalWriteable(knnSearch);
+            if (out.getVersion().before(Version.V_8_7_0)) {
+                if (knnSearch != null && knnSearch.size() > 1) {
+                    throw new IllegalArgumentException(
+                        "Versions before 8.7.0 don't support multiple [knn] search clauses and search was sent to ["
+                            + out.getVersion()
+                            + "]"
+                    );
+                }
+                out.writeOptionalWriteable(knnSearch == null || knnSearch.isEmpty() ? null : knnSearch.get(0));
+            } else {
+                out.writeOptionalCollection(knnSearch);
+            }
         }
     }
 
@@ -361,7 +377,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Defines a kNN search. If a query is also provided, the kNN hits
      * are combined with the query hits.
      */
-    public SearchSourceBuilder knnSearch(KnnSearchBuilder knnSearch) {
+    public SearchSourceBuilder knnSearch(List<KnnSearchBuilder> knnSearch) {
         this.knnSearch = knnSearch;
         return this;
     }
@@ -369,7 +385,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * An optional kNN search definition.
      */
-    public KnnSearchBuilder knnSearch() {
+    public List<KnnSearchBuilder> knnSearch() {
         return knnSearch;
     }
 
@@ -986,7 +1002,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @return true if the source only has suggest
      */
     public boolean isSuggestOnly() {
-        return suggestBuilder != null && queryBuilder == null && knnSearch == null && aggregations == null;
+        return suggestBuilder != null && queryBuilder == null && (knnSearch == null || knnSearch.isEmpty()) && aggregations == null;
     }
 
     /**
@@ -1039,10 +1055,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (this.postQueryBuilder != null) {
             postQueryBuilder = this.postQueryBuilder.rewrite(context);
         }
-        KnnSearchBuilder knnSearch = null;
-        if (this.knnSearch != null) {
-            knnSearch = this.knnSearch.rewrite(context);
-        }
+        List<KnnSearchBuilder> knnSearch = Rewriteable.rewrite(this.knnSearch, context);
         AggregatorFactories.Builder aggregations = null;
         if (this.aggregations != null) {
             aggregations = this.aggregations.rewrite(context);
@@ -1092,7 +1105,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private SearchSourceBuilder shallowCopy(
         QueryBuilder queryBuilder,
         QueryBuilder postQueryBuilder,
-        KnnSearchBuilder knnSearch,
+        List<KnnSearchBuilder> knnSearch,
         AggregatorFactories.Builder aggregations,
         SliceBuilder slice,
         List<SortBuilder<?>> sorts,
@@ -1243,7 +1256,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     postQueryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
                     searchUsage.trackSectionUsage(POST_FILTER_FIELD.getPreferredName());
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    knnSearch = KnnSearchBuilder.fromXContent(parser);
+                    knnSearch = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
@@ -1420,6 +1433,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (SEARCH_AFTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     searchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
                     searchUsage.trackSectionUsage(SEARCH_AFTER.getPreferredName());
+                } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    knnSearch = KnnSearchBuilder.fromXContentList(parser);
+                    searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -1469,10 +1485,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(POST_FILTER_FIELD.getPreferredName(), postQueryBuilder);
         }
 
-        if (knnSearch != null) {
-            builder.startObject(KNN_FIELD.getPreferredName());
-            knnSearch.toXContent(builder, params);
-            builder.endObject();
+        if (knnSearch != null && knnSearch.isEmpty() == false) {
+            builder.startArray(KNN_FIELD.getPreferredName());
+            for (KnnSearchBuilder knnSearchBuilder : knnSearch) {
+                builder.startObject();
+                knnSearchBuilder.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray();
         }
 
         if (minScore != null) {

@@ -1,0 +1,6 @@
+pr: 92118
+summary: Allow more than one KNN search clause
+area: Vector Search
+type: enhancement
+issues:
+ - 91187

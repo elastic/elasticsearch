@@ -139,7 +139,8 @@ public class DeploymentManager {
         }
 
         ActionListener<TrainedModelDeploymentTask> listener = ActionListener.wrap(finalListener::onResponse, failure -> {
-            processContextByAllocation.remove(task.getId());
+            ProcessContext failedContext = processContextByAllocation.remove(task.getId());
+            failedContext.stopProcess();
             finalListener.onFailure(failure);
         });
 
@@ -179,9 +180,7 @@ public class DeploymentManager {
                     // here, we are being called back on the searching thread, which MAY be a network thread
                     // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
                     // executor.
-                    executorServiceForDeployment.execute(
-                        () -> startAndLoad(processContext, modelConfig.getLocation(), modelConfig.getModelId(), modelLoadedListener)
-                    );
+                    executorServiceForDeployment.execute(() -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener));
                 }, listener::onFailure));
             } else {
                 listener.onFailure(
@@ -230,31 +229,8 @@ public class DeploymentManager {
         }
     }
 
-    private void startAndLoad(
-        ProcessContext processContext,
-        TrainedModelLocation modelLocation,
-        String modelId,
-        ActionListener<Boolean> loadedListener
-    ) {
-        logger.debug("[{}] start and load", modelId);
-        try {
-            processContext.startProcess();
-            logger.debug("[{}] process started", modelId);
-            processContext.loadModel(modelLocation, ActionListener.wrap(success -> {
-                logger.debug("[{}] model loaded, starting priority process worker thread", modelId);
-                processContext.startPriorityProcessWorker();
-                loadedListener.onResponse(success);
-            }, loadedListener::onFailure));
-        } catch (Exception e) {
-            loadedListener.onFailure(e);
-        }
-    }
-
     public void stopDeployment(TrainedModelDeploymentTask task) {
-        ProcessContext processContext;
-        synchronized (processContextByAllocation) {
-            processContext = processContextByAllocation.get(task.getId());
-        }
+        ProcessContext processContext = processContextByAllocation.remove(task.getId());
         if (processContext != null) {
             logger.info("[{}] Stopping deployment, reason [{}]", task.getModelId(), task.stoppedReason().orElse("unknown"));
             processContext.stopProcess();
@@ -394,6 +370,7 @@ public class DeploymentManager {
         private volatile Integer numAllocations;
         private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
         private final AtomicInteger timeoutCount = new AtomicInteger();
+        private volatile boolean isStopped;
 
         ProcessContext(TrainedModelDeploymentTask task) {
             this.task = Objects.requireNonNull(task);
@@ -415,9 +392,33 @@ public class DeploymentManager {
             return resultProcessor;
         }
 
-        synchronized void startProcess() {
-            process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, onProcessCrash()));
+        synchronized void startAndLoad(TrainedModelLocation modelLocation, ActionListener<Boolean> loadedListener) {
+            if (isStopped) {
+                logger.debug("[{}] start process is stopped", task.getModelId());
+                loadedListener.onFailure(new IllegalArgumentException("model loaded but process is stopped"));
+                return;
+            }
+
+            logger.debug("[{}] start and load", task.getModelId());
+            process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, this::onProcessCrash));
             startTime = Instant.now();
+            logger.debug("[{}] process started", task.getModelId());
+            try {
+                loadModel(modelLocation, ActionListener.wrap(success -> {
+                    if (isStopped) {
+                        logger.debug("[{}] model loaded but process is stopped", task.getModelId());
+                        killProcessIfPresent();
+                        loadedListener.onFailure(new IllegalArgumentException("model loaded but process is stopped"));
+                        return;
+                    }
+
+                    logger.debug("[{}] model loaded, starting priority process worker thread", task.getModelId());
+                    startPriorityProcessWorker();
+                    loadedListener.onResponse(success);
+                }, loadedListener::onFailure));  // todo stop process on load failure
+            } catch (Exception e) {
+                loadedListener.onFailure(e);
+            }
         }
 
         void startPriorityProcessWorker() {
@@ -425,38 +426,45 @@ public class DeploymentManager {
         }
 
         synchronized void stopProcess() {
+            isStopped = true;
             resultProcessor.stop();
+            stateStreamer.cancel();
             priorityProcessWorker.shutdown();
+            killProcessIfPresent();
+            if (nlpTaskProcessor.get() != null) {
+                nlpTaskProcessor.get().close();
+            }
+        }
+
+        private void killProcessIfPresent() {
             try {
                 if (process.get() == null) {
                     return;
                 }
-                stateStreamer.cancel();
                 process.get().kill(true);
-                processContextByAllocation.remove(task.getId());
             } catch (IOException e) {
                 logger.error(() -> "[" + task.getModelId() + "] Failed to kill process", e);
-            } finally {
-                if (nlpTaskProcessor.get() != null) {
-                    nlpTaskProcessor.get().close();
-                }
             }
         }
 
-        private Consumer<String> onProcessCrash() {
-            return reason -> {
-                logger.error("[{}] inference process crashed due to reason [{}]", task.getModelId(), reason);
-                resultProcessor.stop();
-                priorityProcessWorker.shutdownWithError(new IllegalStateException(reason));
-                processContextByAllocation.remove(task.getId());
-                if (nlpTaskProcessor.get() != null) {
-                    nlpTaskProcessor.get().close();
-                }
-                task.setFailed("inference process crashed due to reason [" + reason + "]");
-            };
+        private void onProcessCrash(String reason) {
+            logger.error("[{}] inference process crashed due to reason [{}]", task.getModelId(), reason);
+            processContextByAllocation.remove(task.getId());
+            isStopped = true;
+            resultProcessor.stop();
+            stateStreamer.cancel();
+            priorityProcessWorker.shutdownWithError(new IllegalStateException(reason));
+            if (nlpTaskProcessor.get() != null) {
+                nlpTaskProcessor.get().close();
+            }
+            task.setFailed("inference process crashed due to reason [" + reason + "]");
         }
 
         void loadModel(TrainedModelLocation modelLocation, ActionListener<Boolean> listener) {
+            if (isStopped) {
+                listener.onFailure(new IllegalArgumentException("Process has stopped, model loading canceled"));
+                return;
+            }
             if (modelLocation instanceof IndexLocation indexLocation) {
                 logger.debug("[{}] loading model state", task.getModelId());
                 process.get().loadModel(task.getModelId(), indexLocation.getIndexName(), stateStreamer, listener);

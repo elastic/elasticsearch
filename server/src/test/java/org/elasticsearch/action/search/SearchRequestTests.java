@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,6 +31,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -128,6 +130,12 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (version.before(Version.V_8_4_0)) {
             // Versions before 8.4.0 don't support force_synthetic_source
             searchRequest.setForceSyntheticSource(false);
+        }
+        if (version.before(Version.V_8_7_0)
+            && searchRequest.hasKnnSearch()
+            && searchRequest.source().knnSearch().size() > 1) {
+            // Versions before 8.7.0 don't support more than one KNN clause
+            searchRequest.source().knnSearch(List.of(searchRequest.source().knnSearch().get(0)));
         }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());

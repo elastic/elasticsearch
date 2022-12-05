@@ -36,9 +36,9 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
         new RemoteAccessAuthentication(expectedAuthentication, expectedRoleDescriptorsIntersection).writeToContext(ctx);
         final RemoteAccessAuthentication actual = RemoteAccessAuthentication.readFromContext(ctx);
 
-        assertThat(actual.authentication(), equalTo(expectedAuthentication));
+        assertThat(actual.getAuthentication(), equalTo(expectedAuthentication));
         final List<Set<RoleDescriptor>> list = new ArrayList<>();
-        for (BytesReference bytesReference : actual.roleDescriptorsBytesList()) {
+        for (BytesReference bytesReference : actual.getRoleDescriptorsBytesList()) {
             Set<RoleDescriptor> roleDescriptors = RemoteAccessAuthentication.parseRoleDescriptorsBytes(bytesReference);
             list.add(roleDescriptors);
         }

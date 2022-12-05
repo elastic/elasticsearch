@@ -106,11 +106,11 @@ public final class RemoteAccessAuthentication {
         return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesIntersection);
     }
 
-    public Authentication authentication() {
+    public Authentication getAuthentication() {
         return authentication;
     }
 
-    public List<BytesReference> roleDescriptorsBytesList() {
+    public List<BytesReference> getRoleDescriptorsBytesList() {
         return roleDescriptorsBytesList;
     }
 }

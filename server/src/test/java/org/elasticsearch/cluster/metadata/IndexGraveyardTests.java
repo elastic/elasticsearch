@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -71,9 +72,9 @@ public class IndexGraveyardTests extends ESTestCase {
             assertThat(
                 Strings.toString(
                     ignored -> Iterators.concat(
-                        Iterators.<ToXContent>single((b, params) -> b.startObject()),
+                        ChunkedToXContentHelper.startObject(),
                         graveyard.toXContentChunked(ToXContent.EMPTY_PARAMS),
-                        Iterators.single((b, params) -> b.endObject())
+                        ChunkedToXContentHelper.endObject()
                     ),
                     false,
                     true

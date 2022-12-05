@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -556,9 +557,9 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
-            Iterators.<ToXContent>single((builder, params) -> builder.field("last_allocation_id", lastAllocationId).startArray("tasks")),
+            Iterators.single((builder, params) -> builder.field("last_allocation_id", lastAllocationId).startArray("tasks")),
             tasks.values().iterator(),
-            Iterators.single(((builder, params) -> builder.endArray()))
+            ChunkedToXContentHelper.endArray()
         );
     }
 

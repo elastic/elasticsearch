@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -103,12 +104,12 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
-            Iterators.single(((builder, params) -> builder.startObject(INDEX_TEMPLATE.getPreferredName()))),
+            ChunkedToXContentHelper.startObject(INDEX_TEMPLATE.getPreferredName()),
             indexTemplates.entrySet()
                 .stream()
                 .map(template -> (ToXContent) (builder, params) -> builder.field(template.getKey(), template.getValue(), params))
                 .iterator(),
-            Iterators.single(((builder, params) -> builder.endObject()))
+            ChunkedToXContentHelper.endObject()
         );
     }
 

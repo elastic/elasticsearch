@@ -18,8 +18,8 @@ import java.io.IOException;
 /**
  * An abstract test case to ensure correct behavior of Diffable.
  *
- * This class can be used as a based class for tests of Metadata.Custom classes and other classes that support,
- * Writable serialization, XContent-based serialization and is diffable.
+ * This class can be used as a based class for tests of {@link org.elasticsearch.cluster.ClusterState.Custom} classes and other classes
+ * that support, Writable serialization, chunked XContent-based serialization and are diffable.
  */
 public abstract class ChunkedToXContentDiffableSerializationTestCase<T extends Diffable<T> & ChunkedToXContent> extends
     AbstractChunkedSerializingTestCase<T> {

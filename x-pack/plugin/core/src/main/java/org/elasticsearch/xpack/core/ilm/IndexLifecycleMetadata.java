@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -103,11 +104,14 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.single(((builder, params) -> {
-            builder.xContentValuesMap(POLICIES_FIELD.getPreferredName(), policyMetadatas);
-            builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
-            return builder;
-        }));
+        return Iterators.concat(
+            ChunkedToXContentHelper.map(
+                POLICIES_FIELD.getPreferredName(),
+                policyMetadatas,
+                entry -> (builder, params) -> entry.getValue().toXContent(builder.field(entry.getKey()), params)
+            ),
+            Iterators.single((builder, params) -> builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode))
+        );
     }
 
     @Override

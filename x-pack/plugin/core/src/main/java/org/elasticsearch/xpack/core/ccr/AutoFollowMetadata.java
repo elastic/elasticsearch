@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -151,27 +152,15 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.single(((builder, params) -> {
-            builder.startObject(PATTERNS_FIELD.getPreferredName());
-            for (Map.Entry<String, AutoFollowPattern> entry : patterns.entrySet()) {
-                builder.startObject(entry.getKey());
-                builder.value(entry.getValue());
-                builder.endObject();
-            }
-            builder.endObject();
-
-            builder.startObject(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName());
-            for (Map.Entry<String, List<String>> entry : followedLeaderIndexUUIDs.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
-            builder.endObject();
-            builder.startObject(HEADERS.getPreferredName());
-            for (Map.Entry<String, Map<String, String>> entry : headers.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
-            builder.endObject();
-            return builder;
-        }));
+        return Iterators.concat(
+            ChunkedToXContentHelper.map(
+                PATTERNS_FIELD.getPreferredName(),
+                patterns,
+                entry -> (builder, params) -> builder.startObject(entry.getKey()).value(entry.getValue()).endObject()
+            ),
+            ChunkedToXContentHelper.map(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName(), followedLeaderIndexUUIDs),
+            ChunkedToXContentHelper.map(HEADERS.getPreferredName(), headers)
+        );
     }
 
     @Override

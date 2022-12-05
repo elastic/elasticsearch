@@ -72,4 +72,8 @@ public class TrainedModelAssignmentMetadataTests extends AbstractChunkedSerializ
         );
     }
 
+    @Override
+    protected boolean isFragment() {
+        return true;
+    }
 }

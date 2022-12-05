@@ -10,9 +10,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -99,16 +99,12 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(
-            Iterators.single(((builder, params) -> builder.startObject(POLICIES.getPreferredName()))),
-            policies.entrySet().stream().map(entry -> (ToXContent) (builder, params) -> {
-                builder.startObject(entry.getKey());
-                entry.getValue().toXContent(builder, params);
-                builder.endObject();
-                return builder;
-            }).iterator(),
-            Iterators.single(((builder, params) -> builder.endObject()))
-        );
+        return ChunkedToXContentHelper.map(POLICIES.getPreferredName(), policies, entry -> (builder, params) -> {
+            builder.startObject(entry.getKey());
+            entry.getValue().toXContent(builder, params);
+            builder.endObject();
+            return builder;
+        });
     }
 
     @Override

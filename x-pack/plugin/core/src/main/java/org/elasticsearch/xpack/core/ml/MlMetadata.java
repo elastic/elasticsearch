@@ -121,11 +121,10 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.single(((builder, params) -> {
-            builder.field(UPGRADE_MODE.getPreferredName(), upgradeMode);
-            builder.field(RESET_MODE.getPreferredName(), resetMode);
-            return builder;
-        }));
+        return Iterators.single(
+            ((builder, params) -> builder.field(UPGRADE_MODE.getPreferredName(), upgradeMode)
+                .field(RESET_MODE.getPreferredName(), resetMode))
+        );
     }
 
     public static class MlMetadataDiff implements NamedDiff<Metadata.Custom> {

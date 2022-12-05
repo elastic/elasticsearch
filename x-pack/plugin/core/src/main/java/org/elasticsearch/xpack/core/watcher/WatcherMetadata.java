@@ -10,9 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -108,7 +108,7 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.single(((builder, params) -> builder.field(Field.MANUALLY_STOPPED.getPreferredName(), manuallyStopped)));
+        return ChunkedToXContentHelper.field(Field.MANUALLY_STOPPED.getPreferredName(), manuallyStopped);
     }
 
     interface Field {

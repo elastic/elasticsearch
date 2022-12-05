@@ -17,6 +17,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -99,9 +100,9 @@ public final class IngestMetadata implements Metadata.Custom {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
-            Iterators.<ToXContent>single(((builder, params) -> builder.startArray(PIPELINES_FIELD.getPreferredName()))),
+            ChunkedToXContentHelper.startArray(PIPELINES_FIELD.getPreferredName()),
             pipelines.values().iterator(),
-            Iterators.single(((builder, params) -> builder.endArray()))
+            ChunkedToXContentHelper.endArray()
         );
     }
 

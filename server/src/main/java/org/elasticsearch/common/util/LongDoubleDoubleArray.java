@@ -13,30 +13,30 @@ public interface LongDoubleDoubleArray extends BigArray { // TODO: implement Wri
     /**
      * Get the position-0 long element given its index.
      */
-    long getLong0(OpaqueIndex index);
+    long getLong0(long index);
 
     /**
      * Get the position-0 double element given its index.
      */
-    double getDouble0(OpaqueIndex index);
+    double getDouble0(long index);
 
     /**
      * Get the position-1 double element given its index.
      */
-    double getDouble1(OpaqueIndex index);
+    double getDouble1(long index);
 
     /**
      * Set a triple-value at the given index.
      * TODO: we could return a MH that allows retrieval of the previous value.
      */
-    void set(OpaqueIndex index, long lValue0, double dValue0, double dValue1);
+    void set(long index, long lValue0, double dValue0, double dValue1);
 
-    void increment(OpaqueIndex index, long lValue0Inc, double dValue0Inc, double dValue1Inc);
+    void increment(long index, long lValue0Inc, double dValue0Inc, double dValue1Inc);
 
     /**
      * Get the position-0 long element given its index.
      */
-    void get(OpaqueIndex index, Holder holder);
+    void get(long index, Holder holder);
 
     /** Opaque index into tuple element arrays. */
     final class OpaqueIndex {

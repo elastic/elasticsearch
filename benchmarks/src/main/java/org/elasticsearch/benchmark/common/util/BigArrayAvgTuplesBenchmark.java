@@ -66,6 +66,8 @@ public class BigArrayAvgTuplesBenchmark {
                 indices[index++] = i + (j * STRIDE);
             }
         }
+        // , or linear access pattern
+        // for (int i = 0; i < size; i++) { indices[i] = i; }
 
         // trivial benchmark assertions
         if (triple.size() != counts.size()) {
@@ -77,14 +79,31 @@ public class BigArrayAvgTuplesBenchmark {
     }
 
     @Benchmark
-    public void testThreeSeparateArrays(Blackhole bh) {
-        threeSeparateArrays(counts, sums, compensations, indices);
+    public double testThreeSeparateArraysGet() {
+        return threeSeparateArraysGet(counts, sums, compensations, indices);
+    }
+
+    private static double threeSeparateArraysGet(LongArray counts, DoubleArray sums, DoubleArray compensations, int[] indices) {
+        int len = (int) counts.size();
+        double result = 0;
+        for (int i = 0; i < len; i++) {
+            int index = indices[i];
+            long count = counts.get(index);
+            double sum = sums.get(index);
+            result += sum / count;
+        }
+        return result;
+    }
+
+    @Benchmark
+    public void testThreeSeparateArraysSet(Blackhole bh) {
+        threeSeparateArraysSet(counts, sums, compensations, indices);
         bh.consume(counts);
         bh.consume(sums);
         bh.consume(compensations);
     }
 
-    private static LongArray threeSeparateArrays(LongArray counts, DoubleArray sums, DoubleArray compensations, int[] indices) {
+    private static LongArray threeSeparateArraysSet(LongArray counts, DoubleArray sums, DoubleArray compensations, int[] indices) {
         int len = (int) counts.size();
         for (int i = 0; i < len; i++) {
             int index = indices[i];
@@ -96,24 +115,35 @@ public class BigArrayAvgTuplesBenchmark {
     }
 
     @Benchmark
+    public double testLongDoubleDoubleArrayGet() {
+        return longDoubleDoubleArrayGet(triple, indices);
+    }
+
+    private static double longDoubleDoubleArrayGet(LongDoubleDoubleArray triple, int[] indices) {
+        int len = (int) triple.size();
+        double result = 0;
+        for (int i = 0; i < len; i++) {
+            int index = indices[i];
+            long count = triple.getLong0(index);
+            double sum = triple.getDouble0(index);
+            result += sum / count;
+        }
+        return result;
+    }
+
+    @Benchmark
     public void testLongDoubleDoubleArraySet(Blackhole bh) {
         longDoubleDoubleArraySet(triple, indices);
         bh.consume(triple);
     }
 
-    private static void longDoubleDoubleArraySet(LongDoubleDoubleArray triple, int[] indices) {
-        var opaqueIndex = new LongDoubleDoubleArray.OpaqueIndex();
+    private static LongDoubleDoubleArray longDoubleDoubleArraySet(LongDoubleDoubleArray triple, int[] indices) {
         int len = (int) triple.size();
         for (int i = 0; i < len; i++) {
             int index = indices[i];
-            opaqueIndex.setForIndex(index);
-            triple.set(
-                opaqueIndex,
-                triple.getLong0(opaqueIndex) + i + 1,
-                triple.getDouble0(opaqueIndex) + i + 2,
-                triple.getDouble1(opaqueIndex) + i + 3
-            );
+            triple.set(index, triple.getLong0(index) + i + 1, triple.getDouble0(index) + i + 2, triple.getDouble1(index) + i + 3);
         }
+        return triple;
     }
 
     @Benchmark
@@ -122,16 +152,15 @@ public class BigArrayAvgTuplesBenchmark {
         bh.consume(triple);
     }
 
-    private static void longDoubleDoubleArraySetHolder(LongDoubleDoubleArray triple, int[] indices) {
+    private static LongDoubleDoubleArray longDoubleDoubleArraySetHolder(LongDoubleDoubleArray triple, int[] indices) {
         LongDoubleDoubleArray.Holder holder = new LongDoubleDoubleArray.Holder();
-        var opaqueIndex = new LongDoubleDoubleArray.OpaqueIndex();
         int len = (int) triple.size();
         for (int i = 0; i < len; i++) {
             int index = indices[i];
-            opaqueIndex.setForIndex(index);
-            triple.get(opaqueIndex, holder);
-            triple.set(opaqueIndex, holder.getLong0() + i + 1, holder.getDouble0() + i + 2, holder.getDouble1() + i + 3);
+            triple.get(index, holder);
+            triple.set(index, holder.getLong0() + i + 1, holder.getDouble0() + i + 2, holder.getDouble1() + i + 3);
         }
+        return triple;
     }
 
     @Benchmark
@@ -140,14 +169,13 @@ public class BigArrayAvgTuplesBenchmark {
         bh.consume(triple);
     }
 
-    private static void longDoubleDoubleArrayInc(LongDoubleDoubleArray triple, int[] indices) {
-        var opaqueIndex = new LongDoubleDoubleArray.OpaqueIndex();
+    private static LongDoubleDoubleArray longDoubleDoubleArrayInc(LongDoubleDoubleArray triple, int[] indices) {
         int len = (int) triple.size();
         for (int i = 0; i < len; i++) {
             int index = indices[i];
-            opaqueIndex.setForIndex(index);
-            triple.increment(opaqueIndex, i + 1, i + 2, i + 3);
+            triple.increment(index, i + 1, i + 2, i + 3);
         }
+        return triple;
     }
 
     // -- main and test below
@@ -196,17 +224,15 @@ public class BigArrayAvgTuplesBenchmark {
     }
 
     private static void assertValues(BigArrayAvgTuplesBenchmark test) {
-        var opaqueIndex = new LongDoubleDoubleArray.OpaqueIndex();
         for (int i = 0; i < test.size; i++) {
-            opaqueIndex.setForIndex(i);
-            if (test.triple.getLong0(opaqueIndex) != test.counts.get(i)) {
-                throw new AssertionError(test.triple.getLong0(opaqueIndex) + " != " + test.counts.get(i));
+            if (test.triple.getLong0(i) != test.counts.get(i)) {
+                throw new AssertionError(test.triple.getLong0(i) + " != " + test.counts.get(i));
             }
-            if (test.triple.getDouble0(opaqueIndex) != test.sums.get(i)) {
-                throw new AssertionError(test.triple.getDouble0(opaqueIndex) + " != " + test.sums.get(i));
+            if (test.triple.getDouble0(i) != test.sums.get(i)) {
+                throw new AssertionError(test.triple.getDouble0(i) + " != " + test.sums.get(i));
             }
-            if (test.triple.getDouble1(opaqueIndex) != test.compensations.get(i)) {
-                throw new AssertionError(test.triple.getDouble0(opaqueIndex) + " != " + test.compensations.get(i));
+            if (test.triple.getDouble1(i) != test.compensations.get(i)) {
+                throw new AssertionError(test.triple.getDouble0(i) + " != " + test.compensations.get(i));
             }
         }
     }

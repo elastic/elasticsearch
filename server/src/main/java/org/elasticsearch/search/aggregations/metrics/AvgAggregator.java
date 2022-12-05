@@ -33,6 +33,8 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     LongDoubleDoubleArray.OpaqueIndex opaqueIndex;
 
+    LongDoubleDoubleArray.Holder holder;
+
     DocValueFormat format;
 
     AvgAggregator(
@@ -50,6 +52,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             final BigArrays bigArrays = context.bigArrays();
             array = bigArrays.newLongDoubleDoubleArray(1, true);
             opaqueIndex = new LongDoubleDoubleArray.OpaqueIndex();
+            holder = new LongDoubleDoubleArray.Holder();
         }
     }
 
@@ -75,9 +78,10 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
                     final int valueCount = values.docValueCount();
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
-                    opaqueIndex.setForIndex(bucket);
-                    final double sum = getSum(array, opaqueIndex);
-                    final double compensation = getDelta(array, opaqueIndex);
+                    // opaqueIndex.setForIndex(bucket);
+                    array.get(bucket, holder);
+                    final double sum = holder.getDouble0(); // getSum(array, opaqueIndex);
+                    final double compensation = holder.getDouble1(); // getDelta(array, opaqueIndex);
 
                     kahanSummation.reset(sum, compensation);
 
@@ -85,7 +89,8 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
                         double value = values.nextValue();
                         kahanSummation.add(value);
                     }
-                    array.set(opaqueIndex, getCount(array, opaqueIndex) + valueCount, kahanSummation.value(), kahanSummation.delta());
+                    // array.set(opaqueIndex, getCount(array, opaqueIndex) + valueCount, kahanSummation.value(), kahanSummation.delta());
+                    array.set(bucket, holder.getLong0() + valueCount, kahanSummation.value(), kahanSummation.delta());
                 }
             }
         };
@@ -96,8 +101,11 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || owningBucketOrd >= array.size()) {
             return Double.NaN;
         }
-        opaqueIndex.setForIndex(owningBucketOrd);
-        return getSum(array, opaqueIndex) / getCount(array, opaqueIndex);
+        // opaqueIndex.setForIndex(owningBucketOrd);
+        array.get(owningBucketOrd, holder);
+
+        // return getSum(array, opaqueIndex) / getCount(array, opaqueIndex);
+        return holder.getDouble0() / holder.getLong0();
     }
 
     @Override
@@ -105,8 +113,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= array.size()) {
             return buildEmptyAggregation();
         }
-        opaqueIndex.setForIndex(bucket);
-        return new InternalAvg(name, getSum(array, opaqueIndex), getCount(array, opaqueIndex), format, metadata());
+        return new InternalAvg(name, getSum(array, bucket), getCount(array, bucket), format, metadata());
     }
 
     @Override
@@ -120,15 +127,15 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     // -- Convenience helpers that improve readability of array access.
-    private static long getCount(LongDoubleDoubleArray array, LongDoubleDoubleArray.OpaqueIndex index) {
+    private static long getCount(LongDoubleDoubleArray array, long index) {
         return array.getLong0(index);
     }
 
-    private static double getSum(LongDoubleDoubleArray array, LongDoubleDoubleArray.OpaqueIndex index) {
+    private static double getSum(LongDoubleDoubleArray array, long index) {
         return array.getDouble0(index);
     }
 
-    private static double getDelta(LongDoubleDoubleArray array, LongDoubleDoubleArray.OpaqueIndex index) {
+    private static double getDelta(LongDoubleDoubleArray array, long index) {
         return array.getDouble1(index);
     }
 

@@ -31,11 +31,7 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
         final Authentication expectedAuthentication = AuthenticationTestHelper.builder().build();
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = randomRoleDescriptorIntersection();
 
-        RemoteAccessAuthentication.writeToContextAsRemoteAccessAuthentication(
-            ctx,
-            expectedAuthentication,
-            expectedRoleDescriptorsIntersection
-        );
+        new RemoteAccessAuthentication(expectedAuthentication, expectedRoleDescriptorsIntersection).writeToContext(ctx);
         final RemoteAccessAuthentication actual = RemoteAccessAuthentication.readFromContext(ctx);
 
         assertThat(actual.authentication(), equalTo(expectedAuthentication));
@@ -47,26 +43,15 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
 
     public void testWriteToContextThrowsIfHeaderAlreadyPresent() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
-        RemoteAccessAuthentication.writeToContextAsRemoteAccessAuthentication(
-            ctx,
-            AuthenticationTestHelper.builder().build(),
-            randomRoleDescriptorIntersection()
-        );
-        final IllegalStateException ex = expectThrows(
-            IllegalStateException.class,
-            () -> RemoteAccessAuthentication.writeToContextAsRemoteAccessAuthentication(
-                ctx,
-                AuthenticationTestHelper.builder().build(),
-                randomRoleDescriptorIntersection()
-            )
+        new RemoteAccessAuthentication(AuthenticationTestHelper.builder().build(), randomRoleDescriptorIntersection()).writeToContext(ctx);
+        final IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RemoteAccessAuthentication(AuthenticationTestHelper.builder().build(), randomRoleDescriptorIntersection())
+                .writeToContext(ctx)
         );
         assertThat(
             ex.getMessage(),
-            equalTo(
-                "remote access authentication ["
-                    + RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY
-                    + "] is already present in the context"
-            )
+            equalTo("value for key [" + RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] already present")
         );
     }
 

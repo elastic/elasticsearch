@@ -103,14 +103,6 @@ final class ServerTransportFilter {
             }
         }
 
-        if (threadContext.getHeader(RemoteClusterSecurityTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER) != null) {
-            try {
-                logger.info("Received remote access authentication [{}]", RemoteAccessAuthentication.readFromContext(threadContext));
-            } catch (IOException ex) {
-                logger.error("Expected remote access authentication", ex);
-            }
-        }
-
         final Version version = transportChannel.getVersion();
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {

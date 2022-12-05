@@ -113,11 +113,7 @@ public class RemoteClusterSecurityTransportInterceptor implements TransportInter
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    RemoteAccessAuthentication.writeToContextAsRemoteAccessAuthentication(
-                        threadContext,
-                        authentication,
-                        roleDescriptorsIntersection
-                    );
+                    new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
                     final String clusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get());
                     // TODO race condition: what if settings have changed after we called shouldSendWithRemoteAccessHeaders?
                     assert clusterCredential != null : "there should be a remote cluster credential";

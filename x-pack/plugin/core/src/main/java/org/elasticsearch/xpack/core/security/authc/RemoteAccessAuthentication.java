@@ -32,16 +32,16 @@ import java.util.Set;
 public final class RemoteAccessAuthentication {
     public static final String REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY = "_remote_access_authentication";
     private final Authentication authentication;
-    private final List<BytesReference> roleDescriptorsBytes;
+    private final List<BytesReference> roleDescriptorsBytesList;
 
     public RemoteAccessAuthentication(Authentication authentication, RoleDescriptorsIntersection roleDescriptorsIntersection)
         throws IOException {
-        this(authentication, roleDescriptorsToBytes(roleDescriptorsIntersection));
+        this(authentication, toRoleDescriptorsBytesList(roleDescriptorsIntersection));
     }
 
-    private RemoteAccessAuthentication(Authentication authentication, List<BytesReference> roleDescriptorsBytes) {
+    private RemoteAccessAuthentication(Authentication authentication, List<BytesReference> roleDescriptorsBytesList) {
         this.authentication = authentication;
-        this.roleDescriptorsBytes = roleDescriptorsBytes;
+        this.roleDescriptorsBytesList = roleDescriptorsBytesList;
     }
 
     public void writeToContext(final ThreadContext ctx) throws IOException {
@@ -67,16 +67,8 @@ public final class RemoteAccessAuthentication {
         }
     }
 
-    private String encode() throws IOException {
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(authentication.getEffectiveSubject().getVersion());
-        Version.writeVersion(authentication.getEffectiveSubject().getVersion(), out);
-        authentication.writeTo(out);
-        out.writeCollection(roleDescriptorsBytes, StreamOutput::writeBytesReference);
-        return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
-    }
-
-    private static List<BytesReference> roleDescriptorsToBytes(RoleDescriptorsIntersection roleDescriptorsIntersection) throws IOException {
+    private static List<BytesReference> toRoleDescriptorsBytesList(final RoleDescriptorsIntersection roleDescriptorsIntersection)
+        throws IOException {
         // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptors to raw bytes is
         // deterministic. We can do so by sorting the role descriptors before serializing.
         assert roleDescriptorsIntersection.roleDescriptorsList().stream().noneMatch(rds -> rds.size() > 1)
@@ -94,6 +86,15 @@ public final class RemoteAccessAuthentication {
         return bytes;
     }
 
+    private String encode() throws IOException {
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(authentication.getEffectiveSubject().getVersion());
+        Version.writeVersion(authentication.getEffectiveSubject().getVersion(), out);
+        authentication.writeTo(out);
+        out.writeCollection(roleDescriptorsBytesList, StreamOutput::writeBytesReference);
+        return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
+    }
+
     private static RemoteAccessAuthentication decode(final String header) throws IOException {
         Objects.requireNonNull(header);
         final byte[] bytes = Base64.getDecoder().decode(header);
@@ -109,7 +110,7 @@ public final class RemoteAccessAuthentication {
         return authentication;
     }
 
-    public List<BytesReference> roleDescriptorsBytesIntersection() {
-        return roleDescriptorsBytes;
+    public List<BytesReference> roleDescriptorsBytesList() {
+        return roleDescriptorsBytesList;
     }
 }

@@ -25,7 +25,7 @@ public abstract class AbstractChunkedSerializingTestCase<T extends ChunkedToXCon
     protected AbstractXContentTestCase.XContentTester<T> createXContentTester() {
         return chunkedXContentTester(
             this::createParser,
-            xContentType -> createTestInstance(),
+            this::createXContextTestInstance,
             getToXContentParams(),
             this::doParseInstance,
             isFragment()

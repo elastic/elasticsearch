@@ -96,7 +96,7 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean useTSDBDocValuesFormat(final String field) {
-        return isTimeSeriesModeIndex() && isNumericType(field);
+        return isTimeSeriesModeIndex() && isNotSpecialField(field) && isNumericType(field);
     }
 
     private boolean isTimeSeriesModeIndex() {
@@ -104,7 +104,10 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean isNumericType(String field) {
-        return (mapperService != null && mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper)
-            && field.startsWith("_") == false;
+        return mapperService != null && mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper;
+    }
+
+    private boolean isNotSpecialField(String field) {
+        return field.startsWith("_") == false;
     }
 }

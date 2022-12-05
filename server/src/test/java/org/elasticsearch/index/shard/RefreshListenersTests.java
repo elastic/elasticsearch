@@ -152,7 +152,8 @@ public class RefreshListenersTests extends ESTestCase {
             () -> primaryTerm,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
-            System::nanoTime
+            System::nanoTime,
+            null
         );
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);

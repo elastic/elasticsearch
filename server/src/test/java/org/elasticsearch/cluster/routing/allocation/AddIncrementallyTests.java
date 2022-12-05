@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,6 +32,8 @@ import java.util.Collections;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class AddIncrementallyTests extends ESAllocationTestCase {
@@ -58,7 +59,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         clusterState = addNodes(clusterState, service, 1, nodeOffset++);
         assertNumIndexShardsPerNode(clusterState, equalTo(2));
         clusterState = addNodes(clusterState, service, 1, nodeOffset++);
-        assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
+        assertNumIndexShardsPerNode(clusterState, lessThanOrEqualTo(2));
         assertAtLeastOneIndexShardPerNode(clusterState);
         clusterState = removeNodes(clusterState, service, 1);
         assertNumIndexShardsPerNode(clusterState, equalTo(2));
@@ -66,20 +67,20 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         clusterState = addIndex(clusterState, service, 3, 2, 3);
         assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(2));
         assertNumIndexShardsPerNode(clusterState, "test3", equalTo(2));
-        assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
+        assertNumIndexShardsPerNode(clusterState, lessThanOrEqualTo(2));
 
         clusterState = addIndex(clusterState, service, 4, 2, 3);
         assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(4));
         assertNumIndexShardsPerNode(clusterState, "test4", equalTo(2));
-        assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
+        assertNumIndexShardsPerNode(clusterState, lessThanOrEqualTo(2));
         clusterState = addNodes(clusterState, service, 1, nodeOffset++);
-        assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
+        assertNumIndexShardsPerNode(clusterState, lessThanOrEqualTo(2));
         assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(0));
         clusterState = removeNodes(clusterState, service, 1);
         assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(4));
-        assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
+        assertNumIndexShardsPerNode(clusterState, lessThanOrEqualTo(2));
         clusterState = addNodes(clusterState, service, 1, nodeOffset++);
-        assertNumIndexShardsPerNode(clusterState, Matchers.lessThanOrEqualTo(2));
+        assertNumIndexShardsPerNode(clusterState, lessThanOrEqualTo(2));
         assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(0));
         logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
     }
@@ -220,7 +221,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
 
     private void assertNumIndexShardsPerNode(ClusterState state, String index, Matcher<Integer> matcher) {
         for (RoutingNode node : state.getRoutingNodes()) {
-            assertThat(node.shardsWithState(index, STARTED).size(), matcher);
+            assertThat(Math.toIntExact(node.shardsWithState(index, STARTED).count()), matcher);
         }
     }
 
@@ -228,7 +229,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         for (String index : state.routingTable().indicesRouting().keySet()) {
 
             for (RoutingNode node : state.getRoutingNodes()) {
-                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.greaterThanOrEqualTo(1));
+                assertThat(node.shardsWithState(index, STARTED).count(), greaterThanOrEqualTo(1L));
             }
         }
 

@@ -39,6 +39,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BalanceConfigurationTests extends ESAllocationTestCase {
 
@@ -255,8 +257,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + threshold)));
 
         for (RoutingNode node : nodes) {
-            assertThat(node.shardsWithState(STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
-            assertThat(node.shardsWithState(STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
+            assertThat(node.numberOfShardsWithState(STARTED), greaterThanOrEqualTo(minAvgNumberOfShards));
+            assertThat(node.numberOfShardsWithState(STARTED), lessThanOrEqualTo(maxAvgNumberOfShards));
         }
     }
 
@@ -277,8 +279,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
         for (String index : routingTable.indicesRouting().keySet()) {
             for (RoutingNode node : nodes) {
-                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
-                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
+                assertThat(node.shardsWithState(index, STARTED).size(), greaterThanOrEqualTo(minAvgNumberOfShards));
+                assertThat(node.shardsWithState(index, STARTED).size(), lessThanOrEqualTo(maxAvgNumberOfShards));
             }
         }
     }

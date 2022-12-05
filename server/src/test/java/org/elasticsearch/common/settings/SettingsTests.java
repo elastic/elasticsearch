@@ -11,6 +11,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -483,6 +485,75 @@ public class SettingsTests extends ESTestCase {
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
         e = expectThrows(IllegalArgumentException.class, () -> SecureSetting.secureFile("*IllegalName", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
+    }
+
+    public void testFallbackSecureSettings() throws Exception {
+        boolean stateless = randomBoolean();
+        boolean testFileSettingInsteadOfStringSetting = randomBoolean();
+
+        // The known secure key's YAML value should become accessible as a secure setting
+        Setting<?> knownSecureSetting = testFileSettingInsteadOfStringSetting
+            ? SecureSetting.secureFile("s3.client.test.access_key", null)
+            : SecureSetting.secureString("s3.client.test.access_key", null);
+
+        // The unknown secure key's secure value should be accessible as a secure setting. Any YAML value is ignored.
+        Setting<?> unknownSecureSetting = testFileSettingInsteadOfStringSetting
+            ? SecureSetting.secureFile("unknown.secure.key", null)
+            : SecureSetting.secureString("unknown.secure.key", null);
+
+        // Simple non-secure YAML settings should still be accessible
+        Setting<?> yamlSetting = Setting.simpleString("yaml.key");
+
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        if (testFileSettingInsteadOfStringSetting) {
+            secureSettings.setFile(unknownSecureSetting.getKey(), "unknown.secure.value".getBytes(StandardCharsets.UTF_8));
+        } else {
+            secureSettings.setString(unknownSecureSetting.getKey(), "unknown.secure.value");
+        }
+
+        final Settings settings = Settings.builder()
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, stateless)
+            .put(knownSecureSetting.getKey(), "yaml.value")
+            .put(unknownSecureSetting.getKey(), "unknown.yaml.value")
+            .put(yamlSetting.getKey(), "yaml.another.value")
+            .setSecureSettings(secureSettings)
+            .build();
+
+        assertTrue(unknownSecureSetting.exists(settings));
+        assertEquals(
+            "unknown.secure.value",
+            testFileSettingInsteadOfStringSetting
+                ? new String(((InputStream) unknownSecureSetting.get(settings)).readAllBytes(), StandardCharsets.UTF_8)
+                : unknownSecureSetting.get(settings).toString()
+        );
+        assertTrue(yamlSetting.exists(settings));
+        assertEquals("yaml.another.value", yamlSetting.get(settings).toString());
+
+        if (stateless) {
+            Settings newSettings = FallbackSecureSettings.installFallbackSecureSettings(settings);
+            assertTrue(knownSecureSetting.exists(newSettings));
+            assertEquals(
+                "yaml.value",
+                testFileSettingInsteadOfStringSetting
+                    ? new String(((InputStream) knownSecureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
+                    : knownSecureSetting.get(newSettings).toString()
+            );
+            assertTrue(unknownSecureSetting.exists(newSettings));
+            assertEquals(
+                "unknown.secure.value",
+                testFileSettingInsteadOfStringSetting
+                    ? new String(((InputStream) unknownSecureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
+                    : unknownSecureSetting.get(newSettings).toString()
+            );
+            assertTrue(yamlSetting.exists(newSettings));
+            assertEquals("yaml.another.value", yamlSetting.get(newSettings).toString());
+        } else {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> FallbackSecureSettings.installFallbackSecureSettings(settings)
+            );
+            assertTrue(e.getMessage().contains("supported only in stateless"));
+        }
     }
 
     public void testGetAsArrayFailsOnDuplicates() {

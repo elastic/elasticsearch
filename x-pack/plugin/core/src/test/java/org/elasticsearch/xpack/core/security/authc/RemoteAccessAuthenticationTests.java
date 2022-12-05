@@ -30,37 +30,26 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
 
     public void testWriteReadContextRoundtrip() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
-        final Authentication expectedAuthentication = AuthenticationTestHelper.builder().build();
-        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = randomRoleDescriptorIntersection();
+        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = randomRoleDescriptorsIntersection();
+        final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
+            AuthenticationTestHelper.builder().build(),
+            expectedRoleDescriptorsIntersection
+        );
 
-        new RemoteAccessAuthentication(expectedAuthentication, expectedRoleDescriptorsIntersection).writeToContext(ctx);
+        expectedRemoteAccessAuthentication.writeToContext(ctx);
         final RemoteAccessAuthentication actual = RemoteAccessAuthentication.readFromContext(ctx);
 
-        assertThat(actual.getAuthentication(), equalTo(expectedAuthentication));
-        final List<Set<RoleDescriptor>> list = new ArrayList<>();
+        assertThat(actual.getAuthentication(), equalTo(expectedRemoteAccessAuthentication.getAuthentication()));
+        final List<Set<RoleDescriptor>> roleDescriptorsList = new ArrayList<>();
         for (BytesReference bytesReference : actual.getRoleDescriptorsBytesList()) {
             Set<RoleDescriptor> roleDescriptors = new RemoteAccessAuthentication.RoleDescriptorsBytes(bytesReference).toRoleDescriptors();
-            list.add(roleDescriptors);
+            roleDescriptorsList.add(roleDescriptors);
         }
-        final var actualRoleDescriptorIntersection = new RoleDescriptorsIntersection(list);
-        assertThat(actualRoleDescriptorIntersection, equalTo(expectedRoleDescriptorsIntersection));
+        final var actualRoleDescriptorsIntersection = new RoleDescriptorsIntersection(roleDescriptorsList);
+        assertThat(actualRoleDescriptorsIntersection, equalTo(expectedRoleDescriptorsIntersection));
     }
 
-    public void testWriteToContextThrowsIfHeaderAlreadyPresent() throws IOException {
-        final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
-        new RemoteAccessAuthentication(AuthenticationTestHelper.builder().build(), randomRoleDescriptorIntersection()).writeToContext(ctx);
-        final IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> new RemoteAccessAuthentication(AuthenticationTestHelper.builder().build(), randomRoleDescriptorIntersection())
-                .writeToContext(ctx)
-        );
-        assertThat(
-            ex.getMessage(),
-            equalTo("value for key [" + RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] already present")
-        );
-    }
-
-    public void testParseRoleDescriptorsBytes() throws IOException {
+    public void testRoleDescriptorsBytesToRoleDescriptors() throws IOException {
         final Set<RoleDescriptor> expectedRoleDescriptors = Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 3));
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(expectedRoleDescriptors.stream().collect(Collectors.toMap(RoleDescriptor::getName, Function.identity())));
@@ -69,7 +58,7 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
         assertThat(actualRoleDescriptors, equalTo(expectedRoleDescriptors));
     }
 
-    private RoleDescriptorsIntersection randomRoleDescriptorIntersection() {
+    private RoleDescriptorsIntersection randomRoleDescriptorsIntersection() {
         return new RoleDescriptorsIntersection(randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1))));
     }
 }

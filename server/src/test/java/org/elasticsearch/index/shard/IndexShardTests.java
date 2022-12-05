@@ -4519,7 +4519,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getPrimaryTermSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 config.getLeafSorter(),
-                config.getRelativeTimeInNanosSupplier()
+                config.getRelativeTimeInNanosSupplier(),
+                config.getIndexCommitListener()
             );
             return new InternalEngine(configWithWarmer);
         });

@@ -13,12 +13,14 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -38,6 +40,17 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
     private final Map<IndexCommit, Integer> snapshottedCommits; // Number of snapshots held against each commit point.
+
+    interface CommitsListener {
+
+        void onNewAcquiredCommit(IndexCommit commit);
+
+        void onDeletedCommit(IndexCommit commit);
+    }
+
+    @Nullable
+    private final CommitsListener commitsListener;
+
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile long maxSeqNoOfNextSafeCommit;
     private volatile IndexCommit lastCommit; // the most recent commit point
@@ -47,12 +60,14 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         Logger logger,
         TranslogDeletionPolicy translogDeletionPolicy,
         SoftDeletesPolicy softDeletesPolicy,
-        LongSupplier globalCheckpointSupplier
+        LongSupplier globalCheckpointSupplier,
+        @Nullable CommitsListener commitsListener
     ) {
         this.logger = logger;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.commitsListener = commitsListener;
         this.snapshottedCommits = new HashMap<>();
     }
 
@@ -86,11 +101,14 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             logger.info("failed to get the total docs from the safe commit; use the total docs from the previous safe commit", ex);
             totalDocsOfSafeCommit = safeCommitInfo.docCount;
         }
+        IndexCommit newCommit = null;
+        List<IndexCommit> deletedCommits = null;
         synchronized (this) {
             this.safeCommitInfo = new SafeCommitInfo(
                 Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
                 totalDocsOfSafeCommit
             );
+            final IndexCommit previousLastCommit = this.lastCommit;
             this.lastCommit = commits.get(commits.size() - 1);
             this.safeCommit = safeCommit;
             updateRetentionPolicy();
@@ -99,13 +117,31 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             } else {
                 this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
             }
+            if (commitsListener != null && previousLastCommit != this.lastCommit) {
+                newCommit = acquireIndexCommit(false);
+            }
             for (int i = 0; i < keptPosition; i++) {
-                if (snapshottedCommits.containsKey(commits.get(i)) == false) {
-                    deleteCommit(commits.get(i));
+                final IndexCommit commit = commits.get(i);
+                if (snapshottedCommits.containsKey(commit) == false) {
+                    deleteCommit(commit);
+                    if (deletedCommits == null) {
+                        deletedCommits = new ArrayList<>();
+                    }
+                    deletedCommits.add(commit);
                 }
             }
         }
         assert assertSafeCommitUnchanged(safeCommit);
+        if (commitsListener != null) {
+            if (newCommit != null) {
+                commitsListener.onNewAcquiredCommit(newCommit);
+            }
+            if (deletedCommits != null) {
+                for (IndexCommit deletedCommit : deletedCommits) {
+                    commitsListener.onDeletedCommit(deletedCommit);
+                }
+            }
+        }
     }
 
     private boolean assertSafeCommitUnchanged(IndexCommit safeCommit) {
@@ -154,7 +190,11 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
         snapshottedCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
-        return new SnapshotIndexCommit(snapshotting);
+        return wrapCommit(snapshotting);
+    }
+
+    protected IndexCommit wrapCommit(IndexCommit indexCommit) {
+        return new SnapshotIndexCommit(indexCommit);
     }
 
     /**

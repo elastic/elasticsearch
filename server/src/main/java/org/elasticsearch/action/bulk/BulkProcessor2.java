@@ -364,12 +364,12 @@ public class BulkProcessor2 implements Closeable {
     private Tuple<BulkRequest, Long> newBulkRequestIfNeeded() {
         assert Thread.holdsLock(mutex);
         ensureOpen();
-        if (isOverTheLimit() == false) {
-            return null;
+        if (bulkRequestExceedsLimits() || totalBytesInFlight.get() >= maxBytesInFlight.getBytes()) {
+            final BulkRequest bulkRequest = this.bulkRequest;
+            this.bulkRequest = new BulkRequest();
+            return new Tuple<>(bulkRequest, executionIdGen.incrementAndGet());
         }
-        final BulkRequest bulkRequest = this.bulkRequest;
-        this.bulkRequest = new BulkRequest();
-        return new Tuple<>(bulkRequest, executionIdGen.incrementAndGet());
+        return null;
     }
 
     /**
@@ -410,7 +410,7 @@ public class BulkProcessor2 implements Closeable {
         execute(bulkRequest, executionId);
     }
 
-    private boolean isOverTheLimit() {
+    private boolean bulkRequestExceedsLimits() {
         assert Thread.holdsLock(mutex);
         if (maxActionsPerBulkRequest != -1 && bulkRequest.numberOfActions() >= maxActionsPerBulkRequest) {
             return true;

@@ -622,7 +622,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
-            assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(STARTED).iterator().next().primary(), equalTo(true));
+            assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(STARTED).findFirst().get().primary(), equalTo(true));
             assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(0));
         } else {
             logger.info("--> cancel the move of the replica shard");
@@ -669,7 +669,10 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(0));
             assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(1));
             assertThat(clusterState.getRoutingNodes().node("node3").numberOfShardsWithState(INITIALIZING), equalTo(1));
-            assertThat(clusterState.getRoutingNodes().node("node3").shardsWithState(INITIALIZING).get(0).relocatingNodeId(), nullValue());
+            assertThat(
+                clusterState.getRoutingNodes().node("node3").shardsWithState(INITIALIZING).findFirst().get().relocatingNodeId(),
+                nullValue()
+            );
 
             logger.info("--> start the former target replica shard");
             clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -689,7 +692,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             ).clusterState();
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
-            assertThat(clusterState.getRoutingNodes().node("node3").shardsWithState(STARTED).iterator().next().primary(), equalTo(true));
+            assertThat(clusterState.getRoutingNodes().node("node3").shardsWithState(STARTED).findFirst().get().primary(), equalTo(true));
             assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
             assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(0));
         }
@@ -1058,7 +1061,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
 
         final ClusterState updatedClusterState = clusterState;
-        assertThat(updatedClusterState.getRoutingNodes().node(node1).shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(updatedClusterState.getRoutingNodes().node(node1).numberOfShardsWithState(STARTED), equalTo(1));
 
         logger.info("--> subsequent replica allocation fails as all configured replicas have been allocated");
         assertThat(expectThrows(IllegalArgumentException.class, () -> {

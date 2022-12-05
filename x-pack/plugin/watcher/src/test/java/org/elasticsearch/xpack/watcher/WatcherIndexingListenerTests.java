@@ -56,6 +56,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -330,14 +331,13 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         boolean emptyShards = randomBoolean();
 
         if (emptyShards) {
-            when(routingNode.shardsWithState(eq(newActiveWatchIndex), any(ShardRoutingState[].class))).thenReturn(Collections.emptyList());
+            when(routingNode.shardsWithState(eq(newActiveWatchIndex), any(ShardRoutingState[].class))).thenReturn(Stream.empty());
         } else {
             Index index = new Index(newActiveWatchIndex, "uuid");
             ShardId shardId = new ShardId(index, 0);
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED);
-            List<ShardRouting> routing = Collections.singletonList(shardRouting);
-            when(routingNode.shardsWithState(eq(newActiveWatchIndex), eq(STARTED), eq(RELOCATING))).thenReturn(routing);
-            when(routingTable.allShards(eq(newActiveWatchIndex))).thenReturn(routing);
+            when(routingNode.shardsWithState(eq(newActiveWatchIndex), eq(STARTED), eq(RELOCATING))).thenReturn(Stream.of(shardRouting));
+            when(routingTable.allShards(eq(newActiveWatchIndex))).thenReturn(List.of(shardRouting));
             IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
             when(routingTable.index(newActiveWatchIndex)).thenReturn(indexRoutingTable);
         }

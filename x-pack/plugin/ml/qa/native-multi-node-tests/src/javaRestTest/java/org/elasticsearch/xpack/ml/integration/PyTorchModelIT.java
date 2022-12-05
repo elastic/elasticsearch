@@ -114,36 +114,6 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
     }
 
-    @Before
-    public void setLogging() throws IOException {
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
-            {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.assignment" : "DEBUG",
-                    "logger.org.elasticsearch.xpack.ml.inference.deployment" : "DEBUG",
-                    "logger.org.elasticsearch.xpack.ml.process.logging" : "DEBUG"
-                }}""");
-        client().performRequest(loggingSettings);
-    }
-
-    @After
-    public void cleanup() throws Exception {
-        terminate(executorService);
-
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
-            {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.assignment": null,
-                    "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
-                    "logger.org.elasticsearch.xpack.ml.process.logging" : null,
-                    "xpack.ml.max_lazy_ml_nodes": null
-                }}""");
-        client().performRequest(loggingSettings);
-
-        new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
-        waitForPendingTasks(adminClient());
-    }
-
     public void testEvaluate() throws IOException, InterruptedException {
         String modelId = "test_evaluate";
         createPassThroughModel(modelId);

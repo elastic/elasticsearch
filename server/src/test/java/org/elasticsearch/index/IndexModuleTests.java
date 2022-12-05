@@ -104,7 +104,9 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -637,12 +639,14 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap()
         );
 
+        final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
         final AtomicReference<Engine.IndexCommitRef> lastAcquiredCommit = new AtomicReference<>();
         final AtomicReference<IndexCommit> lastDeletedCommit = new AtomicReference<>();
 
         module.setIndexCommitListener(new Engine.IndexCommitListener() {
             @Override
-            public void onNewCommit(ShardId shardId, Engine.IndexCommitRef indexCommitRef) {
+            public void onNewCommit(ShardId shardId, LongSupplier primaryTerm, Engine.IndexCommitRef indexCommitRef) {
+                lastAcquiredPrimaryTerm.set(primaryTerm.getAsLong());
                 lastAcquiredCommit.set(indexCommitRef);
             }
 
@@ -687,6 +691,7 @@ public class IndexModuleTests extends ESTestCase {
             indexShard.recoverFromStore(recoveryFuture);
             recoveryFuture.get();
 
+            assertThat(lastAcquiredPrimaryTerm.get(), equalTo(indexShard.getOperationPrimaryTerm()));
             Engine.IndexCommitRef lastCommitRef = lastAcquiredCommit.get();
             assertThat(lastCommitRef, notNullValue());
             IndexCommit lastCommit = lastCommitRef.getIndexCommit();

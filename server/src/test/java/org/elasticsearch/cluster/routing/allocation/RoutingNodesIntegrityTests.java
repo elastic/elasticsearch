@@ -168,13 +168,13 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(4));
         assertThat(clusterState.getRoutingNodes().node("node3").numberOfShardsWithState(STARTED), equalTo(4));
 
-        assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState("test", STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState("test", STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node3").shardsWithState("test", STARTED).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState("test", STARTED).count(), equalTo(2L));
+        assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState("test", STARTED).count(), equalTo(2L));
+        assertThat(clusterState.getRoutingNodes().node("node3").shardsWithState("test", STARTED).count(), equalTo(2L));
 
-        assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState("test1", STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState("test1", STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().node("node3").shardsWithState("test1", STARTED).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState("test1", STARTED).count(), equalTo(2L));
+        assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState("test1", STARTED).count(), equalTo(2L));
+        assertThat(clusterState.getRoutingNodes().node("node3").shardsWithState("test1", STARTED).count(), equalTo(2L));
     }
 
     public void testBalanceAllNodesStartedAddIndex() {
@@ -257,9 +257,9 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(2));
         assertThat(routingNodes.node("node3").numberOfShardsWithState(STARTED), equalTo(2));
 
-        assertThat(routingNodes.node("node1").shardsWithState("test", STARTED).size(), equalTo(2));
-        assertThat(routingNodes.node("node2").shardsWithState("test", STARTED).size(), equalTo(2));
-        assertThat(routingNodes.node("node3").shardsWithState("test", STARTED).size(), equalTo(2));
+        assertThat(routingNodes.node("node1").shardsWithState("test", STARTED).count(), equalTo(2L));
+        assertThat(routingNodes.node("node2").shardsWithState("test", STARTED).count(), equalTo(2L));
+        assertThat(routingNodes.node("node3").shardsWithState("test", STARTED).count(), equalTo(2L));
 
         logger.info("Add new index 3 shards 1 replica");
 
@@ -318,9 +318,9 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(4));
         assertThat(routingNodes.node("node3").numberOfShardsWithState(STARTED), equalTo(4));
 
-        assertThat(routingNodes.node("node1").shardsWithState("test1", STARTED).size(), equalTo(2));
-        assertThat(routingNodes.node("node2").shardsWithState("test1", STARTED).size(), equalTo(2));
-        assertThat(routingNodes.node("node3").shardsWithState("test1", STARTED).size(), equalTo(2));
+        assertThat(routingNodes.node("node1").shardsWithState("test1", STARTED).count(), equalTo(2L));
+        assertThat(routingNodes.node("node2").shardsWithState("test1", STARTED).count(), equalTo(2L));
+        assertThat(routingNodes.node("node3").shardsWithState("test1", STARTED).count(), equalTo(2L));
 
         logger.info("kill one node");
         IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable().index("test").shard(0);

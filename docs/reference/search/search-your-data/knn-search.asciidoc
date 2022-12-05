@@ -434,7 +434,7 @@ POST image-index/_search
     "k": 10,
     "num_candidates": 10,
     "boost": 0.5
-  }]
+  }],
   "size": 10
 }
 ----

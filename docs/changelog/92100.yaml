@@ -1,0 +1,11 @@
+pr: 92100
+summary: Ensure balance threshold is at least 1
+area: Allocation
+type: "bug, deprecation"
+issues: []
+deprecation:
+  title: Ensure balance threshold is at least 1
+  area: Allocation
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

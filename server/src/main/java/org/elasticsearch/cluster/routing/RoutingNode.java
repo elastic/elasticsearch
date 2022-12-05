@@ -20,14 +20,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toCollection;
 
 /**
  * A {@link RoutingNode} represents a cluster node associated with a single {@link DiscoveryNode} including all shards
@@ -212,24 +209,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert invariant();
     }
 
-    /**
-     * Determine the number of shards with a specific state
-     * @param state which should be counted
-     * @return number of shards
-     */
-    public int numberOfShardsWithState(ShardRoutingState state) {
-        return internalGetShardsWithState(state).size();
-    }
-
-    /**
-     * Determine the shards with a specific state
-     * @param state state which should be listed
-     * @return List of shards
-     */
-    public List<ShardRouting> shardsWithState(ShardRoutingState state) {
-        return new ArrayList<>(internalGetShardsWithState(state));
-    }
-
     private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
 
     public ShardRouting[] initializing() {
@@ -245,23 +224,35 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     /**
+     * Determine the number of shards with a specific state
+     * @param state which should be counted
+     * @return number of shards
+     */
+    public int numberOfShardsWithState(ShardRoutingState state) {
+        return internalGetShardsWithState(state).size();
+    }
+
+    /**
+     * Determine the shards with a specific state
+     * @param state state which should be listed
+     * @return List of shards
+     */
+    public Stream<ShardRouting> shardsWithState(ShardRoutingState state) {
+        return internalGetShardsWithState(state).stream();
+    }
+
+    /**
      * Determine the shards of an index with a specific state
      * @param index id of the index
      * @param states set of states which should be listed
      * @return a list of shards
      */
-    public List<ShardRouting> shardsWithState(String index, ShardRoutingState... states) {
-        return Stream.of(states).flatMap(state -> shardsWithState(index, state).stream()).collect(toCollection(ArrayList::new));
+    public Stream<ShardRouting> shardsWithState(String index, ShardRoutingState... states) {
+        return Stream.of(states).flatMap(state -> shardsWithState(index, state));
     }
 
-    public List<ShardRouting> shardsWithState(String index, ShardRoutingState state) {
-        var shards = new ArrayList<ShardRouting>();
-        for (ShardRouting shardEntry : internalGetShardsWithState(state)) {
-            if (shardEntry.getIndexName().equals(index)) {
-                shards.add(shardEntry);
-            }
-        }
-        return shards;
+    public Stream<ShardRouting> shardsWithState(String index, ShardRoutingState state) {
+        return shardsWithState(state).filter(shardRouting -> Objects.equals(shardRouting.getIndexName(), index));
     }
 
     private LinkedHashSet<ShardRouting> internalGetShardsWithState(ShardRoutingState state) {

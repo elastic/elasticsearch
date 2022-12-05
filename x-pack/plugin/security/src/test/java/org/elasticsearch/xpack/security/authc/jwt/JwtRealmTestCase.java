@@ -11,21 +11,16 @@ import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 import com.nimbusds.openid.connect.sdk.Nonce;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -96,19 +91,12 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     protected MockLicenseState licenseState;
     protected List<JwtIssuerAndRealm> jwtIssuerAndRealms;
 
-    protected MockLogAppender jwkSetLoaderAppender;
-
     @Before
     public void init() throws Exception {
         this.threadPool = new TestThreadPool("JWT realm tests");
         this.resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, this.threadPool);
         this.licenseState = mock(MockLicenseState.class);
         when(this.licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
-        final Logger jwkSetLoaderLogger = LogManager.getLogger(JwkSetLoader.class);
-        Loggers.setLevel(jwkSetLoaderLogger, Level.DEBUG);
-        jwkSetLoaderAppender = new MockLogAppender();
-        Loggers.addAppender(jwkSetLoaderLogger, jwkSetLoaderAppender);
-        jwkSetLoaderAppender.start();
     }
 
     @After
@@ -121,10 +109,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         }
         this.resourceWatcherService.close();
         terminate(this.threadPool);
-        jwkSetLoaderAppender.stop();
-        final Logger jwkSetLoaderLogger = LogManager.getLogger(JwkSetLoader.class);
-        Loggers.setLevel(jwkSetLoaderLogger, Level.INFO);
-        Loggers.removeAppender(jwkSetLoaderLogger, jwkSetLoaderAppender);
     }
 
     protected void verifyAuthenticateFailureHelper(
@@ -419,14 +403,8 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final UserRoleMapper userRoleMapper = super.buildRoleMapper(authzRealmNames.isEmpty() ? jwtIssuer.principals : Map.of());
 
         // If authz names is not set, register the users here in the JWT authc realm.
-        if (Strings.hasText(authcConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH))) {
-            assertJwkSetLoaderLoggingExpectation(
-                () -> allRealms.add(new JwtRealm(authcConfig, jwtRealmsService, sslService, userRoleMapper))
-            );
-        } else {
-            allRealms.add(new JwtRealm(authcConfig, jwtRealmsService, sslService, userRoleMapper));
-        }
-        final JwtRealm jwtRealm = (JwtRealm) allRealms.get(allRealms.size() - 1);
+        final JwtRealm jwtRealm = new JwtRealm(authcConfig, jwtRealmsService, sslService, userRoleMapper);
+        allRealms.add(jwtRealm);
 
         // If authz names is set, register the users here in one of the authz realms.
         if (authzRealmNames.isEmpty() == false) {
@@ -735,21 +713,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         }
         for (final JwtIssuer.AlgJwkPair pair : jwtIssuer.algAndJwksPkc) {
             LOGGER.info("ISSUER PKC: alg=[{}] jwk=[{}]", pair.alg(), pair.jwk());
-        }
-    }
-
-    protected void assertJwkSetLoaderLoggingExpectation(CheckedRunnable<Exception> runnable) {
-        jwkSetLoaderAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("reloading", JwkSetLoader.class.getName(), Level.DEBUG, "JwkSet reloading completed")
-        );
-        try {
-            runnable.run();
-            assertBusy(() -> jwkSetLoaderAppender.assertAllExpectationsMatched());
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            logger.error("caught error when asserting jwkSetLoader logging expectation", e);
-            fail("caught error when asserting jwkSetLoader logging expectation");
         }
     }
 }

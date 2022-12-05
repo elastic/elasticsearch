@@ -105,7 +105,6 @@ public class JwkSetLoader implements Releasable {
                 loadInternal(ActionListener.runBefore(newFuture, () -> {
                     final ListenableFuture<Tuple<Boolean, JwksAlgs>> oldValue = this.reloadFutureRef.getAndSet(null);
                     assert oldValue == newFuture : "future reference changed unexpectedly";
-                    logger.debug("JwkSet reloading completed");
                 }));
                 return newFuture;
             }

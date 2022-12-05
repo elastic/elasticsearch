@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -97,6 +98,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      * Test with updated/removed/restored JWKs.
      * @throws Exception Unexpected test failure
      */
+    @TestLogging(value = "org.elasticsearch.xpack.security.authc.jwt:trace", reason = "debug")
     public void testJwkSetUpdates() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             this.createJwtRealmsSettingsBuilder(),
@@ -177,9 +179,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // - jwtJwks2(PKC): PKC reload triggered and loaded new JWKs, so PASS
         // - jwtJwks2(HMAC): HMAC reload triggered but it is a no-op, so FAIL
         if (isPkcJwtJwks2) {
-            assertJwkSetLoaderLoggingExpectation(
-                () -> doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange)
-            );
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange);
             LOGGER.debug("PKC JWT 2 worked with JWKs 2");
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks2, clientSecret);
@@ -194,7 +194,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         if (isPkcJwtJwks1 == false || isPkcJwtJwks2 == false) {
             this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
         } else {
-            assertJwkSetLoaderLoggingExpectation(() -> verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks1, clientSecret));
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks1, clientSecret);
         }
 
         // Empty all JWT issuer JWKs.
@@ -215,7 +215,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         if (isPkcJwtJwks1 == false || isPkcJwtJwks2 == false) {
             this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
         } else {
-            assertJwkSetLoaderLoggingExpectation(() -> verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks1, clientSecret));
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks1, clientSecret);
         }
 
         // Try new JWT and verify degraded state caused by empty PKC JWKs
@@ -225,8 +225,6 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // - jwtJwks1(HMAC) + jwtJwks2(HMAC): If second JWT is HMAC, it always fails because HMAC reload not supported.
         if (isPkcJwtJwks1 == false && isPkcJwtJwks2) {
             this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange);
-        } else if (isPkcJwtJwks2) {
-            assertJwkSetLoaderLoggingExpectation(() -> verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks2, clientSecret));
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks2, clientSecret);
         }
@@ -241,19 +239,15 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // - jwtJwks2(PKC): Pass (Triggers PKC reload, gets newer PKC JWKs), jwtJwks1(HMAC): Pass (HMAC reload was a no-op)
         // - jwtJwks2(HMAC): Fail (Triggers HMAC reload, but it is a no-op), jwtJwks1(PKC): Fail (Triggers PKC reload, gets new PKC JWKs)
         // - jwtJwks2(HMAC): Fail (Triggers HMAC reload, but it is a no-op), jwtJwks1(HMAC): Pass (HMAC reload was a no-op)
-        if (isPkcJwtJwks1 && isPkcJwtJwks2) {
-            assertJwkSetLoaderLoggingExpectation(
-                () -> doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange)
-            );
-        } else if (isPkcJwtJwks2) {
-            doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange);
+        if (isPkcJwtJwks2) {
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange);
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks2, clientSecret);
         }
         if (isPkcJwtJwks1 == false || isPkcJwtJwks2 == false) {
             this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
         } else {
-            assertJwkSetLoaderLoggingExpectation(() -> verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks1, clientSecret));
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks1, clientSecret);
         }
     }
 

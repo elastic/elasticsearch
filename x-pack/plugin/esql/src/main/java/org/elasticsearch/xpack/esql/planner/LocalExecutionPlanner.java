@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -278,7 +280,7 @@ public class LocalExecutionPlanner {
                 }
             }
             Function<Page, Page> mapper = transformRequired ? p -> {
-                var blocks = new Block[p.getBlockCount()];
+                var blocks = new Block[mappedPosition.length];
                 for (int i = 0; i < blocks.length; i++) {
                     blocks[i] = p.getBlock(mappedPosition[i]);
                 }
@@ -344,9 +346,8 @@ public class LocalExecutionPlanner {
             } else {
                 throw new UnsupportedOperationException();
             }
-            Map<Object, Integer> layout = new HashMap<>();
-            layout.putAll(source.layout);
-            layout.put(namedExpression.toAttribute().id(), layout.size());
+            Map<Object, Integer> layout = new HashMap<>(source.layout);
+            layout.put(namedExpression.toAttribute().id(), nextFreeChannel(layout));
             return new PhysicalOperation(
                 new EvalOperatorFactory(evaluator, namedExpression.dataType().isRational() ? Double.TYPE : Long.TYPE),
                 layout,
@@ -368,22 +369,46 @@ public class LocalExecutionPlanner {
             return new PhysicalOperation(new RowOperatorFactory(obj), layout);
         } else if (node instanceof ProjectExec project) {
             var source = plan(project.child(), context);
-            Map<Object, Integer> layout = new HashMap<>();
 
-            var outputSet = project.outputSet();
-            var input = project.child().output();
-            var mask = new BitSet(input.size());
-            int layoutPos = 0;
-            for (Attribute element : input) {
-                var id = element.id();
-                var maskPosition = source.layout.get(id);
-                var keepColumn = outputSet.contains(element);
-                mask.set(maskPosition, keepColumn);
-                if (keepColumn) {
-                    layout.put(id, layoutPos++);
+            Map<Integer, Set<NameId>> inputChannelToInputIds = new HashMap<>(source.layout.size());
+            for (Map.Entry<Object, Integer> entry : source.layout.entrySet()) {
+                inputChannelToInputIds.computeIfAbsent(entry.getValue(), ignore -> new HashSet<>()).add((NameId) entry.getKey());
+            }
+
+            Map<Integer, Set<NameId>> inputChannelToOutputIds = new HashMap<>(inputChannelToInputIds.size());
+            for (NamedExpression ne : project.projections()) {
+                NameId inputId;
+                if (ne instanceof Alias a) {
+                    inputId = ((NamedExpression) a.child()).id();
+                } else {
+                    inputId = ne.id();
+                }
+                int inputChannel = source.layout.get(inputId);
+                inputChannelToOutputIds.computeIfAbsent(inputChannel, ignore -> new HashSet<>()).add(ne.id());
+            }
+
+            BitSet mask = new BitSet(inputChannelToInputIds.size());
+            Map<Object, Integer> layout = new HashMap<>(project.projections().size());
+            int outChannel = 0;
+
+            for (int inChannel = 0; inChannel < inputChannelToInputIds.size(); inChannel++) {
+                Set<NameId> outputIds = inputChannelToOutputIds.get(inChannel);
+
+                if (outputIds != null) {
+                    mask.set(inChannel);
+                    for (NameId outId : outputIds) {
+                        layout.put(outId, outChannel);
+                    }
+                    outChannel++;
                 }
             }
-            return new PhysicalOperation(new ProjectOperatorFactory(mask), layout, source);
+
+            if (mask.cardinality() == inputChannelToInputIds.size()) {
+                // all columns are retained, project operator is not needed but the layout needs to be updated
+                return new PhysicalOperation(source.operatorFactories, layout);
+            } else {
+                return new PhysicalOperation(new ProjectOperatorFactory(mask), layout, source);
+            }
         } else if (node instanceof FilterExec filter) {
             PhysicalOperation source = plan(filter.child(), context);
             return new PhysicalOperation(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout, source);
@@ -421,7 +446,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout = new HashMap<>(layout);
-            layout.put(attr.id(), layout.size());
+            layout.put(attr.id(), nextFreeChannel(layout));
             Map<Object, Integer> previousLayout = op.layout;
 
             // Create ValuesSource object for the field to extract its values
@@ -519,6 +544,11 @@ public class LocalExecutionPlanner {
             this.layout = layout;
         }
 
+        PhysicalOperation(List<OperatorFactory> operatorFactories, Map<Object, Integer> layout) {
+            this.operatorFactories.addAll(operatorFactories);
+            this.layout = layout;
+        }
+
         PhysicalOperation(OperatorFactory operatorFactory, Map<Object, Integer> layout, PhysicalOperation source) {
             this.operatorFactories.addAll(source.operatorFactories);
             this.operatorFactories.add(operatorFactory);
@@ -533,6 +563,16 @@ public class LocalExecutionPlanner {
         public String describe() {
             return operatorFactories.stream().map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
         }
+    }
+
+    private static int nextFreeChannel(Map<Object, Integer> layout) {
+        int nextChannel = 0;
+        for (int channel : layout.values()) {
+            if (channel >= nextChannel) {
+                nextChannel = channel + 1;
+            }
+        }
+        return nextChannel;
     }
 
     /**

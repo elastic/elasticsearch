@@ -1,0 +1,27 @@
+projectRename
+row a = 1, b = 2 | project c = a;
+
+c:integer
+1
+;
+
+projectRenameDuplicate
+row a = 1, b = 2 | project c = a, d = a;
+
+c:integer | d:integer
+1 | 1
+;
+
+projectRenameEval
+row a = 1, b = 2 | project c = a, d = a | eval e = c + d;
+
+c:integer | d:integer | e:integer
+1 | 1 | 2
+;
+
+projectRenameEvalProject
+row a = 1, b = 2 | project c = a, d = a | eval e = c + d | project e, c, d;
+
+e:integer | c:integer | d:integer
+2 | 1 | 1
+;

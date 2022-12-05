@@ -23,30 +23,24 @@ esplugin {
 }
 
 versions << [
-  'azure': '12.9.0',
-  'azureCore': '1.10.0',
-  'azureCoreHttpNetty': '1.6.3',
+  'azure': '12.20.1',
+  'azureCommon': '12.19.1',
+  'azureCore': '1.34.0',
+  'azureCoreHttpNetty': '1.12.7',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
-  'stax2API': '4.2',
-  'woodstox': '6.0.2',
+  'stax2API': '4.2.1',
+  'woodstox': '6.4.0',
 
-  'reactorNetty': '0.9.12.RELEASE',
-  'reactorCore': '3.3.10.RELEASE',
-  'reactiveStreams': '1.0.3',
+  'reactorNetty': '1.0.23',
+  'reactorCore': '3.4.23',
+  'reactiveStreams': '1.0.4',
 ]
 
 dependencies {
-  api project(path: 'azure-storage-blob', configuration: 'shadow')
-  if (isEclipse) {
-    /*
-     * Eclipse can't pick up the shadow dependency so we point it at *something*
-     * so it can compile things.
-     */
-    api project(path: 'azure-storage-blob')
-  }
-  api "com.azure:azure-storage-common:${versions.azure}"
+  api "com.azure:azure-storage-blob:${versions.azure}"
+  api "com.azure:azure-storage-common:${versions.azureCommon}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"
 
@@ -54,17 +48,20 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 
   // jackson xml
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
   api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
   api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
+  api "jakarta.activation:jakarta.activation-api:${versions.jakartaActivation}"
+  // The SDK uses javax.xml bindings
+  api "jakarta.xml.bind:jakarta.xml.bind-api:${versions.jakartaXMLBind}"
   api "org.codehaus.woodstox:stax2-api:${versions.stax2API}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
 
   // netty
   api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec-dns:${versions.netty}"
   api "io.netty:netty-codec-http:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
@@ -73,14 +70,19 @@ dependencies {
   api "io.netty:netty-handler-proxy:${versions.netty}"
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
+  api "io.netty:netty-resolver-dns:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 
   // reactor
-  api "io.projectreactor.netty:reactor-netty:${versions.reactorNetty}"
+  api "io.projectreactor.netty:reactor-netty-core:${versions.reactorNetty}"
+  api "io.projectreactor.netty:reactor-netty-http:${versions.reactorNetty}"
   api "io.projectreactor:reactor-core:${versions.reactorCore}"
   api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
 
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
+  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
+
 
   testImplementation project(':test:fixtures:azure-fixture')
 }
@@ -106,6 +108,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
   mapping from: /jaxb-.*/, to: 'jaxb'
   mapping from: /stax-.*/, to: 'stax'
+  mapping from: /reactor-netty-.*/, to: 'reactor-netty'
   mapping from: /reactive-streams.*/, to: 'reactive-streams'
 }
 
@@ -117,6 +120,11 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.encoder.Encoder',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+
+    'com.azure.storage.internal.avro.implementation.AvroObject',
+    'com.azure.storage.internal.avro.implementation.AvroReader',
+    'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
+    'com.azure.storage.internal.avro.implementation.schema.AvroSchema',
 
     // from reactory-netty metric collection
     'io.micrometer.core.instrument.Clock',
@@ -250,10 +258,16 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.channel.kqueue.KQueueDatagramChannel',
     'io.netty.channel.kqueue.KQueueServerSocketChannel',
     'io.netty.channel.kqueue.KQueueSocketChannel',
+
     'io.netty.channel.epoll.Epoll',
     'io.netty.channel.epoll.EpollDatagramChannel',
     'io.netty.channel.epoll.EpollServerSocketChannel',
     'io.netty.channel.epoll.EpollSocketChannel',
+
+    'io.netty.incubator.channel.uring.IOUring',
+    'io.netty.incubator.channel.uring.IOUringDatagramChannel',
+    'io.netty.incubator.channel.uring.IOUringServerSocketChannel',
+    'io.netty.incubator.channel.uring.IOUringSocketChannel',
 
     // from reactor.netty.http.server.HttpServer (reactor-netty)
     'io.netty.handler.codec.haproxy.HAProxyMessage',
@@ -263,55 +277,11 @@ tasks.named("thirdPartyAudit").configure {
     'org.osgi.framework.BundleActivator',
     'org.osgi.framework.BundleContext',
 
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder'
+    // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
+    'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
+    // [missing classes] SLF4j includes an optional class that depends on an extension class. see Log4jLogger#createConverter
+    'org.slf4j.ext.EventData'
   )
-
-  if (BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-    ignoreMissingClasses(
-      'java.lang.StackWalker',
-      'java.lang.StackWalker$StackFrame',
-
-      // From reactor.adapter.JdkFlowAdapter
-      'java.util.concurrent.Flow$Processor',
-      'java.util.concurrent.Flow$Publisher',
-      'java.util.concurrent.Flow$Subscriber',
-      'java.util.concurrent.Flow$Subscription'
-    )
-  } else {
-    ignoreMissingClasses(
-      'com.sun.org.apache.xml.internal.resolver.Catalog',
-      'com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver',
-      'javax.activation.DataHandler',
-      'javax.activation.DataSource',
-      'javax.xml.bind.JAXBElement',
-      'javax.xml.bind.annotation.XmlAccessOrder',
-      'javax.xml.bind.annotation.XmlAccessType',
-      'javax.xml.bind.annotation.XmlAccessorOrder',
-      'javax.xml.bind.annotation.XmlAccessorType',
-      'javax.xml.bind.annotation.XmlAttribute',
-      'javax.xml.bind.annotation.XmlElement',
-      'javax.xml.bind.annotation.XmlElement$DEFAULT',
-      'javax.xml.bind.annotation.XmlElementRef',
-      'javax.xml.bind.annotation.XmlElementRefs',
-      'javax.xml.bind.annotation.XmlElementWrapper',
-      'javax.xml.bind.annotation.XmlElements',
-      'javax.xml.bind.annotation.XmlEnum',
-      'javax.xml.bind.annotation.XmlEnumValue',
-      'javax.xml.bind.annotation.XmlID',
-      'javax.xml.bind.annotation.XmlIDREF',
-      'javax.xml.bind.annotation.XmlRootElement',
-      'javax.xml.bind.annotation.XmlSeeAlso',
-      'javax.xml.bind.annotation.XmlTransient',
-      'javax.xml.bind.annotation.XmlType',
-      'javax.xml.bind.annotation.XmlValue',
-      'javax.xml.bind.annotation.adapters.XmlAdapter',
-      'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter',
-      'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter$DEFAULT',
-      'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapters'
-    )
-  }
 
   ignoreViolations(
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
@@ -333,11 +303,9 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
 
-    'reactor.core.publisher.MultiProducerRingBuffer',
-    'reactor.core.publisher.RingBufferFields',
+    'javax.activation.MailcapCommandMap',
+    'javax.activation.MimetypesFileTypeMap',
     'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
-    'reactor.core.publisher.UnsafeSequence',
-    'reactor.core.publisher.UnsafeSupport'
   )
 }
 boolean useFixture = false
@@ -383,20 +351,19 @@ tasks.named("internalClusterTest").configure {
 }
 
 testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-    keystore 'azure.client.integration_test.account', azureAccount
-    if (azureKey != null && azureKey.isEmpty() == false) {
-      keystore 'azure.client.integration_test.key', azureKey
-    }
-    if (azureSasToken != null && azureSasToken.isEmpty() == false) {
-      keystore 'azure.client.integration_test.sas_token', azureSasToken
-    }
-    if (useFixture) {
-      setting 'azure.client.integration_test.endpoint_suffix', azureAddress
-      String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
+  keystore 'azure.client.integration_test.account', azureAccount
+  if (azureKey != null && azureKey.isEmpty() == false) {
+    keystore 'azure.client.integration_test.key', azureKey
+  }
+  if (azureSasToken != null && azureSasToken.isEmpty() == false) {
+    keystore 'azure.client.integration_test.sas_token', azureSasToken
+  }
+  if (useFixture) {
+    setting 'azure.client.integration_test.endpoint_suffix', azureAddress
 
-      def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').forUseAtConfigurationTime().isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
-      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), ignoreTestSeed
-    }
+    def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
+    setting 'thread_pool.repository_azure.max', (Math.abs(BuildParams.random.nextLong() % 10) + 1).toString(), ignoreTestSeed
+  }
 }
 
 tasks.register("azureThirdPartyTest", Test) {

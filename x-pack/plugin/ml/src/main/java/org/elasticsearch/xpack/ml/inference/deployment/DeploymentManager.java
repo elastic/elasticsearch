@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -266,7 +267,7 @@ public class DeploymentManager {
     public void infer(
         TrainedModelDeploymentTask task,
         InferenceConfig config,
-        NlpInferenceInput input,
+        Map<String, Object> doc,
         boolean skipQueue,
         TimeValue timeout,
         Task parentActionTask,
@@ -285,7 +286,7 @@ public class DeploymentManager {
             timeout,
             processContext,
             config,
-            input,
+            doc,
             threadPool,
             parentActionTask,
             listener

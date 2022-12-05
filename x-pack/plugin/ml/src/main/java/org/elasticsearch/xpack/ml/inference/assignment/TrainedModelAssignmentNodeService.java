@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.deployment.ModelStats;
-import org.elasticsearch.xpack.ml.inference.deployment.NlpInferenceInput;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
@@ -274,13 +273,13 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     public void infer(
         TrainedModelDeploymentTask task,
         InferenceConfig config,
-        NlpInferenceInput input,
+        Map<String, Object> doc,
         boolean skipQueue,
         TimeValue timeout,
         Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
-        deploymentManager.infer(task, config, input, skipQueue, timeout, parentActionTask, listener);
+        deploymentManager.infer(task, config, doc, skipQueue, timeout, parentActionTask, listener);
     }
 
     public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {

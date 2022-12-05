@@ -29,29 +29,12 @@ The `categorize_text` aggregation has been moved from technical preview to gener
 {es-pull}88600[#88600]
 
 [discrete]
-[[semantic_search]]
-=== Semantic search
-Semantic search uses an NLP model to generate a dense vector representation
-of the given query text. This vector, known as an embedding, is passed to
-kNN vector search to find related documents which are nearby in the vector
-space. Documents that are close together in vector space have a semantically
-similar meaning. This process makes it possible to find results that are not
-only lexically similar to the query but in the intent or the meaning of the
-text. For example the NLP model may understand that some words or phrases
-are essentially synonyms and unearth documents that would not be discovered
-by traditional lexical match. The potential of semantic search is boosted by
-combining kNN vector search with Elasticsearch queries in a hybrid retrieval
-strategy.
-
-[discrete]
 [[categorize-text-agg-ga]]
 === The categorize text aggregation is generally available
 
 The {ref}/search-aggregations-bucket-categorize-text-aggregation.html[multi-bucket aggregation]
 that can group semi-structured text into categories is generally available
 from 8.6.
-
-{es-pull}90450[#90450]
 
 // end::notable-highlights[]
 

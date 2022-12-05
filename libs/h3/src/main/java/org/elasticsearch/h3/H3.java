@@ -262,6 +262,8 @@ public final class H3 {
             throw new IllegalArgumentException("invalid child position");
         }
         if (isPentagon) {
+            // Pentagon skip digit (position) is the number 1, therefore we add one
+            // to the current position.
             return H3Index.H3_set_index_digit(childH, childrenRes, childPos + 1);
         } else {
             return H3Index.H3_set_index_digit(childH, childrenRes, childPos);
@@ -314,9 +316,12 @@ public final class H3 {
         }
         final long childH = H3Index.H3_set_resolution(h3, childrenRes);
         if (isPentagon) {
+            // Pentagon skip digit (position) is the number 1, therefore we add one
+            // for the skip digit and one for the 0 (center) digit.
             final long child = H3Index.H3_set_index_digit(childH, childrenRes, childPos + 2);
             return HexRing.h3NeighborInDirection(child, PEN_INTERSECTING_CHILDREN_DIRECTIONS[childPos]);
         } else {
+            // we add one for the 0 (center) digit.
             final long child = H3Index.H3_set_index_digit(childH, childrenRes, childPos + 1);
             return HexRing.h3NeighborInDirection(child, HEX_INTERSECTING_CHILDREN_DIRECTIONS[childPos]);
         }

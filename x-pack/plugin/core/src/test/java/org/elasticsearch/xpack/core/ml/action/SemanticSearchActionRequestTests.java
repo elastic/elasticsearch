@@ -67,15 +67,14 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
             randomBoolean() ? null : randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
-            randomBoolean() ? null : new TermsQueryBuilder("foo", "bar"),
             SemanticSearchActionKnnQueryOptionsTests.randomInstance(),
             TextEmbeddingConfigUpdateTests.randomUpdate(),
             randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(1, 10)),
+            randomBoolean() ? null : List.of(new TermsQueryBuilder("foo", "bar", "cat")),
             randomBoolean() ? null : FetchSourceContext.of(randomBoolean()),
             randomBoolean() ? null : List.of(new FieldAndFormat("foo", null)),
             randomBoolean() ? null : List.of(new FieldAndFormat("foo", null)),
-            randomBoolean() ? null : StoredFieldsContext.fromList(List.of("A", "B")),
-            randomBoolean() ? -1 : randomIntBetween(1, 10)
+            randomBoolean() ? null : StoredFieldsContext.fromList(List.of("A", "B"))
         );
     }
 
@@ -95,8 +94,7 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
             null,
             null,
             null,
-            null,
-            -1
+            null
         );
         var validation = action.validate();
         assertNotNull(validation);

@@ -99,12 +99,8 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
         sourceBuilder.knnSearch(knnSearchBuilder);
-        if (request.getSize() != -1) {
-            sourceBuilder.size(request.getSize());
-        }
-        if (request.getQuery() != null) {
-            sourceBuilder.query(request.getQuery());
-        }
+        sourceBuilder.size(knnSearchBuilder.k());
+
         if (request.getFetchSource() != null) {
             sourceBuilder.fetchSource(request.getFetchSource());
         }

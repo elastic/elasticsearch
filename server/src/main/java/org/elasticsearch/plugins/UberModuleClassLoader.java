@@ -315,7 +315,7 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
             }
             return null;
         };
-        AccessController.doPrivileged(pa, null, new RuntimePermission("closeClassLoader"));
+        AccessController.doPrivileged(pa);
     }
 
     // visible for testing

@@ -158,6 +158,12 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             byte type = meta.readByte();
             if (type == ES87TSDBDocValuesFormat.NUMERIC) {
                 numerics.put(info.name, readNumeric(meta));
+            } else if (type == ES87TSDBDocValuesFormat.BINARY) {
+                throw new CorruptIndexException("unsupported type: " + type, meta);
+            } else if (type == ES87TSDBDocValuesFormat.SORTED) {
+                throw new CorruptIndexException("unsupported type: " + type, meta);
+            } else if (type == ES87TSDBDocValuesFormat.SORTED_SET) {
+                throw new CorruptIndexException("unsupported type: " + type, meta);
             } else if (type == ES87TSDBDocValuesFormat.SORTED_NUMERIC) {
                 sortedNumerics.put(info.name, readSortedNumeric(meta));
             } else {

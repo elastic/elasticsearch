@@ -28,9 +28,9 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final int VERSION_START = 0;
     static final int VERSION_CURRENT = VERSION_START;
     static final byte NUMERIC = 0;
-    static final byte BINARY = 1; // unused at the moment
-    static final byte SORTED = 2; // unused at the moment
-    static final byte SORTED_SET = 3; // unused at the moment
+    static final byte BINARY = 1;
+    static final byte SORTED = 2;
+    static final byte SORTED_SET = 3;
     static final byte SORTED_NUMERIC = 4;
 
     private final int numericBlockShift;

@@ -65,4 +65,9 @@ public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDif
     private DesiredNodesMetadata mutate(DesiredNodesMetadata base) {
         return new DesiredNodesMetadata(mutateDesiredNodes(base.getLatestDesiredNodes()));
     }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
+    }
 }

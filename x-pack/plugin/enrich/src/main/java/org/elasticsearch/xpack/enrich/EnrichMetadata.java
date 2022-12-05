@@ -103,7 +103,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
             Iterators.single(((builder, params) -> builder.startObject(POLICIES.getPreferredName()))),
             policies.entrySet().stream().map(entry -> (ToXContent) (builder, params) -> {
                 builder.startObject(entry.getKey());
-                builder.value(entry.getValue());
+                entry.getValue().toXContent(builder, params);
                 builder.endObject();
                 return builder;
             }).iterator(),

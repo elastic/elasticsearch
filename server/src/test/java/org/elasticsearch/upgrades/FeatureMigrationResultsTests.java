@@ -72,4 +72,9 @@ public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSeria
     protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
         return FeatureMigrationResults.ResultsDiff::new;
     }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
+    }
 }

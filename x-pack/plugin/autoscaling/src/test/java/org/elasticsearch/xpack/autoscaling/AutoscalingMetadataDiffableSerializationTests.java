@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
-import java.io.IOException;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -38,7 +37,7 @@ public class AutoscalingMetadataDiffableSerializationTests extends ChunkedToXCon
     }
 
     @Override
-    protected AutoscalingMetadata doParseInstance(final XContentParser parser) throws IOException {
+    protected AutoscalingMetadata doParseInstance(final XContentParser parser) {
         return AutoscalingMetadata.parse(parser);
     }
 
@@ -79,4 +78,8 @@ public class AutoscalingMetadataDiffableSerializationTests extends ChunkedToXCon
         return AutoscalingMetadata.AutoscalingMetadataDiff::new;
     }
 
+    @Override
+    protected boolean isFragment() {
+        return true;
+    }
 }

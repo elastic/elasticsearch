@@ -170,4 +170,9 @@ public class ScriptMetadataTests extends AbstractChunkedSerializingTestCase<Scri
             throw new UncheckedIOException(ioe);
         }
     }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
+    }
 }

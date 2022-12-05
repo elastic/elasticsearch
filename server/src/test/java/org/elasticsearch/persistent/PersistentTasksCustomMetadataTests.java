@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Builder;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -175,7 +174,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
         );
 
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference shuffled = toShuffledXContent(ChunkedToXContent.wrapAsXContentObject(testInstance), xContentType, params, false);
+        BytesReference shuffled = toShuffledXContent(asXContent(testInstance), xContentType, params, false);
 
         PersistentTasksCustomMetadata newInstance;
         try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
@@ -396,5 +395,10 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             }
         }
         return new Assignment(randomAlphaOfLength(10), randomAlphaOfLength(10));
+    }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
     }
 }

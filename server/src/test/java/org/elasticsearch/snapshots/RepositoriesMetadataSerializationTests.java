@@ -117,4 +117,8 @@ public class RepositoriesMetadataSerializationTests extends ChunkedToXContentDif
         return new RepositoriesMetadata(repos);
     }
 
+    @Override
+    protected boolean isFragment() {
+        return true;
+    }
 }

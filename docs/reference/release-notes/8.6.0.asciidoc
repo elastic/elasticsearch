@@ -68,6 +68,9 @@ Monitoring::
 * Fix logstash loadavg (xpack cases) {es-pull}90494[#90494]
 * [Stack Monitoring] Update ES module mappings {es-pull}90649[#90649]
 
+Network::
+* Clean up on exception while chunking XContent {es-pull}92024[#92024]
+
 Search::
 * Allow different decay values depending on the score function {es-pull}91195[#91195] (issue: {es-issue}78887[#78887])
 
@@ -108,6 +111,7 @@ Allocation::
 * Prevalidate node removal API {es-pull}88952[#88952]
 * Set default `cluster.routing.allocation.balance.disk_usage` {es-pull}91951[#91951]
 * Store write load in the `IndexMetadata` during data streams rollovers {es-pull}91019[#91019]
+* Update the default `cluster.routing.allocation.balance.disk_usage` {es-pull}92065[#92065]
 * `DesiredBalance:` expose it via _internal/desired_balance {es-pull}91038[#91038] (issue: {es-issue}90583[#90583])
 
 Authorization::

@@ -670,9 +670,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public void executeBulkRequest(
         int numberOfActionRequests,
         Iterable<DocWriteRequest<?>> actionRequests,
+        IntConsumer onDropped,
         BiConsumer<Integer, Exception> onFailure,
         BiConsumer<Thread, Exception> onCompletion,
-        IntConsumer onDropped,
         String executorName
     ) {
 

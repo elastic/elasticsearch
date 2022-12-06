@@ -536,7 +536,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     }
                     a.postCollection();
                     assertEquals(shouldBeCached, context.isCacheable());
-                    aggs.add(a.buildTopLevel());
+                    if (a.canUseCollectedAggregator()) {
+                        int[] ords = {0};
+                        aggs.add(a.buildTopLevelCollectedAggregator().convertToLegacy(ords)[0]);
+                    } else {
+                        aggs.add(a.buildTopLevel());
+                    }
                 } finally {
                     Releasables.close(context);
                 }
@@ -561,7 +566,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)).asCollector());
                 }
                 root.postCollection();
-                aggs.add(root.buildTopLevel());
+                if (root.canUseCollectedAggregator()) {
+                    int[] ords = {0};
+                    aggs.add(root.buildTopLevelCollectedAggregator().convertToLegacy(ords)[0]);
+                } else {
+                    aggs.add(root.buildTopLevel());
+                }
             } finally {
                 Releasables.close(context);
             }

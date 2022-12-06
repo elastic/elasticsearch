@@ -99,8 +99,8 @@ public class SampleIterator implements Executable {
         this.fetchSize = fetchSize;
         this.samples = new ArrayList<>();
         this.limit = limit;
-        this.maxSamplesPerKey = maxSamplesPerKey;
         this.circuitBreaker = circuitBreaker;
+        this.maxSamplesPerKey = maxSamplesPerKey;
     }
 
     @Override

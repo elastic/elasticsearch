@@ -34,7 +34,7 @@ query = '''
 expected_event_ids  = [
     [7, 6, 1, 3],  [7, 6, 2, 3], [7, 6, 4, 3]
 ]
-join_keys = ["reahat", "win10"]
+join_keys = ["redhat", "win10"]
 
 
 [[queries]]
@@ -53,7 +53,7 @@ expected_event_ids  = [
     [7, 6, 4, 3, 1, 3],
     [7, 6, 4, 3, 2, 3]
 ]
-join_keys = ["reahat", "win10", "win10"]
+join_keys = ["redhat", "win10", "win10"]
 
 
 [[queries]]
@@ -91,7 +91,7 @@ expected_event_ids  = [
     [6, 7, 3, 4, 3, 1],
     [6, 7, 3, 4, 3, 2]
 ]
-join_keys = ["reahat", "win10", "win10"]
+join_keys = ["redhat", "win10", "win10"]
 
 
 [[queries]]
@@ -110,7 +110,7 @@ expected_event_ids  = [
     [7, 6, 4, 3, 1, 3, 2, 3],
     [7, 6, 4, 3, 2, 3, 1, 3]
 ]
-join_keys = ["reahat", "win10", "win10", "win10"]
+join_keys = ["redhat", "win10", "win10", "win10"]
 
 
 [[queries]]
@@ -129,7 +129,7 @@ expected_event_ids  = [
     [7, 6, 4, 3, 1, 3, 2, 3],
     [7, 6, 4, 3, 2, 3, 1, 3]
 ]
-join_keys = ["reahat", "win10", "win10", "win10"]
+join_keys = ["redhat", "win10", "win10", "win10"]
 
 
 [[queries]]
@@ -148,4 +148,4 @@ expected_event_ids  = [
     [7, 6, 4, 3, 1, 3],
     [7, 6, 4, 3, 2, 3]
 ]
-join_keys = ["reahat", "win10", "win10"]
+join_keys = ["redhat", "win10", "win10"]

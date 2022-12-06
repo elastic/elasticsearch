@@ -29,6 +29,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -125,6 +126,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         throws IOException {
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
         RollupShardIndexer indexer = new RollupShardIndexer(
+            (RollupShardTask) task,
             client,
             indexService,
             request.shardId(),

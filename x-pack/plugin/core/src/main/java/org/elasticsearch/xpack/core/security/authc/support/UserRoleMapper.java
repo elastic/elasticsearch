@@ -276,10 +276,7 @@ public interface UserRoleMapper {
                     final String suffix = pattern.substring(2);
                     // if the suffix has a wildcard, then it's not a pure sub-tree match
                     if (suffix.indexOf('*') == -1) {
-                        final String normalizedDnSuffix = dnNormalizer.normalize(suffix);
-                        if (normalizedDnSuffix != null && normalizedDn.endsWith("," + normalizedDnSuffix)) {
-                            return true;
-                        }
+                        return isDescendantOf(dnNormalizer.normalize(suffix));
                     }
                 }
 
@@ -300,6 +297,13 @@ public interface UserRoleMapper {
                 return testString.equalsIgnoreCase(normalizedDn);
             }
             return false;
+        }
+
+        private boolean isDescendantOf(String normalizedDnSuffix) {
+            if (normalizedDnSuffix == null) {
+                return false;
+            }
+            return normalizedDn.endsWith("," + normalizedDnSuffix) || (normalizedDnSuffix.isEmpty() && false == normalizedDn.isEmpty());
         }
     }
 }

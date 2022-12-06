@@ -45,6 +45,9 @@ public class DistinguishedNamePredicateTests extends ESTestCase {
         assertPredicate(predicate, "*," + new DN(inputDn).getParent().getParent().toNormalizedString(), true);
         assertPredicate(predicate, randomDn.replaceFirst(".*,", "*,"), true);
         assertPredicate(predicate, randomDn.replaceFirst("[^,]*,", "*, "), true);
+        assertPredicate(predicate, "*,", true);
+        assertPredicate(predicate, "*, ", true);
+        assertPredicate(new UserRoleMapper.DistinguishedNamePredicate("", getDnNormalizer()), "*,", false);
 
         assertPredicate(predicate, randomDn + ",CN=AU", false);
         assertPredicate(predicate, "X" + randomDn, false);

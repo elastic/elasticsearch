@@ -1,0 +1,5 @@
+pr: 92134
+summary: Fix potential issue in `_terms_enum` DLS safety
+area: Search
+type: bug
+issues: []

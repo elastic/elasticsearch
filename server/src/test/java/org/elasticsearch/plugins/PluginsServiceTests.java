@@ -841,7 +841,6 @@ public class PluginsServiceTests extends ESTestCase {
 
             Class<?> stableClass = stablePluginClassLoader.loadClass("p.A");
             assertThat(stableClass.getModule().getName(), equalTo("synthetic.stable.plugin"));
-
             // TODO should we add something to pluginInfos.get(0).pluginApiInfo() ?
         } finally {
             closePluginLoaders(pluginService);
@@ -877,7 +876,7 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
-    // Closes the URLClassLoaders of plugins loaded by the given plugin service.
+    // Closes the URLClassLoaders and UberModuleClassloaders of plugins loaded by the given plugin service.
     static void closePluginLoaders(PluginsService pluginService) {
         for (var lp : pluginService.plugins()) {
             if (lp.loader()instanceof URLClassLoader urlClassLoader) {
@@ -885,6 +884,13 @@ public class PluginsServiceTests extends ESTestCase {
                     PrivilegedOperations.closeURLClassLoader(urlClassLoader);
                 } catch (IOException unexpected) {
                     throw new UncheckedIOException(unexpected);
+                }
+            }
+            if (lp.loader()instanceof UberModuleClassLoader loader) {
+                try {
+                    PrivilegedOperations.closeURLClassLoader(loader.getInternalLoader());
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
             }
         }

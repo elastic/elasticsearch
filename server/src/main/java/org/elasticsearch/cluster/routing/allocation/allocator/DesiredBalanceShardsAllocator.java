@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,12 +79,20 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     public DesiredBalanceShardsAllocator(
+        Settings settings,
+        ClusterSettings clusterSettings,
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler
     ) {
-        this(delegateAllocator, threadPool, clusterService, new DesiredBalanceComputer(delegateAllocator), reconciler);
+        this(
+            delegateAllocator,
+            threadPool,
+            clusterService,
+            new DesiredBalanceComputer(settings, clusterSettings, threadPool, delegateAllocator),
+            reconciler
+        );
     }
 
     public DesiredBalanceShardsAllocator(
@@ -211,6 +221,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
         allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
         recordTime(cumulativeReconciliationTime, new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering)::run);
+        if (logger.isTraceEnabled()) {
+            logger.trace("Reconciled desired balance: {}", desiredBalance);
+        } else {
+            logger.debug("Reconciled desired balance for [{}]", desiredBalance.lastConvergedIndex());
+        }
     }
 
     public DesiredBalance getDesiredBalance() {

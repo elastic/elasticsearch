@@ -452,9 +452,13 @@ You can use fields with the
 <<aggregate-metric-double,`aggregate_metric_double`>> field type in a {dfeed} 
 with aggregations. It is required to retrieve the `value_count` of the 
 `aggregate_metric_double` filed in an aggregation and then use it as the 
-`summary_count_field_name`. In the following example, `presum` is an 
-`aggregate_metric_double` type field that has all the possible metrics: 
-`[ min, max, sum, value_count ]`. 
+`summary_count_field_name`.
+
+In the following example, `presum` is an `aggregate_metric_double` type field 
+that has all the possible metrics: `[ min, max, sum, value_count ]`. To use an 
+`avg` aggregation on this field, you need to perform a `value_count` aggregation 
+on `presum` and then set the field that contains the aggregated values 
+`my_count` as the `summary_count_field_name`: 
 
 
 [source,js]
@@ -511,10 +515,7 @@ with aggregations. It is required to retrieve the `value_count` of the
 contains aggregated values from the `presum` `aggregate_metric_double` type 
 field (refer to <3>). 
 <2> The `avg` aggregation to use on the `presum` `aggregate_metric_double` type 
-field. It is required to use the `value_count` aggregation on the `presum` field 
-and then set that aggregated field as the `summary_count_field_name` in the 
-{dfeed} in order to use any other aggregations on a `aggregate_metric_double` 
-type field.
+field.
 <3> The `value_count` aggregation on the `presum` `aggregate_metric_double` type 
 field. This aggregated field must be set as the `summary_count_field_name` 
 (refer to <1>) to make it possible to use the `aggregate_metric_double` type 

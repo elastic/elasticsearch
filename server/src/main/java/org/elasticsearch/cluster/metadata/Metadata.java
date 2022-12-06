@@ -1328,13 +1328,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             ? ChunkedToXContentHelper.startObject("metadata")
             : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
 
-        final Iterator<? extends ToXContent> persSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
-            ? Iterators.single(
-                (builder, params) -> persistentSettings().toXContent(
-                    builder.startObject("settings"),
-                    new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true"))
-                ).endObject()
-            )
+        final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
+            ? Iterators.single((builder, params) -> {
+                builder.startObject("settings");
+                persistentSettings().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                return builder.endObject();
+            })
             : Collections.emptyIterator();
 
         final Iterator<? extends ToXContent> indices = context == XContentContext.API
@@ -1348,7 +1347,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             coordinationMetadata().toXContent(builder, params);
             return builder.endObject();
         }),
-            persSettings,
+            persistentSettings,
             ChunkedToXContentHelper.wrapWithObject(
                 "templates",
                 templates().values()

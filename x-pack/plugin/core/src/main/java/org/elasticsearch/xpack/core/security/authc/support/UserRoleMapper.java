@@ -271,7 +271,6 @@ public interface UserRoleMapper {
                 String pattern = (String) fieldValue.getValue();
 
                 // If the pattern is "*,dc=example,dc=com" then the rule is actually trying to express a DN sub-tree match.
-                // We can use dn.isDescendantOf for that
                 if (pattern.startsWith("*,")) {
                     final String suffix = pattern.substring(2);
                     // if the suffix has a wildcard, then it's not a pure sub-tree match

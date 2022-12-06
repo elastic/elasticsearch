@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -98,7 +97,6 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
      * Test with updated/removed/restored JWKs.
      * @throws Exception Unexpected test failure
      */
-    @TestLogging(value = "org.elasticsearch.xpack.security.authc.jwt:trace", reason = "debug")
     public void testJwkSetUpdates() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             this.createJwtRealmsSettingsBuilder(),

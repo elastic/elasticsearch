@@ -675,6 +675,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final BiConsumer<Thread, Exception> onCompletion,
         final String executorName
     ) {
+        assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
         threadPool.executor(executorName).execute(new AbstractRunnable() {
 

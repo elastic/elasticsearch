@@ -8,33 +8,37 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.Objects;
 
 @Experimental
-final class GroupingAvgAggregator implements GroupingAggregatorFunction {
+final class GroupingAvgAggregator implements GroupingAggregatorFunction, Releasable {
 
     private final GroupingAvgState state;
     private final int channel;
 
-    static GroupingAvgAggregator create(int inputChannel) {
+    static GroupingAvgAggregator create(BigArrays bigArrays, int inputChannel) {
         if (inputChannel < 0) {
             throw new IllegalArgumentException();
         }
-        return new GroupingAvgAggregator(inputChannel, new GroupingAvgState());
+        return new GroupingAvgAggregator(inputChannel, new GroupingAvgState(bigArrays));
     }
 
-    static GroupingAvgAggregator createIntermediate() {
-        return new GroupingAvgAggregator(-1, new GroupingAvgState());
+    static GroupingAvgAggregator createIntermediate(BigArrays bigArrays) {
+        return new GroupingAvgAggregator(-1, new GroupingAvgState(bigArrays));
     }
 
     private GroupingAvgAggregator(int channel, GroupingAvgState state) {
@@ -61,7 +65,8 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
         if (block instanceof AggregatorStateBlock) {
             @SuppressWarnings("unchecked")
             AggregatorStateBlock<GroupingAvgState> blobBlock = (AggregatorStateBlock<GroupingAvgState>) block;
-            GroupingAvgState tmpState = new GroupingAvgState();
+            // TODO real, accounting BigArrays instance
+            GroupingAvgState tmpState = new GroupingAvgState(BigArrays.NON_RECYCLING_INSTANCE);
             blobBlock.get(0, tmpState);
             this.state.addIntermediate(groupIdBlock, tmpState);
         } else {
@@ -83,7 +88,7 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
         int positions = s.largestGroupId + 1;
         double[] result = new double[positions];
         for (int i = 0; i < positions; i++) {
-            result[i] = s.values[i] / s.counts[i];
+            result[i] = s.values.get(i) / s.counts.get(i);
         }
         return new DoubleArrayBlock(result, positions);
     }
@@ -96,41 +101,45 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
         return sb.toString();
     }
 
-    static class GroupingAvgState implements AggregatorState<GroupingAvgState> {
+    @Override
+    public void close() {
+        state.close();
+    }
 
-        double[] values;
-        double[] deltas;
-        long[] counts;
+    static class GroupingAvgState implements AggregatorState<GroupingAvgState> {
+        private final BigArrays bigArrays;
+
+        DoubleArray values;
+        DoubleArray deltas;
+        LongArray counts;
 
         // total number of groups; <= values.length
         int largestGroupId;
 
-        // TODO prototype:
-        // 1. BigDoubleArray BigDoubleArray, BigLongArray
-        // 2. big byte array
-
         private final AvgStateSerializer serializer;
 
-        GroupingAvgState() {
-            this(new double[1], new double[1], new long[1]);
-        }
-
-        GroupingAvgState(double[] value, double[] delta, long[] count) {
-            this.values = value;
-            this.deltas = delta;
-            this.counts = count;
+        GroupingAvgState(BigArrays bigArrays) {
+            this.bigArrays = bigArrays;
+            this.values = bigArrays.newDoubleArray(1);
+            boolean success = false;
+            try {
+                this.deltas = bigArrays.newDoubleArray(1);
+                this.counts = bigArrays.newLongArray(1);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
             this.serializer = new AvgStateSerializer();
         }
 
         void addIntermediate(Block groupIdBlock, GroupingAvgState state) {
-            final double[] valuesToAdd = state.values;
-            final double[] deltasToAdd = state.deltas;
-            final long[] countsToAdd = state.counts;
             final int positions = groupIdBlock.getPositionCount();
             for (int i = 0; i < positions; i++) {
                 if (groupIdBlock.isNull(i) == false) {
                     int groupId = (int) groupIdBlock.getLong(i);
-                    add(valuesToAdd[i], deltasToAdd[i], groupId, countsToAdd[i]);
+                    add(state.values.get(i), state.deltas.get(i), groupId, state.counts.get(i));
                 }
             }
         }
@@ -140,36 +149,34 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
         }
 
         void add(double valueToAdd, double deltaToAdd, int groupId, long increment) {
-            ensureCapacity(groupId);
             if (groupId > largestGroupId) {
                 largestGroupId = groupId;
+                values = bigArrays.grow(values, groupId + 1);
+                deltas = bigArrays.grow(deltas, groupId + 1);
+                counts = bigArrays.grow(counts, groupId + 1);
             }
             add(valueToAdd, deltaToAdd, groupId);
-            counts[groupId] += increment;
-        }
-
-        private void ensureCapacity(int position) {
-            if (position >= values.length) {
-                int newSize = values.length << 1;  // trivial
-                values = Arrays.copyOf(values, newSize);
-                deltas = Arrays.copyOf(deltas, newSize);
-                counts = Arrays.copyOf(counts, newSize);
-            }
+            counts.increment(groupId, increment);
         }
 
         void add(double valueToAdd, double deltaToAdd, int position) {
             // If the value is Inf or NaN, just add it to the running tally to "convert" to
             // Inf/NaN. This keeps the behavior bwc from before kahan summing
             if (Double.isFinite(valueToAdd) == false) {
-                values[position] = valueToAdd + values[position];
+                values.increment(position, valueToAdd);
+                return;
             }
 
-            if (Double.isFinite(values[position])) {
-                double correctedSum = valueToAdd + (deltas[position] + deltaToAdd);
-                double updatedValue = values[position] + correctedSum;
-                deltas[position] = correctedSum - (updatedValue - values[position]);
-                values[position] = updatedValue;
+            double value = values.get(position);
+            if (Double.isFinite(value) == false) {
+                // It isn't going to get any more infinite.
+                return;
             }
+            double delta = deltas.get(position);
+            double correctedSum = valueToAdd + (delta + deltaToAdd);
+            double updatedValue = value + correctedSum;
+            deltas.set(position, correctedSum - (updatedValue - value));
+            values.set(position, updatedValue);
         }
 
         @Override
@@ -180,6 +187,11 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
         @Override
         public AggregatorStateSerializer<GroupingAvgState> serializer() {
             return serializer;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(values, deltas, counts);
         }
     }
 
@@ -204,9 +216,9 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
             longHandle.set(ba, offset, positions);
             offset += 8;
             for (int i = 0; i < positions; i++) {
-                doubleHandle.set(ba, offset, state.values[i]);
-                doubleHandle.set(ba, offset + 8, state.deltas[i]);
-                longHandle.set(ba, offset + 16, state.counts[i]);
+                doubleHandle.set(ba, offset, state.values.get(i));
+                doubleHandle.set(ba, offset + 8, state.deltas.get(i));
+                longHandle.set(ba, offset + 16, state.counts.get(i));
                 offset += BYTES_SIZE;
             }
             return 8 + (BYTES_SIZE * positions); // number of bytes written
@@ -217,19 +229,16 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
         public void deserialize(GroupingAvgState state, byte[] ba, int offset) {
             Objects.requireNonNull(state);
             int positions = (int) (long) longHandle.get(ba, offset);
+            state.values = BigArrays.NON_RECYCLING_INSTANCE.grow(state.values, positions);
+            state.deltas = BigArrays.NON_RECYCLING_INSTANCE.grow(state.deltas, positions);
+            state.counts = BigArrays.NON_RECYCLING_INSTANCE.grow(state.counts, positions);
             offset += 8;
-            double[] values = new double[positions];
-            double[] deltas = new double[positions];
-            long[] counts = new long[positions];
             for (int i = 0; i < positions; i++) {
-                values[i] = (double) doubleHandle.get(ba, offset);
-                deltas[i] = (double) doubleHandle.get(ba, offset + 8);
-                counts[i] = (long) longHandle.get(ba, offset + 16);
+                state.values.set(i, (double) doubleHandle.get(ba, offset));
+                state.deltas.set(i, (double) doubleHandle.get(ba, offset + 8));
+                state.counts.set(i, (long) longHandle.get(ba, offset + 16));
                 offset += BYTES_SIZE;
             }
-            state.values = values;
-            state.deltas = deltas;
-            state.counts = counts;
             state.largestGroupId = positions - 1;
         }
     }

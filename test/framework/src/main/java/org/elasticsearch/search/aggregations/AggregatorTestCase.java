@@ -1432,7 +1432,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private static class CrankyCircuitBreakerService extends CircuitBreakerService {
+    public static class CrankyCircuitBreakerService extends CircuitBreakerService {  // TODO make public in main branch
+        public static final String ERROR_MESSAGE = "cranky breaker";
 
         private final CircuitBreaker breaker = new CircuitBreaker() {
             @Override
@@ -1443,7 +1444,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                 if (random().nextInt(20) == 0) {
-                    throw new CircuitBreakingException("fake error", Durability.PERMANENT);
+                    throw new CircuitBreakingException(ERROR_MESSAGE, Durability.PERMANENT);
                 }
             }
 

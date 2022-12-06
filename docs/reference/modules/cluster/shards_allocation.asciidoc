@@ -112,9 +112,8 @@ not limit shard relocations due to
 Selects the algorithm used for computing the cluster balance. Defaults to
 `desired_balance` which selects the _desired balance allocator_. This allocator
 runs a background task which computes the desired balance of shards in the
-cluster by repeatedly simulating shard movements until no shard movement
-improves the balance of the cluster. Once this background task completes, {es}
-moves shards to their desired locations.
+cluster. Once this background task completes, {es} moves shards to their
+desired locations.
 
 May also be set to `balanced` to select the legacy _balanced allocator_. This
 allocator was the default allocator in versions of {es} before 8.6.0. It runs
@@ -134,10 +133,19 @@ of shards, and then moving shards between nodes to reduce the weight of the
 heavier nodes and increase the weight of the lighter ones. The cluster is
 balanced when there is no possible shard movement that can bring the weight of
 any node closer to the weight of any other node by more than a configurable
-threshold. The weight of a node depends on the number of shards it holds and on
-the resource usage of each shard expressed in terms of the size of the shard on
-disk and the number of threads needed to support write traffic to the shard. The
-following settings control how {es} combines these values into an overall
+threshold.
+
+The weight of a node depends on the number of shards it holds and on the total
+estimated resource usage of those shards expressed in terms of the size of the
+shard on disk and the number of threads needed to support write traffic to the
+shard. {es} estimates the resource usage of shards belonging to data streams
+when they are created by a rollover. The estimated disk size of the new shard
+is the mean size of the other shards in the data stream. The estimated write
+load of the new shard is a weighted average of the actual write loads of recent
+shards in the data stream. Shards that do not belong to the write index of a
+data stream have an estimated write load of zero.
+
+The following settings control how {es} combines these values into an overall
 measure of each node's weight.
 
 `cluster.routing.allocation.balance.shard`::

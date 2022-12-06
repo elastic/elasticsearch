@@ -53,9 +53,9 @@ dependencies {
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
   api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
   api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
-  api "jakarta.activation:jakarta.activation-api:${versions.jakartaActivation}"
-  // The SDK uses javax.xml bindings
-  api "jakarta.xml.bind:jakarta.xml.bind-api:${versions.jakartaXMLBind}"
+//  api "jakarta.activation:jakarta.activation-api:${versions.jakartaActivation}"
+//  // The SDK uses javax.xml bindings
+//  api "jakarta.xml.bind:jakarta.xml.bind-api:${versions.jakartaXMLBind}"
   api "org.codehaus.woodstox:stax2-api:${versions.stax2API}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
 

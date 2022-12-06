@@ -22,14 +22,7 @@ final class MaxAggregator implements AggregatorFunction {
     private final int channel;
 
     static MaxAggregator create(int inputChannel) {
-        if (inputChannel < 0) {
-            throw new IllegalArgumentException();
-        }
         return new MaxAggregator(inputChannel, new DoubleState(Double.NEGATIVE_INFINITY));
-    }
-
-    static MaxAggregator createIntermediate() {
-        return new MaxAggregator(-1, new DoubleState(Double.NEGATIVE_INFINITY));
     }
 
     private MaxAggregator(int channel, DoubleState state) {

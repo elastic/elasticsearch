@@ -13,7 +13,6 @@ import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 @Experimental
@@ -24,25 +23,28 @@ public class Aggregator {
 
     private final int intermediateChannel;
 
-    public record AggregatorFactory(AggregatorFunction.AggregatorFunctionFactory aggCreationFunc, AggregatorMode mode, int inputChannel)
+    public record AggregatorFactory(AggregatorFunction.Provider provider, AggregatorMode mode, int inputChannel)
         implements
             Supplier<Aggregator>,
             Describable {
         @Override
         public Aggregator get() {
-            return new Aggregator(aggCreationFunc, mode, inputChannel);
+            return new Aggregator(provider, mode, inputChannel);
         }
 
         @Override
         public String describe() {
-            return aggCreationFunc.describe();
+            return provider.describe();
         }
     }
 
-    public Aggregator(BiFunction<AggregatorMode, Integer, AggregatorFunction> aggCreationFunc, AggregatorMode mode, int inputChannel) {
-        this.aggregatorFunction = aggCreationFunc.apply(mode, inputChannel);
-        this.mode = mode;
+    public Aggregator(AggregatorFunction.Provider provider, AggregatorMode mode, int inputChannel) {
+        assert mode.isInputPartial() || inputChannel >= 0;
+        // input channel is used both to signal the creation of the page (when the input is not partial)
+        this.aggregatorFunction = provider.create(mode.isInputPartial() ? -1 : inputChannel);
+        // and to indicate the page during the intermediate phase
         this.intermediateChannel = mode.isInputPartial() ? inputChannel : -1;
+        this.mode = mode;
     }
 
     public void processPage(Page page) {

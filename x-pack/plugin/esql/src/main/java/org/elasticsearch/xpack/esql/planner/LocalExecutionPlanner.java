@@ -17,8 +17,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.Aggregator.AggregatorFactory;
-import org.elasticsearch.compute.aggregation.AggregatorFunction;
-import org.elasticsearch.compute.aggregation.AggregatorFunction.AggregatorFunctionFactory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
@@ -152,20 +150,13 @@ public class LocalExecutionPlanner {
                 // not grouping
                 for (NamedExpression e : aggregate.aggregates()) {
                     if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                        AggregatorFunctionFactory aggregatorFunc;
-                        if (aggregateFunction instanceof Avg avg) {
-                            aggregatorFunc = avg.dataType().isRational() ? AggregatorFunction.doubleAvg : AggregatorFunction.longAvg;
-                        } else if (aggregateFunction instanceof Count) {
-                            aggregatorFunc = AggregatorFunction.count;
-                        } else {
-                            throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
-                        }
+                        var provider = AggregateMapper.map(aggregateFunction);
 
                         if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
                             operatorFactory = new AggregationOperatorFactory(
                                 List.of(
                                     new AggregatorFactory(
-                                        aggregatorFunc,
+                                        provider,
                                         AggregatorMode.INITIAL,
                                         source.layout.get(Expressions.attribute(aggregateFunction.field()).id())
                                     )
@@ -175,7 +166,7 @@ public class LocalExecutionPlanner {
                             layout.put(alias.id(), 0);
                         } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
                             operatorFactory = new AggregationOperatorFactory(
-                                List.of(new AggregatorFactory(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id()))),
+                                List.of(new AggregatorFactory(provider, AggregatorMode.FINAL, source.layout.get(alias.id()))),
                                 AggregatorMode.FINAL
                             );
                             layout.put(alias.id(), 0);

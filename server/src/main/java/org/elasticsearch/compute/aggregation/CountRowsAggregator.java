@@ -20,15 +20,8 @@ public class CountRowsAggregator implements AggregatorFunction {
     private final LongState state;
     private final int channel;
 
-    static CountRowsAggregator create(int inputChannel) {
-        if (inputChannel < 0) {
-            throw new IllegalArgumentException();
-        }
+    public static CountRowsAggregator create(int inputChannel) {
         return new CountRowsAggregator(inputChannel, new LongState());
-    }
-
-    static CountRowsAggregator createIntermediate() {
-        return new CountRowsAggregator(-1, new LongState());
     }
 
     private CountRowsAggregator(int channel, LongState state) {

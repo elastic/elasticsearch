@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -19,7 +18,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 @Experimental
-public class Avg extends AggregateFunction implements EnclosedAgg {
+public class Avg extends AggregateFunction {
 
     public Avg(Source source, Expression field) {
         super(source, field);
@@ -33,11 +32,6 @@ public class Avg extends AggregateFunction implements EnclosedAgg {
     @Override
     public Avg replaceChildren(List<Expression> newChildren) {
         return new Avg(source(), newChildren.get(0));
-    }
-
-    @Override
-    public String innerName() {
-        return "avg";
     }
 
     @Override

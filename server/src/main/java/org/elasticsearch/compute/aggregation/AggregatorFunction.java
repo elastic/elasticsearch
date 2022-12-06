@@ -13,8 +13,6 @@ import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
-import java.util.function.BiFunction;
-
 @Experimental
 public interface AggregatorFunction {
 
@@ -26,72 +24,20 @@ public interface AggregatorFunction {
 
     Block evaluateFinal();
 
-    abstract class AggregatorFunctionFactory implements BiFunction<AggregatorMode, Integer, AggregatorFunction>, Describable {
-
-        private final String name;
-
-        AggregatorFunctionFactory(String name) {
-            this.name = name;
-        }
+    @FunctionalInterface
+    interface Provider extends Describable {
+        AggregatorFunction create(int inputChannel);
 
         @Override
-        public String describe() {
-            return name;
+        default String describe() {
+            var description = getClass().getName();
+            // FooBarAggregator --> fooBar
+            description = description.substring(0, description.length() - 10);
+            var startChar = Character.toLowerCase(description.charAt(0));
+            if (startChar != description.charAt(0)) {
+                description = startChar + description.substring(1);
+            }
+            return description;
         }
     }
-
-    AggregatorFunctionFactory doubleAvg = new AggregatorFunctionFactory("doubleAvg") {
-        @Override
-        public AggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
-            if (mode.isInputPartial()) {
-                return DoubleAvgAggregator.createIntermediate();
-            } else {
-                return DoubleAvgAggregator.create(inputChannel);
-            }
-        }
-    };
-
-    AggregatorFunctionFactory longAvg = new AggregatorFunctionFactory("longAvg") {
-        @Override
-        public AggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
-            if (mode.isInputPartial()) {
-                return LongAvgAggregator.createIntermediate();
-            } else {
-                return LongAvgAggregator.create(inputChannel);
-            }
-        }
-    };
-
-    AggregatorFunctionFactory count = new AggregatorFunctionFactory("count") {
-        @Override
-        public AggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
-            if (mode.isInputPartial()) {
-                return CountRowsAggregator.createIntermediate();
-            } else {
-                return CountRowsAggregator.create(inputChannel);
-            }
-        }
-    };
-
-    AggregatorFunctionFactory max = new AggregatorFunctionFactory("max") {
-        @Override
-        public AggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
-            if (mode.isInputPartial()) {
-                return MaxAggregator.createIntermediate();
-            } else {
-                return MaxAggregator.create(inputChannel);
-            }
-        }
-    };
-
-    AggregatorFunctionFactory sum = new AggregatorFunctionFactory("sum") {
-        @Override
-        public AggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
-            if (mode.isInputPartial()) {
-                return SumAggregator.createIntermediate();
-            } else {
-                return SumAggregator.create(inputChannel);
-            }
-        }
-    };
 }

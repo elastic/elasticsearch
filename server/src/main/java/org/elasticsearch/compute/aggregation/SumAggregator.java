@@ -22,14 +22,7 @@ final class SumAggregator implements AggregatorFunction {
     private final int channel;
 
     static SumAggregator create(int inputChannel) {
-        if (inputChannel < 0) {
-            throw new IllegalArgumentException();
-        }
         return new SumAggregator(inputChannel, new DoubleState());
-    }
-
-    static SumAggregator createIntermediate() {
-        return new SumAggregator(-1, new DoubleState());
     }
 
     private SumAggregator(int channel, DoubleState state) {

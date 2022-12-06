@@ -26,14 +26,7 @@ class DoubleAvgAggregator implements AggregatorFunction {
     private final int channel;
 
     static DoubleAvgAggregator create(int inputChannel) {
-        if (inputChannel < 0) {
-            throw new IllegalArgumentException();
-        }
         return new DoubleAvgAggregator(inputChannel, new AvgState());
-    }
-
-    static DoubleAvgAggregator createIntermediate() {
-        return new DoubleAvgAggregator(-1, new AvgState());
     }
 
     private DoubleAvgAggregator(int channel, AvgState state) {

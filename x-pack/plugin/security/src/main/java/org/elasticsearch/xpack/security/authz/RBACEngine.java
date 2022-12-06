@@ -434,9 +434,17 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
-        logger.debug(
-            "[" + parentAuthorization.id() + "] pre-authorizing child action [" + childAction + "] of parent action [" + parentAction + "]"
-        );
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "["
+                    + parentAuthorization.id()
+                    + "] pre-authorizing child action ["
+                    + childAction
+                    + "] of parent action ["
+                    + parentAction
+                    + "]"
+            );
+        }
         return true;
     }
 

@@ -235,15 +235,17 @@ public final class AuthorizationUtils {
         if (RemoteConnectionManager.resolveRemoteClusterAlias(connection).isPresent()) {
             // We can only pre-authorize actions targeting a node which belongs to the same cluster.
             if (threadContext.getHeader(ParentActionAuthorization.THREAD_CONTEXT_KEY) != null) {
-                logger.debug(
-                    "attempted to send the request ["
-                        + childAction
-                        + "] to the remote cluster ["
-                        + RemoteConnectionManager.resolveRemoteClusterAlias(connection).get()
-                        + "] with the pre-authorization header ["
-                        + threadContext.getHeader(ParentActionAuthorization.THREAD_CONTEXT_KEY)
-                        + "]"
-                );
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "attempted to send the request ["
+                            + childAction
+                            + "] to the remote cluster ["
+                            + RemoteConnectionManager.resolveRemoteClusterAlias(connection).get()
+                            + "] with the pre-authorization header ["
+                            + threadContext.getHeader(ParentActionAuthorization.THREAD_CONTEXT_KEY)
+                            + "]"
+                    );
+                }
                 throw new AssertionError("pre-authorization not expected to be set for remote cluster requests");
             }
             return;
@@ -318,15 +320,17 @@ public final class AuthorizationUtils {
                     // Sending a child action to node1 would have already put parent authorization in the thread context.
                     // To avoid attempting to pre-authorize the same parent action twice we simply return here
                     // since pre-authorization is already set in the context.
-                    logger.debug(
-                        "["
-                            + existingParentAuthorization.get().id()
-                            + "] child action ["
-                            + childAction
-                            + "] of parent action ["
-                            + parentAction
-                            + "] is already pre-authorized"
-                    );
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(
+                            "["
+                                + existingParentAuthorization.get().id()
+                                + "] child action ["
+                                + childAction
+                                + "] of parent action ["
+                                + parentAction
+                                + "] is already pre-authorized"
+                        );
+                    }
                     return;
                 } else {
                     throw new AssertionError(
@@ -341,9 +345,17 @@ public final class AuthorizationUtils {
                 }
             } else {
                 final String id = UUIDs.randomBase64UUID();
-                logger.debug(
-                    "[" + id + "] adding pre-authorization for child action [" + childAction + "] of parent action [" + parentAction + "]"
-                );
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "["
+                            + id
+                            + "] adding pre-authorization for child action ["
+                            + childAction
+                            + "] of parent action ["
+                            + parentAction
+                            + "]"
+                    );
+                }
                 new ParentActionAuthorization(version, parentAction, id).writeToThreadContext(threadContext);
             }
         } catch (Exception e) {

@@ -37,6 +37,15 @@ public final class CountDownActionListener extends ActionListener.Delegating<Voi
         countDown = new CountDown(groupSize);
     }
 
+    /**
+     * Creates a new listener
+     * @param groupSize the group size
+     * @param runnable the runnable
+     */
+    public CountDownActionListener(int groupSize, Runnable runnable) {
+        this(groupSize, ActionListener.wrap(Objects.requireNonNull(runnable)));
+    }
+
     @Override
     public void onResponse(Void element) {
         if (countDown.countDown()) {

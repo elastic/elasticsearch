@@ -965,7 +965,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
                 listener.onRepositoryDataWritten(updatedRepoData);
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                final ActionListener<Void> afterCleanupsListener = new CountDownActionListener(2, ActionListener.wrap(listener::onDone));
+                final ActionListener<Void> afterCleanupsListener = new CountDownActionListener(2, listener::onDone);
                 cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, updatedRepoData, afterCleanupsListener);
                 asyncCleanupUnlinkedShardLevelBlobs(
                     repositoryData,
@@ -979,10 +979,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY);
             writeIndexGen(updatedRepoData, repositoryStateId, repoMetaVersion, Function.identity(), ActionListener.wrap(newRepoData -> {
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                final ActionListener<Void> afterCleanupsListener = new CountDownActionListener(2, ActionListener.wrap(() -> {
+                final ActionListener<Void> afterCleanupsListener = new CountDownActionListener(2, () -> {
                     listener.onRepositoryDataWritten(newRepoData);
                     listener.onDone();
-                }));
+                });
                 cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, newRepoData, afterCleanupsListener);
                 final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeMetaAndComputeDeletesStep = new StepListener<>();
                 writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, false, writeMetaAndComputeDeletesStep);

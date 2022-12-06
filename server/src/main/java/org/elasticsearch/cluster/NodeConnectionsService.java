@@ -97,7 +97,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             return;
         }
 
-        final CountDownActionListener listener = new CountDownActionListener(discoveryNodes.getSize(), ActionListener.wrap(onCompletion));
+        final CountDownActionListener listener = new CountDownActionListener(discoveryNodes.getSize(), onCompletion);
 
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
         synchronized (mutex) {
@@ -156,10 +156,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 runnables.add(onCompletion);
             } else {
                 logger.trace("ensureConnections: {}", targetsByNode);
-                final CountDownActionListener listener = new CountDownActionListener(
-                    connectionTargets.size(),
-                    ActionListener.wrap(onCompletion)
-                );
+                final CountDownActionListener listener = new CountDownActionListener(connectionTargets.size(), onCompletion);
                 for (final ConnectionTarget connectionTarget : connectionTargets) {
                     runnables.add(connectionTarget.connect(listener));
                 }

@@ -10,6 +10,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -26,7 +27,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -266,12 +270,123 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         }
     }
 
+    public void testCommitsListener() throws Exception {
+        final List<IndexCommit> acquiredCommits = new ArrayList<>();
+        final List<IndexCommit> deletedCommits = new ArrayList<>();
+        final CombinedDeletionPolicy.CommitsListener commitsListener = new CombinedDeletionPolicy.CommitsListener() {
+            @Override
+            public void onNewAcquiredCommit(IndexCommit commit) {
+                assertThat(commit, instanceOf(FilterIndexCommit.class));
+                assertThat(acquiredCommits.add(((FilterIndexCommit) commit).getIndexCommit()), equalTo(true));
+            }
+
+            @Override
+            public void onDeletedCommit(IndexCommit commit) {
+                assertThat(acquiredCommits.remove(commit), equalTo(true));
+                assertThat(deletedCommits.add(commit), equalTo(true));
+                assertThat(commit.isDeleted(), equalTo(true));
+            }
+        };
+
+        final AtomicLong globalCheckpoint = new AtomicLong(0L);
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
+        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(
+            globalCheckpoint::get,
+            NO_OPS_PERFORMED,
+            0L,
+            () -> RetentionLeases.EMPTY
+        );
+        final CombinedDeletionPolicy combinedDeletionPolicy = new CombinedDeletionPolicy(
+            logger,
+            translogDeletionPolicy,
+            softDeletesPolicy,
+            globalCheckpoint::get,
+            commitsListener
+        ) {
+            @Override
+            protected int getDocCountOfCommit(IndexCommit indexCommit) {
+                return 10;
+            }
+
+            @Override
+            synchronized boolean releaseCommit(IndexCommit indexCommit) {
+                return super.releaseCommit(wrapCommit(indexCommit));
+            }
+        };
+
+        final UUID translogUUID = UUID.randomUUID();
+        final IndexCommit commit0 = mockIndexCommit(NO_OPS_PERFORMED, NO_OPS_PERFORMED, translogUUID);
+        combinedDeletionPolicy.onInit(List.of(commit0));
+
+        assertThat(acquiredCommits, contains(commit0));
+        assertThat(deletedCommits, hasSize(0));
+
+        final IndexCommit commit1 = mockIndexCommit(10L, 10L, translogUUID);
+        combinedDeletionPolicy.onCommit(List.of(commit0, commit1));
+
+        assertThat(acquiredCommits, contains(commit0, commit1));
+        assertThat(deletedCommits, hasSize(0));
+
+        globalCheckpoint.set(10L);
+        final IndexCommit commit2 = mockIndexCommit(20L, 20L, translogUUID);
+        combinedDeletionPolicy.onCommit(List.of(commit0, commit1, commit2));
+
+        assertThat(acquiredCommits, contains(commit0, commit1, commit2));
+        assertThat(deletedCommits, hasSize(0));
+
+        boolean maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit0);
+        assertThat(maybeCleanUpCommits, equalTo(true));
+
+        globalCheckpoint.set(20L);
+        final IndexCommit commit3 = mockIndexCommit(30L, 30L, translogUUID);
+        combinedDeletionPolicy.onCommit(List.of(commit0, commit1, commit2, commit3));
+
+        assertThat(acquiredCommits, contains(commit1, commit2, commit3));
+        assertThat(deletedCommits, contains(commit0));
+
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit2);
+        assertThat("No commits to clean up (commit #2 is the safe commit)", maybeCleanUpCommits, equalTo(false));
+
+        globalCheckpoint.set(30L);
+        final IndexCommit commit4 = mockIndexCommit(40L, 40L, translogUUID);
+        combinedDeletionPolicy.onCommit(List.of(commit1, commit2, commit3, commit4));
+
+        assertThat(acquiredCommits, contains(commit1, commit3, commit4));
+        assertThat(deletedCommits, contains(commit0, commit2));
+
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit3);
+        assertThat("No commits to clean up (commit #3 is the safe commit)", maybeCleanUpCommits, equalTo(false));
+
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit4);
+        assertThat("No commits to clean up (commit #4 is the last commit)", maybeCleanUpCommits, equalTo(false));
+
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit1);
+        assertThat(maybeCleanUpCommits, equalTo(true));
+
+        final boolean globalCheckpointCatchUp = randomBoolean();
+        globalCheckpoint.set(globalCheckpointCatchUp ? 50L : 40L);
+
+        final IndexCommit commit5 = mockIndexCommit(50L, 50L, translogUUID);
+        combinedDeletionPolicy.onCommit(List.of(commit1, commit3, commit4, commit5));
+
+        if (globalCheckpointCatchUp) {
+            assertThat(acquiredCommits, contains(commit5));
+            assertThat(deletedCommits, contains(commit0, commit2, commit1, commit3, commit4));
+        } else {
+            assertThat(acquiredCommits, contains(commit4, commit5));
+            assertThat(deletedCommits, contains(commit0, commit2, commit1, commit3));
+        }
+
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit5);
+        assertThat("No commits to clean up (commit #5 is the last commit)", maybeCleanUpCommits, equalTo(false));
+    }
+
     private CombinedDeletionPolicy newCombinedDeletionPolicy(
         TranslogDeletionPolicy translogPolicy,
         SoftDeletesPolicy softDeletesPolicy,
         AtomicLong globalCheckpoint
     ) {
-        return new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get) {
+        return new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get, null) {
             @Override
             protected int getDocCountOfCommit(IndexCommit indexCommit) throws IOException {
                 if (randomBoolean()) {

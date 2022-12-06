@@ -20,6 +20,7 @@ import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -88,21 +89,17 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
             ) {
                 if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     handler.handleException(
-                        new RemoteAccessTransportException(
-                            connection.getNode(),
-                            action,
-                            new IllegalArgumentException(
-                                "Settings for remote cluster indicate remote access headers should be sent but target cluster version ["
-                                    + connection.getVersion()
-                                    + "] does not support these"
-                            )
+                        new TransportException(
+                            "Settings for remote cluster indicate remote access headers should be sent but target cluster version ["
+                                + connection.getVersion()
+                                + "] does not support receiving them"
                         )
                     );
                     return;
                 }
 
                 final Authentication authentication = securityContext.getAuthentication();
-                assert authentication != null : "authentication must be present in thread context";
+                assert authentication != null : "authentication must be present in security context";
                 final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
                 assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
                 authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
@@ -150,7 +147,7 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
 
     private boolean shouldSendWithRemoteAccessHeaders(final Transport.Connection connection, final TransportRequest request) {
         final Authentication authentication = securityContext.getAuthentication();
-        assert authentication != null : "authentication must be present in thread context";
+        assert authentication != null : "authentication must be present in security context";
 
         // This is not strictly necessary, but it allows us to skip all additional checks below early
         if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {

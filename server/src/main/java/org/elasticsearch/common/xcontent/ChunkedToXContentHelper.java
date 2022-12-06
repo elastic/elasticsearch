@@ -38,12 +38,16 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(((builder, params) -> builder.endArray()));
     }
 
-    public static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
-        return Iterators.concat(startObject(name), map.entrySet().stream().map(toXContent).iterator(), endObject());
-    }
-
     public static Iterator<ToXContent> map(String name, Map<String, ?> map) {
         return map(name, map, entry -> (ToXContent) (builder, params) -> builder.field(entry.getKey(), entry.getValue()));
+    }
+
+    public static Iterator<ToXContent> xContentFragmentValuesMap(String name, Map<String, ? extends ToXContent> map) {
+        return map(
+            name,
+            map,
+            entry -> (ToXContent) (builder, params) -> entry.getValue().toXContent(builder.startObject(entry.getKey()), params).endObject()
+        );
     }
 
     public static Iterator<ToXContent> xContentValuesMap(String name, Map<String, ? extends ToXContent> map) {
@@ -60,5 +64,9 @@ public enum ChunkedToXContentHelper {
 
     public static Iterator<ToXContent> array(String name, Iterable<? extends ToXContent> iterable) {
         return Iterators.concat(ChunkedToXContentHelper.startArray(name), iterable.iterator(), ChunkedToXContentHelper.endArray());
+    }
+
+    private static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
+        return Iterators.concat(startObject(name), map.entrySet().stream().map(toXContent).iterator(), endObject());
     }
 }

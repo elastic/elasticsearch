@@ -136,7 +136,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.single(((builder, params) -> {
-            builder.field(POLICIES_FIELD.getPreferredName(), this.snapshotConfigurations);
+            builder.xContentValuesMap(POLICIES_FIELD.getPreferredName(), this.snapshotConfigurations);
             builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
             builder.field(STATS_FIELD.getPreferredName(), this.slmStats);
             return builder;

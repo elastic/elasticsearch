@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
@@ -121,5 +123,26 @@ public class IngestMetadataTests extends ESTestCase {
             endResult.getPipelines().get("2"),
             equalTo(new PipelineConfiguration("2", new BytesArray("{\"key\" : \"value\"}"), XContentType.JSON))
         );
+    }
+
+    public void testChunkedToXContent() throws IOException {
+        final BytesReference pipelineConfig = new BytesArray("{}");
+        final int pipelines = randomInt(10);
+        final Map<String, PipelineConfiguration> pipelineConfigurations = new HashMap<>();
+        for (int i = 0; i < pipelines; i++) {
+            final String id = Integer.toString(i);
+            pipelineConfigurations.put(id, new PipelineConfiguration(id, pipelineConfig, XContentType.JSON));
+        }
+        int chunksSeen = 0;
+        try (XContentBuilder builder = new XContentBuilder(randomFrom(XContentType.values()), Streams.NULL_OUTPUT_STREAM, Set.of())) {
+            final var iterator = new IngestMetadata(pipelineConfigurations).toXContentChunked(ToXContent.EMPTY_PARAMS);
+            builder.startObject();
+            while (iterator.hasNext()) {
+                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                chunksSeen++;
+            }
+            builder.endObject();
+        }
+        assertEquals(2 + pipelines, chunksSeen);
     }
 }

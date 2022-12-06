@@ -99,12 +99,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.map(POLICIES.getPreferredName(), policies, entry -> (builder, params) -> {
-            builder.startObject(entry.getKey());
-            entry.getValue().toXContent(builder, params);
-            builder.endObject();
-            return builder;
-        });
+        return ChunkedToXContentHelper.xContentFragmentValuesMap(POLICIES.getPreferredName(), policies);
     }
 
     @Override

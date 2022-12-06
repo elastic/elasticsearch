@@ -557,9 +557,8 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
-            Iterators.single((builder, params) -> builder.field("last_allocation_id", lastAllocationId).startArray("tasks")),
-            tasks.values().iterator(),
-            ChunkedToXContentHelper.endArray()
+            Iterators.single((builder, params) -> builder.field("last_allocation_id", lastAllocationId)),
+            ChunkedToXContentHelper.array("tasks", tasks.values())
         );
     }
 

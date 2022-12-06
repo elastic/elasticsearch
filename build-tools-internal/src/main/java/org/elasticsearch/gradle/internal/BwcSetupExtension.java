@@ -101,6 +101,9 @@ public class BwcSetupExtension {
             if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
                 loggedExec.args("--parallel");
             }
+            for (File initScript : project.getGradle().getStartParameter().getInitScripts()) {
+                loggedExec.args("-I", initScript.getAbsolutePath());
+            }
             loggedExec.getIndentingConsoleOutput().set(unreleasedVersionInfo.map(v -> v.version().toString()));
             configAction.execute(loggedExec);
         });

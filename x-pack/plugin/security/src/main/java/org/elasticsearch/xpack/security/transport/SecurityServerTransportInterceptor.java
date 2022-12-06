@@ -54,7 +54,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
-    private final RemoteClusterSecurityTransportInterceptor remoteClusterSecurityInterceptor;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -63,8 +62,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         AuthorizationService authzService,
         SSLService sslService,
         SecurityContext securityContext,
-        DestructiveOperations destructiveOperations,
-        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
+        DestructiveOperations destructiveOperations
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -73,16 +71,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
-        this.remoteClusterSecurityInterceptor = new RemoteClusterSecurityTransportInterceptor(
-            authzService,
-            remoteClusterAuthorizationResolver,
-            securityContext
-        );
     }
 
     @Override
     public AsyncSender interceptSender(AsyncSender sender) {
-        final AsyncSender remoteClusterSecurityAwareSender = remoteClusterSecurityInterceptor.interceptSender(sender);
         return new AsyncSender() {
             @Override
             public <T extends TransportResponse> void sendRequest(
@@ -134,12 +126,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 request,
                                 options,
                                 new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
-                                remoteClusterSecurityAwareSender
+                                sender
                             ),
                             minVersion
                         );
                     } else {
-                        sendWithUser(connection, action, request, options, handler, remoteClusterSecurityAwareSender);
+                        sendWithUser(connection, action, request, options, handler, sender);
                     }
             }
         };

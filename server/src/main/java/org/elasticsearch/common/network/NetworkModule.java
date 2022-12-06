@@ -247,10 +247,10 @@ public final class NetworkModule {
         return new CompositeTransportInterceptor(this.transportInterceptors);
     }
 
-    static final class CompositeTransportInterceptor implements TransportInterceptor {
+    public static final class CompositeTransportInterceptor implements TransportInterceptor {
         final List<TransportInterceptor> transportInterceptors;
 
-        private CompositeTransportInterceptor(List<TransportInterceptor> transportInterceptors) {
+        public CompositeTransportInterceptor(List<TransportInterceptor> transportInterceptors) {
             this.transportInterceptors = new ArrayList<>(transportInterceptors);
         }
 

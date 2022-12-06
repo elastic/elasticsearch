@@ -270,7 +270,11 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     public Set<String> getAttributeValues(String attributeName) {
         return attributeValuesByAttribute.computeIfAbsent(
             attributeName,
-            ignored -> stream().map(r -> r.node().getAttributes().get(attributeName)).filter(Objects::nonNull).collect(Collectors.toSet())
+            ignored -> stream()
+                .filter(r -> r.node().canContainData())
+                .map(r -> r.node().getAttributes().get(attributeName))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
         );
     }
 

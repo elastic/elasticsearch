@@ -64,16 +64,48 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                if (shouldSendWithRemoteAccessHeaders(connection, request)) {
-                    sendWithRemoteAccessHeaders(sender, connection, action, request, options, handler);
-                } else {
+                final Authentication authentication = securityContext.getAuthentication();
+                assert authentication != null : "authentication must be present in context";
+
+                if (false == shouldSendWithRemoteAccessHeaders(authentication, connection, request)) {
                     sender.sendRequest(connection, action, request, options, handler);
+                    return;
                 }
+
+                final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
+                assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
+                final ThreadContext threadContext = securityContext.getThreadContext();
+                authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
+                    remoteClusterAlias.get(),
+                    authentication.getEffectiveSubject(),
+                    ActionListener.wrap(roleDescriptorsIntersection -> {
+                        final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
+                        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                            final RemoteAccessAuthentication remoteAccessAuthentication = new RemoteAccessAuthentication(
+                                authentication,
+                                roleDescriptorsIntersection
+                            );
+                            remoteAccessAuthentication.writeToContext(threadContext);
+                            writeClusterCredentialToContext(remoteClusterAlias.get(), threadContext);
+                            sender.sendRequest(
+                                connection,
+                                action,
+                                request,
+                                options,
+                                new TransportService.ContextRestoreResponseHandler<>(contextSupplier, handler)
+                            );
+                        }
+                    }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
+                );
             }
         };
     }
 
-    private boolean shouldSendWithRemoteAccessHeaders(final Transport.Connection connection, final TransportRequest request) {
+    private boolean shouldSendWithRemoteAccessHeaders(
+        final Authentication authentication,
+        final Transport.Connection connection,
+        final TransportRequest request
+    ) {
         if (false == TcpTransport.isUntrustedRemoteClusterEnabled()
             // TODO more request types here
             || false == (request instanceof SearchRequest || request instanceof ClusterSearchShardsRequest)) {
@@ -87,56 +119,17 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
 
         // TODO version check
 
-        final Authentication authentication = securityContext.getAuthentication();
-        assert authentication != null : "authentication must be present in context";
+        // We will lift these restrictions as we add support for API keys, service accounts, internal users, specifying remote privileges
+        // for reserved roles
         if (authentication.isApiKey()
             || authentication.isServiceAccount()
             || User.isInternal(authentication.getEffectiveSubject().getUser())
-            // TODO is this necessary?
             || Arrays.stream(authentication.getEffectiveSubject().getUser().roles()).anyMatch(ReservedRolesStore::isReserved)) {
             // The above authentication subject types or their roles are not yet supported, so use legacy remote cluster security mode
             return false;
         }
 
         return remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get()) != null;
-    }
-
-    private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
-        final TransportInterceptor.AsyncSender sender,
-        final Transport.Connection connection,
-        final String action,
-        final TransportRequest request,
-        final TransportRequestOptions options,
-        final TransportResponseHandler<T> handler
-    ) {
-        final Authentication authentication = securityContext.getAuthentication();
-        assert authentication != null : "authentication must be present in context";
-        final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
-        assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
-        authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
-            remoteClusterAlias.get(),
-            authentication.getEffectiveSubject(),
-            // TODO wrapPreservingContext?
-            ActionListener.wrap(roleDescriptorsIntersection -> {
-                final ThreadContext threadContext = securityContext.getThreadContext();
-                final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    final RemoteAccessAuthentication remoteAccessAuthentication = new RemoteAccessAuthentication(
-                        authentication,
-                        roleDescriptorsIntersection
-                    );
-                    remoteAccessAuthentication.writeToContext(threadContext);
-                    writeClusterCredentialToContext(remoteClusterAlias.get(), threadContext);
-                    sender.sendRequest(
-                        connection,
-                        action,
-                        request,
-                        options,
-                        new TransportService.ContextRestoreResponseHandler<>(contextSupplier, handler)
-                    );
-                }
-            }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
-        );
     }
 
     private void writeClusterCredentialToContext(final String remoteClusterAlias, final ThreadContext threadContext) {

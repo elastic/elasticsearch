@@ -434,6 +434,17 @@ public abstract class AbstractScopedSettings {
         addSettingsUpdateConsumer(setting, consumer, (s) -> {});
     }
 
+    /**
+     * This methods passes the setting value to a consumer during the initialization and on every setting change
+     * <p>
+     * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
+     * </p>
+     */
+    public synchronized <T> void initializeAndWatch(Setting<T> setting, Consumer<T> consumer) {
+        consumer.accept(setting.get(settings));
+        addSettingsUpdateConsumer(setting, consumer);
+    }
+
     protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {}
 
     /**

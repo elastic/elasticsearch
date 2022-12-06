@@ -513,10 +513,10 @@ on `presum` and then set the field that contains the aggregated values
 
 <1> The field `my_count` is set as the `summary_count_field_name`. This field 
 contains aggregated values from the `presum` `aggregate_metric_double` type 
-field (refer to <3>). 
+field (refer to footnote 3). 
 <2> The `avg` aggregation to use on the `presum` `aggregate_metric_double` type 
 field.
 <3> The `value_count` aggregation on the `presum` `aggregate_metric_double` type 
 field. This aggregated field must be set as the `summary_count_field_name` 
-(refer to <1>) to make it possible to use the `aggregate_metric_double` type 
-field in another aggregation.
+(refer to footnote 1) to make it possible to use the `aggregate_metric_double` 
+type field in another aggregation.

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -28,59 +30,35 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
 
     public void testWriteReadContextRoundtrip() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
-        final Authentication expectedAuthentication = AuthenticationTestHelper.builder().build();
-        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = randomRoleDescriptorIntersection();
-
-        RemoteAccessAuthentication.writeToContextAsRemoteAccessAuthentication(
-            ctx,
-            expectedAuthentication,
+        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = randomRoleDescriptorsIntersection();
+        final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
+            AuthenticationTestHelper.builder().build(),
             expectedRoleDescriptorsIntersection
         );
+
+        expectedRemoteAccessAuthentication.writeToContext(ctx);
         final RemoteAccessAuthentication actual = RemoteAccessAuthentication.readFromContext(ctx);
 
-        assertThat(actual.authentication(), equalTo(expectedAuthentication));
-        final var actualRoleDescriptorIntersection = new RoleDescriptorsIntersection(
-            actual.roleDescriptorsBytesIntersection().stream().map(RemoteAccessAuthentication::parseRoleDescriptorsBytes).toList()
-        );
-        assertThat(actualRoleDescriptorIntersection, equalTo(expectedRoleDescriptorsIntersection));
+        assertThat(actual.getAuthentication(), equalTo(expectedRemoteAccessAuthentication.getAuthentication()));
+        final List<Set<RoleDescriptor>> roleDescriptorsList = new ArrayList<>();
+        for (BytesReference bytesReference : actual.getRoleDescriptorsBytesList()) {
+            Set<RoleDescriptor> roleDescriptors = new RemoteAccessAuthentication.RoleDescriptorsBytes(bytesReference).toRoleDescriptors();
+            roleDescriptorsList.add(roleDescriptors);
+        }
+        final var actualRoleDescriptorsIntersection = new RoleDescriptorsIntersection(roleDescriptorsList);
+        assertThat(actualRoleDescriptorsIntersection, equalTo(expectedRoleDescriptorsIntersection));
     }
 
-    public void testWriteToContextThrowsIfHeaderAlreadyPresent() throws IOException {
-        final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
-        RemoteAccessAuthentication.writeToContextAsRemoteAccessAuthentication(
-            ctx,
-            AuthenticationTestHelper.builder().build(),
-            randomRoleDescriptorIntersection()
-        );
-        final IllegalStateException ex = expectThrows(
-            IllegalStateException.class,
-            () -> RemoteAccessAuthentication.writeToContextAsRemoteAccessAuthentication(
-                ctx,
-                AuthenticationTestHelper.builder().build(),
-                randomRoleDescriptorIntersection()
-            )
-        );
-        assertThat(
-            ex.getMessage(),
-            equalTo(
-                "remote access authentication ["
-                    + RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY
-                    + "] is already present in the context"
-            )
-        );
-    }
-
-    public void testParseRoleDescriptorsBytes() throws IOException {
+    public void testRoleDescriptorsBytesToRoleDescriptors() throws IOException {
         final Set<RoleDescriptor> expectedRoleDescriptors = Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 3));
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(expectedRoleDescriptors.stream().collect(Collectors.toMap(RoleDescriptor::getName, Function.identity())));
-        final Set<RoleDescriptor> actualRoleDescriptors = RemoteAccessAuthentication.parseRoleDescriptorsBytes(
-            BytesReference.bytes(builder)
-        );
+        final Set<RoleDescriptor> actualRoleDescriptors = new RemoteAccessAuthentication.RoleDescriptorsBytes(BytesReference.bytes(builder))
+            .toRoleDescriptors();
         assertThat(actualRoleDescriptors, equalTo(expectedRoleDescriptors));
     }
 
-    private RoleDescriptorsIntersection randomRoleDescriptorIntersection() {
+    private RoleDescriptorsIntersection randomRoleDescriptorsIntersection() {
         return new RoleDescriptorsIntersection(randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1))));
     }
 }

@@ -7572,7 +7572,7 @@ public class InternalEngineTests extends EngineTestCase {
             releaseCommitRef(acquiredCommits, 7L);
 
             final long primaryTerm = engine.config().getPrimaryTermSupplier().getAsLong();
-            assertThat(acquiredPrimaryTerms, hasItem(primaryTerm));
+            assertThat(acquiredPrimaryTerms.stream().allMatch(value -> value == primaryTerm), is(true));
         }
     }
 

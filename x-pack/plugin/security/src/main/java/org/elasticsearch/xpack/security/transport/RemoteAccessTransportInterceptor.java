@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -33,6 +35,7 @@ import java.util.function.Supplier;
 public class RemoteAccessTransportInterceptor implements TransportInterceptor {
 
     public static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER = "_remote_access_cluster_credential";
+    private static final Logger logger = LogManager.getLogger(RemoteAccessTransportInterceptor.class);
 
     private final AuthorizationService authzService;
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
@@ -59,6 +62,7 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
+                logger.info("Remote access interceptor sending request [{}]", request);
                 if (shouldSendWithRemoteAccessHeaders(connection, request)) {
                     sendWithRemoteAccessHeaders(sender, connection, action, request, options, handler);
                 } else {
@@ -104,8 +108,7 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
         final Authentication authentication = securityContext.getAuthentication();
         assert authentication != null : "authentication must be present in context";
         final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
-        // TODO race condition: what if settings have changed after we called shouldSendWithRemoteAccessHeaders?
-        assert remoteClusterAlias.isPresent() : "there should be a remote cluster alias for the connection";
+        assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
         authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
             remoteClusterAlias.get(),
             authentication.getEffectiveSubject(),
@@ -119,10 +122,7 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
                         roleDescriptorsIntersection
                     );
                     remoteAccessAuthentication.writeToContext(threadContext);
-                    final String clusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get());
-                    // TODO race condition: what if settings have changed after we called shouldSendWithRemoteAccessHeaders?
-                    assert clusterCredential != null : "there should be a remote cluster credential";
-                    threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER, clusterCredential);
+                    writeClusterCredentialToContext(remoteClusterAlias.get(), threadContext);
                     sender.sendRequest(
                         connection,
                         action,
@@ -133,5 +133,19 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
                 }
             }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
         );
+    }
+
+    private void writeClusterCredentialToContext(final String remoteClusterAlias, final ThreadContext threadContext) {
+        final String clusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
+        // This can happen if the cluster credential after we made the initial check to send remote access headers
+        // In this case, fail the request. In the future we may want to retry instead, to pick up the updated remote cluster configuration
+        if (clusterCredential == null) {
+            throw new IllegalStateException("remote cluster credential unavailable for target cluster [" + remoteClusterAlias + "]");
+        }
+        threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER, withApiKeyPrefix(clusterCredential));
+    }
+
+    private String withApiKeyPrefix(final String clusterCredential) {
+        return "ApiKey " + clusterCredential;
     }
 }

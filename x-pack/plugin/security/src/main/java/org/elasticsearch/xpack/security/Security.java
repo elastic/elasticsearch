@@ -904,7 +904,7 @@ public class Security extends Plugin
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
 
-        DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
+        final DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         final RemoteAccessTransportInterceptor remoteAccessTransportInterceptor = new RemoteAccessTransportInterceptor(
             authzService,
             new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings()),

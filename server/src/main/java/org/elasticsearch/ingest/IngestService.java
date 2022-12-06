@@ -778,6 +778,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         e
                     );
                     onFailure.accept(slot, e);
+                    // document failed! twiddle/check the counter, and then return (no further processing of this doc)
+                    if (counter.decrementAndGet() == 0) {
+                        onCompletion.accept(originalThread, null);
+                    }
+                    assert counter.get() >= 0;
+                    return;
                 }
 
                 Iterator<String> newIt = it;
@@ -791,6 +797,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             slot,
                             new IllegalStateException("final pipeline [" + pipelineId + "] can't change the target index")
                         );
+                        // document failed! twiddle/check the counter, and then return (no further processing of this doc)
+                        if (counter.decrementAndGet() == 0) {
+                            onCompletion.accept(originalThread, null);
+                        }
+                        assert counter.get() >= 0;
+                        return;
                     } else {
                         indexRequest.isPipelineResolved(false);
                         resolvePipelines(null, indexRequest, state.metadata());

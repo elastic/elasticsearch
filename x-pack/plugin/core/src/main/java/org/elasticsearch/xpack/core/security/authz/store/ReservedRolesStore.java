@@ -706,6 +706,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
+                // APM source map index creation - system index defined in KibanaPlugin                
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".apm-source-map")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),                
                 // APM telemetry queries APM indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("apm-*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm.*").privileges("read", "read_cross_cluster").build(),

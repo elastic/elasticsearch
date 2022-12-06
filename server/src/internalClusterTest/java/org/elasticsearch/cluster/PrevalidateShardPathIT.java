@@ -22,7 +22,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -84,9 +83,12 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
                 // If for whatever reason the removal is not triggered (e.g. not enough nodes reported that the shards are active) or it
                 // temporarily failed to clean up the shard folder, we need to trigger another cluster state change for this removal to
                 // finally succeed.
-                updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"));
+                updateIndexSettings(
+                    indexName,
+                    Settings.builder().put("index.routing.allocation.exclude.name", "non-existent" + randomAlphaOfLength(5))
+                );
                 throw e;
             }
-        }, 60, TimeUnit.SECONDS);
+        });
     }
 }

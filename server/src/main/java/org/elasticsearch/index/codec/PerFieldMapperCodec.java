@@ -21,9 +21,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -96,18 +99,25 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private boolean useTSDBDocValuesFormat(final String field) {
-        return isTimeSeriesModeIndex() && isNotSpecialField(field) && isNumericType(field);
+        return isTimeSeriesModeIndex() && (isCounterMetricType(field) || isTimestampField(field));
     }
 
     private boolean isTimeSeriesModeIndex() {
         return IndexMode.TIME_SERIES.equals(mapperService.getIndexSettings().getMode());
     }
 
-    private boolean isNumericType(String field) {
-        return mapperService != null && mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper;
+    private boolean isCounterMetricType(String field) {
+        if (mapperService != null) {
+            final MappingLookup mappingLookup = mapperService.mappingLookup();
+            if (mappingLookup.getMapper(field) instanceof NumberFieldMapper) {
+                final MappedFieldType fieldType = mappingLookup.getFieldType(field);
+                return TimeSeriesParams.MetricType.counter.equals(fieldType.getMetricType());
+            }
+        }
+        return false;
     }
 
-    private boolean isNotSpecialField(String field) {
-        return field.startsWith("_") == false;
+    private boolean isTimestampField(String field) {
+        return "@timestamp".equals(field);
     }
 }

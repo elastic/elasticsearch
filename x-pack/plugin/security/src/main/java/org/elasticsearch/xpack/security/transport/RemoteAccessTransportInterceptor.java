@@ -65,20 +65,24 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
                 TransportResponseHandler<T> handler
             ) {
                 final Authentication authentication = securityContext.getAuthentication();
-                assert authentication != null : "authentication must be present in context";
+                assert authentication != null : "authentication must be present in thread context";
 
                 if (false == shouldSendWithRemoteAccessHeaders(authentication, connection, request)) {
-                    sender.sendRequest(connection, action, request, options, handler);
+                    try {
+                        sender.sendRequest(connection, action, request, options, handler);
+                    } catch (Exception e) {
+                        handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
+                    }
                     return;
                 }
 
                 final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
                 assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
-                final ThreadContext threadContext = securityContext.getThreadContext();
                 authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
                     remoteClusterAlias.get(),
                     authentication.getEffectiveSubject(),
                     ActionListener.wrap(roleDescriptorsIntersection -> {
+                        final ThreadContext threadContext = securityContext.getThreadContext();
                         final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
                         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                             final RemoteAccessAuthentication remoteAccessAuthentication = new RemoteAccessAuthentication(
@@ -119,8 +123,8 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
 
         // TODO version check
 
-        // We will lift these restrictions as we add support for API keys, service accounts, internal users, specifying remote privileges
-        // for reserved roles
+        // We will lift these restrictions as we add support for API keys, service accounts, internal users, and specifying remote
+        // privileges for reserved roles
         if (authentication.isApiKey()
             || authentication.isServiceAccount()
             || User.isInternal(authentication.getEffectiveSubject().getUser())
@@ -134,7 +138,7 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
 
     private void writeClusterCredentialToContext(final String remoteClusterAlias, final ThreadContext threadContext) {
         final String clusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
-        // This can happen if the cluster credential after we made the initial check to send remote access headers
+        // This can happen if the cluster credential was updated after we made the initial check to send remote access headers
         // In this case, fail the request. In the future we may want to retry instead, to pick up the updated remote cluster configuration
         if (clusterCredential == null) {
             throw new IllegalStateException("remote cluster credential unavailable for target cluster [" + remoteClusterAlias + "]");

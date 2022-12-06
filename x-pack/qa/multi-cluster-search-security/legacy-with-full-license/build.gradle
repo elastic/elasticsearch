@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -53,10 +54,22 @@ tasks.register('fulfilling-cluster', RestIntegTestTask) {
   systemProperty 'tests.rest.suite', 'fulfilling_cluster'
 }
 
-tasks.register('querying-cluster', RestIntegTestTask) {
-  dependsOn 'fulfilling-cluster'
-  useCluster queryingCluster
+// the following task is needed to make sure the fulfilling cluster is running before the querying cluster
+// gets configured with the fulfilling cluster seed
+tasks.register('startFulfillingCluster', DefaultTestClustersTask) {
   useCluster fulfillingCluster
+  doLast {
+    clusters.each { c ->
+      print "Fulfilling cluster transport uri for ccs configuration is: "
+      println c.getAllTransportPortURI().get(0)
+    }
+  }
+}
+
+tasks.register('querying-cluster', RestIntegTestTask) {
+  dependsOn 'startFulfillingCluster'
+  useCluster fulfillingCluster
+  useCluster queryingCluster
   systemProperty 'tests.rest.suite', 'querying_cluster'
 }
 

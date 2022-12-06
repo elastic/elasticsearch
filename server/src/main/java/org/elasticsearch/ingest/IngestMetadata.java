@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
@@ -99,11 +98,7 @@ public final class IngestMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.startArray(PIPELINES_FIELD.getPreferredName()),
-            pipelines.values().iterator(),
-            ChunkedToXContentHelper.endArray()
-        );
+        return ChunkedToXContentHelper.array(PIPELINES_FIELD.getPreferredName(), pipelines.values());
     }
 
     @Override

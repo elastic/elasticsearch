@@ -227,12 +227,7 @@ public class DataStreamMetadata implements Metadata.Custom {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
-            ChunkedToXContentHelper.startObject(DATA_STREAM.getPreferredName()),
-            dataStreams.entrySet()
-                .stream()
-                .map(entry -> (ToXContent) (builder, params) -> builder.field(entry.getKey(), entry.getValue()))
-                .iterator(),
-            ChunkedToXContentHelper.endObject(),
+            ChunkedToXContentHelper.xContentValuesMap(DATA_STREAM.getPreferredName(), dataStreams),
             ChunkedToXContentHelper.startObject(DATA_STREAM_ALIASES.getPreferredName()),
             dataStreamAliases.values().iterator(),
             ChunkedToXContentHelper.endObject()

@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -128,11 +127,7 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.startArray(TOMBSTONES_FIELD.getPreferredName()),
-            tombstones.iterator(),
-            ChunkedToXContentHelper.endArray()
-        );
+        return ChunkedToXContentHelper.array(TOMBSTONES_FIELD.getPreferredName(), tombstones);
     }
 
     public static IndexGraveyard fromXContent(final XContentParser parser) throws IOException {

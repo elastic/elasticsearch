@@ -14,9 +14,9 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -92,14 +92,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(
-            Iterators.single(((builder, params) -> builder.startObject(MODEL_ALIASES.getPreferredName()))),
-            modelAliases.entrySet()
-                .stream()
-                .map(entry -> (ToXContent) (builder, params) -> builder.field(entry.getKey(), entry.getValue()))
-                .iterator(),
-            Iterators.single((builder, params) -> builder.endObject())
-        );
+        return ChunkedToXContentHelper.xContentValuesMap(MODEL_ALIASES.getPreferredName(), modelAliases);
     }
 
     @Override

@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -102,14 +101,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(COMPONENT_TEMPLATE.getPreferredName()),
-            componentTemplates.entrySet()
-                .stream()
-                .map(template -> (ToXContent) (builder, params) -> builder.field(template.getKey(), template.getValue(), params))
-                .iterator(),
-            ChunkedToXContentHelper.endObject()
-        );
+        return ChunkedToXContentHelper.xContentValuesMap(COMPONENT_TEMPLATE.getPreferredName(), componentTemplates);
     }
 
     @Override

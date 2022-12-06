@@ -46,7 +46,19 @@ public enum ChunkedToXContentHelper {
         return map(name, map, entry -> (ToXContent) (builder, params) -> builder.field(entry.getKey(), entry.getValue()));
     }
 
+    public static Iterator<ToXContent> xContentValuesMap(String name, Map<String, ? extends ToXContent> map) {
+        return map(
+            name,
+            map,
+            entry -> (ToXContent) (builder, params) -> entry.getValue().toXContent(builder.field(entry.getKey()), params)
+        );
+    }
+
     public static Iterator<ToXContent> field(String name, boolean value) {
         return Iterators.single(((builder, params) -> builder.field(name, value)));
+    }
+
+    public static Iterator<ToXContent> array(String name, Iterable<? extends ToXContent> iterable) {
+        return Iterators.concat(ChunkedToXContentHelper.startArray(name), iterable.iterator(), ChunkedToXContentHelper.endArray());
     }
 }

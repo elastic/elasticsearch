@@ -37,21 +37,21 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
     public static class Request extends AcknowledgedRequest<Request> {
 
         private final String id;
-        private final Instant startAfter;
+        private final Instant from;
 
-        public Request(String id, Instant startAfter, TimeValue timeout) {
+        public Request(String id, Instant from, TimeValue timeout) {
             super(timeout);
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
-            this.startAfter = startAfter;
+            this.from = from;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
             if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-                startAfter = in.readOptionalInstant();
+                from = in.readOptionalInstant();
             } else {
-                startAfter = null;
+                from = null;
             }
         }
 
@@ -59,8 +59,8 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             return id;
         }
 
-        public Instant startAfter() {
-            return startAfter;
+        public Instant from() {
+            return from;
         }
 
         @Override
@@ -68,7 +68,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             super.writeTo(out);
             out.writeString(id);
             if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
-                out.writeOptionalInstant(startAfter);
+                out.writeOptionalInstant(from);
             }
         }
 
@@ -80,7 +80,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), id, startAfter);
+            return Objects.hash(timeout(), id, from);
         }
 
         @Override
@@ -93,7 +93,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             }
             Request other = (Request) obj;
             // the base class does not implement equals, therefore we need to check timeout ourselves
-            return Objects.equals(id, other.id) && Objects.equals(startAfter, other.startAfter) && timeout().equals(other.timeout());
+            return Objects.equals(id, other.id) && Objects.equals(from, other.from) && timeout().equals(other.timeout());
         }
     }
 

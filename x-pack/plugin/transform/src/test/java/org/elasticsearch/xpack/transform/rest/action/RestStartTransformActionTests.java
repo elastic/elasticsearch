@@ -21,42 +21,41 @@ import static org.mockito.Mockito.mock;
 public class RestStartTransformActionTests extends ESTestCase {
 
     private static final String ID = "id";
-    private static final String START_AFTER = "start_after";
+    private static final String FROM = "from";
 
-    public void testStartAfterValid() throws Exception {
-        testStartAfterValid(null);
-        testStartAfterValid("12345678");
-        testStartAfterValid("2022-10-25");
-        testStartAfterValid("now-1d");
+    public void testFromValid() throws Exception {
+        testFromValid(null);
+        testFromValid("12345678");
+        testFromValid("2022-10-25");
+        testFromValid("now-1d");
     }
 
-    private void testStartAfterValid(String startAfter) {
+    private void testFromValid(String from) {
         RestStartTransformAction handler = new RestStartTransformAction();
         FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
-        if (startAfter == null) {
+        if (from == null) {
             requestBuilder.withParams(Map.of(ID, "my-id"));
         } else {
-            requestBuilder.withParams(Map.of(ID, "my-id", START_AFTER, startAfter));
+            requestBuilder.withParams(Map.of(ID, "my-id", FROM, from));
         }
         FakeRestRequest request = requestBuilder.build();
         handler.prepareRequest(request, mock(NodeClient.class));
     }
 
-    public void testStartAfterInvalid() {
-        testStartAfterInvalid("");
-        testStartAfterInvalid("not-a-valid-timestamp");
-        testStartAfterInvalid("2023-17-42");
+    public void testFromInvalid() {
+        testFromInvalid("");
+        testFromInvalid("not-a-valid-timestamp");
+        testFromInvalid("2023-17-42");
     }
 
-    private void testStartAfterInvalid(String startAfter) {
+    private void testFromInvalid(String from) {
         final RestStartTransformAction handler = new RestStartTransformAction();
-        final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(
-            Map.of(ID, "my-id", START_AFTER, startAfter)
-        ).build();
+        final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of(ID, "my-id", FROM, from))
+            .build();
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
             () -> handler.prepareRequest(request, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), equalTo("Failed to parse date for [start_after]"));
+        assertThat(e.getMessage(), equalTo("Failed to parse date for [from]"));
     }
 }

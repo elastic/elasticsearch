@@ -37,13 +37,11 @@ public class RestStartTransformAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(TransformField.ID.getPreferredName());
-        String startAfterString = restRequest.param(TransformField.START_AFTER.getPreferredName());
-        Instant startAfter = startAfterString != null
-            ? parseDateOrThrow(startAfterString, TransformField.START_AFTER, System::currentTimeMillis)
-            : null;
+        String fromAsString = restRequest.param(TransformField.FROM.getPreferredName());
+        Instant from = fromAsString != null ? parseDateOrThrow(fromAsString, TransformField.FROM, System::currentTimeMillis) : null;
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
-        StartTransformAction.Request request = new StartTransformAction.Request(id, startAfter, timeout);
+        StartTransformAction.Request request = new StartTransformAction.Request(id, from, timeout);
         return channel -> client.execute(StartTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

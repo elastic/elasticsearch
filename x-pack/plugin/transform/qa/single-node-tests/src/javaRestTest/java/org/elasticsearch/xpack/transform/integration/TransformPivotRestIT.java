@@ -499,10 +499,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_42", 2.0);
     }
 
-    public void testContinuousPivotStartAfter() throws Exception {
+    public void testContinuousPivotFrom() throws Exception {
         String indexName = REVIEWS_INDEX_NAME;
-        String transformId = "continuous_pivot_start_after";
-        String transformIndex = "pivot_reviews_continuous_start_after";
+        String transformId = "continuous_pivot_from";
+        String transformIndex = "pivot_reviews_continuous_from";
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
         final Request createTransformRequest = createRequestWithAuth(
             "PUT",

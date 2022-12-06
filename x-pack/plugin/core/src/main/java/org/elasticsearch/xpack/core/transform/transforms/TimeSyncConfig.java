@@ -131,10 +131,10 @@ public class TimeSyncConfig implements SyncConfig {
     }
 
     @Override
-    public QueryBuilder getRangeQuery(Instant startAfter, TransformCheckpoint newCheckpoint) {
+    public QueryBuilder getRangeQuery(Instant from, TransformCheckpoint newCheckpoint) {
         RangeQueryBuilder builder = new RangeQueryBuilder(field);
-        if (startAfter != null) {
-            builder.gte(startAfter.toEpochMilli());
+        if (from != null) {
+            builder.gte(from.toEpochMilli());
         }
         builder.lt(newCheckpoint.getTimeUpperBound());
         builder.format("epoch_millis");

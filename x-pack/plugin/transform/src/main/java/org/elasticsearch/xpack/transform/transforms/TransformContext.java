@@ -47,23 +47,17 @@ public class TransformContext {
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
 
-    private final Instant startAfter;
+    private final Instant from;
 
     public TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
         this(taskState, stateReason, currentCheckpoint, null, taskListener);
     }
 
-    public TransformContext(
-        TransformTaskState taskState,
-        String stateReason,
-        long currentCheckpoint,
-        Instant startAfter,
-        Listener taskListener
-    ) {
+    public TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Instant from, Listener taskListener) {
         this.taskState = new AtomicReference<>(taskState);
         this.stateReason = new AtomicReference<>(stateReason);
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
-        this.startAfter = startAfter;
+        this.from = from;
         this.taskListener = taskListener;
         this.failureCount = new AtomicInteger(0);
     }
@@ -112,8 +106,8 @@ public class TransformContext {
         return currentCheckpoint.get();
     }
 
-    Instant startAfter() {
-        return startAfter;
+    Instant from() {
+        return from;
     }
 
     long incrementAndGetCheckpoint() {

@@ -26,13 +26,13 @@ import java.util.Objects;
 public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>, PersistentTaskParams {
 
     public static final String NAME = TransformField.TASK_NAME;
-    public static final ParseField START_AFTER = TransformField.START_AFTER;
+    public static final ParseField FROM = TransformField.FROM;
     public static final ParseField FREQUENCY = TransformField.FREQUENCY;
     public static final ParseField REQUIRES_REMOTE = new ParseField("requires_remote");
 
     private final String transformId;
     private final Version version;
-    private final Instant startAfter;
+    private final Instant from;
     private final TimeValue frequency;
     private final Boolean requiresRemote;
 
@@ -45,16 +45,16 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TransformField.ID);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TransformField.VERSION);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), START_AFTER);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), FROM);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FREQUENCY);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REQUIRES_REMOTE);
     }
 
-    private TransformTaskParams(String transformId, String version, Long startAfter, String frequency, Boolean remote) {
+    private TransformTaskParams(String transformId, String version, Long from, String frequency, Boolean remote) {
         this(
             transformId,
             version == null ? null : Version.fromString(version),
-            startAfter == null ? null : Instant.ofEpochMilli(startAfter),
+            from == null ? null : Instant.ofEpochMilli(from),
             frequency == null ? null : TimeValue.parseTimeValue(frequency, FREQUENCY.getPreferredName()),
             remote == null ? false : remote.booleanValue()
         );
@@ -64,10 +64,10 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         this(transformId, version, null, frequency, remote);
     }
 
-    public TransformTaskParams(String transformId, Version version, Instant startAfter, TimeValue frequency, boolean remote) {
+    public TransformTaskParams(String transformId, Version version, Instant from, TimeValue frequency, boolean remote) {
         this.transformId = transformId;
         this.version = version == null ? Version.V_7_2_0 : version;
-        this.startAfter = startAfter;
+        this.from = from;
         this.frequency = frequency;
         this.requiresRemote = remote;
     }
@@ -76,9 +76,9 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         this.transformId = in.readString();
         this.version = Version.readVersion(in);
         if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-            this.startAfter = in.readOptionalInstant();
+            this.from = in.readOptionalInstant();
         } else {
-            this.startAfter = null;
+            this.from = null;
         }
         this.frequency = in.readOptionalTimeValue();
         this.requiresRemote = in.readBoolean();
@@ -99,7 +99,7 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         out.writeString(transformId);
         Version.writeVersion(version, out);
         if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
-            out.writeOptionalInstant(startAfter);
+            out.writeOptionalInstant(from);
         }
         out.writeOptionalTimeValue(frequency);
         out.writeBoolean(requiresRemote);
@@ -110,8 +110,8 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         builder.startObject();
         builder.field(TransformField.ID.getPreferredName(), transformId);
         builder.field(TransformField.VERSION.getPreferredName(), version);
-        if (startAfter != null) {
-            builder.field(START_AFTER.getPreferredName(), startAfter.toEpochMilli());
+        if (from != null) {
+            builder.field(FROM.getPreferredName(), from.toEpochMilli());
         }
         if (frequency != null) {
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
@@ -129,8 +129,8 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         return version;
     }
 
-    public Instant startAfter() {
-        return startAfter;
+    public Instant from() {
+        return from;
     }
 
     public TimeValue getFrequency() {
@@ -159,13 +159,13 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
 
         return Objects.equals(this.transformId, that.transformId)
             && Objects.equals(this.version, that.version)
-            && Objects.equals(this.startAfter, that.startAfter)
+            && Objects.equals(this.from, that.from)
             && Objects.equals(this.frequency, that.frequency)
             && this.requiresRemote == that.requiresRemote;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(transformId, version, startAfter, frequency, requiresRemote);
+        return Objects.hash(transformId, version, from, frequency, requiresRemote);
     }
 }

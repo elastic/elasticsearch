@@ -396,20 +396,20 @@ tasks.named("internalClusterTest").configure {
 }
 
 testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-  keystore 'azure.client.integration_test.account', azureAccount
-  if (azureKey != null && azureKey.isEmpty() == false) {
-    keystore 'azure.client.integration_test.key', azureKey
-  }
-  if (azureSasToken != null && azureSasToken.isEmpty() == false) {
-    keystore 'azure.client.integration_test.sas_token', azureSasToken
-  }
-  if (useFixture) {
-    setting 'azure.client.integration_test.endpoint_suffix', azureAddress
-    String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
+    keystore 'azure.client.integration_test.account', azureAccount
+    if (azureKey != null && azureKey.isEmpty() == false) {
+      keystore 'azure.client.integration_test.key', azureKey
+    }
+    if (azureSasToken != null && azureSasToken.isEmpty() == false) {
+      keystore 'azure.client.integration_test.sas_token', azureSasToken
+    }
+    if (useFixture) {
+      setting 'azure.client.integration_test.endpoint_suffix', azureAddress
+      String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
 
-    def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').forUseAtConfigurationTime().isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
-    setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), ignoreTestSeed
-  }
+      def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').forUseAtConfigurationTime().isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
+      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), ignoreTestSeed
+    }
 }
 
 tasks.register("azureThirdPartyTest", Test) {

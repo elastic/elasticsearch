@@ -241,10 +241,10 @@ public class DesiredBalanceComputer {
             }
         }
 
-        final int iterationCountWarningInterval = computeIterationCountWarningInterval(routingAllocation);
+        final int iterationCountReportInterval = computeIterationCountReportInterval(routingAllocation);
         final long timeWarningInterval = progressLogInterval.millis();
         final long computationStartedTime = threadPool.rawRelativeTimeInMillis();
-        long nextWarningTime = computationStartedTime + timeWarningInterval;
+        long nextReportTime = computationStartedTime + timeWarningInterval;
 
         int i = 0;
         boolean hasChanges = false;
@@ -297,13 +297,13 @@ public class DesiredBalanceComputer {
 
             final int iterations = i;
             final long currentTime = threadPool.relativeTimeInMillis();
-            final boolean shouldWarnByTime = nextWarningTime <= currentTime;
-            final boolean shouldWarnByIterationCount = i % iterationCountWarningInterval == 0;
-            if (shouldWarnByTime) {
-                nextWarningTime = currentTime + timeWarningInterval;
+            final boolean reportByTime = nextReportTime <= currentTime;
+            final boolean reportByIterationCount = i % iterationCountReportInterval == 0;
+            if (reportByTime || reportByIterationCount) {
+                nextReportTime = currentTime + timeWarningInterval;
             }
             logger.log(
-                shouldWarnByIterationCount || shouldWarnByTime ? Level.INFO : i % 100 == 0 ? Level.DEBUG : Level.TRACE,
+                reportByIterationCount || reportByTime ? Level.INFO : i % 100 == 0 ? Level.DEBUG : Level.TRACE,
                 () -> Strings.format(
                     "Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations",
                     desiredBalanceInput.index(),
@@ -400,7 +400,7 @@ public class DesiredBalanceComputer {
         );
     }
 
-    private static int computeIterationCountWarningInterval(RoutingAllocation allocation) {
+    private static int computeIterationCountReportInterval(RoutingAllocation allocation) {
         final int relativeSize = allocation.metadata().getTotalNumberOfShards();
         int iterations = 1000;
         while (iterations < relativeSize && iterations < 1_000_000_000) {

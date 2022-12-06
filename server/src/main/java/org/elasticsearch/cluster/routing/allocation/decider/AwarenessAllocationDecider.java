@@ -179,11 +179,13 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 return debug ? debugNoMissingAttribute(awarenessAttribute, awarenessAttributes) : Decision.NO;
             }
 
-            final Set<String> actualAttributeValues = allocation.routingNodes().getAttributeValues(awarenessAttribute);
+            final Set<String> actualAttributeValues =
+                allocation.routingNodes().getAttributeValues(allocation, shardRouting, awarenessAttribute);
+            if (actualAttributeValues.isEmpty()) {
+                return debug ? debugNoExcludeNode(awarenessAttribute) : Decision.NO;
+            }
             final String targetAttributeValue = node.node().getAttributes().get(awarenessAttribute);
             assert targetAttributeValue != null : "attribute [" + awarenessAttribute + "] missing on " + node.node();
-            assert actualAttributeValues.contains(targetAttributeValue)
-                : "attribute [" + awarenessAttribute + "] on " + node.node() + " is not in " + actualAttributeValues;
 
             int shardsForTargetAttributeValue = 0;
             // Will be the count of shards on nodes with attribute `awarenessAttribute` matching the one on `node`.
@@ -272,6 +274,15 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             awarenessAttribute,
             CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
             Strings.collectionToCommaDelimitedString(awarenessAttributes)
+        );
+    }
+
+    private static Decision debugNoExcludeNode(String awarenessAttribute) {
+        return Decision.single(
+            Decision.Type.NO,
+            NAME,
+            "although the node contain the awareness attribute [%s]; but it is excluded",
+            awarenessAttribute
         );
     }
 

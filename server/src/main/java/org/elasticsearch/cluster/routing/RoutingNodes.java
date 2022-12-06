@@ -15,10 +15,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -43,6 +46,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
+import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -267,10 +273,28 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         return nodesToShards.get(nodeId);
     }
 
-    public Set<String> getAttributeValues(String attributeName) {
+    public Set<String> getAttributeValues(RoutingAllocation allocation, ShardRouting shardRouting, String attributeName) {
+        Settings settings = allocation.metadata().settings();
+        Map<String, List<String>> filters = CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings);
+        DiscoveryNodeFilters clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(OR, filters));
+
+        IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        DiscoveryNodeFilters indexExcludeFilters = DiscoveryNodeFilters.trimTier(indexMetadata.excludeFilters());
+
+        Predicate<DiscoveryNode> matchNode = node -> {
+            if (clusterExcludeFilters != null && clusterExcludeFilters.match(node)) {
+                return true;
+            }
+            return indexExcludeFilters != null && indexExcludeFilters.match(node);
+        };
+
         return attributeValuesByAttribute.computeIfAbsent(
-            attributeName,
-            ignored -> stream().map(r -> r.node().getAttributes().get(attributeName)).filter(Objects::nonNull).collect(Collectors.toSet())
+            shardRouting.getIndexName(),
+            ignored -> stream()
+                .filter(r -> matchNode.test(r.node()) == false)
+                .map(r -> r.node().getAttributes().get(attributeName))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
         );
     }
 

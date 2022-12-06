@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.xcontent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.xcontent.ToXContent;
@@ -22,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 
 public class XContentUtils {
+
+    private static final Logger logger = LogManager.getLogger(XContentUtils.class);
 
     private XContentUtils() {}
 
@@ -94,8 +98,14 @@ public class XContentUtils {
         if (authKey == null) {
             return;
         }
+        Subject authenticationSubject;
+        try {
+            authenticationSubject = AuthenticationContextSerializer.decode(authKey).getEffectiveSubject();
+        } catch (Exception e) {
+            logger.warn("Failed to decode auth key while adding auth info to REST response", e);
+            return;
+        }
         builder.startObject("authorization");
-        Subject authenticationSubject = AuthenticationContextSerializer.decode(authKey).getEffectiveSubject();
         switch (authenticationSubject.getType()) {
             case USER -> builder.array(User.Fields.ROLES.getPreferredName(), authenticationSubject.getUser().roles());
             case API_KEY -> {
@@ -103,7 +113,7 @@ public class XContentUtils {
                 Map<String, Object> metadata = authenticationSubject.getMetadata();
                 builder.field("id", metadata.get(AuthenticationField.API_KEY_ID_KEY));
                 Object name = metadata.get(AuthenticationField.API_KEY_NAME_KEY);
-                if (name != null) {
+                if (name instanceof String) {
                     builder.field("name", name);
                 }
                 builder.endObject();

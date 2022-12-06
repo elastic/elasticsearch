@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -149,6 +150,7 @@ import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ApiKeyIntegTests extends SecurityIntegTestCase {
@@ -162,6 +164,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         null
     );
 
+    private static long deleteRetentionPeriodDays;
+
+    @BeforeClass
+    public static void randomDeleteRetentionPeriod() {
+        deleteRetentionPeriodDays = randomLongBetween(0, 7);
+    }
+
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
@@ -170,6 +179,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(ApiKeyService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(DELETE_INTERVAL_MILLIS))
             .put(ApiKeyService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
+            .put(ApiKeyService.DELETE_RETENTION_PERIOD.getKey(), TimeValue.timeValueDays(deleteRetentionPeriodDays))
             .put("xpack.security.crypto.thread_pool.queue_size", CRYPTO_THREAD_POOL_QUEUE_SIZE)
             .build();
     }
@@ -459,12 +469,23 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
     }
 
-    public void testInvalidatedApiKeysDeletedByRemover() throws Exception {
+    public void testApiKeyRemover() throws Exception {
+        if (deleteRetentionPeriodDays == 0) {
+            doTestInvalidKeysImmediatelyDeletedByRemover();
+        } else {
+            doTestDeletionBehaviorWhenKeysBecomeInvalidBeforeAndAfterRetentionPeriod();
+        }
+    }
+
+    private void doTestInvalidKeysImmediatelyDeletedByRemover() throws Exception {
+        assertThat(deleteRetentionPeriodDays, equalTo(0L));
         Client client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
 
-        List<CreateApiKeyResponse> createdApiKeys = createApiKeys(2, null).v1();
+        createApiKeys(1, TimeValue.timeValueMillis(1)).v1().get(0);
+        final CreateApiKeyResponse nonExpiringKey = createApiKeys(1, TimeValue.timeValueDays(1)).v1().get(0);
+        List<CreateApiKeyResponse> createdApiKeys = createApiKeys(2, randomBoolean() ? TimeValue.timeValueDays(1) : null).v1();
 
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(
@@ -482,11 +503,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         PlainActionFuture<GetApiKeyResponse> getApiKeyResponseListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().realmName("file").build(), getApiKeyResponseListener);
-        Set<String> expectedKeyIds = Sets.newHashSet(createdApiKeys.get(0).getId(), createdApiKeys.get(1).getId());
+        // The first API key with 1ms expiration should already be deleted
+        Set<String> expectedKeyIds = Sets.newHashSet(nonExpiringKey.getId(), createdApiKeys.get(0).getId(), createdApiKeys.get(1).getId());
         boolean apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
         for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
             assertThat(apiKey.getId(), is(in(expectedKeyIds)));
-            if (apiKey.getId().equals(createdApiKeys.get(0).getId())) {
+            if (apiKey.getId().equals(nonExpiringKey.getId())) {
+                assertThat(apiKey.isInvalidated(), is(false));
+                assertThat(apiKey.getExpiration(), notNullValue());
+            } else if (apiKey.getId().equals(createdApiKeys.get(0).getId())) {
                 // has been invalidated but not yet deleted by ExpiredApiKeysRemover
                 assertThat(apiKey.isInvalidated(), is(true));
                 apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = true;
@@ -497,7 +522,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
         assertThat(
             getApiKeyResponseListener.get().getApiKeyInfos().length,
-            is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 2 : 1)
+            is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 3 : 2)
         );
 
         client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
@@ -520,11 +545,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // indexed before ExpiredApiKeysRemover ran
         getApiKeyResponseListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().realmName("file").build(), getApiKeyResponseListener);
-        expectedKeyIds = Sets.newHashSet(createdApiKeys.get(1).getId());
+        expectedKeyIds = Sets.newHashSet(nonExpiringKey.getId(), createdApiKeys.get(1).getId());
         apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
         for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
             assertThat(apiKey.getId(), is(in(expectedKeyIds)));
-            if (apiKey.getId().equals(createdApiKeys.get(1).getId())) {
+            if (apiKey.getId().equals(nonExpiringKey.getId())) {
+                assertThat(apiKey.isInvalidated(), is(false));
+                assertThat(apiKey.getExpiration(), notNullValue());
+            } else if (apiKey.getId().equals(createdApiKeys.get(1).getId())) {
                 // has been invalidated but not yet deleted by ExpiredApiKeysRemover
                 assertThat(apiKey.isInvalidated(), is(true));
                 apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = true;
@@ -532,7 +560,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
         assertThat(
             getApiKeyResponseListener.get().getApiKeyInfos().length,
-            is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 1 : 0)
+            is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 2 : 1)
         );
     }
 
@@ -554,12 +582,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return internalCluster().client(nodeWithMostRecentRun);
     }
 
-    public void testExpiredApiKeysBehaviorWhenKeysExpired1WeekBeforeAnd1DayBefore() throws Exception {
+    private void doTestDeletionBehaviorWhenKeysBecomeInvalidBeforeAndAfterRetentionPeriod() throws Exception {
+        assertThat(deleteRetentionPeriodDays, greaterThan(0L));
         Client client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
 
-        int noOfKeys = 4;
+        int noOfKeys = 9;
         List<CreateApiKeyResponse> createdApiKeys = createApiKeys(noOfKeys, null).v1();
         Instant created = Instant.now();
 
@@ -568,30 +597,79 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length, is(noOfKeys));
 
         // Expire the 1st key such that it cannot be deleted by the remover
-        // hack doc to modify the expiration time to a day before
-        Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
-        assertTrue(Instant.now().isAfter(dayBefore));
+        // hack doc to modify the expiration time
+        Instant withinRetention = created.minus(deleteRetentionPeriodDays - 1, ChronoUnit.DAYS);
+        assertFalse(created.isBefore(withinRetention));
         UpdateResponse expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(0).getId())
-            .setDoc("expiration_time", dayBefore.toEpochMilli())
+            .setDoc("expiration_time", withinRetention.toEpochMilli())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // Expire the 2nd key such that it can be deleted by the remover
-        // hack doc to modify the expiration time to the week before
-        Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
-        assertTrue(Instant.now().isAfter(weekBefore));
+        // hack doc to modify the expiration time
+        Instant outsideRetention = created.minus(deleteRetentionPeriodDays + 1, ChronoUnit.DAYS);
+        assertTrue(Instant.now().isAfter(outsideRetention));
         expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(1).getId())
-            .setDoc("expiration_time", weekBefore.toEpochMilli())
+            .setDoc("expiration_time", outsideRetention.toEpochMilli())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
+
+        // Invalidate the 3rd key such that it cannot be deleted by the remover
+        UpdateResponse invalidateUpdateResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(2).getId())
+            .setDoc("invalidation_time", withinRetention.toEpochMilli(), "api_key_invalidated", true)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertThat(invalidateUpdateResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
+
+        // Invalidate the 4th key such that it will be deleted by the remover
+        invalidateUpdateResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(3).getId())
+            .setDoc("invalidation_time", outsideRetention.toEpochMilli(), "api_key_invalidated", true)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertThat(invalidateUpdateResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
+
+        // 5th key will be deleted because its expiration is outside of retention even though its invalidation time is not
+        UpdateResponse updateResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(4).getId())
+            .setDoc(
+                "expiration_time",
+                outsideRetention.toEpochMilli(),
+                "invalidation_time",
+                withinRetention.toEpochMilli(),
+                "api_key_invalidated",
+                true
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertThat(updateResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
+
+        // 6th key will be deleted because its invalidation time is outside of retention even though its expiration is not
+        updateResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(5).getId())
+            .setDoc(
+                "expiration_time",
+                withinRetention.toEpochMilli(),
+                "invalidation_time",
+                outsideRetention.toEpochMilli(),
+                "api_key_invalidated",
+                true
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertThat(updateResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
+
+        // 7th key will be deleted because it has old style invalidation (no invalidation time)
+        updateResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(6).getId())
+            .setDoc("api_key_invalidated", true)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertThat(updateResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // Invalidate to trigger the remover
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(
             InvalidateApiKeyAction.INSTANCE,
-            InvalidateApiKeyRequest.usingApiKeyId(createdApiKeys.get(2).getId(), false),
+            InvalidateApiKeyRequest.usingApiKeyId(createdApiKeys.get(7).getId(), false),
             listener
         );
         assertThat(listener.get().getInvalidatedApiKeys().size(), is(1));
@@ -607,9 +685,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Set<String> expectedKeyIds = Sets.newHashSet(
             createdApiKeys.get(0).getId(),
             createdApiKeys.get(2).getId(),
-            createdApiKeys.get(3).getId()
+            createdApiKeys.get(7).getId(),
+            createdApiKeys.get(8).getId()
         );
-        boolean apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
         for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
             assertThat(apiKey.getId(), is(in(expectedKeyIds)));
             if (apiKey.getId().equals(createdApiKeys.get(0).getId())) {
@@ -617,11 +695,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 assertTrue(apiKey.getExpiration().isBefore(Instant.now()));
                 assertThat(apiKey.isInvalidated(), is(false));
             } else if (apiKey.getId().equals(createdApiKeys.get(2).getId())) {
+                // has been invalidated, not expired
+                assertThat(apiKey.getExpiration(), nullValue());
+                assertThat(apiKey.isInvalidated(), is(true));
+            } else if (apiKey.getId().equals(createdApiKeys.get(7).getId())) {
                 // has not been expired as no expiration, is invalidated but not yet deleted by ExpiredApiKeysRemover
                 assertThat(apiKey.getExpiration(), is(nullValue()));
                 assertThat(apiKey.isInvalidated(), is(true));
-                apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = true;
-            } else if (apiKey.getId().equals(createdApiKeys.get(3).getId())) {
+            } else if (apiKey.getId().equals(createdApiKeys.get(8).getId())) {
                 // has not been expired as no expiration, not invalidated
                 assertThat(apiKey.getExpiration(), is(nullValue()));
                 assertThat(apiKey.isInvalidated(), is(false));
@@ -629,10 +710,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 fail("unexpected API key " + apiKey);
             }
         }
-        assertThat(
-            getApiKeyResponseListener.get().getApiKeyInfos().length,
-            is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 3 : 2)
-        );
+        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length, is(4));
     }
 
     private void refreshSecurityIndex() throws Exception {

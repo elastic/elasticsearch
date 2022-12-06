@@ -163,6 +163,11 @@ public class ApiKeyService {
         TimeValue.timeValueHours(24L),
         Property.NodeScope
     );
+    public static final Setting<TimeValue> DELETE_RETENTION_PERIOD = Setting.positiveTimeSetting(
+        "xpack.security.authc.api_key.delete.retention_period",
+        TimeValue.timeValueDays(7),
+        Property.NodeScope
+    );
     public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString(
         "xpack.security.authc.api_key.cache.hash_algo",
         "ssha256",

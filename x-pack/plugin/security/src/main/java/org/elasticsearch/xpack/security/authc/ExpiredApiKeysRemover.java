@@ -24,7 +24,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -37,17 +36,17 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Responsible for cleaning the invalidated and expired API keys from the security index.
  */
 public final class ExpiredApiKeysRemover extends AbstractRunnable {
-    public static final Duration EXPIRED_API_KEYS_RETENTION_PERIOD = Duration.ofDays(7L);
-
     private static final Logger logger = LogManager.getLogger(ExpiredApiKeysRemover.class);
 
     private final Client client;
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
     private final TimeValue timeout;
+    private final long retentionPeriodInMs;
 
     ExpiredApiKeysRemover(Settings settings, Client client) {
         this.client = client;
         this.timeout = ApiKeyService.DELETE_TIMEOUT.get(settings);
+        this.retentionPeriodInMs = ApiKeyService.DELETE_RETENTION_PERIOD.get(settings).getMillis();
     }
 
     @Override
@@ -58,11 +57,18 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
             expiredDbq.getSearchRequest().source().timeout(timeout);
         }
         final Instant now = Instant.now();
+        final long cutoffTimestamp = now.minusMillis(retentionPeriodInMs).toEpochMilli();
         expiredDbq.setQuery(
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termsQuery("doc_type", "api_key"))
-                .should(QueryBuilders.termsQuery("api_key_invalidated", true))
-                .should(QueryBuilders.rangeQuery("expiration_time").lte(now.minus(EXPIRED_API_KEYS_RETENTION_PERIOD).toEpochMilli()))
+                .should(QueryBuilders.rangeQuery("expiration_time").lte(cutoffTimestamp))
+                .should(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termsQuery("api_key_invalidated", true))
+                        .should(QueryBuilders.rangeQuery("invalidation_time").lte(cutoffTimestamp))
+                        .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("invalidation_time")))
+                        .minimumShouldMatch(1)
+                )
                 .minimumShouldMatch(1)
         );
 

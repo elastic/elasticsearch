@@ -24,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 
@@ -202,7 +203,7 @@ public class GoogleCloudStorageService {
                     // fallback to manually load project ID here as the above ServiceOptions method has the metadata endpoint hardcoded,
                     // which makes it impossible to test
                     SocketAccess.doPrivilegedVoidIOException(() -> {
-                        final String projectId = getDefaultProjectId();
+                        final String projectId = getDefaultProjectId(gcsClientSettings.getProxy());
                         if (projectId != null) {
                             storageOptionsBuilder.setProjectId(projectId);
                         }
@@ -236,13 +237,13 @@ public class GoogleCloudStorageService {
      * This method imitates what MetadataConfig.getProjectId() does, but does not have the endpoint hardcoded.
      */
     @SuppressForbidden(reason = "ok to open connection here")
-    private static String getDefaultProjectId() throws IOException {
+    private static String getDefaultProjectId(@Nullable Proxy proxy) throws IOException {
         String metaHost = System.getenv("GCE_METADATA_HOST");
         if (metaHost == null) {
             metaHost = "metadata.google.internal";
         }
         URL url = new URL("http://" + metaHost + "/computeMetadata/v1/project/project-id");
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        HttpURLConnection connection = (HttpURLConnection) (proxy != null ? url.openConnection(proxy) : url.openConnection());
         connection.setConnectTimeout(5000);
         connection.setReadTimeout(5000);
         connection.setRequestProperty("Metadata-Flavor", "Google");

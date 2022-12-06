@@ -7,16 +7,21 @@
  */
 package org.elasticsearch.repositories.gcs;
 
+import com.google.api.client.http.javanet.DefaultConnectionFactory;
+import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.services.storage.StorageScopes;
+import com.google.auth.http.HttpTransportFactory;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
+import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -37,9 +42,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROXY_HOST_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROXY_PORT_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROXY_TYPE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.getClientSettings;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.loadCredential;
@@ -87,7 +89,36 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         final Tuple<Map<String, GoogleCloudStorageClientSettings>, Settings> randomClient = randomClients(1, deprecationWarnings);
         final GoogleCloudStorageClientSettings expectedClientSettings = randomClient.v1().values().iterator().next();
         final String clientName = randomClient.v1().keySet().iterator().next();
-        assertGoogleCredential(expectedClientSettings.getCredential(), loadCredential(randomClient.v2(), clientName));
+        assertGoogleCredential(expectedClientSettings.getCredential(), loadCredential(randomClient.v2(), clientName, null));
+    }
+
+    public void testLoadServiceAccountCredentialsWithProxy() throws Exception {
+        String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        var secureSettings = new MockSecureSettings();
+        secureSettings.setFile(
+            CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            randomCredential(clientName).v2()
+        );
+        var settings = Settings.builder().setSecureSettings(secureSettings).build();
+        var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65536)));
+
+        ServiceAccountCredentials credentials = loadCredential(settings, clientName, proxy);
+
+        assertEquals(proxy, getProxy(credentials));
+    }
+
+    public void testLoadServiceAccountCredentialsWithoutProxy() throws Exception {
+        String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        var secureSettings = new MockSecureSettings();
+        secureSettings.setFile(
+            CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            randomCredential(clientName).v2()
+        );
+        var settings = Settings.builder().setSecureSettings(secureSettings).build();
+
+        ServiceAccountCredentials credentials = loadCredential(settings, clientName, null);
+
+        assertNull(getProxy(credentials));
     }
 
     public void testLoadInvalidCredential() throws Exception {
@@ -103,7 +134,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> loadCredential(settings.setSecureSettings(secureSettings).build(), clientName)
+                () -> loadCredential(settings.setSecureSettings(secureSettings).build(), clientName, null)
             ).getMessage(),
             equalTo("failed to load GCS client credentials from [gcs.client." + clientName + ".credentials_file]")
         );
@@ -121,9 +152,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
             new URI(""),
-            PROXY_TYPE_SETTING.getDefault(Settings.EMPTY),
-            PROXY_HOST_SETTING.getDefault(Settings.EMPTY),
-            PROXY_PORT_SETTING.getDefault(Settings.EMPTY)
+            null
         );
         assertEquals(credential.getProjectId(), googleCloudStorageClientSettings.getProjectId());
     }
@@ -131,6 +160,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
     public void testLoadsProxySettings() throws Exception {
         final String clientName = randomAlphaOfLength(5);
         final ServiceAccountCredentials credential = randomCredential(clientName).v1();
+        var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65536)));
         final GoogleCloudStorageClientSettings googleCloudStorageClientSettings = new GoogleCloudStorageClientSettings(
             credential,
             ENDPOINT_SETTING.getDefault(Settings.EMPTY),
@@ -139,14 +169,9 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
             new URI(""),
-            Proxy.Type.HTTP,
-            "192.168.15.1",
-            8080
+            proxy
         );
-        assertEquals(
-            new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getByName("192.168.15.1"), 8080)),
-            googleCloudStorageClientSettings.getProxy()
-        );
+        assertEquals(proxy, googleCloudStorageClientSettings.getProxy());
     }
 
     /** Generates a given number of GoogleCloudStorageClientSettings along with the Settings to build them from **/
@@ -243,9 +268,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             readTimeout,
             applicationName,
             new URI(""),
-            PROXY_TYPE_SETTING.getDefault(Settings.EMPTY),
-            PROXY_HOST_SETTING.getDefault(Settings.EMPTY),
-            PROXY_PORT_SETTING.getDefault(Settings.EMPTY)
+            null
         );
     }
 
@@ -289,5 +312,21 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         } else {
             assertNull(actual);
         }
+    }
+
+    @SuppressForbidden(reason = "Can't access proxy without reflection")
+    private static Proxy getProxy(ServiceAccountCredentials credentials) throws NoSuchFieldException, IllegalAccessException {
+        // It's crude to use reflection to extract the proxy from the credentials,
+        // but the GCS SDK doesn't expose such low details in the public API
+        Field transportFactoryField = ServiceAccountCredentials.class.getDeclaredField("transportFactory");
+        transportFactoryField.setAccessible(true);
+        HttpTransportFactory httpTransportFactory = (HttpTransportFactory) transportFactoryField.get(credentials);
+        NetHttpTransport httpTransport = (NetHttpTransport) httpTransportFactory.create();
+        Field connectionFactoryField = NetHttpTransport.class.getDeclaredField("connectionFactory");
+        connectionFactoryField.setAccessible(true);
+        DefaultConnectionFactory connectionFactory = (DefaultConnectionFactory) connectionFactoryField.get(httpTransport);
+        Field proxyField = DefaultConnectionFactory.class.getDeclaredField("proxy");
+        proxyField.setAccessible(true);
+        return (Proxy) proxyField.get(connectionFactory);
     }
 }

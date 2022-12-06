@@ -26,14 +26,7 @@ class LongAvgAggregator implements AggregatorFunction {
     private final int channel;
 
     static LongAvgAggregator create(int inputChannel) {
-        if (inputChannel < 0) {
-            throw new IllegalArgumentException();
-        }
         return new LongAvgAggregator(inputChannel, new AvgState());
-    }
-
-    static LongAvgAggregator createIntermediate() {
-        return new LongAvgAggregator(-1, new AvgState());
     }
 
     private LongAvgAggregator(int channel, AvgState state) {

@@ -29,7 +29,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.aggregation.Aggregator;
-import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
@@ -94,6 +93,15 @@ import java.util.stream.LongStream;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.avgDouble;
+import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.avgLong;
+import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.count;
+import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.max;
+import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.sum;
+import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
+import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
+import static org.elasticsearch.compute.aggregation.AggregatorMode.INTERMEDIATE;
+import static org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -464,29 +472,29 @@ public class OperatorTests extends ESTestCase {
                 source,
                 new AggregationOperator(
                     List.of(
-                        new Aggregator(AggregatorFunction.doubleAvg, AggregatorMode.INITIAL, 0),
-                        new Aggregator(AggregatorFunction.longAvg, AggregatorMode.INITIAL, 0),
-                        new Aggregator(AggregatorFunction.count, AggregatorMode.INITIAL, 0),
-                        new Aggregator(AggregatorFunction.max, AggregatorMode.INITIAL, 0),
-                        new Aggregator(AggregatorFunction.sum, AggregatorMode.INITIAL, 0)
+                        new Aggregator(avgDouble(), INITIAL, 0),
+                        new Aggregator(avgLong(), INITIAL, 0),
+                        new Aggregator(count(), INITIAL, 0),
+                        new Aggregator(max(), INITIAL, 0),
+                        new Aggregator(sum(), INITIAL, 0)
                     )
                 ),
                 new AggregationOperator(
                     List.of(
-                        new Aggregator(AggregatorFunction.doubleAvg, AggregatorMode.INTERMEDIATE, 0),
-                        new Aggregator(AggregatorFunction.longAvg, AggregatorMode.INTERMEDIATE, 1),
-                        new Aggregator(AggregatorFunction.count, AggregatorMode.INTERMEDIATE, 2),
-                        new Aggregator(AggregatorFunction.max, AggregatorMode.INTERMEDIATE, 3),
-                        new Aggregator(AggregatorFunction.sum, AggregatorMode.INTERMEDIATE, 4)
+                        new Aggregator(avgDouble(), INTERMEDIATE, 0),
+                        new Aggregator(avgLong(), INTERMEDIATE, 1),
+                        new Aggregator(count(), INTERMEDIATE, 2),
+                        new Aggregator(max(), INTERMEDIATE, 3),
+                        new Aggregator(sum(), INTERMEDIATE, 4)
                     )
                 ),
                 new AggregationOperator(
                     List.of(
-                        new Aggregator(AggregatorFunction.doubleAvg, AggregatorMode.FINAL, 0),
-                        new Aggregator(AggregatorFunction.longAvg, AggregatorMode.FINAL, 1),
-                        new Aggregator(AggregatorFunction.count, AggregatorMode.FINAL, 2),
-                        new Aggregator(AggregatorFunction.max, AggregatorMode.FINAL, 3),
-                        new Aggregator(AggregatorFunction.sum, AggregatorMode.FINAL, 4)
+                        new Aggregator(avgDouble(), FINAL, 0),
+                        new Aggregator(avgLong(), FINAL, 1),
+                        new Aggregator(count(), FINAL, 2),
+                        new Aggregator(max(), FINAL, 3),
+                        new Aggregator(sum(), FINAL, 4)
                     )
                 ),
                 new PageConsumerOperator(page -> {
@@ -522,7 +530,7 @@ public class OperatorTests extends ESTestCase {
         List<Aggregator> partialAggregators = new ArrayList<>();
         for (Page inputPage : rawPages) {
             if (partialAggregator == null || random().nextBoolean()) {
-                partialAggregator = new Aggregator(AggregatorFunction.doubleAvg, AggregatorMode.INITIAL, 0);
+                partialAggregator = new Aggregator(avgDouble(), INITIAL, 0);
                 partialAggregators.add(partialAggregator);
             }
             partialAggregator.processPage(inputPage);
@@ -533,14 +541,14 @@ public class OperatorTests extends ESTestCase {
         List<Aggregator> intermediateAggregators = new ArrayList<>();
         for (Block block : partialBlocks) {
             if (interAggregator == null || random().nextBoolean()) {
-                interAggregator = new Aggregator(AggregatorFunction.doubleAvg, AggregatorMode.INTERMEDIATE, 0);
+                interAggregator = new Aggregator(avgDouble(), INTERMEDIATE, 0);
                 intermediateAggregators.add(interAggregator);
             }
             interAggregator.processPage(new Page(block));
         }
         List<Block> intermediateBlocks = intermediateAggregators.stream().map(Aggregator::evaluate).toList();
 
-        var finalAggregator = new Aggregator(AggregatorFunction.doubleAvg, AggregatorMode.FINAL, 0);
+        var finalAggregator = new Aggregator(avgDouble(), FINAL, 0);
         intermediateBlocks.stream().forEach(b -> finalAggregator.processPage(new Page(b)));
         Block resultBlock = finalAggregator.evaluate();
         logger.info("resultBlock: " + resultBlock);
@@ -590,17 +598,17 @@ public class OperatorTests extends ESTestCase {
                         ),
                         new HashAggregationOperator(
                             3, // group by channel
-                            List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INITIAL, 3)),
+                            List.of(new GroupingAggregator(GroupingAggregatorFunction.count, INITIAL, 3)),
                             BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                         ),
                         new HashAggregationOperator(
                             0, // group by channel
-                            List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INTERMEDIATE, 1)),
+                            List.of(new GroupingAggregator(GroupingAggregatorFunction.count, INTERMEDIATE, 1)),
                             BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                         ),
                         new HashAggregationOperator(
                             0, // group by channel
-                            List.of(new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.FINAL, 1)),
+                            List.of(new GroupingAggregator(GroupingAggregatorFunction.count, FINAL, 1)),
                             BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                         ),
                         new PageConsumerOperator(page -> {
@@ -629,7 +637,7 @@ public class OperatorTests extends ESTestCase {
         Operator source = new SequenceLongBlockSourceOperator(List.of(Long.MAX_VALUE, 1L), 2);
         List<Page> rawPages = drainSourceToPages(source);
 
-        Aggregator aggregator = new Aggregator(AggregatorFunction.sum, AggregatorMode.SINGLE, 0);
+        Aggregator aggregator = new Aggregator(sum(), SINGLE, 0);
         logger.info(rawPages);
         ArithmeticException ex = expectThrows(ArithmeticException.class, () -> {
             for (Page page : rawPages) {
@@ -689,33 +697,33 @@ public class OperatorTests extends ESTestCase {
                 new HashAggregationOperator(
                     0, // group by channel
                     List.of(
-                        new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INITIAL, 1),
-                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.INITIAL, 1),
-                        new GroupingAggregator(GroupingAggregatorFunction.min, AggregatorMode.INITIAL, 1),
-                        new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.INITIAL, 1),
-                        new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INITIAL, 1)
+                        new GroupingAggregator(GroupingAggregatorFunction.avg, INITIAL, 1),
+                        new GroupingAggregator(GroupingAggregatorFunction.max, INITIAL, 1),
+                        new GroupingAggregator(GroupingAggregatorFunction.min, INITIAL, 1),
+                        new GroupingAggregator(GroupingAggregatorFunction.sum, INITIAL, 1),
+                        new GroupingAggregator(GroupingAggregatorFunction.count, INITIAL, 1)
                     ),
                     BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 ),
                 new HashAggregationOperator(
                     0, // group by channel
                     List.of(
-                        new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INTERMEDIATE, 1),
-                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.INTERMEDIATE, 2),
-                        new GroupingAggregator(GroupingAggregatorFunction.min, AggregatorMode.INTERMEDIATE, 3),
-                        new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.INTERMEDIATE, 4),
-                        new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.INTERMEDIATE, 5)
+                        new GroupingAggregator(GroupingAggregatorFunction.avg, INTERMEDIATE, 1),
+                        new GroupingAggregator(GroupingAggregatorFunction.max, INTERMEDIATE, 2),
+                        new GroupingAggregator(GroupingAggregatorFunction.min, INTERMEDIATE, 3),
+                        new GroupingAggregator(GroupingAggregatorFunction.sum, INTERMEDIATE, 4),
+                        new GroupingAggregator(GroupingAggregatorFunction.count, INTERMEDIATE, 5)
                     ),
                     BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 ),
                 new HashAggregationOperator(
                     0, // group by channel
                     List.of(
-                        new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.FINAL, 1),
-                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.FINAL, 2),
-                        new GroupingAggregator(GroupingAggregatorFunction.min, AggregatorMode.FINAL, 3),
-                        new GroupingAggregator(GroupingAggregatorFunction.sum, AggregatorMode.FINAL, 4),
-                        new GroupingAggregator(GroupingAggregatorFunction.count, AggregatorMode.FINAL, 5)
+                        new GroupingAggregator(GroupingAggregatorFunction.avg, FINAL, 1),
+                        new GroupingAggregator(GroupingAggregatorFunction.max, FINAL, 2),
+                        new GroupingAggregator(GroupingAggregatorFunction.min, FINAL, 3),
+                        new GroupingAggregator(GroupingAggregatorFunction.sum, FINAL, 4),
+                        new GroupingAggregator(GroupingAggregatorFunction.count, FINAL, 5)
                     ),
                     BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 ),
@@ -822,9 +830,9 @@ public class OperatorTests extends ESTestCase {
         Driver driver = new Driver(
             List.of(
                 source,
-                new AggregationOperator(List.of(new Aggregator(AggregatorFunction.max, AggregatorMode.INITIAL, 0))),
-                new AggregationOperator(List.of(new Aggregator(AggregatorFunction.max, AggregatorMode.INTERMEDIATE, 0))),
-                new AggregationOperator(List.of(new Aggregator(AggregatorFunction.max, AggregatorMode.FINAL, 0))),
+                new AggregationOperator(List.of(new Aggregator(max(), INITIAL, 0))),
+                new AggregationOperator(List.of(new Aggregator(max(), INTERMEDIATE, 0))),
+                new AggregationOperator(List.of(new Aggregator(max(), FINAL, 0))),
                 new PageConsumerOperator(page -> {
                     logger.info("New page: {}", page);
                     pageCount.incrementAndGet();
@@ -874,7 +882,7 @@ public class OperatorTests extends ESTestCase {
             if (partialAggregatorOperator == null || random().nextBoolean()) {
                 partialAggregatorOperator = new HashAggregationOperator(
                     0, // group by channel
-                    List.of(new GroupingAggregator(aggFunction, AggregatorMode.INITIAL, 1)),
+                    List.of(new GroupingAggregator(aggFunction, INITIAL, 1)),
                     BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 );
                 partialAggregatorOperators.add(partialAggregatorOperator);
@@ -889,7 +897,7 @@ public class OperatorTests extends ESTestCase {
             if (interAggregatorOperator == null || random().nextBoolean()) {
                 interAggregatorOperator = new HashAggregationOperator(
                     0, // group by channel
-                    List.of(new GroupingAggregator(aggFunction, AggregatorMode.INTERMEDIATE, 1)),
+                    List.of(new GroupingAggregator(aggFunction, INTERMEDIATE, 1)),
                     BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
                 );
                 interAggregatorOperators.add(interAggregatorOperator);
@@ -900,7 +908,7 @@ public class OperatorTests extends ESTestCase {
 
         HashAggregationOperator finalAggregationOperator = new HashAggregationOperator(
             0, // group by channel
-            List.of(new GroupingAggregator(aggFunction, AggregatorMode.FINAL, 1)),
+            List.of(new GroupingAggregator(aggFunction, FINAL, 1)),
             BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE)
         );
         intermediatePages.stream().forEach(finalAggregationOperator::addInput);

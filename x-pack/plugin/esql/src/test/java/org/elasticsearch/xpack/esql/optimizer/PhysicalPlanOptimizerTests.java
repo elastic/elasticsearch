@@ -72,7 +72,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testSingleFieldExtractor() {
-        // using a function (round()) here and following tests to prevent the optimizer from pushing the
+        // using a provider (round()) here and following tests to prevent the optimizer from pushing the
         // filter down to the source and thus change the shape of the expected physical tree.
         var plan = physicalPlan("""
             from test

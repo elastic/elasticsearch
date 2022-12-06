@@ -17,8 +17,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.Aggregator.AggregatorFactory;
-import org.elasticsearch.compute.aggregation.AggregatorFunction;
-import org.elasticsearch.compute.aggregation.AggregatorFunction.AggregatorFunctionFactory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
@@ -152,20 +150,13 @@ public class LocalExecutionPlanner {
                 // not grouping
                 for (NamedExpression e : aggregate.aggregates()) {
                     if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                        AggregatorFunctionFactory aggregatorFunc;
-                        if (aggregateFunction instanceof Avg avg) {
-                            aggregatorFunc = avg.dataType().isRational() ? AggregatorFunction.doubleAvg : AggregatorFunction.longAvg;
-                        } else if (aggregateFunction instanceof Count) {
-                            aggregatorFunc = AggregatorFunction.count;
-                        } else {
-                            throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
-                        }
+                        var provider = AggregateMapper.map(aggregateFunction);
 
                         if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
                             operatorFactory = new AggregationOperatorFactory(
                                 List.of(
                                     new AggregatorFactory(
-                                        aggregatorFunc,
+                                        provider,
                                         AggregatorMode.INITIAL,
                                         source.layout.get(Expressions.attribute(aggregateFunction.field()).id())
                                     )
@@ -175,7 +166,7 @@ public class LocalExecutionPlanner {
                             layout.put(alias.id(), 0);
                         } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
                             operatorFactory = new AggregationOperatorFactory(
-                                List.of(new AggregatorFactory(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id()))),
+                                List.of(new AggregatorFactory(provider, AggregatorMode.FINAL, source.layout.get(alias.id()))),
                                 AggregatorMode.FINAL
                             );
                             layout.put(alias.id(), 0);
@@ -203,7 +194,7 @@ public class LocalExecutionPlanner {
                         } else if (aggregateFunction instanceof Count) {
                             aggregatorFunc = GroupingAggregatorFunction.count;
                         } else {
-                            throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
+                            throw new UnsupportedOperationException("unsupported aggregate provider:" + aggregateFunction);
                         }
 
                         final Supplier<BlockHash> blockHash;
@@ -240,7 +231,7 @@ public class LocalExecutionPlanner {
                     } else if (aggregate.groupings().contains(e) == false) {
                         var u = e instanceof Alias ? ((Alias) e).child() : e;
                         throw new UnsupportedOperationException(
-                            "expected an aggregate function, but got [" + u + "] of type [" + u.nodeName() + "]"
+                            "expected an aggregate provider, but got [" + u + "] of type [" + u.nodeName() + "]"
                         );
                     }
                 }
@@ -515,7 +506,7 @@ public class LocalExecutionPlanner {
             }
         } else if (exp instanceof Round round) {
             ExpressionEvaluator fieldEvaluator = toEvaluator(round.field(), layout);
-            // round.decimals() == null means that decimals were not provided (it's an optional parameter of the Round function)
+            // round.decimals() == null means that decimals were not provided (it's an optional parameter of the Round provider)
             ExpressionEvaluator decimalsEvaluator = round.decimals() != null ? toEvaluator(round.decimals(), layout) : null;
             if (round.field().dataType().isRational()) {
                 return (page, pos) -> {

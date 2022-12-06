@@ -32,6 +32,9 @@ Transform::
 Ingest Node::
 * Refactor enrich maintenance coordination logic {es-pull}90931[#90931]
 
+TLS::
+* Support SAN/dnsName for restricted trust {es-pull}91946[#91946]
+
 [[upgrade-8.5.3]]
 [float]
 === Upgrades

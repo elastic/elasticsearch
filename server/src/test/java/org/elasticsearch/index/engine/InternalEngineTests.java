@@ -7482,11 +7482,11 @@ public class InternalEngineTests extends EngineTestCase {
 
         final Engine.IndexCommitListener indexCommitListener = new Engine.IndexCommitListener() {
             @Override
-            public void onNewCommit(ShardId shardId, LongSupplier primaryTerm, Engine.IndexCommitRef indexCommitRef) {
+            public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef) {
                 assertThat(acquiredCommits.put(indexCommitRef.getIndexCommit(), indexCommitRef), nullValue());
                 assertThat(shardId, equalTo(InternalEngineTests.this.shardId));
-                assertThat(primaryTerm.getAsLong(), greaterThanOrEqualTo(0L));
-                acquiredPrimaryTerms.add(primaryTerm.getAsLong());
+                assertThat(primaryTerm, greaterThanOrEqualTo(0L));
+                acquiredPrimaryTerms.add(primaryTerm);
             }
 
             @Override

@@ -106,7 +106,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -645,8 +644,8 @@ public class IndexModuleTests extends ESTestCase {
 
         module.setIndexCommitListener(new Engine.IndexCommitListener() {
             @Override
-            public void onNewCommit(ShardId shardId, LongSupplier primaryTerm, Engine.IndexCommitRef indexCommitRef) {
-                lastAcquiredPrimaryTerm.set(primaryTerm.getAsLong());
+            public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef) {
+                lastAcquiredPrimaryTerm.set(primaryTerm);
                 lastAcquiredCommit.set(indexCommitRef);
             }
 

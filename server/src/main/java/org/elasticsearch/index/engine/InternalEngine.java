@@ -328,7 +328,7 @@ public class InternalEngine extends Engine {
     private CombinedDeletionPolicy.CommitsListener newCommitsListener() {
         final Engine.IndexCommitListener listener = engineConfig.getIndexCommitListener();
         if (listener != null) {
-            var primaryTerm = config().getPrimaryTermSupplier();
+            var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
             return new CombinedDeletionPolicy.CommitsListener() {
                 @Override
                 public void onNewAcquiredCommit(final IndexCommit commit) {

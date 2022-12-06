@@ -10,7 +10,6 @@ package org.elasticsearch.action.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
@@ -76,20 +75,17 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         final Map<String, Object> source = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
         DiscoveryNodes discoveryNodes = ingestService.getClusterService().state().nodes();
         Map<String, DiscoveryNode> ingestNodes = discoveryNodes.getIngestNodes();
-        if (ingestNodes.isEmpty()) {
+        boolean noIngestNodeInCluster = ingestNodes.isEmpty();
+        if (noIngestNodeInCluster) {
             /*
              * Some resources used by pipelines, such as the geoip database, only exist on ingest nodes. Since we only run pipelines on
-             * nodes with the ingest role, we ought to only simulate a pipeline on nodes with the ingest role.
+             * nodes with the ingest role, we ought to only simulate a pipeline on nodes with the ingest role. But for backwards
+             * compatibility we make a best effort to run on a non-ingest node if that is our only option.
              */
-            listener.onFailure(
-                new ElasticsearchException(
-                    "Cannot run a pipeline simulation because there are no nodes in the cluster with the ingest role"
-                )
-            );
+            logger.info("There are no ingest nodes in this cluster. Running the pipeline simulation on a non-ingest node.");
         }
         try {
-            DiscoveryNode localNode = discoveryNodes.getLocalNode();
-            if (ingestNodes.containsKey(localNode.getId())) {
+            if (discoveryNodes.getLocalNode().isIngestNode() || noIngestNodeInCluster) {
                 final SimulatePipelineRequest.Parsed simulateRequest;
                 if (request.getId() != null) {
                     simulateRequest = SimulatePipelineRequest.parseWithPipelineId(

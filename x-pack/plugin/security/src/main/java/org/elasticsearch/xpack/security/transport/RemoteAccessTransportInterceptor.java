@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-public class RemoteClusterSecurityTransportInterceptor implements TransportInterceptor {
+public class RemoteAccessTransportInterceptor implements TransportInterceptor {
 
     public static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER = "_remote_access_cluster_credential";
 
@@ -38,7 +38,7 @@ public class RemoteClusterSecurityTransportInterceptor implements TransportInter
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
     private final SecurityContext securityContext;
 
-    public RemoteClusterSecurityTransportInterceptor(
+    public RemoteAccessTransportInterceptor(
         AuthorizationService authzService,
         RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
         SecurityContext securityContext
@@ -114,11 +114,11 @@ public class RemoteClusterSecurityTransportInterceptor implements TransportInter
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    RemoteAccessAuthentication.writeToContextAsRemoteAccessAuthentication(
-                        threadContext,
+                    final RemoteAccessAuthentication remoteAccessAuthentication = new RemoteAccessAuthentication(
                         authentication,
                         roleDescriptorsIntersection
                     );
+                    remoteAccessAuthentication.writeToContext(threadContext);
                     final String clusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get());
                     // TODO race condition: what if settings have changed after we called shouldSendWithRemoteAccessHeaders?
                     assert clusterCredential != null : "there should be a remote cluster credential";

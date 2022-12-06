@@ -54,7 +54,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
-    private final RemoteClusterSecurityTransportInterceptor remoteClusterSecurityInterceptor;
+    private final RemoteAccessTransportInterceptor remoteAccessTransportInterceptor;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -73,7 +73,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
-        this.remoteClusterSecurityInterceptor = new RemoteClusterSecurityTransportInterceptor(
+        this.remoteAccessTransportInterceptor = new RemoteAccessTransportInterceptor(
             authzService,
             remoteClusterAuthorizationResolver,
             securityContext
@@ -82,7 +82,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
     @Override
     public AsyncSender interceptSender(AsyncSender sender) {
-        final AsyncSender remoteClusterSecurityAwareSender = remoteClusterSecurityInterceptor.interceptSender(sender);
+        final AsyncSender remoteClusterSecurityAwareSender = remoteAccessTransportInterceptor.interceptSender(sender);
         return new AsyncSender() {
             @Override
             public <T extends TransportResponse> void sendRequest(

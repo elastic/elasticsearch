@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 
 public class AzimuthTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92136")
     public void testLatLonVec3d() {
         final double lat = Math.toRadians(GeoTestUtil.nextLatitude());
         final double lon = Math.toRadians(GeoTestUtil.nextLongitude());

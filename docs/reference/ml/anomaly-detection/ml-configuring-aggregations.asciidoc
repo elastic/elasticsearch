@@ -452,7 +452,8 @@ You can use fields with the
 {ref}/aggregate-metric-double.html[`aggregate_metric_double`] field type in a 
 {dfeed} with aggregations. It is required to retrieve the `value_count` of the 
 `aggregate_metric_double` filed in an aggregation and then use it as the 
-`summary_count_field_name`.
+`summary_count_field_name` to provide the correct count that represents the 
+aggregation value.
 
 In the following example, `presum` is an `aggregate_metric_double` type field 
 that has all the possible metrics: `[ min, max, sum, value_count ]`. To use an 

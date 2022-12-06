@@ -243,7 +243,7 @@ public class DesiredBalanceComputer {
 
         final int iterationCountReportInterval = computeIterationCountReportInterval(routingAllocation);
         final long timeWarningInterval = progressLogInterval.millis();
-        final long computationStartedTime = threadPool.rawRelativeTimeInMillis();
+        final long computationStartedTime = threadPool.relativeTimeInMillis();
         long nextReportTime = computationStartedTime + timeWarningInterval;
 
         int i = 0;
@@ -313,17 +313,6 @@ public class DesiredBalanceComputer {
             );
         }
         iterations.inc(i);
-
-        final int iterations = i;
-        final long currentTime = threadPool.relativeTimeInMillis();
-        logger.debug(
-            () -> Strings.format(
-                "Desired balance computation for [%d] is converged after [%s] and [%d] iterations",
-                desiredBalanceInput.index(),
-                TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
-                iterations
-            )
-        );
 
         final var assignments = new HashMap<ShardId, ShardAssignment>();
         for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {

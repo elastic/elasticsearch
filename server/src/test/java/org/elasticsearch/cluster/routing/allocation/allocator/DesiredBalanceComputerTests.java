@@ -8,6 +8,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
@@ -36,11 +39,13 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -53,6 +58,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -67,6 +73,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DesiredBalanceComputerTests extends ESTestCase {
 
@@ -839,6 +846,103 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         }
 
         assertThat(resultDiskUsage, allOf(aMapWithSize(2), hasEntry("node-0", 950L), hasEntry("node-1", 850L)));
+    }
+
+    public void testShouldLogComputationIteration() {
+        checkIterationLogging(
+            999,
+            10L,
+            new MockLogAppender.UnseenEventExpectation(
+                "Should not report long computation too early",
+                DesiredBalanceComputer.class.getCanonicalName(),
+                Level.INFO,
+                "Desired balance computation for [*] is still not converged after [*] and [*] iterations"
+            )
+        );
+
+        checkIterationLogging(
+            1001,
+            10L,
+            new MockLogAppender.SeenEventExpectation(
+                "Should report long computation based on iteration count",
+                DesiredBalanceComputer.class.getCanonicalName(),
+                Level.INFO,
+                "Desired balance computation for [*] is still not converged after [10s] and [1000] iterations"
+            )
+        );
+
+        checkIterationLogging(
+            61,
+            1000L,
+            new MockLogAppender.SeenEventExpectation(
+                "Should report long computation based on time",
+                DesiredBalanceComputer.class.getCanonicalName(),
+                Level.INFO,
+                "Desired balance computation for [*] is still not converged after [1m] and [60] iterations"
+            )
+        );
+    }
+
+    private void checkIterationLogging(int iterations, long eachIterationDuration, MockLogAppender.AbstractEventExpectation expectation) {
+
+        var mockThreadPool = mock(ThreadPool.class);
+        var currentTime = new AtomicLong(0L);
+        when(mockThreadPool.relativeTimeInMillis()).thenAnswer(invocation -> currentTime.addAndGet(eachIterationDuration));
+
+        var desiredBalanceComputer = new DesiredBalanceComputer(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            mockThreadPool,
+            new ShardsAllocator() {
+                @Override
+                public void allocate(RoutingAllocation allocation) {
+                    final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+                    while (unassignedIterator.hasNext()) {
+                        final var shardRouting = unassignedIterator.next();
+                        if (shardRouting.primary()) {
+                            unassignedIterator.initialize("node-0", null, 0L, allocation.changes());
+                        } else {
+                            unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                        }
+                    }
+
+                    // move shard on each iteration
+                    for (var shard : allocation.routingNodes().node("node-0").shardsWithState(STARTED).toList()) {
+                        allocation.routingNodes().relocateShard(shard, "node-1", 0L, allocation.changes());
+                    }
+                    for (var shard : allocation.routingNodes().node("node-1").shardsWithState(STARTED).toList()) {
+                        allocation.routingNodes().relocateShard(shard, "node-0", 0L, allocation.changes());
+                    }
+                }
+
+                @Override
+                public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                    throw new AssertionError("only used for allocation explain");
+                }
+            }
+        );
+
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(expectation);
+
+        Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
+        Loggers.addAppender(logger, mockAppender);
+
+        try {
+            var iteration = new AtomicInteger(0);
+            desiredBalanceComputer.compute(
+                DesiredBalance.INITIAL,
+                createInput(createInitialClusterState(3)),
+                queue(),
+                input -> iteration.incrementAndGet() < iterations
+            );
+
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     private static Map.Entry<String, Long> indexSize(ClusterState clusterState, String name, long size, boolean primary) {

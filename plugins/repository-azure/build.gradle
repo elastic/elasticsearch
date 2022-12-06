@@ -283,6 +283,51 @@ tasks.named("thirdPartyAudit").configure {
     'org.slf4j.ext.EventData'
   )
 
+  if (BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
+    ignoreMissingClasses(
+      'java.lang.StackWalker',
+      'java.lang.StackWalker$StackFrame',
+
+      // From reactor.adapter.JdkFlowAdapter
+      'java.util.concurrent.Flow$Processor',
+      'java.util.concurrent.Flow$Publisher',
+      'java.util.concurrent.Flow$Subscriber',
+      'java.util.concurrent.Flow$Subscription'
+    )
+  } else {
+    ignoreMissingClasses(
+      'com.sun.org.apache.xml.internal.resolver.Catalog',
+      'com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver',
+      'javax.activation.DataHandler',
+      'javax.activation.DataSource',
+      'javax.xml.bind.JAXBElement',
+      'javax.xml.bind.annotation.XmlAccessOrder',
+      'javax.xml.bind.annotation.XmlAccessType',
+      'javax.xml.bind.annotation.XmlAccessorOrder',
+      'javax.xml.bind.annotation.XmlAccessorType',
+      'javax.xml.bind.annotation.XmlAttribute',
+      'javax.xml.bind.annotation.XmlElement',
+      'javax.xml.bind.annotation.XmlElement$DEFAULT',
+      'javax.xml.bind.annotation.XmlElementRef',
+      'javax.xml.bind.annotation.XmlElementRefs',
+      'javax.xml.bind.annotation.XmlElementWrapper',
+      'javax.xml.bind.annotation.XmlElements',
+      'javax.xml.bind.annotation.XmlEnum',
+      'javax.xml.bind.annotation.XmlEnumValue',
+      'javax.xml.bind.annotation.XmlID',
+      'javax.xml.bind.annotation.XmlIDREF',
+      'javax.xml.bind.annotation.XmlRootElement',
+      'javax.xml.bind.annotation.XmlSeeAlso',
+      'javax.xml.bind.annotation.XmlTransient',
+      'javax.xml.bind.annotation.XmlType',
+      'javax.xml.bind.annotation.XmlValue',
+      'javax.xml.bind.annotation.adapters.XmlAdapter',
+      'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter',
+      'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter$DEFAULT',
+      'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapters'
+    )
+  }
+
   ignoreViolations(
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
 

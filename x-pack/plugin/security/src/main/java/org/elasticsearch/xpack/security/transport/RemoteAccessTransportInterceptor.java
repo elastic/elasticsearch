@@ -71,14 +71,22 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                final Authentication authentication = securityContext.getAuthentication();
-                assert authentication != null : "authentication must be present in thread context";
-
-                if (false == shouldSendWithRemoteAccessHeaders(authentication, connection, request)) {
+                if (shouldSendWithRemoteAccessHeaders(connection, request)) {
+                    sendWithRemoteAccessHeaders(connection, action, request, options, handler);
+                } else {
                     // Send regular request, without remote access headers
                     sendRequestWithWrappedException(connection, action, request, options, handler);
-                    return;
-                } else if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
+                }
+            }
+
+            private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
+                final Transport.Connection connection,
+                final String action,
+                final TransportRequest request,
+                final TransportRequestOptions options,
+                final TransportResponseHandler<T> handler
+            ) {
+                if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     handler.handleException(
                         new RemoteAccessTransportException(
                             connection.getNode(),
@@ -93,6 +101,8 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
                     return;
                 }
 
+                final Authentication authentication = securityContext.getAuthentication();
+                assert authentication != null : "authentication must be present in thread context";
                 final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
                 assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
                 authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
@@ -136,14 +146,12 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
                 }
             }
         };
-
     }
 
-    private boolean shouldSendWithRemoteAccessHeaders(
-        final Authentication authentication,
-        final Transport.Connection connection,
-        final TransportRequest request
-    ) {
+    private boolean shouldSendWithRemoteAccessHeaders(final Transport.Connection connection, final TransportRequest request) {
+        final Authentication authentication = securityContext.getAuthentication();
+        assert authentication != null : "authentication must be present in thread context";
+
         // This is not strictly necessary, but it allows us to skip all additional checks below early
         if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
             return false;
@@ -188,7 +196,7 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
     }
 
     static final class RemoteAccessTransportException extends ActionTransportException {
-        public RemoteAccessTransportException(DiscoveryNode node, String action, Throwable cause) {
+        RemoteAccessTransportException(DiscoveryNode node, String action, Throwable cause) {
             super(node == null ? null : node.getName(), node == null ? null : node.getAddress(), action, cause);
         }
     }

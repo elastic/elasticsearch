@@ -8,51 +8,32 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
-import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 
+import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
+
 public class RestResponseUtils {
     private RestResponseUtils() {}
-
-    private static final int PAGE_SIZE = 1 << 14;
 
     public static BytesReference getBodyContent(RestResponse restResponse) throws IOException {
         if (restResponse.isChunked() == false) {
             return restResponse.content();
         }
 
-        final var recycler = new Recycler<BytesRef>() {
-            @Override
-            public V<BytesRef> obtain() {
-                return new V<>() {
-                    final BytesRef page = new BytesRef(new byte[PAGE_SIZE], 0, PAGE_SIZE);
-
-                    @Override
-                    public BytesRef v() {
-                        return page;
-                    }
-
-                    @Override
-                    public boolean isRecycled() {
-                        return false;
-                    }
-
-                    @Override
-                    public void close() {}
-                };
-            }
-        };
-
         final var chunkedRestResponseBody = restResponse.chunkedContent();
         assert chunkedRestResponseBody.isDone() == false;
 
-        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+        final int pageSize;
+        try (var page = NON_RECYCLING_INSTANCE.obtain()) {
+            pageSize = page.v().length;
+        }
+
+        try (var out = new BytesStreamOutput()) {
             while (chunkedRestResponseBody.isDone() == false) {
-                try (var chunk = chunkedRestResponseBody.encodeChunk(PAGE_SIZE, recycler)) {
+                try (var chunk = chunkedRestResponseBody.encodeChunk(pageSize, NON_RECYCLING_INSTANCE)) {
                     chunk.writeTo(out);
                 }
             }

@@ -37,19 +37,16 @@ public class BwcSetupExtension {
     private static final Version BUILD_TOOL_MINIMUM_VERSION = Version.fromString("7.14.0");
     private final Project project;
     private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
-    private final Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider;
 
     private Provider<File> checkoutDir;
 
     public BwcSetupExtension(
         Project project,
         Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
-        Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider,
         Provider<File> checkoutDir
     ) {
         this.project = project;
         this.unreleasedVersionInfo = unreleasedVersionInfo;
-        this.bwcTaskThrottleProvider = bwcTaskThrottleProvider;
         this.checkoutDir = checkoutDir;
     }
 
@@ -60,7 +57,6 @@ public class BwcSetupExtension {
     private TaskProvider<LoggedExec> createRunBwcGradleTask(Project project, String name, Action<LoggedExec> configAction) {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
             loggedExec.dependsOn("checkoutBwcBranch");
-            loggedExec.usesService(bwcTaskThrottleProvider);
             loggedExec.getWorkingDir().set(checkoutDir.get());
 
             loggedExec.getEnvironment().put("JAVA_HOME", unreleasedVersionInfo.zip(checkoutDir, (version, checkoutDir) -> {

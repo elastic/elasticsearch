@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
 class ClientTransformIndexerBuilder {
@@ -42,6 +43,14 @@ class ClientTransformIndexerBuilder {
         CheckpointProvider checkpointProvider = transformServices.getCheckpointService()
             .getCheckpointProvider(parentTaskClient, transformConfig);
 
+        TransformCheckpoint historyCheckpoint;
+        if (context.from() != null) {
+            long timestampFrom = context.from().toEpochMilli();
+            historyCheckpoint = new TransformCheckpoint("history", timestampFrom, -1L, Collections.emptyMap(), timestampFrom);
+        } else {
+            historyCheckpoint = TransformCheckpoint.EMPTY;
+        }
+
         return new ClientTransformIndexer(
             threadPool,
             transformServices,
@@ -52,7 +61,7 @@ class ClientTransformIndexerBuilder {
             initialStats,
             transformConfig,
             progress,
-            TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? TransformCheckpoint.EMPTY : lastCheckpoint,
+            TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? historyCheckpoint : lastCheckpoint,
             TransformCheckpoint.isNullOrEmpty(nextCheckpoint) ? TransformCheckpoint.EMPTY : nextCheckpoint,
             seqNoPrimaryTermAndIndex,
             context,

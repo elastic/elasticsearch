@@ -61,9 +61,9 @@ Identifier for the {transform}.
 [[start-transform-query-parms]]
 == {api-query-parms-title}
 
-`start_after`::
-(Optional, string) Restricts the set of transformed documents to those with
-timestamps after this time. Only applicable for continuous transforms.
+`from`::
+(Optional, string) Restricts the set of transformed entities to those changed
+ after this time. Only applicable for continuous transforms.
 
 `timeout`::
 (Optional, time)

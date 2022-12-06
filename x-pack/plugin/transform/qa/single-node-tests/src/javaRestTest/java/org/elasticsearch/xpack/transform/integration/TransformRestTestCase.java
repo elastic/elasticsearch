@@ -403,7 +403,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         startTransform(transformId, null, null, null);
     }
 
-    protected void startTransform(String transformId, String authHeader, String secondaryAuthHeader, String startAfter, String... warnings)
+    protected void startTransform(String transformId, String authHeader, String secondaryAuthHeader, String from, String... warnings)
         throws IOException {
         // start the transform
         final Request startTransformRequest = createRequestWithSecondaryAuth(
@@ -412,8 +412,8 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             authHeader,
             secondaryAuthHeader
         );
-        if (startAfter != null) {
-            startTransformRequest.addParameter(TransformField.START_AFTER.getPreferredName(), startAfter);
+        if (from != null) {
+            startTransformRequest.addParameter(TransformField.FROM.getPreferredName(), from);
         }
         if (warnings.length > 0) {
             startTransformRequest.setOptions(expectWarnings(warnings));
@@ -477,11 +477,11 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         String transformId,
         String transformIndex,
         String authHeader,
-        String startAfter,
+        String from,
         long checkpoint
     ) throws Exception {
         // start the transform
-        startTransform(transformId, authHeader, null, startAfter, new String[0]);
+        startTransform(transformId, authHeader, null, from, new String[0]);
         assertTrue(indexExists(transformIndex));
         // wait until the transform has been created and all data is available
         waitForTransformCheckpoint(transformId, checkpoint);

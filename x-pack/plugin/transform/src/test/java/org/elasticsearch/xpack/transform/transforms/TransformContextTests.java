@@ -91,9 +91,9 @@ public class TransformContextTests extends ESTestCase {
         verify(listener).failureCountChanged();
     }
 
-    public void testStartAfter() {
-        Instant startAfter = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
-        TransformContext context = new TransformContext(TransformTaskState.STARTED, null, 0, startAfter, listener);
-        assertThat(context.startAfter(), is(equalTo(startAfter)));
+    public void testFrom() {
+        Instant from = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, null, 0, from, listener);
+        assertThat(context.from(), is(equalTo(from)));
     }
 }

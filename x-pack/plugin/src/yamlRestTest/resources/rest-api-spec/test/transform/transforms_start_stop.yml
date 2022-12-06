@@ -258,19 +258,19 @@ teardown:
   - match: { acknowledged: true }
 
 ---
-"Test start transform with empty value of start_after parameter":
+"Test start transform with empty value of from parameter":
   - do:
-      catch: /Failed to parse date for \[start_after\]/
+      catch: /Failed to parse date for \[from\]/
       transform.start_transform:
-        start_after: ""
+        from: ""
         transform_id: "airline-transform-start-stop-continuous"
 
 ---
-"Test start transform with invalid value of start_after parameter":
+"Test start transform with invalid value of from parameter":
   - do:
-      catch: /Failed to parse date for \[start_after\]/
+      catch: /Failed to parse date for \[from\]/
       transform.start_transform:
-        start_after: "not-a-valid-timestamp"
+        from: "not-a-valid-timestamp"
         transform_id: "airline-transform-start-stop-continuous"
 
 ---

@@ -112,7 +112,9 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
 
     public void testEmpty() {
         assertTrue(TransformCheckpoint.EMPTY.isEmpty());
-        assertFalse(new TransformCheckpoint("some_id", 0L, -1, Collections.emptyMap(), 0L).isEmpty());
+        assertTrue(new TransformCheckpoint("some_id", 0L, -1, Collections.emptyMap(), 0L).isEmpty());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 0, Collections.emptyMap(), 0L).isEmpty());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 1, Collections.emptyMap(), 0L).isEmpty());
     }
 
     public void testGetBehind() {

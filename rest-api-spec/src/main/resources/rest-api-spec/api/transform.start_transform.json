@@ -26,10 +26,10 @@
       ]
     },
     "params":{
-      "start_after":{
+      "from":{
         "type":"string",
         "required":false,
-        "description":"Restricts the set of transformed documents to those with timestamps after this time"
+        "description":"Restricts the set of transformed entities to those changed after this time"
       },
       "timeout":{
         "type":"time",

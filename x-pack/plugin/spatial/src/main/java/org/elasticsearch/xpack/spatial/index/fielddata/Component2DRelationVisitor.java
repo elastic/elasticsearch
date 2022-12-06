@@ -28,24 +28,28 @@ class Component2DRelationVisitor extends TriangleTreeReader.DecodedVisitor {
 
     public void reset(Component2D component2D) {
         this.component2D = component2D;
-        relation = GeoRelation.QUERY_DISJOINT;
+        relation = null;
     }
 
     /**
      * return the computed relation.
      */
     public GeoRelation relation() {
-        return relation;
+        return relation == null ? GeoRelation.QUERY_DISJOINT : relation;
     }
 
     @Override
     void visitDecodedPoint(double x, double y) {
         if (component2D.contains(x, y)) {
-            if (component2D.withinPoint(x, y) == Component2D.WithinRelation.CANDIDATE) {
+            if (canBeContained()) {
+                relation = GeoRelation.QUERY_CONTAINS;
+            } else if (component2D.withinPoint(x, y) == Component2D.WithinRelation.CANDIDATE) {
                 relation = GeoRelation.QUERY_INSIDE;
             } else {
                 relation = GeoRelation.QUERY_CROSSES;
             }
+        } else {
+            adjustRelationForNotIntersectingComponent();
         }
     }
 
@@ -53,26 +57,36 @@ class Component2DRelationVisitor extends TriangleTreeReader.DecodedVisitor {
     void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
         if (component2D.intersectsLine(aX, aY, bX, bY)) {
             final boolean ab = (metadata & 1 << 4) == 1 << 4;
-            if (component2D.withinLine(aX, aY, ab, bX, bY) == Component2D.WithinRelation.CANDIDATE) {
+            if (canBeContained() && component2D.containsLine(aX, aY, bX, bY)) {
+                relation = GeoRelation.QUERY_CONTAINS;
+            } else if (canBeInside() && component2D.withinLine(aX, aY, ab, bX, bY) == Component2D.WithinRelation.CANDIDATE) {
                 relation = GeoRelation.QUERY_INSIDE;
             } else {
                 relation = GeoRelation.QUERY_CROSSES;
             }
+        } else {
+            adjustRelationForNotIntersectingComponent();
         }
     }
 
     @Override
     void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
         if (component2D.intersectsTriangle(aX, aY, bX, bY, cX, cY)) {
-            boolean ab = (metadata & 1 << 4) == 1 << 4;
-            boolean bc = (metadata & 1 << 5) == 1 << 5;
-            boolean ca = (metadata & 1 << 6) == 1 << 6;
-            if (component2D.withinTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca) == Component2D.WithinRelation.CANDIDATE) {
-                relation = GeoRelation.QUERY_INSIDE;
-            } else {
-                relation = GeoRelation.QUERY_CROSSES;
-            }
+            final boolean ab = (metadata & 1 << 4) == 1 << 4;
+            final boolean bc = (metadata & 1 << 5) == 1 << 5;
+            final boolean ca = (metadata & 1 << 6) == 1 << 6;
+            if (canBeContained() && component2D.containsTriangle(aX, aY, bX, bY, cX, cY)) {
+                relation = GeoRelation.QUERY_CONTAINS;
+            } else if (canBeInside()
+                && component2D.withinTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca) == Component2D.WithinRelation.CANDIDATE) {
+                    relation = GeoRelation.QUERY_INSIDE;
+                } else {
+                    relation = GeoRelation.QUERY_CROSSES;
+                }
+        } else {
+            adjustRelationForNotIntersectingComponent();
         }
+
     }
 
     @Override
@@ -82,17 +96,29 @@ class Component2DRelationVisitor extends TriangleTreeReader.DecodedVisitor {
 
     @Override
     public boolean pushDecodedX(double minX) {
-        return component2D.getMaxX() >= minX;
+        if (component2D.getMaxX() >= minX) {
+            return true;
+        }
+        adjustRelationForNotIntersectingComponent();
+        return false;
     }
 
     @Override
     public boolean pushDecodedY(double minY) {
-        return component2D.getMaxY() >= minY;
+        if (component2D.getMaxY() >= minY) {
+            return true;
+        }
+        adjustRelationForNotIntersectingComponent();
+        return false;
     }
 
     @Override
     public boolean pushDecoded(double maxX, double maxY) {
-        return component2D.getMinY() <= maxY && component2D.getMinX() <= maxX;
+        if (component2D.getMinY() <= maxY && component2D.getMinX() <= maxX) {
+            return true;
+        }
+        adjustRelationForNotIntersectingComponent();
+        return false;
     }
 
     @Override
@@ -104,11 +130,23 @@ class Component2DRelationVisitor extends TriangleTreeReader.DecodedVisitor {
             relation = GeoRelation.QUERY_DISJOINT;
             return false;
         }
-        if (rel == PointValues.Relation.CELL_INSIDE_QUERY) {
-            // the rectangle fully contains the shape
-            relation = GeoRelation.QUERY_CROSSES;
-            return false;
-        }
         return true;
     }
+
+    private void adjustRelationForNotIntersectingComponent() {
+        if (relation == null) {
+            relation = GeoRelation.QUERY_DISJOINT;
+        } else if (relation == GeoRelation.QUERY_CONTAINS) {
+            relation = GeoRelation.QUERY_CROSSES;
+        }
+    }
+
+    private boolean canBeContained() {
+        return relation == null || relation == GeoRelation.QUERY_CONTAINS;
+    }
+
+    private boolean canBeInside() {
+        return relation != GeoRelation.QUERY_CONTAINS;
+    }
+
 }

@@ -281,20 +281,6 @@ public class DesiredBalanceComputer {
             }
 
             i++;
-            if (hasChanges == false) {
-                logger.debug("Desired balance computation for [{}] converged after [{}] iterations", desiredBalanceInput.index(), i);
-                break;
-            }
-            if (isFresh.test(desiredBalanceInput) == false) {
-                // we run at least one iteration, but if another reroute happened meanwhile
-                // then publish the interim state and restart the calculation
-                logger.debug("""
-                    Newer cluster state received after [{}] iterations, publishing incomplete desired balance for [{}] and restarting \
-                    computation
-                    """, i, desiredBalanceInput.index());
-                break;
-            }
-
             final int iterations = i;
             final long currentTime = threadPool.relativeTimeInMillis();
             final boolean reportByTime = nextReportTime <= currentTime;
@@ -302,6 +288,29 @@ public class DesiredBalanceComputer {
             if (reportByTime || reportByIterationCount) {
                 nextReportTime = currentTime + timeWarningInterval;
             }
+
+            if (hasChanges == false) {
+                logger.debug(
+                    "Desired balance computation for [{}] converged after [{}] and [{}] iterations",
+                    desiredBalanceInput.index(),
+                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                    i
+                );
+                break;
+            }
+            if (isFresh.test(desiredBalanceInput) == false) {
+                // we run at least one iteration, but if another reroute happened meanwhile
+                // then publish the interim state and restart the calculation
+                logger.debug(
+                    "Desired balance computation for [{}] interrupted after [{}] and [{}] iterations as newer cluster state received. "
+                        + "Publishing intermediate desired balance and restarting computation",
+                    desiredBalanceInput.index(),
+                    i,
+                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString()
+                );
+                break;
+            }
+
             logger.log(
                 reportByIterationCount || reportByTime ? Level.INFO : i % 100 == 0 ? Level.DEBUG : Level.TRACE,
                 () -> Strings.format(

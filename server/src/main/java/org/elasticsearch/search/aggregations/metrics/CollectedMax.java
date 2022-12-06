@@ -52,7 +52,7 @@ public class CollectedMax extends CollectedAggregator {
     @Override
     public Version getMinimalSupportedVersion() {
         // NOCOMMIT: put the correct version number here
-        return Version.V_8_5_0;
+        return Version.V_8_7_0;
     }
 
     @Override

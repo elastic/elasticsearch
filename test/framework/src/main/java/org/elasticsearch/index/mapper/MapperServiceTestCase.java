@@ -477,6 +477,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public BigArrays bigArraysForResults() {
+                return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+            }
+
+            @Override
             public NestedLookup nestedLookup() {
                 throw new UnsupportedOperationException();
             }

@@ -26,9 +26,11 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -62,7 +64,6 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                logger.info("Remote access interceptor sending request [{}]", request);
                 if (shouldSendWithRemoteAccessHeaders(connection, request)) {
                     sendWithRemoteAccessHeaders(sender, connection, action, request, options, handler);
                 } else {
@@ -72,32 +73,35 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
         };
     }
 
-    boolean shouldSendWithRemoteAccessHeaders(final Transport.Connection connection, final TransportRequest request) {
+    private boolean shouldSendWithRemoteAccessHeaders(final Transport.Connection connection, final TransportRequest request) {
         if (false == TcpTransport.isUntrustedRemoteClusterEnabled()
             // TODO more request types here
             || false == (request instanceof SearchRequest || request instanceof ClusterSearchShardsRequest)) {
             return false;
         }
+
         final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
         if (false == remoteClusterAlias.isPresent()) {
             return false;
         }
 
+        // TODO version check
+
         final Authentication authentication = securityContext.getAuthentication();
         assert authentication != null : "authentication must be present in context";
-        if (User.isInternal(authentication.getEffectiveSubject().getUser())
-            || authentication.isApiKey()
-            || authentication.isServiceAccount()) {
-            // The above authentication subject types are not yet supported, so use legacy remote cluster security mode
+        if (authentication.isApiKey()
+            || authentication.isServiceAccount()
+            || User.isInternal(authentication.getEffectiveSubject().getUser())
+            // TODO is this necessary?
+            || Arrays.stream(authentication.getEffectiveSubject().getUser().roles()).anyMatch(ReservedRolesStore::isReserved)) {
+            // The above authentication subject types or their roles are not yet supported, so use legacy remote cluster security mode
             return false;
         }
 
-        // TODO we might also need to exclude users with reserved roles for now; if a user has a reserved role, fall back on legacy
-        // TODO version check?
         return remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get()) != null;
     }
 
-    <T extends TransportResponse> void sendWithRemoteAccessHeaders(
+    private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
         final TransportInterceptor.AsyncSender sender,
         final Transport.Connection connection,
         final String action,

@@ -276,7 +276,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterState clusterState,
         RoutingNode routingNode
     ) {
-        return startShardsAndReroute(allocationService, clusterState, routingNode.shardsWithState(INITIALIZING));
+        return startShardsAndReroute(allocationService, clusterState, routingNode.shardsWithState(INITIALIZING).toList());
     }
 
     /**

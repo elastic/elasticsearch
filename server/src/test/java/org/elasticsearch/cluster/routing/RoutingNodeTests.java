@@ -102,16 +102,16 @@ public class RoutingNodeTests extends ESTestCase {
     }
 
     public void testShardsWithState() {
-        assertThat(routingNode.shardsWithState(ShardRoutingState.STARTED).size(), equalTo(1));
-        assertThat(routingNode.shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(1));
-        assertThat(routingNode.shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(routingNode.shardsWithState(ShardRoutingState.STARTED).count(), equalTo(1L));
+        assertThat(routingNode.shardsWithState(ShardRoutingState.RELOCATING).count(), equalTo(1L));
+        assertThat(routingNode.shardsWithState(ShardRoutingState.INITIALIZING).count(), equalTo(1L));
     }
 
     public void testShardsWithStateInIndex() {
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED).size(), equalTo(2));
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.STARTED).size(), equalTo(1));
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.RELOCATING).size(), equalTo(1));
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(routingNode.shardsWithState("test", ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED).count(), equalTo(2L));
+        assertThat(routingNode.shardsWithState("test", ShardRoutingState.STARTED).count(), equalTo(1L));
+        assertThat(routingNode.shardsWithState("test", ShardRoutingState.RELOCATING).count(), equalTo(1L));
+        assertThat(routingNode.shardsWithState("test", ShardRoutingState.INITIALIZING).count(), equalTo(1L));
     }
 
     public void testNumberOfOwningShards() {

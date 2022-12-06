@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.RemoteConnectionManager;
@@ -227,7 +228,8 @@ public final class AuthorizationUtils {
         Transport.Connection connection,
         TransportRequest request,
         String childAction,
-        Version version
+        Version version,
+        ClusterState clusterState
 
     ) {
         if (RemoteConnectionManager.resolveRemoteClusterAlias(connection).isPresent()) {
@@ -287,6 +289,11 @@ public final class AuthorizationUtils {
 
         final String parentAction = parentContext.getAction();
         if (shouldPreAuthorizeChildAction(parentAction, childAction) == false) {
+            return;
+        }
+
+        if (connection.getNode().equals(clusterState.nodes().getLocalNode())) {
+            // Child actions targeting local (same) node are handled differently and already pre-authorized by parent action.
             return;
         }
 

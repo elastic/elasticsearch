@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
@@ -55,6 +56,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
+    private final ClusterService clusterService;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -64,7 +66,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
-        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
+        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
+        ClusterService clusterService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -74,6 +77,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
         this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -129,7 +133,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                     connection,
                                     request,
                                     action,
-                                    minVersion
+                                    minVersion,
+                                    clusterService.state()
                                 );
                                 sendWithUser(
                                     connection,
@@ -150,7 +155,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 connection,
                                 request,
                                 action,
-                                minVersion
+                                minVersion,
+                                clusterService.state()
                             );
                             sendWithUser(connection, action, request, options, handler, sender);
                         }

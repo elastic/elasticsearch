@@ -21,8 +21,8 @@ public final class CountDown {
     private final AtomicInteger countDown;
 
     public CountDown(int count) {
-        if (count < 0) {
-            throw new IllegalArgumentException("count must be greater or equal to 0 but was: " + count);
+        if (count <= 0) {
+            throw new IllegalArgumentException("count must be positive but was: " + count);
         }
         this.countDown = new AtomicInteger(count);
     }

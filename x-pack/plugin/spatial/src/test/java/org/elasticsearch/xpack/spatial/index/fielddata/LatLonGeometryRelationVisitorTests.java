@@ -26,6 +26,7 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
         doTestShapes(GeoTestUtil::nextPoint);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92142")
     public void testLine() throws Exception {
         doTestShapes(GeoTestUtil::nextLine);
     }

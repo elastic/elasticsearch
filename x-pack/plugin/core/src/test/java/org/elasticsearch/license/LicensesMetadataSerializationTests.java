@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -38,7 +39,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("licenses");
-        licensesMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsXContentObject(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
@@ -52,7 +53,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("licenses");
-        licensesMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsXContentObject(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
@@ -101,7 +102,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("licenses");
-        licensesMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsXContentObject(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));

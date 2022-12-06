@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
@@ -154,19 +155,21 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
         final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
         if (remoteClusterAlias.isEmpty()) {
             return false;
-        } else if (false == (request instanceof SearchRequest || request instanceof ClusterSearchShardsRequest)) {
-            logger.debug("Request type is not whitelisted for remote access headers");
-            return false;
-        }
+        } else if (false == (request instanceof ShardSearchRequest
+            || request instanceof SearchRequest
+            || request instanceof ClusterSearchShardsRequest)) {
+                logger.debug("Request type is not whitelisted for remote access headers");
+                return false;
+            }
 
         final Authentication authentication = securityContext.getAuthentication();
         assert authentication != null : "authentication must be present in security context";
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         // We will lift this restriction as we add support for these types (and internal users)
-        final boolean isSubjectTypeUnsupported = effectiveSubject.getType().equals(Subject.Type.API_KEY)
+        final boolean unsupportedForSubject = effectiveSubject.getType().equals(Subject.Type.API_KEY)
             || effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
             || User.isInternal(effectiveSubject.getUser());
-        if (isSubjectTypeUnsupported) {
+        if (unsupportedForSubject) {
             logger.debug("Effective subject type does not support remote access headers");
             return false;
         } else if (Arrays.stream(effectiveSubject.getUser().roles()).anyMatch(ReservedRolesStore::isReserved)) {

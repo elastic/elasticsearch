@@ -27,7 +27,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,8 +50,6 @@ public class DesiredBalanceComputer {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
-    private final Settings settings;
-    private final ClusterSettings clusterSettings;
     private final ThreadPool threadPool;
     private final ShardsAllocator delegateAllocator;
 
@@ -61,7 +58,7 @@ public class DesiredBalanceComputer {
     public static final Setting<TimeValue> PROGRESS_LOG_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.desired_balance.progress_log_interval",
         TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueSeconds(1),
+        TimeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -74,8 +71,6 @@ public class DesiredBalanceComputer {
         ThreadPool threadPool,
         ShardsAllocator delegateAllocator
     ) {
-        this.settings = settings;
-        this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.delegateAllocator = delegateAllocator;
         watchSetting(settings, clusterSettings, PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
@@ -299,25 +294,36 @@ public class DesiredBalanceComputer {
                     """, i, desiredBalanceInput.index());
                 break;
             }
-            if (i % 100 == 0) {
-                final int iterations = i;
-                final long currentTime = threadPool.relativeTimeInMillis();
-                final boolean shouldWarnByTime = nextWarningTime <= currentTime;
-                if (shouldWarnByTime) {
-                    nextWarningTime = currentTime + timeWarningInterval;
-                }
-                logger.log(
-                    i % iterationCountWarningInterval == 0 || shouldWarnByTime ? Level.INFO : Level.DEBUG,
-                    () -> Strings.format(
-                        "Desired balance computation for [%d] is still not converged after [%d] [%d] iterations",
-                        desiredBalanceInput.index(),
-                        Duration.ofMillis(currentTime - computationStartedTime).toString(),
-                        iterations
-                    )
-                );
+
+            final int iterations = i;
+            final long currentTime = threadPool.relativeTimeInMillis();
+            final boolean shouldWarnByTime = nextWarningTime <= currentTime;
+            final boolean shouldWarnByIterationCount = i % iterationCountWarningInterval == 0;
+            if (shouldWarnByTime) {
+                nextWarningTime = currentTime + timeWarningInterval;
             }
+            logger.log(
+                shouldWarnByIterationCount || shouldWarnByTime ? Level.INFO : i % 100 == 0 ? Level.DEBUG : Level.TRACE,
+                () -> Strings.format(
+                    "Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations",
+                    desiredBalanceInput.index(),
+                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                    iterations
+                )
+            );
         }
         iterations.inc(i);
+
+        final int iterations = i;
+        final long currentTime = threadPool.relativeTimeInMillis();
+        logger.debug(
+            () -> Strings.format(
+                "Desired balance computation for [%d] is converged after [%s] and [%d] iterations",
+                desiredBalanceInput.index(),
+                TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                iterations
+            )
+        );
 
         final var assignments = new HashMap<ShardId, ShardAssignment>();
         for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {

@@ -221,6 +221,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
         allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
         recordTime(cumulativeReconciliationTime, new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering)::run);
+        if (logger.isTraceEnabled()) {
+            logger.trace("Reconciled desired balance: {}", desiredBalance);
+        } else {
+            logger.debug("Reconciled desired balance for [{}]", desiredBalance.lastConvergedIndex());
+        }
     }
 
     public DesiredBalance getDesiredBalance() {

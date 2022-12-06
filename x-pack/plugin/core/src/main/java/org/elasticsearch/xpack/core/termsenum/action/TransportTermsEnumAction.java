@@ -727,9 +727,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                         false
                     )
                 );
-            }
-            if (canMatchShard(shardId, request) == false) {
-                // Permission denied or can't match, remove shardID from request
+                request.remove(shardId);
+            } else if (canMatchShard(shardId, request) == false) {
+                // if can't match, remove shardID from request as well
                 request.remove(shardId);
             }
         }

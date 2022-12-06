@@ -449,8 +449,8 @@ NOTE: It is not currently possible to use `aggregate_metric_double` type fields
 in {dfeeds} without aggregations. 
 
 You can use fields with the 
-<<aggregate-metric-double,`aggregate_metric_double`>> field type in a {dfeed} 
-with aggregations. It is required to retrieve the `value_count` of the 
+{ref}/aggregate-metric-double.html[`aggregate_metric_double`] field type in a 
+{dfeed} with aggregations. It is required to retrieve the `value_count` of the 
 `aggregate_metric_double` filed in an aggregation and then use it as the 
 `summary_count_field_name`.
 

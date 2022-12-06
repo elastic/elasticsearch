@@ -16,5 +16,5 @@ sudo -i service elasticsearch stop
 +
 [source,sh]
 --------------------------------------------------
-kill $(cat pid)
+kill $(cat /run/elasticsearch/elasticsearch.pid)
 --------------------------------------------------

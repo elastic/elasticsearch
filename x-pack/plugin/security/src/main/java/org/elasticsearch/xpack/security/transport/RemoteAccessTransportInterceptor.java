@@ -146,9 +146,6 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
     }
 
     private boolean shouldSendWithRemoteAccessHeaders(final Transport.Connection connection, final TransportRequest request) {
-        final Authentication authentication = securityContext.getAuthentication();
-        assert authentication != null : "authentication must be present in security context";
-
         // This is not strictly necessary, but it allows us to skip all additional checks below early
         if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
             return false;
@@ -162,6 +159,8 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
             return false;
         }
 
+        final Authentication authentication = securityContext.getAuthentication();
+        assert authentication != null : "authentication must be present in security context";
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         // We will lift this restriction as we add support for these types (and internal users)
         final boolean isSubjectTypeUnsupported = effectiveSubject.getType().equals(Subject.Type.API_KEY)

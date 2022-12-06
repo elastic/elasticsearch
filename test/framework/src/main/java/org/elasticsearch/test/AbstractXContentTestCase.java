@@ -87,13 +87,20 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
         Function<XContentType, T> instanceSupplier,
         ToXContent.Params toXContentParams,
-        CheckedFunction<XContentParser, T, IOException> fromXContent
+        CheckedFunction<XContentParser, T, IOException> fromXContent,
+        boolean fragment
     ) {
         return new XContentTester<>(createParser, instanceSupplier, (testInstance, xContentType) -> {
             try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
                 var serialization = testInstance.toXContentChunked(toXContentParams);
+                if (fragment) {
+                    builder.startObject();
+                }
                 while (serialization.hasNext()) {
                     serialization.next().toXContent(builder, toXContentParams);
+                }
+                if (fragment) {
+                    builder.endObject();
                 }
                 return BytesReference.bytes(builder);
             }

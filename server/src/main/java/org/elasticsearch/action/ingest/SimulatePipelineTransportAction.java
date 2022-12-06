@@ -46,7 +46,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     private final IngestService ingestService;
     private final SimulateExecutionService executionService;
     private final TransportService transportService;
-    private TimeValue ingestNodeTransportActionTimeout;
+    private volatile TimeValue ingestNodeTransportActionTimeout;
     // ThreadLocal because our unit testing framework does not like sharing Randoms across threads
     private final ThreadLocal<Random> random = ThreadLocal.withInitial(Randomness::get);
 

@@ -13,10 +13,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
@@ -63,7 +61,7 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
     }
 
     public static boolean isWhitelistedForRemoteAccessHeaders(final TransportRequest request) {
-        // TODO validate this is necessary and sufficient for CCS
+        // TODO validate this list is necessary and sufficient for CCS
         return request instanceof ShardSearchRequest || request instanceof SearchRequest || request instanceof ClusterSearchShardsRequest;
     }
 
@@ -129,7 +127,7 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
                                 new TransportService.ContextRestoreResponseHandler<>(contextSupplier, handler)
                             );
                         }
-                    }, e -> handler.handleException(new RemoteAccessTransportException(connection.getNode(), action, e))),
+                    }, e -> handler.handleException(new TransportException("failure sending with remote access headers", e))),
                         securityContext.getThreadContext()
                     )
                 );
@@ -194,11 +192,5 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
 
     private String withApiKeyPrefix(final String clusterCredential) {
         return "ApiKey " + clusterCredential;
-    }
-
-    static final class RemoteAccessTransportException extends ActionTransportException {
-        RemoteAccessTransportException(DiscoveryNode node, String action, Throwable cause) {
-            super(node == null ? null : node.getName(), node == null ? null : node.getAddress(), action, cause);
-        }
     }
 }

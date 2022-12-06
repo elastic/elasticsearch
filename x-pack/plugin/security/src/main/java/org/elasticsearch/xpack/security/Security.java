@@ -920,6 +920,9 @@ public class Security extends Plugin
             destructiveOperations
         );
         securityInterceptor.set(
+            // The order matters here; we want the sender intercepted by security server transport to first be intercepted by remote access
+            // interceptor (or conversely, for the request to first be transformed by security server transport, then remote access
+            // transport)
             new NetworkModule.CompositeTransportInterceptor(List.of(remoteAccessTransportInterceptor, securityServerTransportInterceptor))
         );
 

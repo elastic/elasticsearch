@@ -128,6 +128,8 @@ public class DistinguishedNameNormalizerTests extends ESTestCase {
             .map(dn -> randomBoolean() ? new FieldValue(dn) : new FieldValue("*," + dn))
             .toList();
         expressionModel.test("groups", fieldValues);
+        // Also does not matter how many times the model is tested
+        expressionModel.test("groups", randomNonEmptySubsetOf(fieldValues));
 
         final ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
         verify(spyDnNormalizer, times(dnList.size())).doNormalize(argumentCaptor.capture());

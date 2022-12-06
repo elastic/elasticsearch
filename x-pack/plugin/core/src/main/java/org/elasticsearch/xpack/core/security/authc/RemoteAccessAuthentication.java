@@ -96,6 +96,16 @@ public final class RemoteAccessAuthentication {
         return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesList);
     }
 
+    @Override
+    public String toString() {
+        return "RemoteAccessAuthentication{"
+            + "authentication="
+            + authentication
+            + ", roleDescriptorsBytesList="
+            + roleDescriptorsBytesList
+            + '}';
+    }
+
     public static final class RoleDescriptorsBytes extends AbstractBytesReference {
         private final BytesReference rawBytes;
 

@@ -134,5 +134,4 @@ public class RemoteAccessTransportInterceptor implements TransportInterceptor {
             }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
         );
     }
-
 }

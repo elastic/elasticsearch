@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -26,6 +27,7 @@ import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.junit.After;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests that snapshot restore behaves correctly when we have file based settings that reserve part of the
  * cluster state
  */
-public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
+public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testFileSettingsJSON = """
@@ -74,6 +76,10 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
+    private long retryDelay(int retryCount) {
+        return 100 * (1 << retryCount) + Randomness.get().nextInt(10);
+    }
+
     private void writeJSONFile(String node, String json) throws Exception {
         long version = versionCounter.incrementAndGet();
 
@@ -83,7 +89,21 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         Path tempFilePath = createTempFile();
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        int retryCount = 0;
+        do {
+            try {
+                // this can fail on Windows because of timing
+                Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+                return;
+            } catch (IOException e) {
+                logger.info("--> retrying writing a settings file [" + retryCount + "]");
+                if (retryCount == 4) { // retry 5 times
+                    throw e;
+                }
+                Thread.sleep(retryDelay(retryCount));
+                retryCount++;
+            }
+        } while (true);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {

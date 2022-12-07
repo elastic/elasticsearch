@@ -1,5 +1,5 @@
 pr: 92173
-summary: Wait until security index is ready for role mappings
+summary: In file based settings, wait until security index is ready for role mappings
 area: Infra/Core
 type: bug
 issues:

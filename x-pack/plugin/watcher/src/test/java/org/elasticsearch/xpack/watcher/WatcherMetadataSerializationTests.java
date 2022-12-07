@@ -64,7 +64,7 @@ public class WatcherMetadataSerializationTests extends ESTestCase {
             Collections.singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY)
         );
         builder.startObject();
-        builder = metadataBuilder.build().toXContent(builder, params);
+        builder = ChunkedToXContent.wrapAsXContentObject(metadataBuilder.build()).toXContent(builder, params);
         builder.endObject();
         // deserialize metadata again
         Metadata metadata = Metadata.Builder.fromXContent(createParser(builder));

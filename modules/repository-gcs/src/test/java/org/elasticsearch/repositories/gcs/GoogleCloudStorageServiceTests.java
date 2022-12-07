@@ -197,6 +197,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
                     var socket = proxyServerSocket.accept();
                     var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
                 ) {
+                    // No `CONNECT` HTTP tunnels, because it's just a direct HTTP call,
                     assertEquals("GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1", reader.readLine());
                     String projectId = "proxy_project_id";
                     socket.getOutputStream().write(formatted("""

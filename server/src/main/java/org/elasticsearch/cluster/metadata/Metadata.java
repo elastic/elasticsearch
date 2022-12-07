@@ -75,8 +75,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.TreeMap;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -84,7 +82,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -1340,7 +1337,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
             : Collections.emptyIterator();
 
-        return Iterators.concat(start, Iterators.single((builder, params) -> {
+        return Iterators.concat(start, Iterators.<ToXContent>single((builder, params) -> {
             builder.field("cluster_uuid", clusterUUID);
             builder.field("cluster_uuid_committed", clusterUUIDCommitted);
             builder.startObject("cluster_coordination");
@@ -1362,17 +1359,12 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     .iterator()
             ),
             indices,
-            customs().entrySet()
-                .stream()
-                .filter(cursor -> cursor.getValue().context().contains(context))
-                .map(
-                    cursor -> (ChunkedToXContent) params -> ChunkedToXContentHelper.wrapWithObject(
-                        cursor.getKey(),
-                        cursor.getValue().toXContentChunked(params)
-                    )
-                )
-                .flatMap(s -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(s.toXContentChunked(p), Spliterator.ORDERED), false))
-                .iterator(),
+            Iterators.flatMap(
+                customs.entrySet().iterator(),
+                entry -> entry.getValue().context().contains(context)
+                    ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                    : Collections.emptyIterator()
+            ),
             ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
             ChunkedToXContentHelper.endObject()
         );

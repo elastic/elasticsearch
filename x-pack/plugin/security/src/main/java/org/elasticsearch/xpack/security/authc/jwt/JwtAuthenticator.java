@@ -15,12 +15,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
@@ -136,9 +133,6 @@ public class JwtAuthenticator implements Releasable {
 
     private static List<JwtFieldValidator> configureFieldValidatorsForIdToken(RealmConfig realmConfig) {
         assert realmConfig.getSetting(JwtRealmSettings.TOKEN_TYPE) == JwtRealmSettings.TokenType.ID_TOKEN;
-        ensureNoFallbackClaim(realmConfig, JwtRealmSettings.FALLBACK_SUB_CLAIM);
-        ensureNoFallbackClaim(realmConfig, JwtRealmSettings.FALLBACK_AUD_CLAIM);
-
         final TimeValue allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
         final Clock clock = Clock.systemUTC();
 
@@ -181,18 +175,5 @@ public class JwtAuthenticator implements Releasable {
             new JwtDateClaimValidator(clock, "exp", allowedClockSkew, JwtDateClaimValidator.Relationship.AFTER_NOW, false)
         );
 
-    }
-
-    private static void ensureNoFallbackClaim(RealmConfig realmConfig, Setting.AffixSetting<String> fallBackClaim) {
-        if (realmConfig.hasSetting(fallBackClaim)) {
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "fallback claim setting [%s] not allowed when JWT realm [%s] is [%s] type",
-                    RealmSettings.getFullSettingKey(realmConfig, fallBackClaim),
-                    realmConfig.name(),
-                    JwtRealmSettings.TokenType.ID_TOKEN.value()
-                )
-            );
-        }
     }
 }

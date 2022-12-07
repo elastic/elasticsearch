@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.junit.Before;
 
@@ -39,31 +38,5 @@ public class JwtAuthenticatorIdTokenTypeTests extends JwtAuthenticatorTests {
 
     public void testInvalidIssuerIsCheckedBeforeAlgorithm() throws ParseException {
         doTestInvalidIssuerIsCheckedBeforeAlgorithm(buildJwtAuthenticator(fallbackSub, fallbackAud));
-    }
-
-    public void testIdTokenTypeDoesNotAcceptFallbackClaimSettings() {
-        fallbackSub = randomBoolean() ? randomAlphaOfLength(8) : null;
-        if (fallbackSub == null) {
-            fallbackAud = randomAlphaOfLength(8);
-        } else {
-            fallbackAud = randomBoolean() ? randomAlphaOfLength(8) : null;
-        }
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> buildJwtAuthenticator(fallbackSub, fallbackAud)
-        );
-
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "fallback claim setting ["
-                    + (fallbackSub != null
-                        ? RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_SUB_CLAIM)
-                        : RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_AUD_CLAIM))
-                    + "] not allowed when JWT realm ["
-                    + realmName
-                    + "] is [id_token] type"
-            )
-        );
     }
 }

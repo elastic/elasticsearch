@@ -19,7 +19,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -256,18 +258,48 @@ public class JwtRealmSettings {
 
     // Registered claim names from the JWT spec https://www.rfc-editor.org/rfc/rfc7519#section-4.1.
     // Being registered means they have prescribed meanings when they present in a JWT.
-    private static final List<String> REGISTERED_CLAIM_NAMES = List.of("iss", "sub", "aud", "exp", "nbf", "iat", "jti");
+    public static final List<String> REGISTERED_CLAIM_NAMES = List.of("iss", "sub", "aud", "exp", "nbf", "iat", "jti");
 
     public static final Setting.AffixSetting<String> FALLBACK_SUB_CLAIM = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "fallback_claims.sub",
-        key -> new Setting<>(key, "sub", Function.identity(), v -> verifyFallbackClaimName(key, v), Setting.Property.NodeScope)
+        key -> Setting.simpleString(key, "sub", new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                validateFallbackClaimSetting(FALLBACK_SUB_CLAIM, key, value, settings, isPresent);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = FALLBACK_SUB_CLAIM.getNamespace(FALLBACK_SUB_CLAIM.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(TOKEN_TYPE.getConcreteSettingForNamespace(namespace));
+                return settings.iterator();
+            }
+        }, Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<String> FALLBACK_AUD_CLAIM = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "fallback_claims.aud",
-        key -> new Setting<>(key, "aud", Function.identity(), v -> verifyFallbackClaimName(key, v), Setting.Property.NodeScope)
+        key -> Setting.simpleString(key, "aud", new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                validateFallbackClaimSetting(FALLBACK_AUD_CLAIM, key, value, settings, isPresent);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = FALLBACK_AUD_CLAIM.getNamespace(FALLBACK_AUD_CLAIM.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(TOKEN_TYPE.getConcreteSettingForNamespace(namespace));
+                return settings.iterator();
+            }
+        }, Setting.Property.NodeScope)
     );
 
     // Note: ClaimSetting is a wrapper for two individual settings: getClaim(), getPattern()
@@ -380,6 +412,31 @@ public class JwtRealmSettings {
         for (final String value : values) {
             verifyNonNullNotEmpty(key, value, allowedValues);
         }
+    }
+
+    private static void validateFallbackClaimSetting(
+        Setting.AffixSetting<String> setting,
+        String key,
+        String value,
+        Map<Setting<?>, Object> settings,
+        boolean isPresent
+    ) {
+        if (false == isPresent) {
+            return;
+        }
+        final String namespace = setting.getNamespace(setting.getConcreteSetting(key));
+        final TokenType tokenType = (TokenType) settings.get(TOKEN_TYPE.getConcreteSettingForNamespace(namespace));
+        if (tokenType == TokenType.ID_TOKEN) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "fallback claim setting [%s] is not allowed when JWT realm [%s] is [%s] type",
+                    key,
+                    namespace,
+                    JwtRealmSettings.TokenType.ID_TOKEN.value()
+                )
+            );
+        }
+        verifyFallbackClaimName(key, value);
     }
 
     private static void verifyFallbackClaimName(String key, String fallbackClaimName) {

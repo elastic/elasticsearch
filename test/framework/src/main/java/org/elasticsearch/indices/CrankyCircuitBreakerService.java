@@ -16,9 +16,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.test.ESTestCase;
 
 /**
- * {@link CircuitBreakerService} that fails every 20th time you add bytes. This
- * is useful to make sure code responds sensibly to circuit breaks at unpredictable
- * times.
+ * {@link CircuitBreakerService} that fails one twentieth of the time when you
+ * add bytes. This is useful to make sure code responds sensibly to circuit
+ * breaks at unpredictable times.
  */
 public class CrankyCircuitBreakerService extends CircuitBreakerService {
     /**

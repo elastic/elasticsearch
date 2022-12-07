@@ -234,6 +234,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 Set<ShardId> shards = nodeBundles.get(str.getNodeId());
                 if (str.getError() != null) {
                     complete = false;
+                    // TODO is that true when we have DLS errors?
                     // A single reported error is assumed to be for all shards queried on that node.
                     // When reading we read from multiple Lucene indices in one unified view so any error is
                     // assumed to be all shards on that node.

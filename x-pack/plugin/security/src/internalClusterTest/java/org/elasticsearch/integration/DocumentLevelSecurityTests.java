@@ -10,6 +10,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -72,6 +73,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
@@ -83,6 +87,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -142,6 +147,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             role3:user2,user3
             role4:user4
             role5:user5
+            role6:user3
             """;
     }
 
@@ -189,6 +195,11 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                   privileges: [ read ]
                   field_security:
                      grant: [ 'field1', 'other_field', 'suggest_field2' ]
+            role6:
+              cluster: [ all ]
+              indices:
+                - names: [ 'unrestricted' ]
+                  privileges: [ read ]
             """;
     }
 
@@ -1509,4 +1520,79 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(e.getMessage(), equalTo("A search request cannot be profiled if document level security is enabled"));
     }
 
+    public void testTermsEnum() throws Exception {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build())
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text", "enum", "type=keyword")
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("unrestricted")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build())
+                .setMapping("field1", "type=text", "field2", "type=text", "field3", "type=text", "enum", "type=keyword")
+        );
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "enum", "foo").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("2").setSource("field2", "value2", "enum", "bar").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("3").setSource("field3", "value3", "enum", "baz").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("unrestricted").setId("1").setSource("field1", "value1", "enum", "foo2").setRefreshPolicy(IMMEDIATE).get();
+
+        {
+            TermsEnumResponse[] responses = new TermsEnumResponse[1];
+            CountDownLatch latch = new CountDownLatch(1);
+
+            final ActionListener<TermsEnumResponse> listener = new ActionListener<>() {
+
+                @Override
+                public void onResponse(final TermsEnumResponse response) {
+                    responses[0] = response;
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    fail("onFailure invoked");
+                }
+            };
+
+            // user2 has DLS restriction on all indices, so we expect no term results but a warning per index
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("test", "unrestricted").field("enum"), listener);
+            latch.await();
+
+            assertEquals(0, responses[0].getTerms().size());
+            assertFalse(responses[0].isComplete());
+        }
+        {
+            TermsEnumResponse[] responses = new TermsEnumResponse[1];
+            CountDownLatch latch = new CountDownLatch(1);
+
+            final ActionListener<TermsEnumResponse> listener = new ActionListener<>() {
+
+                @Override
+                public void onResponse(final TermsEnumResponse response) {
+                    responses[0] = response;
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    fail("onFailure invoked");
+                }
+            };
+
+            // user3 has DLS restriction on "test" index but not on "unrestricted"
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("test", "unrestricted").field("enum"), listener);
+            latch.await();
+
+            assertEquals(1, responses[0].getTerms().size());
+            assertTrue(responses[0].getTerms().contains("foo2"));
+            assertFalse(responses[0].isComplete());
+        }
+
+    }
 }

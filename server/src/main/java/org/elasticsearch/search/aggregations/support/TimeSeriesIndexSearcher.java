@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -22,6 +21,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.index.codec.tsdb.TSIDSortedDocValues;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -174,7 +174,7 @@ public class TimeSeriesIndexSearcher {
         private final LeafBucketCollector collector;
         private final Bits liveDocs;
         private final DocIdSetIterator iterator;
-        private final SortedDocValues tsids;
+        private final TSIDSortedDocValues tsids;
         private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
         private final BytesRefBuilder scratch = new BytesRefBuilder();
         int docId = -1;
@@ -188,7 +188,7 @@ public class TimeSeriesIndexSearcher {
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
             iterator = scorer.iterator();
-            tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
+            tsids = TSIDSortedDocValues.toTSIDSortedDocValues(DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME));
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         }
 

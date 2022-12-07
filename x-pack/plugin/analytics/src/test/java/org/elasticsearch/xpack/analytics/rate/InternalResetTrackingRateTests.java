@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -28,7 +26,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-@Seed("5313227FE8A8B004")
 public class InternalResetTrackingRateTests extends InternalAggregationTestCase<InternalResetTrackingRate> {
 
     @Override
@@ -61,9 +58,14 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
     @Override
     protected void assertReduced(InternalResetTrackingRate reduced, List<InternalResetTrackingRate> inputs) {
         for (InternalResetTrackingRate input : inputs) {
-            assertEquals(0.01f, input.getValue(), 0.0001);
+            assertEquals(0.01f, input.getValue(), 0.001);
         }
-        assertEquals(0.01f, reduced.getValue(), 0.0001);
+        assertEquals(0.01f, reduced.getValue(), 0.001);
+    }
+
+    @Override
+    protected boolean supportsOutOfOrderReduce() {
+        return false;
     }
 
     @Override
@@ -113,5 +115,18 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
                 return null;
             })
         );
+    }
+
+    public void testIncludes() {
+        InternalResetTrackingRate big = new InternalResetTrackingRate("n", null, null, 0, 0, 1000, 3000, 0);
+        InternalResetTrackingRate small = new InternalResetTrackingRate("n", null, null, 0, 0, 1500, 2500, 0);
+        assertTrue(big.includes(small));
+        assertFalse(small.includes(big));
+
+        InternalResetTrackingRate unrelated = new InternalResetTrackingRate("n", null, null, 0, 0, 100000, 1000010, 0);
+        assertFalse(big.includes(unrelated));
+        assertFalse(unrelated.includes(big));
+        assertFalse(small.includes(unrelated));
+        assertFalse(unrelated.includes(small));
     }
 }

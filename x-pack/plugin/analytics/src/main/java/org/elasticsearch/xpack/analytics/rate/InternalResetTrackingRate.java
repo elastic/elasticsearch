@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -82,23 +81,14 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         double startValue = toReduce.get(0).startValue;
         double endValue = toReduce.get(0).endValue;
         final int endIndex = toReduce.size() - 1;
-        System.out.print("0: ");
-        toReduce.get(0).print();
         for (int i = 1; i < endIndex + 1; i++) {
             InternalResetTrackingRate rate = toReduce.get(i);
-            System.out.print(i + ": ");
-            rate.print();
             assert rate.startTime >= toReduce.get(i - 1).endTime;
-            System.out.println("Prev end time: " + toReduce.get(i - 1).endTime + "   start time: " + rate.startTime);
-            System.out.println("Incrementing comp by " + rate.resetCompensation);
             resetComp += rate.resetCompensation;
             if (endValue > rate.startValue) {
-                System.out.println("Incrementing comp by " + endValue);
                 resetComp += endValue;
             }
             endValue = rate.endValue;
-            InternalResetTrackingRate running = new InternalResetTrackingRate("running", format, metadata, startValue, endValue, toReduce.get(0).startTime, rate.endTime, resetComp);
-            running.print();
         }
         return new InternalResetTrackingRate(
             name,
@@ -110,11 +100,6 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
             toReduce.get(endIndex).endTime,
             resetComp
         );
-    }
-
-    private void print() {
-        System.out.println(this.name + "v: " + value() + " startv: " + this.startValue + " endv: " + this.endValue + " comp: " + this.resetCompensation + " startt: " + this.startTime + " endt: " + this.endTime);
-        System.out.println("   tdiff: " + (endTime - startTime) + " vdiff: " + (endValue - startValue + resetCompensation));
     }
 
     @Override
@@ -130,5 +115,9 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
     @Override
     public double getValue() {
         return value();
+    }
+
+    boolean includes(InternalResetTrackingRate other) {
+        return this.startTime < other.startTime && this.endTime > other.endTime;
     }
 }

@@ -43,8 +43,6 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         return Collections.singletonList(new AnalyticsPlugin());
     }
 
-
-
     public void testSimple() throws IOException {
         RateAggregationBuilder builder = new RateAggregationBuilder("counter_field").field("counter_field");
         TimeSeriesAggregationBuilder tsBuilder = new TimeSeriesAggregationBuilder("tsid");

@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -108,7 +109,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                logger.info("Sending regular [{}]", request);
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
@@ -247,8 +247,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             }
 
             private boolean isWhitelistedForRemoteAccessHeaders(final TransportRequest request) {
-                // TODO validate this list is necessary and sufficient for CCS
                 return request instanceof ShardSearchRequest
+                    || request instanceof ShardFetchRequest
                     || request instanceof SearchRequest
                     || request instanceof ClusterSearchShardsRequest;
             }

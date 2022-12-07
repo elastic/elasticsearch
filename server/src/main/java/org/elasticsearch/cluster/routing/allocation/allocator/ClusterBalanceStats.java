@@ -132,7 +132,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
                 .field("min", min)
                 .field("max", max)
                 .field("average", average)
-                .field("stdDev", stdDev)
+                .field("std_dev", stdDev)
                 .endObject();
         }
     }

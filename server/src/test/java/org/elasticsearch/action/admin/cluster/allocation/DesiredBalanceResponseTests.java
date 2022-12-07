@@ -151,7 +151,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         Map<String, Object> json = createParser(
             ChunkedToXContent.wrapAsXContentObject(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
         ).map();
-        assertEquals(Set.of("stats", "routing_table"), json.keySet());
+        assertEquals(Set.of("stats", "cluster_balance_stats", "routing_table"), json.keySet());
 
         // stats
         Map<String, Object> stats = (Map<String, Object>) json.get("stats");
@@ -165,6 +165,36 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         assertEquals(stats.get("reconciliation_time_in_millis"), response.getStats().cumulativeReconciliationTime());
 
         // cluster balance stats
+        Map<String, Object> clusterBalanceStats = (Map<String, Object>) json.get("cluster_balance_stats");
+        assertEquals(clusterBalanceStats.keySet(), response.getClusterBalanceStats().tiers().keySet());
+        for (var entry : response.getClusterBalanceStats().tiers().entrySet()) {
+            Map<String, Object> tierStats = (Map<String, Object>) clusterBalanceStats.get(entry.getKey());
+            assertEquals(Set.of("shard_count", "total_write_load", "total_shard_size"), tierStats.keySet());
+
+            Map<String, Object> shardCountStats = (Map<String, Object>) tierStats.get("shard_count");
+            assertEquals(Set.of("total", "average", "min", "max", "std_dev"), shardCountStats.keySet());
+            assertEquals(shardCountStats.get("total"), entry.getValue().metrics().get("shard_count").total());
+            assertEquals(shardCountStats.get("average"), entry.getValue().metrics().get("shard_count").average());
+            assertEquals(shardCountStats.get("min"), entry.getValue().metrics().get("shard_count").min());
+            assertEquals(shardCountStats.get("max"), entry.getValue().metrics().get("shard_count").max());
+            assertEquals(shardCountStats.get("std_dev"), entry.getValue().metrics().get("shard_count").stdDev());
+
+            Map<String, Object> totalWriteLoadStats = (Map<String, Object>) tierStats.get("total_write_load");
+            assertEquals(Set.of("total", "average", "min", "max", "std_dev"), totalWriteLoadStats.keySet());
+            assertEquals(totalWriteLoadStats.get("total"), entry.getValue().metrics().get("total_write_load").total());
+            assertEquals(totalWriteLoadStats.get("average"), entry.getValue().metrics().get("total_write_load").average());
+            assertEquals(totalWriteLoadStats.get("min"), entry.getValue().metrics().get("total_write_load").min());
+            assertEquals(totalWriteLoadStats.get("max"), entry.getValue().metrics().get("total_write_load").max());
+            assertEquals(totalWriteLoadStats.get("std_dev"), entry.getValue().metrics().get("total_write_load").stdDev());
+
+            Map<String, Object> totalShardStats = (Map<String, Object>) tierStats.get("total_shard_size");
+            assertEquals(Set.of("total", "average", "min", "max", "std_dev"), totalShardStats.keySet());
+            assertEquals(totalShardStats.get("total"), entry.getValue().metrics().get("total_shard_size").total());
+            assertEquals(totalShardStats.get("average"), entry.getValue().metrics().get("total_shard_size").average());
+            assertEquals(totalShardStats.get("min"), entry.getValue().metrics().get("total_shard_size").min());
+            assertEquals(totalShardStats.get("max"), entry.getValue().metrics().get("total_shard_size").max());
+            assertEquals(totalShardStats.get("std_dev"), entry.getValue().metrics().get("total_shard_size").stdDev());
+        }
 
         // routing table
         Map<String, Object> jsonRoutingTable = (Map<String, Object>) json.get("routing_table");

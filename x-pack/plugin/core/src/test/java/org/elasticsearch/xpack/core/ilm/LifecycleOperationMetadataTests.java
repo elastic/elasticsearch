@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -19,7 +18,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class LifecycleOperationMetadataTests extends SimpleDiffableSerializationTestCase<Metadata.Custom> {
+public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingTestCase<Metadata.Custom> {
 
     @Override
     protected LifecycleOperationMetadata createTestInstance() {
@@ -53,13 +52,8 @@ public class LifecycleOperationMetadataTests extends SimpleDiffableSerialization
     }
 
     @Override
-    protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
-        return mutateInstance(testInstance);
-    }
-
-    @Override
-    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
-        return LifecycleOperationMetadata.LifecycleOperationMetadataDiff::new;
+    protected boolean isFragment() {
+        return true;
     }
 
     public void testMinimumSupportedVersion() {

@@ -14,15 +14,17 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -117,10 +119,10 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(ILM_OPERATION_MODE_FIELD.getPreferredName(), ilmOperationMode);
-        builder.field(SLM_OPERATION_MODE_FIELD.getPreferredName(), slmOperationMode);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        ToXContent ilmModeField = ((builder, params2) -> builder.field(ILM_OPERATION_MODE_FIELD.getPreferredName(), ilmOperationMode));
+        ToXContent slmModeField = ((builder, params2) -> builder.field(SLM_OPERATION_MODE_FIELD.getPreferredName(), slmOperationMode));
+        return Iterators.forArray(new ToXContent[] { ilmModeField, slmModeField });
     }
 
     @Override

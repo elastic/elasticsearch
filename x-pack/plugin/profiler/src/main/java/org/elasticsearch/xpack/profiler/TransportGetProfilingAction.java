@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.profiler;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
@@ -17,6 +19,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
@@ -33,6 +36,7 @@ import java.util.Random;
 import java.util.Set;
 
 public class TransportGetProfilingAction extends HandledTransportAction<GetProfilingRequest, GetProfilingResponse> {
+    private static final Logger log = LogManager.getLogger(TransportGetProfilingAction.class);
     private final NodeClient nodeClient;
     private final TransportService transportService;
 
@@ -61,7 +65,17 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
                 @Override
                 public void onFailure(Exception e) {
-                    submitListener.onFailure(e);
+                    // Apart from profiling-events-all, indices are created lazily. In a relatively empty cluster it can happen
+                    // that there are so few data that we need to resort to the full index. As this is an edge case we'd rather
+                    // fail instead of prematurely checking for existence in all cases.
+                    if (e instanceof IndexNotFoundException) {
+                        String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
+                        EventsIndex fullIndex = EventsIndex.FULL_INDEX;
+                        log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
+                        searchEventGroupByStackTrace(client, request, fullIndex, submitListener);
+                    } else {
+                        submitListener.onFailure(e);
+                    }
                 }
             });
     }

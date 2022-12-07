@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LatLonGeometryRelationVisitorTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92151")
     public void testPoint() throws Exception {
         doTestShapes(GeoTestUtil::nextPoint);
     }

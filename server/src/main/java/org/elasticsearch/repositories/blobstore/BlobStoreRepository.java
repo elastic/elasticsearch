@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -272,14 +273,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "metadata",
         METADATA_NAME_FORMAT,
-        (repoName, parser) -> Metadata.fromXContent(parser)
+        (repoName, parser) -> Metadata.fromXContent(parser),
+        ChunkedToXContent::wrapAsXContentObject
     );
 
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
         METADATA_NAME_FORMAT,
         (repoName, parser) -> IndexMetadata.Builder.legacyFromXContent(parser),
-        (repoName, parser) -> IndexMetadata.fromXContent(parser)
+        (repoName, parser) -> IndexMetadata.fromXContent(parser),
+        Function.identity()
     );
 
     private static final String SNAPSHOT_CODEC = "snapshot";
@@ -287,19 +290,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final ChecksumBlobStoreFormat<SnapshotInfo> SNAPSHOT_FORMAT = new ChecksumBlobStoreFormat<>(
         SNAPSHOT_CODEC,
         SNAPSHOT_NAME_FORMAT,
-        SnapshotInfo::fromXContentInternal
+        SnapshotInfo::fromXContentInternal,
+        Function.identity()
     );
 
     public static final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshot> INDEX_SHARD_SNAPSHOT_FORMAT = new ChecksumBlobStoreFormat<>(
         SNAPSHOT_CODEC,
         SNAPSHOT_NAME_FORMAT,
-        (repoName, parser) -> BlobStoreIndexShardSnapshot.fromXContent(parser)
+        (repoName, parser) -> BlobStoreIndexShardSnapshot.fromXContent(parser),
+        Function.identity()
     );
 
     public static final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshots> INDEX_SHARD_SNAPSHOTS_FORMAT = new ChecksumBlobStoreFormat<>(
         "snapshots",
         SNAPSHOT_INDEX_NAME_FORMAT,
-        (repoName, parser) -> BlobStoreIndexShardSnapshots.fromXContent(parser)
+        (repoName, parser) -> BlobStoreIndexShardSnapshots.fromXContent(parser),
+        Function.identity()
     );
 
     public static final Setting<ByteSizeValue> MAX_SNAPSHOT_BYTES_PER_SEC = Setting.byteSizeSetting(

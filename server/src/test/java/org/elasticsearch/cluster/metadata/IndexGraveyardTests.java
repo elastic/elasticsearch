@@ -11,8 +11,10 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -57,12 +59,26 @@ public class IndexGraveyardTests extends ESTestCase {
         final IndexGraveyard graveyard = createRandom();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        graveyard.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        final var iterator = graveyard.toXContentChunked(ToXContent.EMPTY_PARAMS);
+        int chunks = 0;
+        while (iterator.hasNext()) {
+            ++chunks;
+            iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+        assertEquals(2 + graveyard.getTombstones().size(), chunks);
         builder.endObject();
         if (graveyard.getTombstones().size() > 0) {
             // check that date properly printed
             assertThat(
-                Strings.toString(graveyard, false, true),
+                Strings.toString(
+                    ignored -> Iterators.concat(
+                        ChunkedToXContentHelper.startObject(),
+                        graveyard.toXContentChunked(ToXContent.EMPTY_PARAMS),
+                        ChunkedToXContentHelper.endObject()
+                    ),
+                    false,
+                    true
+                ),
                 containsString(
                     XContentElasticsearchExtension.DEFAULT_FORMATTER.format(
                         Instant.ofEpochMilli(graveyard.getTombstones().get(0).getDeleteDateInMillis())

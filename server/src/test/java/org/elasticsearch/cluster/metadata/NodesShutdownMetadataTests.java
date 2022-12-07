@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NodesShutdownMetadataTests extends SimpleDiffableSerializationTestCase<Metadata.Custom> {
+public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
 
     public void testInsertNewNodeShutdownMetadata() {
         NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
@@ -141,5 +141,10 @@ public class NodesShutdownMetadataTests extends SimpleDiffableSerializationTestC
     @Override
     protected Metadata.Custom mutateInstance(Metadata.Custom instance) throws IOException {
         return makeTestChanges(instance);
+    }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
     }
 }

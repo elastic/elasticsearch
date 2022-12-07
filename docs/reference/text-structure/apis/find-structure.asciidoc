@@ -538,7 +538,8 @@ If the request does not encounter errors, you receive the following result:
   }
 }
 ----
-// TESTRESPONSE[s/"sample_start" : ".*",/"sample_start" : "$body.sample_start",/]
+// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/92141"]
+// original (put back after unmuting)[s/"sample_start" : ".*",/"sample_start" : "$body.sample_start",/]
 // The substitution is because the text is pre-processed by the test harness,
 // so the fields may get reordered in the JSON the endpoint sees
 

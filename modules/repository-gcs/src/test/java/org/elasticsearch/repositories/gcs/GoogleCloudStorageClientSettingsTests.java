@@ -8,7 +8,6 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.services.storage.StorageScopes;
-import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -25,7 +24,6 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.net.ServerSocket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -93,69 +91,6 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         assertGoogleCredential(expectedClientSettings.getCredential(), loadCredential(randomClient.v2(), clientName, null));
     }
 
-    public void testRefreshCredentialsAccessTokenWithProxy() throws Exception {
-        String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        var secureSettings = new MockSecureSettings();
-        secureSettings.setFile(
-            CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-            formatted(
-                """
-                    {
-                      "type": "service_account",
-                      "project_id": "project_id_%s",
-                      "private_key_id": "private_key_id_%s",
-                      "private_key": "-----BEGIN PRIVATE KEY-----\\n%s\\n-----END PRIVATE KEY-----\\n",
-                      "client_email": "%s",
-                      "client_id": "id_%s",
-                      "token_uri": "%s"
-                    }""",
-                clientName,
-                clientName,
-                Base64.getEncoder().encodeToString(KeyPairGenerator.getInstance("RSA").generateKeyPair().getPrivate().getEncoded()),
-                clientName,
-                clientName,
-                URI.create("http://oauth2.googleapis.com/oauth2/token")
-            ).getBytes(StandardCharsets.UTF_8)
-        );
-        var settings = Settings.builder().setSecureSettings(secureSettings).build();
-        ServerSocket proxyServerSocket = new MockServerSocket(0);
-        Thread proxyServerThread = new Thread(() -> {
-            while (Thread.currentThread().isInterrupted() == false) {
-                try (
-                    var socket = proxyServerSocket.accept();
-                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
-                ) {
-                    assertEquals("POST http://oauth2.googleapis.com/oauth2/token HTTP/1.1", reader.readLine());
-                    String body = """
-                        {
-                            "access_token": "proxy_access_token",
-                            "token_type": "bearer",
-                            "expires_in": 3600
-                        }
-                        """;
-                    socket.getOutputStream().write(formatted("""
-                        HTTP/1.1 200 OK\r
-                        Content-Length: %s\r
-                        \r
-                        %s\r
-                        """, body.length(), body).getBytes(StandardCharsets.UTF_8));
-                    socket.getOutputStream().flush();
-                } catch (IOException ignored) {}
-            }
-        });
-        proxyServerThread.start();
-        var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServerSocket.getLocalPort()));
-
-        try {
-            ServiceAccountCredentials credentials = loadCredential(settings, clientName, proxy);
-            assertNotNull(credentials);
-            assertEquals("proxy_access_token", SocketAccess.doPrivilegedIOException(credentials::refreshAccessToken).getTokenValue());
-        } finally {
-            proxyServerThread.interrupt();
-            proxyServerSocket.close();
-        }
-    }
-
     public void testLoadInvalidCredential() throws Exception {
         final List<Setting<?>> deprecationWarnings = new ArrayList<>();
         final Settings.Builder settings = Settings.builder();
@@ -207,6 +142,69 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             proxy
         );
         assertEquals(proxy, googleCloudStorageClientSettings.getProxy());
+    }
+
+    public void testRefreshCredentialsAccessTokenWithProxy() throws Exception {
+        String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        var secureSettings = new MockSecureSettings();
+        secureSettings.setFile(
+            CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            formatted(
+                """
+                    {
+                      "type": "service_account",
+                      "project_id": "project_id_%s",
+                      "private_key_id": "private_key_id_%s",
+                      "private_key": "-----BEGIN PRIVATE KEY-----\\n%s\\n-----END PRIVATE KEY-----\\n",
+                      "client_email": "%s",
+                      "client_id": "id_%s",
+                      "token_uri": "%s"
+                    }""",
+                clientName,
+                clientName,
+                Base64.getEncoder().encodeToString(KeyPairGenerator.getInstance("RSA").generateKeyPair().getPrivate().getEncoded()),
+                clientName,
+                clientName,
+                URI.create("http://oauth2.googleapis.com/oauth2/token")
+            ).getBytes(StandardCharsets.UTF_8)
+        );
+        var settings = Settings.builder().setSecureSettings(secureSettings).build();
+        var proxyServerSocket = new MockServerSocket(0);
+        var proxyServerThread = new Thread(() -> {
+            while (Thread.currentThread().isInterrupted() == false) {
+                try (
+                    var socket = proxyServerSocket.accept();
+                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
+                ) {
+                    assertEquals("POST http://oauth2.googleapis.com/oauth2/token HTTP/1.1", reader.readLine());
+                    String body = """
+                        {
+                            "access_token": "proxy_access_token",
+                            "token_type": "bearer",
+                            "expires_in": 3600
+                        }
+                        """;
+                    socket.getOutputStream().write(formatted("""
+                        HTTP/1.1 200 OK\r
+                        Content-Length: %s\r
+                        \r
+                        %s\r
+                        """, body.length(), body).getBytes(StandardCharsets.UTF_8));
+                    socket.getOutputStream().flush();
+                } catch (IOException ignored) {}
+            }
+        });
+        proxyServerThread.start();
+        var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServerSocket.getLocalPort()));
+
+        try {
+            ServiceAccountCredentials credentials = loadCredential(settings, clientName, proxy);
+            assertNotNull(credentials);
+            assertEquals("proxy_access_token", SocketAccess.doPrivilegedIOException(credentials::refreshAccessToken).getTokenValue());
+        } finally {
+            proxyServerThread.interrupt();
+            proxyServerSocket.close();
+        }
     }
 
     /** Generates a given number of GoogleCloudStorageClientSettings along with the Settings to build them from **/

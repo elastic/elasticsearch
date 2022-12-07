@@ -830,7 +830,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Adds a listener that gets invoked with the current cluster state before processor factories
      * get invoked.
-     *
+     * <p>
      * This is useful for components that are used by ingest processors, so that they have the opportunity to update
      * before these components get used by the ingest processor factory.
      */

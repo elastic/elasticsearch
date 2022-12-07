@@ -165,9 +165,8 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             .asMatchPredicate()
             .or(Pattern.compile("snapshots\\.\\d+\\.index_details").asMatchPredicate())
             .or(Pattern.compile("failures\\.*").asMatchPredicate());
-        chunkedXContentTester(this::createParser, (XContentType t) -> createTestInstance(), params, this::doParseInstance).numberOfTestRuns(
-            1
-        )
+        chunkedXContentTester(this::createParser, (XContentType t) -> createTestInstance(), params, this::doParseInstance, false)
+            .numberOfTestRuns(1)
             .supportsUnknownFields(true)
             .shuffleFieldsExceptions(Strings.EMPTY_ARRAY)
             .randomFieldsExcludeFilter(predicate)

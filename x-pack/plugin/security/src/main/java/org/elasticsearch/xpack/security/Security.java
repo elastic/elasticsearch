@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -49,6 +50,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -82,7 +84,9 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
+import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
@@ -338,10 +342,10 @@ import org.elasticsearch.xpack.security.transport.RemoteClusterAuthorizationReso
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1552,24 +1556,48 @@ public class Security extends Plugin
             return Collections.emptyMap();
         }
 
+        final IPFilter ipFilter = this.ipFilter.get();
+        final AcceptChannelHandler.AcceptPredicate acceptPredicate = new AcceptChannelHandler.AcceptPredicate() {
+            @Override
+            public void setBoundAddress(BoundTransportAddress boundHttpTransportAddress) {
+                ipFilter.setBoundHttpTransportAddress(boundHttpTransportAddress);
+            }
+
+            @Override
+            public boolean test(String profile, InetSocketAddress peerAddress) {
+                return ipFilter.accept(profile, peerAddress);
+            }
+        };
+
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
-        httpTransports.put(
-            SecurityField.NAME4,
-            () -> new SecurityNetty4HttpServerTransport(
+        httpTransports.put(SecurityField.NAME4, () -> {
+            final boolean ssl = HTTP_SSL_ENABLED.get(settings);
+            SSLService sslService = getSslService();
+            final SslConfiguration sslConfiguration;
+            if (ssl) {
+                sslConfiguration = sslService.getHttpTransportSSLConfiguration();
+                if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
+                    throw new IllegalArgumentException(
+                        "a key must be provided to run as a server. the key should be configured using the "
+                            + "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting"
+                    );
+                }
+            } else {
+                sslConfiguration = null;
+            }
+            return new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                pageCacheRecycler,
-                ipFilter.get(),
-                getSslService(),
                 threadPool,
                 xContentRegistry,
                 dispatcher,
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
-                tracer
-            )
-        );
-
+                tracer,
+                new TLSConfig(sslConfiguration, sslService::createSSLEngine),
+                acceptPredicate
+            );
+        });
         return httpTransports;
     }
 

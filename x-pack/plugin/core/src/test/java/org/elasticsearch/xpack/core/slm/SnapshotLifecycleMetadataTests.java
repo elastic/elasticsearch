@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class SnapshotLifecycleMetadataTests extends AbstractXContentSerializingTestCase<SnapshotLifecycleMetadata> {
+public class SnapshotLifecycleMetadataTests extends AbstractChunkedSerializingTestCase<SnapshotLifecycleMetadata> {
     @Override
     protected SnapshotLifecycleMetadata doParseInstance(XContentParser parser) throws IOException {
         return SnapshotLifecycleMetadata.PARSER.apply(parser, null);
@@ -40,5 +40,10 @@ public class SnapshotLifecycleMetadataTests extends AbstractXContentSerializingT
     @Override
     protected Writeable.Reader<SnapshotLifecycleMetadata> instanceReader() {
         return SnapshotLifecycleMetadata::new;
+    }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
     }
 }

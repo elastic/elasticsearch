@@ -161,7 +161,7 @@ public class Environment {
         }
 
         SecureSettings secureSettings = finalSettings.getSecureSettings();
-        if (DiscoveryNode.isStateless(settings) && secureSettings != null) {
+        if (DiscoveryNode.isStateless(settings)) {
             this.settings = FallbackSecureSettings.installFallbackSecureSettings(finalSettings.build());
         } else {
             this.settings = finalSettings.build();

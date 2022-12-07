@@ -23,10 +23,16 @@ import java.util.stream.Stream;
 /**
  * An implementation of secure settings that fall back to the YML settings.
  *
- * WARNING: this is a temporary class to be used only in the context of Stateless. It applies only to a predetermined set of secure
- * settings mainly for repository settings. Other secure settings do not fall back to YML settings.
+ * WARNING: this is a temporary class to be used only in the context of Stateless. It applies only to YML settings with a predetermined
+ * prefix. Other secure settings do not fall back to YML settings.
  */
 public class FallbackSecureSettings implements SecureSettings {
+    static final String FALLBACK_PREFIX = "insecure.";
+    static final Setting.AffixSetting<String> FALLBACK_SETTINGS = Setting.prefixKeySetting(
+        FALLBACK_PREFIX,
+        (key) -> Setting.simpleString(key, Setting.Property.NodeScope)
+    );
+
     private final SecureSettings secureSettings;
     private final Settings settings;
     private final Set<String> names;
@@ -42,17 +48,8 @@ public class FallbackSecureSettings implements SecureSettings {
 
         Stream<String> stream = settings.keySet()
             .stream()
-            .filter(
-                key -> ((key.startsWith("s3.client.") && key.endsWith(".access_key"))
-                    || (key.startsWith("s3.client.") && key.endsWith(".secret_key"))
-                    || (key.startsWith("s3.client.") && key.endsWith(".session_token"))
-                    || (key.startsWith("s3.client.") && key.endsWith(".proxy.username"))
-                    || (key.startsWith("s3.client.") && key.endsWith(".proxy.password"))
-                    || (key.startsWith("gcs.client.") && key.endsWith(".credentials_file"))
-                    || (key.startsWith("azure.client.") && key.endsWith(".account"))
-                    || (key.startsWith("azure.client.") && key.endsWith(".key"))
-                    || (key.startsWith("azure.client.") && key.endsWith(".sas_token")))
-            );
+            .filter(key -> (key.startsWith(FALLBACK_PREFIX)))
+            .map(s -> s.replace(FALLBACK_PREFIX, ""));
         if (secureSettings != null) {
             stream = Stream.concat(stream, secureSettings.getSettingNames().stream());
         }
@@ -79,7 +76,7 @@ public class FallbackSecureSettings implements SecureSettings {
                 return secureSettings.getString(setting);
             }
         }
-        return new SecureString(settings.get(setting).toCharArray());
+        return new SecureString(FALLBACK_SETTINGS.getConcreteSetting(FALLBACK_PREFIX + setting).get(settings).toCharArray());
     }
 
     @Override
@@ -89,7 +86,9 @@ public class FallbackSecureSettings implements SecureSettings {
                 return secureSettings.getFile(setting);
             }
         }
-        return new ByteArrayInputStream(settings.get(setting).getBytes(StandardCharsets.UTF_8));
+        return new ByteArrayInputStream(
+            FALLBACK_SETTINGS.getConcreteSetting(FALLBACK_PREFIX + setting).get(settings).getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     @Override
@@ -99,7 +98,8 @@ public class FallbackSecureSettings implements SecureSettings {
                 return secureSettings.getSHA256Digest(setting);
             }
         }
-        return MessageDigests.sha256().digest(settings.get(setting).getBytes(StandardCharsets.UTF_8));
+        return MessageDigests.sha256()
+            .digest(FALLBACK_SETTINGS.getConcreteSetting(FALLBACK_PREFIX + setting).get(settings).getBytes(StandardCharsets.UTF_8));
     }
 
     @Override
@@ -111,9 +111,6 @@ public class FallbackSecureSettings implements SecureSettings {
 
     public static Settings installFallbackSecureSettings(Settings settings) {
         FallbackSecureSettings fallbackSecureSettings = new FallbackSecureSettings(settings);
-        Settings.Builder newSettings = Settings.builder().put(settings, false);
-        fallbackSecureSettings.getSettingNames().forEach(key -> { if (newSettings.keys().contains(key)) newSettings.remove(key); });
-        newSettings.setSecureSettings(fallbackSecureSettings);
-        return newSettings.build();
+        return Settings.builder().put(settings, false).setSecureSettings(fallbackSecureSettings).build();
     }
 }

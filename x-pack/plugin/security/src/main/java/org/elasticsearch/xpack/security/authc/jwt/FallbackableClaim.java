@@ -9,19 +9,30 @@ package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jwt.JWTClaimsSet;
 
+import org.elasticsearch.core.Nullable;
+
 import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class FallbackClaim {
+/**
+ * A JWT claim that can optionally fallback to another claim (if configured) for retrieving the associated value
+ * from a {@link JWTClaimsSet}. The fallback behaviour happens only when:
+ * 1. The fallback is configured (it can be null)
+ * 2. The original claim does not exist in the {@link JWTClaimsSet}
+ * In any other cases, the original claim will be used for retrieving the value.
+ */
+public class FallbackableClaim {
     private final String name;
     private final JWTClaimsSet claimsSet;
     private final String actualName;
 
-    public FallbackClaim(String name, Map<String, String> fallbackClaimNames, JWTClaimsSet claimsSet) {
-        this.name = name;
+    public FallbackableClaim(String name, @Nullable Map<String, String> fallbackClaimNames, JWTClaimsSet claimsSet) {
+        this.name = Objects.requireNonNull(name);
+        this.claimsSet = Objects.requireNonNull(claimsSet);
         final String fallbackName;
         if (fallbackClaimNames != null) {
             fallbackName = fallbackClaimNames.getOrDefault(name, name);
@@ -33,7 +44,6 @@ public class FallbackClaim {
         } else {
             this.actualName = claimsSet.getClaim(name) != null ? name : fallbackName;
         }
-        this.claimsSet = claimsSet;
     }
 
     public String getActualName() {

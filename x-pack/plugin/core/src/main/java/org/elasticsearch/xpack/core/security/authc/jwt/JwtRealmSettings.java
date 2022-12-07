@@ -254,6 +254,8 @@ public class JwtRealmSettings {
         key -> Setting.stringListSetting(key, values -> verifyNonNullNotEmpty(key, values, null), Setting.Property.NodeScope)
     );
 
+    // Registered claim names from the JWT spec https://www.rfc-editor.org/rfc/rfc7519#section-4.1.
+    // Being registered means they have prescribed meanings when they present in a JWT.
     private static final List<String> REGISTERED_CLAIM_NAMES = List.of("iss", "sub", "aud", "exp", "nbf", "iat", "jti");
 
     public static final Setting.AffixSetting<String> FALLBACK_SUB_CLAIM = Setting.affixKeySetting(
@@ -386,6 +388,7 @@ public class JwtRealmSettings {
         if (claimName.equals(fallbackClaimName)) {
             return;
         }
+        // Registered claims have prescribed meanings and should not be used for something else.
         if (REGISTERED_CLAIM_NAMES.contains(fallbackClaimName)) {
             throw new IllegalArgumentException(
                 Strings.format(

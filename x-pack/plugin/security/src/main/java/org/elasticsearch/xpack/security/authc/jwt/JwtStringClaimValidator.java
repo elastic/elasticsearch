@@ -58,16 +58,16 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
 
     @Override
     public void validate(JWSHeader jwsHeader, JWTClaimsSet jwtClaimsSet) {
-        final FallbackClaim fallbackClaim = new FallbackClaim(claimName, fallbackClaimNames, jwtClaimsSet);
-        final List<String> claimValues = getStringClaimValues(fallbackClaim);
+        final FallbackableClaim fallbackableClaim = new FallbackableClaim(claimName, fallbackClaimNames, jwtClaimsSet);
+        final List<String> claimValues = getStringClaimValues(fallbackableClaim);
         if (claimValues == null) {
-            throw new IllegalArgumentException("missing required string claim [" + fallbackClaim + "]");
+            throw new IllegalArgumentException("missing required string claim [" + fallbackableClaim + "]");
         }
 
         if (allowedClaimValues != null && false == claimValues.stream().anyMatch(allowedClaimValues::contains)) {
             throw new IllegalArgumentException(
                 "string claim ["
-                    + fallbackClaim
+                    + fallbackableClaim
                     + "] has value ["
                     + Strings.collectionToCommaDelimitedString(claimValues)
                     + "] which does not match allowed claim values ["
@@ -77,12 +77,12 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
         }
     }
 
-    private List<String> getStringClaimValues(FallbackClaim fallbackClaim) {
+    private List<String> getStringClaimValues(FallbackableClaim fallbackableClaim) {
         if (singleValuedClaim) {
-            final String claimValue = fallbackClaim.getStringClaimValue();
+            final String claimValue = fallbackableClaim.getStringClaimValue();
             return claimValue != null ? List.of(claimValue) : null;
         } else {
-            return fallbackClaim.getStringListClaimValue();
+            return fallbackableClaim.getStringListClaimValue();
         }
     }
 }

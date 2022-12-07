@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
-import org.elasticsearch.xpack.security.authc.jwt.FallbackClaim;
+import org.elasticsearch.xpack.security.authc.jwt.FallbackableClaim;
 
 import java.util.Collection;
 import java.util.List;
@@ -82,9 +82,9 @@ public final class ClaimParser {
     }
 
     @SuppressWarnings("unchecked")
-    private static Collection<String> parseClaimValues(JWTClaimsSet claimsSet, FallbackClaim fallbackClaim, String settingKey) {
+    private static Collection<String> parseClaimValues(JWTClaimsSet claimsSet, FallbackableClaim fallbackableClaim, String settingKey) {
         Collection<String> values;
-        final Object claimValueObject = claimsSet.getClaim(fallbackClaim.getActualName());
+        final Object claimValueObject = claimsSet.getClaim(fallbackableClaim.getActualName());
         if (claimValueObject == null) {
             values = List.of();
         } else if (claimValueObject instanceof String) {
@@ -94,7 +94,7 @@ public final class ClaimParser {
                 values = (Collection<String>) claimValueObject;
             } else {
                 throw new SettingsException(
-                    "Setting [ " + settingKey + "] expects claim [" + fallbackClaim + "] with String or a String Array value"
+                    "Setting [ " + settingKey + "] expects claim [" + fallbackableClaim + "] with String or a String Array value"
                 );
             }
         return values;
@@ -117,27 +117,27 @@ public final class ClaimParser {
             if (realmConfig.hasSetting(setting.getPattern())) {
                 Pattern regex = Pattern.compile(realmConfig.getSetting(setting.getPattern()));
                 return new ClaimParser(setting.name(realmConfig), claimName, regex.pattern(), claims -> {
-                    final FallbackClaim fallbackClaim = new FallbackClaim(claimName, fallbackClaimNames, claims);
+                    final FallbackableClaim fallbackableClaim = new FallbackableClaim(claimName, fallbackClaimNames, claims);
                     Collection<String> values = parseClaimValues(
                         claims,
-                        fallbackClaim,
+                        fallbackableClaim,
                         RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
                     );
                     return values.stream().map(s -> {
                         if (s == null) {
-                            logger.debug("Claim [{}] is null", fallbackClaim);
+                            logger.debug("Claim [{}] is null", fallbackableClaim);
                             return null;
                         }
                         final Matcher matcher = regex.matcher(s);
                         if (matcher.find() == false) {
-                            logger.debug("Claim [{}] is [{}], which does not match [{}]", fallbackClaim, s, regex.pattern());
+                            logger.debug("Claim [{}] is [{}], which does not match [{}]", fallbackableClaim, s, regex.pattern());
                             return null;
                         }
                         final String value = matcher.group(1);
                         if (Strings.isNullOrEmpty(value)) {
                             logger.debug(
                                 "Claim [{}] is [{}], which does match [{}] but group(1) is empty",
-                                fallbackClaim,
+                                fallbackableClaim,
                                 s,
                                 regex.pattern()
                             );
@@ -148,8 +148,8 @@ public final class ClaimParser {
                 });
             } else {
                 return new ClaimParser(setting.name(realmConfig), claimName, null, claims -> {
-                    final FallbackClaim fallbackClaim = new FallbackClaim(claimName, fallbackClaimNames, claims);
-                    return parseClaimValues(claims, fallbackClaim, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()))
+                    final FallbackableClaim fallbackableClaim = new FallbackableClaim(claimName, fallbackClaimNames, claims);
+                    return parseClaimValues(claims, fallbackableClaim, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()))
                         .stream()
                         .filter(Objects::nonNull)
                         .toList();

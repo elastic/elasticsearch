@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.xcontent;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.xcontent.ToXContent;
@@ -24,8 +22,6 @@ import java.util.List;
 import java.util.Map;
 
 public class XContentUtils {
-
-    private static final Logger logger = LogManager.getLogger(XContentUtils.class);
 
     private XContentUtils() {}
 
@@ -102,7 +98,7 @@ public class XContentUtils {
         try {
             authenticationSubject = AuthenticationContextSerializer.decode(authKey).getEffectiveSubject();
         } catch (Exception e) {
-            logger.warn("Failed to decode auth key while adding auth info to REST response", e);
+            // The exception will have been logged by AuthenticationContextSerializer.decode() so don't log it again here.
             return;
         }
         builder.startObject("authorization");

@@ -75,17 +75,18 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         final Map<String, Object> source = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
         DiscoveryNodes discoveryNodes = ingestService.getClusterService().state().nodes();
         Map<String, DiscoveryNode> ingestNodes = discoveryNodes.getIngestNodes();
-        boolean noIngestNodeInCluster = ingestNodes.isEmpty();
-        if (noIngestNodeInCluster) {
+        if (ingestNodes.isEmpty()) {
             /*
              * Some resources used by pipelines, such as the geoip database, only exist on ingest nodes. Since we only run pipelines on
-             * nodes with the ingest role, we ought to only simulate a pipeline on nodes with the ingest role. But for backwards
-             * compatibility we make a best effort to run on a non-ingest node if that is our only option.
+             * nodes with the ingest role, we ought to only simulate a pipeline on nodes with the ingest role.
              */
-            logger.info("There are no ingest nodes in this cluster. Running the pipeline simulation on a non-ingest node.");
+            listener.onFailure(
+                new IllegalStateException("There are no ingest nodes in this cluster, unable to forward request to an ingest node.")
+            );
+            return;
         }
         try {
-            if (discoveryNodes.getLocalNode().isIngestNode() || noIngestNodeInCluster) {
+            if (discoveryNodes.getLocalNode().isIngestNode()) {
                 final SimulatePipelineRequest.Parsed simulateRequest;
                 if (request.getId() != null) {
                     simulateRequest = SimulatePipelineRequest.parseWithPipelineId(

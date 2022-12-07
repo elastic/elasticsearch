@@ -36,7 +36,10 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testClaimIsNotSingleValued() throws ParseException {
-        final String claimName = randomAlphaOfLengthBetween(3, 8);
+        final String claimName = randomValueOtherThanMany(
+            name -> JWTClaimsSet.getRegisteredNames().contains(name),
+            () -> randomAlphaOfLengthBetween(3, 8)
+        );
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(), true);
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, List.of("foo", "bar")));

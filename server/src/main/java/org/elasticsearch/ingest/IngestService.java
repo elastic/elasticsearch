@@ -536,8 +536,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     /**
-     * Recursive method to obtain all of the non-failure processors for given compoundProcessor. Since conditionals are implemented as
-     * wrappers to the actual processor, always prefer the actual processor's metric over the conditional processor's metric.
+     * Recursive method to obtain all the non-failure processors for given compoundProcessor.
+     * <p>
+     * Since conditionals are implemented as wrappers to the actual processor, always prefer the actual processor's metric
+     * over the conditional processor's metric.
+     *
      * @param compoundProcessor The compound processor to start walking the non-failure processors
      * @param processorMetrics The list of {@link Processor} {@link IngestMetric} tuples.
      * @return the processorMetrics for all non-failure processor that belong to the original compoundProcessor

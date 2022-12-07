@@ -1297,6 +1297,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         if (customCount1 != customCount2) {
             return false;
         }
+        if (Objects.equals(metadata1.reservedStateMetadata, metadata2.reservedStateMetadata) == false) {
+            return false;
+        }
         return true;
     }
 

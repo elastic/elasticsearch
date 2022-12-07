@@ -20,10 +20,15 @@ public final class CountDown {
 
     private final AtomicInteger countDown;
 
+    // Track originalCount because new CountDown(0) never reports completion which can be a leak if not handled specially
+    // TODO fix the places that create an empty CountDown and then drop this, see #92196
+    private final int originalCount;
+
     public CountDown(int count) {
         if (count < 0) {
             throw new IllegalArgumentException("count must be greater or equal to 0 but was: " + count);
         }
+        this.originalCount = count;
         this.countDown = new AtomicInteger(count);
     }
 
@@ -32,6 +37,7 @@ public final class CountDown {
      * reached zero otherwise <code>false</code>
      */
     public boolean countDown() {
+        assert originalCount > 0;
         return countDown.getAndUpdate(current -> {
             assert current >= 0;
             return current == 0 ? 0 : current - 1;
@@ -44,6 +50,7 @@ public final class CountDown {
      * <code>false</code>
      */
     public boolean fastForward() {
+        assert originalCount > 0;
         assert countDown.get() >= 0;
         return countDown.getAndSet(0) > 0;
     }

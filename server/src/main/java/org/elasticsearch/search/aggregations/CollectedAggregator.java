@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
@@ -86,7 +87,6 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
         return name;
     }
 
-
     /**
      * Reduces the given aggregations to a single one and returns it. In <b>most</b> cases, the assumption will be the all given
      * aggregations are of the same type (the same type as this aggregation). For best efficiency, when implementing,
@@ -124,6 +124,12 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
         return true;
     }
 
+    public abstract CollectedAggregator reducePipelines(
+        CollectedAggregator agg,
+        AggregationReduceContext context,
+        PipelineAggregator.PipelineTree pipelines
+    );
+
     public abstract InternalAggregation[] convertToLegacy(int[] bucketOrdinal);
 
     @Override
@@ -145,9 +151,6 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
 
     @Override
     public String toString() {
-        return "CollectedAggregator{" +
-            "name='" + name + '\'' +
-            ", metadata=" + metadata +
-            '}';
+        return "CollectedAggregator{" + "name='" + name + '\'' + ", metadata=" + metadata + '}';
     }
 }

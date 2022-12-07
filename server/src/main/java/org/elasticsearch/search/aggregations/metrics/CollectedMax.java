@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,7 +37,7 @@ public class CollectedMax extends CollectedAggregator {
 
     public CollectedMax(StreamInput in) throws IOException {
         super(in);
-        // TODO: Read the buffer backed big array here
+        maxes = DoubleArray.readFrom(in);
     }
 
     @Override
@@ -58,6 +59,7 @@ public class CollectedMax extends CollectedAggregator {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        maxes.writeTo(out);
     }
 
     @Override
@@ -72,8 +74,13 @@ public class CollectedMax extends CollectedAggregator {
                 }
             } else {
                 // this should never happen, right?
-                throw new AggregationExecutionException("Mixed type reduction! Expected [" + this.getClass().getSimpleName() + "] got [" +
-                    aggregation.getClass().getSimpleName() + "]");
+                throw new AggregationExecutionException(
+                    "Mixed type reduction! Expected ["
+                        + this.getClass().getSimpleName()
+                        + "] got ["
+                        + aggregation.getClass().getSimpleName()
+                        + "]"
+                );
             }
             // In theory, the aggregation we just processed could be released here.
         }
@@ -90,9 +97,19 @@ public class CollectedMax extends CollectedAggregator {
     }
 
     @Override
+    public CollectedAggregator reducePipelines(
+        CollectedAggregator agg,
+        AggregationReduceContext context,
+        PipelineAggregator.PipelineTree pipelines
+    ) {
+        // NOCOMMIT - Implement this
+        return this;
+    }
+
+    @Override
     public InternalAggregation[] convertToLegacy(int[] bucketOrdinal) {
         Max[] legacyMaxes = new Max[bucketOrdinal.length];
-        for (int ord = 0; ord < bucketOrdinal.length; ord++ ) {
+        for (int ord = 0; ord < bucketOrdinal.length; ord++) {
             legacyMaxes[ord] = new Max(name, maxes.get(bucketOrdinal[ord]), format, metadata);
         }
         return legacyMaxes;

@@ -185,30 +185,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
                     return false;
                 }
-
                 final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
-                if (remoteClusterAlias.isEmpty()
-                    || remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get()) == null) {
-                    return false;
-                } else if (false == isWhitelistedForRemoteAccessHeaders(request)) {
-                    logger.debug("Request type is not whitelisted for remote access headers");
-                    return false;
-                } else if (false == authentication.getEffectiveSubject().getType().equals(Subject.Type.USER)) {
-                    logger.debug(
-                        "Effective subject type [{}] is not supported for remote access headers",
-                        authentication.getEffectiveSubject().getType()
-                    );
-                    return false;
-                } else if (User.isInternal(authentication.getEffectiveSubject().getUser())) {
-                    logger.debug("Effective subject is an internal user which is not supported for remote access headers");
-                    return false;
-                } else if (Arrays.stream(authentication.getEffectiveSubject().getUser().roles()).anyMatch(ReservedRolesStore::isReserved)) {
-                    logger.debug("Effective subject has reserved roles which is not supported for remote access headers");
-                    return false;
-                }
-                return true;
+                final Subject effectiveSubject = authentication.getEffectiveSubject();
+                return remoteClusterAlias.isPresent()
+                    && remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get()) != null
+                    && isWhitelistedForRemoteAccessHeaders(request)
+                    && effectiveSubject.getType().equals(Subject.Type.USER)
+                    && false == User.isInternal(effectiveSubject.getUser())
+                    && Arrays.stream(effectiveSubject.getUser().roles()).noneMatch(ReservedRolesStore::isReserved);
             }
 
             private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
@@ -260,6 +246,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 );
             }
 
+            private boolean isWhitelistedForRemoteAccessHeaders(final TransportRequest request) {
+                // TODO validate this list is necessary and sufficient for CCS
+                return request instanceof ShardSearchRequest
+                    || request instanceof SearchRequest
+                    || request instanceof ClusterSearchShardsRequest;
+            }
+
             private <T extends TransportResponse> void sendRequestWithHandledException(
                 final Transport.Connection connection,
                 final String action,
@@ -272,13 +265,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } catch (Exception e) {
                     handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
                 }
-            }
-
-            private boolean isWhitelistedForRemoteAccessHeaders(final TransportRequest request) {
-                // TODO validate this list is necessary and sufficient for CCS
-                return request instanceof ShardSearchRequest
-                    || request instanceof SearchRequest
-                    || request instanceof ClusterSearchShardsRequest;
             }
 
             private void writeClusterCredentialToContext(final String remoteClusterAlias, final ThreadContext threadContext) {

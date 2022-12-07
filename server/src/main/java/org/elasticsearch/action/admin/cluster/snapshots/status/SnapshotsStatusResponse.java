@@ -13,7 +13,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -88,6 +87,10 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array("snapshots", Iterators.flatMap(snapshots.iterator(), s -> s.toXContentChunked(params)));
+        return Iterators.<ToXContent>concat(
+            Iterators.single((b, p) -> b.startObject().startArray("snapshots")),
+            Iterators.flatMap(snapshots.iterator(), s -> s.toXContentChunked(params)),
+            Iterators.single((b, p) -> b.endArray().endObject())
+        );
     }
 }

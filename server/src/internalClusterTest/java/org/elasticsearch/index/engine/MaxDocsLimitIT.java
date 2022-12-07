@@ -72,6 +72,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         restoreIndexWriterMaxDocs();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92037")
     public void testMaxDocsLimit() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(1);
         assertAcked(

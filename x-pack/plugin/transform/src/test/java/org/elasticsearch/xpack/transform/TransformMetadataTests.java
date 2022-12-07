@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 
-public class TransformMetadataTests extends AbstractXContentSerializingTestCase<TransformMetadata> {
+public class TransformMetadataTests extends AbstractChunkedSerializingTestCase<TransformMetadata> {
 
     @Override
     protected TransformMetadata createTestInstance() {
@@ -32,5 +32,10 @@ public class TransformMetadataTests extends AbstractXContentSerializingTestCase<
     @Override
     protected TransformMetadata mutateInstance(TransformMetadata instance) {
         return new TransformMetadata.Builder().isResetMode(instance.isResetMode() == false).build();
+    }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
     }
 }

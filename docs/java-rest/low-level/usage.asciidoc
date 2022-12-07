@@ -203,7 +203,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-reques
 --------------------------------------------------
 <1> Set a callback that allows to modify the default request configuration
 (e.g. request timeouts, authentication, or anything that the
-https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
+https://hc.apache.org/httpcomponents-client-5.2.x/current/httpclient5/apidocs/org/apache/hc/client5/http/config/RequestConfig.Builder.html[`org.apache.hc.client5.http.config.RequestConfig.Builder`]
  allows to set)
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -212,7 +212,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-client
 --------------------------------------------------
 <1> Set a callback that allows to modify the http client configuration
 (e.g. encrypted communication over ssl, or anything that the
-https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+https://hc.apache.org/httpcomponents-asyncclient-4.1.x/current/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
  allows to set)
 
 
@@ -339,9 +339,9 @@ translate to the execution of that request being cancelled, which needs to be
 specifically implemented in the API itself.
 
 The use of the `Cancellable` instance is optional and you can safely ignore this
-if you don't need it. A typical usecase for this would be using this together with 
+if you don't need it. A typical usecase for this would be using this together with
 frameworks like Rx Java or the Kotlin's `suspendCancellableCoRoutine`. Cancelling
-no longer needed requests is a good way to avoid putting unnecessary 
+no longer needed requests is a good way to avoid putting unnecessary
 load on Elasticsearch.
 
 ["source","java",subs="attributes,callouts,macros"]

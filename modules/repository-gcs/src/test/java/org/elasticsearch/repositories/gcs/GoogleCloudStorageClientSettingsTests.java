@@ -7,24 +7,25 @@
  */
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.http.javanet.DefaultConnectionFactory;
-import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.services.storage.StorageScopes;
-import com.google.auth.http.HttpTransportFactory;
+import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 
-import java.lang.reflect.Field;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.ServerSocket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -92,33 +93,67 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         assertGoogleCredential(expectedClientSettings.getCredential(), loadCredential(randomClient.v2(), clientName, null));
     }
 
-    public void testLoadServiceAccountCredentialsWithProxy() throws Exception {
+    public void testRefreshCredentialsAccessTokenWithProxy() throws Exception {
         String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         var secureSettings = new MockSecureSettings();
         secureSettings.setFile(
             CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-            randomCredential(clientName).v2()
+            formatted(
+                """
+                    {
+                      "type": "service_account",
+                      "project_id": "project_id_%s",
+                      "private_key_id": "private_key_id_%s",
+                      "private_key": "-----BEGIN PRIVATE KEY-----\\n%s\\n-----END PRIVATE KEY-----\\n",
+                      "client_email": "%s",
+                      "client_id": "id_%s",
+                      "token_uri": "%s"
+                    }""",
+                clientName,
+                clientName,
+                Base64.getEncoder().encodeToString(KeyPairGenerator.getInstance("RSA").generateKeyPair().getPrivate().getEncoded()),
+                clientName,
+                clientName,
+                URI.create("http://oauth2.googleapis.com/oauth2/token")
+            ).getBytes(StandardCharsets.UTF_8)
         );
         var settings = Settings.builder().setSecureSettings(secureSettings).build();
-        var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65536)));
+        ServerSocket proxyServerSocket = new MockServerSocket(0);
+        Thread proxyServerThread = new Thread(() -> {
+            while (Thread.currentThread().isInterrupted() == false) {
+                try (
+                    var socket = proxyServerSocket.accept();
+                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
+                ) {
+                    assertEquals("POST http://oauth2.googleapis.com/oauth2/token HTTP/1.1", reader.readLine());
+                    String body = """
+                        {
+                            "access_token": "proxy_access_token",
+                            "token_type": "bearer",
+                            "expires_in": 3600
+                        }
+                        """;
+                    socket.getOutputStream().write(formatted("""
+                        HTTP/1.1 200 OK\r
+                        Content-Length: %s\r
+                        \r
+                        %s\r
+                        """, body.length(), body).getBytes(StandardCharsets.UTF_8));
+                    socket.getOutputStream().flush();
+                } catch (IOException ignored) {}
+            }
+        });
+        proxyServerThread.start();
+        var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServerSocket.getLocalPort()));
 
-        ServiceAccountCredentials credentials = loadCredential(settings, clientName, proxy);
-
-        assertEquals(proxy, getProxy(credentials));
-    }
-
-    public void testLoadServiceAccountCredentialsWithoutProxy() throws Exception {
-        String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        var secureSettings = new MockSecureSettings();
-        secureSettings.setFile(
-            CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-            randomCredential(clientName).v2()
-        );
-        var settings = Settings.builder().setSecureSettings(secureSettings).build();
-
-        ServiceAccountCredentials credentials = loadCredential(settings, clientName, null);
-
-        assertNull(getProxy(credentials));
+        try {
+            ServiceAccountCredentials credentials = loadCredential(settings, clientName, proxy);
+            assertNotNull(credentials);
+            assertEquals("proxy_access_token", SocketAccess.doPrivilegedIOException(credentials::refreshAccessToken).getTokenValue());
+        } finally {
+            proxyServerThread.interrupt();
+            proxyServerSocket.close();
+        }
     }
 
     public void testLoadInvalidCredential() throws Exception {
@@ -282,6 +317,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         credentialBuilder.setPrivateKey(keyPair.getPrivate());
         credentialBuilder.setPrivateKeyId("private_key_id_" + clientName);
         credentialBuilder.setScopes(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
+        URI tokenServerUri = URI.create("http://localhost/oauth2/token");
+        credentialBuilder.setTokenServerUri(tokenServerUri);
         final String encodedPrivateKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
         final String serviceAccount = formatted("""
             {
@@ -290,8 +327,9 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
               "private_key_id": "private_key_id_%s",
               "private_key": "-----BEGIN PRIVATE KEY-----\\n%s\\n-----END PRIVATE KEY-----\\n",
               "client_email": "%s",
-              "client_id": "id_%s"
-            }""", clientName, clientName, encodedPrivateKey, clientName, clientName);
+              "client_id": "id_%s",
+              "token_uri": "%s"
+            }""", clientName, clientName, encodedPrivateKey, clientName, clientName, tokenServerUri);
         return Tuple.tuple(credentialBuilder.build(), serviceAccount.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -312,21 +350,5 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         } else {
             assertNull(actual);
         }
-    }
-
-    @SuppressForbidden(reason = "Can't access proxy without reflection")
-    private static Proxy getProxy(ServiceAccountCredentials credentials) throws NoSuchFieldException, IllegalAccessException {
-        // It's crude to use reflection to extract the proxy from the credentials,
-        // but the GCS SDK doesn't expose such low details in the public API
-        Field transportFactoryField = ServiceAccountCredentials.class.getDeclaredField("transportFactory");
-        transportFactoryField.setAccessible(true);
-        HttpTransportFactory httpTransportFactory = (HttpTransportFactory) transportFactoryField.get(credentials);
-        NetHttpTransport httpTransport = (NetHttpTransport) httpTransportFactory.create();
-        Field connectionFactoryField = NetHttpTransport.class.getDeclaredField("connectionFactory");
-        connectionFactoryField.setAccessible(true);
-        DefaultConnectionFactory connectionFactory = (DefaultConnectionFactory) connectionFactoryField.get(httpTransport);
-        Field proxyField = DefaultConnectionFactory.class.getDeclaredField("proxy");
-        proxyField.setAccessible(true);
-        return (Proxy) proxyField.get(connectionFactory);
     }
 }

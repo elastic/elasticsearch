@@ -472,6 +472,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
     ) {
         var strategyRef = new SetOnce<AllocationService>();
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             new BalancedShardsAllocator(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

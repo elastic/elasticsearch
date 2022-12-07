@@ -62,11 +62,9 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     }
 
     private PostingsFormat internalGetPostingsFormatForField(String field) {
-        if (mapperService != null) {
-            final PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
-            if (format != null) {
-                return format;
-            }
+        final PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
+        if (format != null) {
+            return format;
         }
         return super.getPostingsFormatForField(field);
     }

@@ -103,7 +103,7 @@ following output indicates that support for `linux/arm64` is missing:
 $ docker buildx ls
 NAME/NODE DRIVER/ENDPOINT STATUS  BUILDKIT PLATFORMS
 default * docker
-default default         running 20.10.21 linux/amd64, linux/386
+  default default         running 20.10.21 linux/amd64, linux/386
 ```
 
 On Linux `x86_64` hosts, to enable `linux-arm64` you need to install

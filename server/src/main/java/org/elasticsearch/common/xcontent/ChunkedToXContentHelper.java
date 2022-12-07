@@ -66,7 +66,11 @@ public enum ChunkedToXContentHelper {
         return Iterators.concat(ChunkedToXContentHelper.startArray(name), iterable.iterator(), ChunkedToXContentHelper.endArray());
     }
 
+    public static <T extends ToXContent> Iterator<ToXContent> wrapWithObject(String name, Iterator<T> iterator) {
+        return Iterators.concat(startObject(name), iterator, endObject());
+    }
+
     private static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
-        return Iterators.concat(startObject(name), map.entrySet().stream().map(toXContent).iterator(), endObject());
+        return wrapWithObject(name, map.entrySet().stream().map(toXContent).iterator());
     }
 }

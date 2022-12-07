@@ -216,7 +216,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         combiner.add((Future<Void>) first);
         currentChunkedWrite = new ChunkedWrite(combiner, promise, readyResponse);
         if (enqueueWrite(ctx, readyResponse, first)) {
-            // we were able to write out the first chunk directly, try writing out subsequent chunks until the channel becomes unwritable
+            // We were able to write out the first chunk directly, try writing out subsequent chunks until the channel becomes unwritable.
+            // NB "writable" means there's space in the downstream ChannelOutboundBuffer, we aren't trying to saturate the physical channel.
             while (ctx.channel().isWritable()) {
                 if (writeChunk(ctx, combiner, readyResponse.body())) {
                     finishChunkedWrite();
@@ -280,6 +281,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             return false;
         }
         while (channel.isWritable()) {
+            // NB "writable" means there's space in the downstream ChannelOutboundBuffer, we aren't trying to saturate the physical channel.
             WriteOperation currentWrite = queuedWrites.poll();
             if (currentWrite == null) {
                 doWriteQueued(ctx);

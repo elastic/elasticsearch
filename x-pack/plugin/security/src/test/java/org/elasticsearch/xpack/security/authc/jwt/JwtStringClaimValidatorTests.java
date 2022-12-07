@@ -36,7 +36,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testClaimIsNotSingleValued() throws ParseException {
-        final String claimName = randomAlphaOfLengthBetween(3, 8);
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(), true);
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, List.of("foo", "bar")));
@@ -49,7 +49,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testClaimDoesNotExist() throws ParseException {
-        final String claimName = randomAlphaOfLengthBetween(3, 8);
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(), randomBoolean());
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of());
@@ -61,7 +61,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testMatchingClaimValues() throws ParseException {
-        final String claimName = randomFrom(randomAlphaOfLengthBetween(3, 8));
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
         final String claimValue = randomAlphaOfLength(10);
         final boolean singleValuedClaim = randomBoolean();
         final JwtStringClaimValidator validator = new JwtStringClaimValidator(
@@ -85,6 +85,28 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
             () -> validator.validate(getJwsHeader(), invalidJwtClaimsSet)
         );
         assertThat(e.getMessage(), containsString("does not match allowed claim values"));
+    }
+
+    public void testDoesNotSupportWildcardOrRegex() throws ParseException {
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
+        final String claimValue = randomFrom("*", "/.*/");
+        final JwtStringClaimValidator validator = new JwtStringClaimValidator(claimName, List.of(claimValue), randomBoolean());
+
+        // It should not match arbitrary claim value because wildcard or regex is not supported
+        final JWTClaimsSet invalidJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, randomAlphaOfLengthBetween(1, 10)));
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> validator.validate(getJwsHeader(), invalidJwtClaimsSet)
+        );
+        assertThat(e.getMessage(), containsString("does not match allowed claim values"));
+
+        // It should support literal matching
+        final JWTClaimsSet validJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, claimValue));
+        try {
+            validator.validate(getJwsHeader(), validJwtClaimsSet);
+        } catch (Exception e2) {
+            throw new AssertionError("validation should have passed without exception", e2);
+        }
     }
 
     private JWSHeader getJwsHeader() throws ParseException {

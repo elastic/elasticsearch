@@ -875,7 +875,7 @@ public final class RepositoryData {
             for (Map.Entry<String, String> generationEntry : val.entrySet()) {
                 forSnapshot.put(indexLookup.get(generationEntry.getKey()), generationEntry.getValue());
             }
-            indexGenerations.put(snapshotIdMapEntry.getKey(), forSnapshot);
+            indexGenerations.put(snapshotIdMapEntry.getKey(), Map.copyOf(forSnapshot));
         }
         return new IndexMetaDataGenerations(indexGenerations, indexMetaIdentifiers);
     }

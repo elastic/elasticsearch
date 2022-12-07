@@ -71,6 +71,7 @@ public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends Base
         }
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req.build()).get();
         assertTrue(resp.getPrevalidation().isSafe());
+        assertThat(resp.getPrevalidation().message(), equalTo("all red indices are searchable snapshot indices"));
         assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
         assertNotNull(nodeResult);
@@ -78,5 +79,7 @@ public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends Base
         assertThat(nodeResult.Id(), not(emptyString()));
         assertThat(nodeResult.externalId(), not(emptyString()));
         assertTrue(nodeResult.result().isSafe());
+        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.NO_RED_SHARDS_EXCEPT_SEARCHABLE_SNAPSHOTS));
+        assertThat(nodeResult.result().message(), equalTo(""));
     }
 }

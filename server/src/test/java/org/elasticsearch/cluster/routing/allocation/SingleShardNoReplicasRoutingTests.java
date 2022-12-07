@@ -182,7 +182,9 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         newState = strategy.applyFailedShards(
             clusterState,
-            List.of(new FailedShard(routingNodes.node("node1").shardsWithState(INITIALIZING).get(0), null, null, randomBoolean())),
+            List.of(
+                new FailedShard(routingNodes.node("node1").shardsWithState(INITIALIZING).findFirst().get(), null, null, randomBoolean())
+            ),
             List.of()
         );
         assertThat(newState, not(equalTo(clusterState)));

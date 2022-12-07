@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -137,7 +138,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
      * Custom metadata that persists (via XContent) across restarts. The deserialization method for each implementation must be registered
      * with the {@link NamedXContentRegistry}.
      */
-    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
+    public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
 
         EnumSet<XContentContext> context();
 
@@ -2508,7 +2509,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             for (Map.Entry<String, Custom> cursor : metadata.customs().entrySet()) {
                 if (cursor.getValue().context().contains(context)) {
                     builder.startObject(cursor.getKey());
-                    cursor.getValue().toXContent(builder, params);
+                    ChunkedToXContent.wrapAsXContentObject(cursor.getValue()).toXContent(builder, params);
                     builder.endObject();
                 }
             }

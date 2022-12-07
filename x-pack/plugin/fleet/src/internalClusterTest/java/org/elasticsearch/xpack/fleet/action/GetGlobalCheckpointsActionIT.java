@@ -23,7 +23,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.fleet.Fleet;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -43,7 +45,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.of(Fleet.class).collect(Collectors.toList());
+        return Stream.of(Fleet.class, LocalStateCompositeXPackPlugin.class, IndexLifecycle.class).collect(Collectors.toList());
     }
 
     public void testGetGlobalCheckpoints() throws Exception {

@@ -50,13 +50,16 @@ def queryingCluster = testClusters.register('querying-cluster') {
 
 tasks.register('fulfilling-cluster', RestIntegTestTask) {
   useCluster fulfillingCluster
+  outputs.upToDateWhen {
+    gradle.taskGraph.hasTask(":x-pack:qa:multi-cluster-search-security:legacy-with-basic-license:querying-cluster") == false
+  }
   systemProperty 'tests.rest.suite', 'fulfilling_cluster'
 }
 
 tasks.register('querying-cluster', RestIntegTestTask) {
   dependsOn 'fulfilling-cluster'
-  useCluster queryingCluster
   useCluster fulfillingCluster
+  useCluster queryingCluster
   systemProperty 'tests.rest.suite', 'querying_cluster'
   if (proxyMode) {
     systemProperty 'tests.rest.blacklist', [

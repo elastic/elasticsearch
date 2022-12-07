@@ -108,7 +108,7 @@ import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.security.transport.RemoteAccessTransportInterceptor;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -983,7 +983,7 @@ public class ApiKeyService {
             Authenticator.extractCredentialFromHeader(
                 threadContext,
                 // TODO does not belong here
-                RemoteAccessTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER,
+                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER,
                 "ApiKey"
             )
         );

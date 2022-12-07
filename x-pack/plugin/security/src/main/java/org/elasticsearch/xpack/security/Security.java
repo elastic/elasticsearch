@@ -338,7 +338,6 @@ import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
-import org.elasticsearch.xpack.security.transport.RemoteAccessTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.RemoteClusterAuthorizationResolver;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -904,23 +903,23 @@ public class Security extends Plugin
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
 
-        final RemoteAccessTransportInterceptor remoteAccessTransportInterceptor = new RemoteAccessTransportInterceptor(
-            authzService,
-            new RemoteClusterAuthorizationResolver(settings, clusterService.getClusterSettings()),
-            securityContext.get()
-        );
-        final DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        final SecurityServerTransportInterceptor securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
+        final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = new RemoteClusterAuthorizationResolver(
             settings,
-            threadPool,
-            authcService.get(),
-            authzService,
-            getSslService(),
-            securityContext.get(),
-            destructiveOperations
+            clusterService.getClusterSettings()
         );
+
+        DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         securityInterceptor.set(
-            new NetworkModule.CompositeTransportInterceptor(List.of(remoteAccessTransportInterceptor, securityServerTransportInterceptor))
+            new SecurityServerTransportInterceptor(
+                settings,
+                threadPool,
+                authcService.get(),
+                authzService,
+                getSslService(),
+                securityContext.get(),
+                destructiveOperations,
+                remoteClusterAuthorizationResolver
+            )
         );
 
         securityActionFilter.set(

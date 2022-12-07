@@ -44,9 +44,11 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -2348,9 +2350,10 @@ public class MetadataTests extends ESTestCase {
     }
 
     private static class TestCustomMetadata implements Metadata.Custom {
+
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            return null;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Collections.emptyIterator();
         }
 
         @Override

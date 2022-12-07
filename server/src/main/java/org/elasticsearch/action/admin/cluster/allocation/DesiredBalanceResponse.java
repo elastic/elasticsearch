@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -31,6 +32,8 @@ import java.util.Set;
 
 public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContent {
 
+    private static final Version CLUSTER_BALANCE_STATS_VERSION = Version.V_8_7_0;
+
     private final DesiredBalanceStats stats;
     private final ClusterBalanceStats clusterBalanceStats;
     private final Map<String, Map<Integer, DesiredShards>> routingTable;
@@ -48,7 +51,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     public static DesiredBalanceResponse from(StreamInput in) throws IOException {
         return new DesiredBalanceResponse(
             DesiredBalanceStats.readFrom(in),
-            ClusterBalanceStats.readFrom(in),// TODO only for 8.7
+            in.getVersion().onOrAfter(CLUSTER_BALANCE_STATS_VERSION) ? ClusterBalanceStats.readFrom(in) : ClusterBalanceStats.EMPTY,
             in.readImmutableMap(StreamInput::readString, v -> v.readImmutableMap(StreamInput::readVInt, DesiredShards::from))
         );
     }
@@ -56,7 +59,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
-        clusterBalanceStats.writeTo(out);// TODO only for 8.7
+        if (out.getVersion().onOrAfter(CLUSTER_BALANCE_STATS_VERSION)) {
+            clusterBalanceStats.writeTo(out);
+        }
         out.writeMap(
             routingTable,
             StreamOutput::writeString,

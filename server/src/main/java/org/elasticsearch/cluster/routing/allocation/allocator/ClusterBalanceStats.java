@@ -32,6 +32,8 @@ import static java.util.stream.Collectors.summarizingDouble;
 
 public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implements Writeable, ToXContentFragment {
 
+    public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(Map.of());
+
     public static ClusterBalanceStats createFrom(RoutingNodes routingNodes, Metadata metadata, WriteLoadForecaster writeLoadForecaster) {
         var tierToNodeStats = new HashMap<String, List<NodeStats>>();
         for (RoutingNode routingNode : routingNodes) {

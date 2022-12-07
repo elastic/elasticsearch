@@ -252,6 +252,13 @@ public class AnalyzerTests extends ESTestCase {
             """, "first_name", "last_name", "gender", "languages", "salary", "_meta_field", "emp_no");
     }
 
+    public void testProjectExcludePatternAndKeepOthers() {
+        assertProjection("""
+            from test
+            | project -l*, first_name, salary
+            """, "first_name", "salary");
+    }
+
     public void testErrorOnNoMatchingPatternInclusion() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test

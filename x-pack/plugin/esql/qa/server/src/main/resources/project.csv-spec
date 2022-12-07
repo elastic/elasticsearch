@@ -25,3 +25,10 @@ row a = 1, b = 2 | project c = a, d = a | eval e = c + d | project e, c, d;
 e:integer | c:integer | d:integer
 2 | 1 | 1
 ;
+
+projectExcludeWildcardKeepOthers
+row a = 1+3, b = 2, ab = 5 | eval x = 1 + b + 5 | eval abc = x * 2 | project -a*,b,x;
+
+b:integer | x:integer
+2 | 8
+;

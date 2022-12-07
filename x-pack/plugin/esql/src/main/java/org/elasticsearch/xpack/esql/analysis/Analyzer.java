@@ -191,7 +191,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // from both sides
                 resolved.removeAll(intersection);
                 // keep everything extra (should be unresolved data)
-                resolvedProjections.addAll(resolved);
+                for (var exp : resolved) {
+                    if (exp instanceof UnresolvedAttribute) {
+                        resolvedProjections.add(exp);
+                    }
+                }
             }
 
             return new Project(p.source(), p.child(), resolvedProjections);

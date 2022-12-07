@@ -240,6 +240,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 new ContextRestoreResponseHandler<>(contextSupplier, handler)
                             );
                         }
+                        // TODO should handler be wrapped here?
                     }, e -> handler.handleException(new TransportException("failure sending with remote access headers", e))),
                         securityContext.getThreadContext()
                     )

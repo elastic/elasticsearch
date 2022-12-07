@@ -55,6 +55,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -298,25 +299,28 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final MappedFieldType mappedFieldTypes = new IpFieldMapper.IpFieldType("ip_value");
 
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
-            byte[] value = InetAddressPoint.encode(InetAddresses.forString("::1"));
+            InetAddress value = InetAddresses.forString("::1");
+            byte[] encodedValue = InetAddressPoint.encode(value);
             iw.addDocument(
                 Arrays.asList(
-                    new StringField("ip_value", new BytesRef(value), Field.Store.NO),
-                    new SortedDocValuesField("ip_value", new BytesRef(value))
+                    new InetAddressPoint("ip_value", value),
+                    new SortedDocValuesField("ip_value", new BytesRef(encodedValue))
                 )
             );
-            value = InetAddressPoint.encode(InetAddresses.forString("192.168.0.1"));
+            value = InetAddresses.forString("192.168.0.1");
+            encodedValue = InetAddressPoint.encode(value);
             iw.addDocument(
                 Arrays.asList(
-                    new StringField("ip_value", new BytesRef(value), Field.Store.NO),
-                    new SortedDocValuesField("ip_value", new BytesRef(value))
+                    new InetAddressPoint("ip_value", value),
+                    new SortedDocValuesField("ip_value", new BytesRef(encodedValue))
                 )
             );
-            value = InetAddressPoint.encode(InetAddresses.forString("::1"));
+            value = InetAddresses.forString("::1");
+            encodedValue = InetAddressPoint.encode(value);
             iw.addDocument(
                 Arrays.asList(
-                    new StringField("ip_value", new BytesRef(value), Field.Store.NO),
-                    new SortedDocValuesField("ip_value", new BytesRef(value))
+                    new InetAddressPoint("ip_value", value),
+                    new SortedDocValuesField("ip_value", new BytesRef(encodedValue))
                 )
             );
         };

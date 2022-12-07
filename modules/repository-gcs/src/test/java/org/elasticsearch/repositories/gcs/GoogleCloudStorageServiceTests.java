@@ -190,8 +190,9 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
     }
 
     public void testGetDefaultProjectIdViaProxy() throws IOException {
-        ServerSocket proxyServerSocket = new MockServerSocket(0);
-        Thread proxyServerThread = new Thread(() -> {
+        String proxyProjectId = randomAlphaOfLength(16);
+        var proxyServerSocket = new MockServerSocket(0);
+        var proxyServerThread = new Thread(() -> {
             while (Thread.currentThread().isInterrupted() == false) {
                 try (
                     var socket = proxyServerSocket.accept();
@@ -199,27 +200,24 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
                 ) {
                     // No `CONNECT` HTTP tunnels, because it's just a direct HTTP call,
                     assertEquals("GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1", reader.readLine());
-                    String projectId = "proxy_project_id";
                     socket.getOutputStream().write(formatted("""
                         HTTP/1.1 200 OK\r
                         Content-Length: %s\r
                         \r
                         %s\r
-                        """, projectId.length(), projectId).getBytes(StandardCharsets.UTF_8));
+                        """, proxyProjectId.length(), proxyProjectId).getBytes(StandardCharsets.UTF_8));
                     socket.getOutputStream().flush();
                 } catch (IOException ignored) {}
             }
         });
         proxyServerThread.start();
+        var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServerSocket.getLocalPort()));
 
-        String defaultProjectId = SocketAccess.doPrivilegedIOException(
-            () -> GoogleCloudStorageService.getDefaultProjectId(
-                new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServerSocket.getLocalPort()))
-            )
-        );
-        assertEquals("proxy_project_id", defaultProjectId);
-
-        proxyServerThread.interrupt();
-        proxyServerSocket.close();
+        try {
+            assertEquals(proxyProjectId, SocketAccess.doPrivilegedIOException(() -> GoogleCloudStorageService.getDefaultProjectId(proxy)));
+        } finally {
+            proxyServerThread.interrupt();
+            proxyServerSocket.close();
+        }
     }
 }

@@ -241,6 +241,6 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             toXContentChunked.next();
             chunks++;
         }
-        assertEquals(response.getRoutingTable().size() + 2, chunks);
+        assertEquals(4 + 2 + response.getRoutingTable().size(), chunks);
     }
 }

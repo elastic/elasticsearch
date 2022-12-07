@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import java.util.function.ToDoubleFunction;
 
 import static java.util.stream.Collectors.summarizingDouble;
 
-public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implements Writeable, ToXContentFragment {
+public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implements Writeable, ToXContentObject {
 
     public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(Map.of());
 
@@ -63,7 +63,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
         return builder.map(tiers);
     }
 
-    public record TierBalanceStats(Map<String, MetricStats> metrics) implements Writeable, ToXContentFragment {
+    public record TierBalanceStats(Map<String, MetricStats> metrics) implements Writeable, ToXContentObject {
 
         private static TierBalanceStats createFrom(List<NodeStats> nodes) {
             return new TierBalanceStats(
@@ -93,10 +93,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
         }
     }
 
-    public record MetricStats(double total, double min, double max, double average, double stdDev)
-        implements
-            Writeable,
-            ToXContentFragment {
+    public record MetricStats(double total, double min, double max, double average, double stdDev) implements Writeable, ToXContentObject {
 
         private static MetricStats createFrom(List<NodeStats> nodes, ToDoubleFunction<NodeStats> metricExtractor) {
             var summary = nodes.stream().collect(summarizingDouble(metricExtractor));

@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -26,7 +26,7 @@ public record DesiredBalanceStats(
     long computationIterations,
     long cumulativeComputationTime,
     long cumulativeReconciliationTime
-) implements Writeable, ToXContentFragment {
+) implements Writeable, ToXContentObject {
 
     public static DesiredBalanceStats readFrom(StreamInput in) throws IOException {
         return new DesiredBalanceStats(

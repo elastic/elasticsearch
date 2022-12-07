@@ -1,0 +1,6 @@
+pr: 92192
+summary: Support for GCS proxies everywhere in the GCS API
+area: Snapshot/Restore
+type: bug
+issues:
+ - 91952

@@ -91,6 +91,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -1161,13 +1162,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
                 XContentBuilder builder = SmileXContent.contentBuilder();
                 builder.startObject();
-                metadataWithoutIndices.toXContent(builder, serializationFormatParams);
+                ChunkedToXContent.wrapAsXContentObject(metadataWithoutIndices).toXContent(builder, serializationFormatParams);
                 builder.endObject();
                 final BytesReference originalBytes = BytesReference.bytes(builder);
 
                 XContentBuilder compareBuilder = SmileXContent.contentBuilder();
                 compareBuilder.startObject();
-                metadataWithoutIndices.toXContent(compareBuilder, compareFormatParams);
+                ChunkedToXContent.wrapAsXContentObject(metadataWithoutIndices).toXContent(compareBuilder, compareFormatParams);
                 compareBuilder.endObject();
                 final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
@@ -1183,7 +1184,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
                 builder = SmileXContent.contentBuilder();
                 builder.startObject();
-                loadedMetadata.toXContent(builder, compareFormatParams);
+                ChunkedToXContent.wrapAsXContentObject(loadedMetadata).toXContent(builder, compareFormatParams);
                 builder.endObject();
                 final BytesReference parsedBytes = BytesReference.bytes(builder);
 

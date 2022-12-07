@@ -11,6 +11,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,7 +41,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return Collections.singletonList(new AnalyticsPlugin());
+        return List.of(new AggregationsPlugin(), new AnalyticsPlugin());
     }
 
     public void testSimple() throws IOException {

@@ -1,0 +1,5 @@
+pr: 92123
+summary: Align all usages of protobuf to be 3.21.9
+area: Snapshot/Restore
+type: upgrade
+issues: []

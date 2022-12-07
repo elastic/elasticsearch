@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -36,13 +36,13 @@ public class GroupingAvgAggregatorTests extends ESTestCase {
     }
 
     public void testWithCranky() {
-        AggregatorTestCase.CrankyCircuitBreakerService breaker = new AggregatorTestCase.CrankyCircuitBreakerService();
+        CrankyCircuitBreakerService breaker = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker).withCircuitBreaking();
         try {
             assertSimple(bigArrays);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
-            assertThat(e.getMessage(), equalTo(AggregatorTestCase.CrankyCircuitBreakerService.ERROR_MESSAGE));
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
     }
 

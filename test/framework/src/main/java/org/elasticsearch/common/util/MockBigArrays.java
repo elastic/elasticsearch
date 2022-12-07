@@ -49,6 +49,9 @@ import static org.mockito.Mockito.when;
 public class MockBigArrays extends BigArrays {
     private static final Logger logger = LogManager.getLogger(MockBigArrays.class);
 
+    /**
+     * Error message thrown by {@link BigArrays} produced with {@link MockBigArrays#MockBigArrays(PageCacheRecycler, ByteSizeValue)}.
+     */
     public static final String ERROR_MESSAGE = "over test limit";
 
     /**

@@ -166,7 +166,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
             values.addAll(dnsNames);
         }
         if (x509Fields.contains(SAN_OTHER_COMMON.toLowerCase(Locale.ROOT))) {
-            Set<String> otherNames = getSubjectAlternativeNames(certificate).stream()
+            Set<String> otherNames = sans.stream()
                 .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)
                 .map(pair -> pair.get(1))
                 .map(value -> decodeDerValue((byte[]) value, certificate))

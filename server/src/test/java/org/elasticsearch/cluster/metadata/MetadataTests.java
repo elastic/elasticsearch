@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigE
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -39,6 +40,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -2269,6 +2271,45 @@ public class MetadataTests extends ESTestCase {
         diff.writeTo(out);
         final Diff<Metadata> deserializedDiff = Metadata.readDiffFrom(out.bytes().streamInput());
         assertSame(instance, deserializedDiff.apply(instance));
+    }
+
+    public void testChunkedToXContent() throws IOException {
+        final int datastreams = randomInt(10);
+        final Metadata instance = randomMetadata(datastreams);
+        int chunksSeen = 0;
+        try (XContentBuilder builder = new XContentBuilder(randomFrom(XContentType.values()), Streams.NULL_OUTPUT_STREAM, Set.of())) {
+            final var iterator = instance.toXContentChunked(ToXContent.EMPTY_PARAMS);
+            builder.startObject();
+            while (iterator.hasNext()) {
+                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                chunksSeen++;
+            }
+            builder.endObject();
+        }
+        // 2 chunks at the beginning
+        // 1 chunk for each index + 2 to wrap the indices field
+        final int indicesChunks = instance.indices().size() + 2;
+        // 2 chunks for wrapping reserved state + 1 chunk for each item
+        final int reservedStateChunks = instance.reservedStateMetadata().size() + 2;
+        // 2 chunks wrapping templates and one chunk per template
+        final int templatesChunks = instance.templates().size() + 2;
+        // 2 chunks to wrap each custom
+        final int customChunks = 2 * instance.customs().size();
+        // 1 chunk per datastream, 4 chunks to wrap ds and ds-aliases, or 0 if there are no datastreams
+        final int dsChunks = datastreams == 0 ? 0 : (datastreams + 4);
+        // 2 chunks to wrap index graveyard and one per tombstone
+        final int graveYardChunks = instance.indexGraveyard().getTombstones().size() + 2;
+        // 2 chunks to wrap component templates and one per component template
+        final int componentTemplateChunks = instance.componentTemplates().size() + 2;
+        // 2 chunks to wrap v2 templates and one per v2 template
+        final int v2TemplateChunks = instance.templatesV2().size() + 2;
+        // 1 chunk to close metadata
+
+        assertEquals(
+            2 + indicesChunks + reservedStateChunks + templatesChunks + customChunks + dsChunks + graveYardChunks + componentTemplateChunks
+                + v2TemplateChunks + 1,
+            chunksSeen
+        );
     }
 
     public static Metadata randomMetadata() {

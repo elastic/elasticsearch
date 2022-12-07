@@ -538,8 +538,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Recursive method to obtain all the non-failure processors for given compoundProcessor.
      * <p>
-     * Since conditionals are implemented as wrappers to the actual processor, always prefer the actual processor's metric
-     * over the conditional processor's metric.
+     * 'if' and 'ignore_failure'/'on_failure' are implemented as wrappers around the actual processor (via {@link ConditionalProcessor}
+     * and {@link OnFailureProcessor}, respectively), so we unwrap these processors internally in order to expose the underlying
+     * 'actual' processor via the metrics. This corresponds best to the customer intent -- e.g. they used a 'set' processor that has an
+     * 'on_failure', so we report metrics for the set processor, not an on_failure processor.
      *
      * @param compoundProcessor The compound processor to start walking the non-failure processors
      * @param processorMetrics The list of {@link Processor} {@link IngestMetric} tuples.
@@ -553,13 +555,26 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         for (Tuple<Processor, IngestMetric> processorWithMetric : compoundProcessor.getProcessorsWithMetrics()) {
             Processor processor = processorWithMetric.v1();
             IngestMetric metric = processorWithMetric.v2();
+
+            // unwrap 'if' and 'ignore_failure/on_failure' wrapping, so that we expose the underlying actual processor
+            boolean unwrapped;
+            do {
+                unwrapped = false;
+                if (processor instanceof ConditionalProcessor conditional) {
+                    processor = conditional.getInnerProcessor();
+                    metric = conditional.getMetric(); // prefer the conditional's metric, it only covers when the conditional was true
+                    unwrapped = true;
+                }
+                if (processor instanceof OnFailureProcessor onFailure) {
+                    processor = onFailure.getInnerProcessor();
+                    metric = onFailure.getInnerMetric(); // the wrapped processor records the failure count
+                    unwrapped = true;
+                }
+            } while (unwrapped);
+
             if (processor instanceof CompoundProcessor cp) {
                 getProcessorMetrics(cp, processorMetrics);
             } else {
-                // Prefer the conditional's metric since it only includes metrics when the conditional evaluated to true.
-                if (processor instanceof ConditionalProcessor cp) {
-                    metric = (cp.getMetric());
-                }
                 processorMetrics.add(new Tuple<>(processor, metric));
             }
         }

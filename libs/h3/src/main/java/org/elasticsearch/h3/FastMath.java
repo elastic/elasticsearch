@@ -32,8 +32,8 @@
 package org.elasticsearch.h3;
 
 /**
- * This file is forked from https://github.com/yannrichet/jmathplot. In particular, it forks the following file:
- * https://github.com/yannrichet/jmathplot/blob/f25426e0ab0e68647ad2b75f577c7be050ecac86/src/main/java/org/math/plot/utils/FastMath.java
+ * This file is forked from https://github.com/jeffhain/jafama. In particular, it forks the following file:
+ * https://github.com/jeffhain/jafama/blob/master/src/main/java/net/jafama/FastMath.java
  *
  * It modifies the original implementation by removing not needed methods leaving the following trigonometric function:
  * <ul>

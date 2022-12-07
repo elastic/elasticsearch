@@ -27,7 +27,7 @@ public record HealthIndicatorResult(
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         final Iterator<? extends ToXContent> diagnosisIterator;
-        if (diagnosisList.isEmpty()) {
+        if (diagnosisList == null) {
             diagnosisIterator = Collections.emptyIterator();
         } else {
             diagnosisIterator = Iterators.flatMap(diagnosisList.iterator(), s -> s.toXContentChunked(outerParams));

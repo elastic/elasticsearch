@@ -125,6 +125,9 @@ public final class EngineConfig {
 
     private final LongSupplier relativeTimeInNanosSupplier;
 
+    @Nullable
+    private final Engine.IndexCommitListener indexCommitListener;
+
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
@@ -152,7 +155,8 @@ public final class EngineConfig {
         LongSupplier primaryTermSupplier,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Comparator<LeafReader> leafSorter,
-        LongSupplier relativeTimeInNanosSupplier
+        LongSupplier relativeTimeInNanosSupplier,
+        Engine.IndexCommitListener indexCommitListener
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -193,6 +197,7 @@ public final class EngineConfig {
         this.snapshotCommitSupplier = snapshotCommitSupplier;
         this.leafSorter = leafSorter;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.indexCommitListener = indexCommitListener;
     }
 
     /**
@@ -394,5 +399,10 @@ public final class EngineConfig {
 
     public LongSupplier getRelativeTimeInNanosSupplier() {
         return relativeTimeInNanosSupplier;
+    }
+
+    @Nullable
+    public Engine.IndexCommitListener getIndexCommitListener() {
+        return indexCommitListener;
     }
 }

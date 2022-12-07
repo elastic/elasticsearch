@@ -190,7 +190,7 @@ public class SnapshotStatus implements ChunkedToXContent, Writeable {
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(Iterators.single((ToXContent) (b, p) -> {
             b.startObject()
                 .field(SNAPSHOT, snapshot.getSnapshotId().getName())

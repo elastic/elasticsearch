@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
-import com.unboundid.util.NotNull;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -119,7 +117,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         Path basePath,
         SslVerificationMode verificationMode,
         SslKeyConfig keyConfig,
-        @NotNull Set<X509Field> restrictedTrustFields
+        Set<X509Field> restrictedTrustFields
     ) {
         final SslTrustConfig trustConfig = super.buildTrustConfig(basePath, verificationMode, keyConfig, null);
         final Path trustRestrictions = super.resolvePath("trust_restrictions.path", basePath);

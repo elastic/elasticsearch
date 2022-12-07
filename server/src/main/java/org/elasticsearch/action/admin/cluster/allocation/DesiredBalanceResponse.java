@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,16 +32,23 @@ import java.util.Set;
 public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContent {
 
     private final DesiredBalanceStats stats;
+    private final ClusterBalanceStats clusterBalanceStats;
     private final Map<String, Map<Integer, DesiredShards>> routingTable;
 
-    public DesiredBalanceResponse(DesiredBalanceStats stats, Map<String, Map<Integer, DesiredShards>> routingTable) {
+    public DesiredBalanceResponse(
+        DesiredBalanceStats stats,
+        ClusterBalanceStats clusterBalanceStats,
+        Map<String, Map<Integer, DesiredShards>> routingTable
+    ) {
         this.stats = stats;
+        this.clusterBalanceStats = clusterBalanceStats;
         this.routingTable = routingTable;
     }
 
     public static DesiredBalanceResponse from(StreamInput in) throws IOException {
         return new DesiredBalanceResponse(
             DesiredBalanceStats.readFrom(in),
+            ClusterBalanceStats.readFrom(in),// TODO only for 8.7
             in.readImmutableMap(StreamInput::readString, v -> v.readImmutableMap(StreamInput::readVInt, DesiredShards::from))
         );
     }
@@ -48,6 +56,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
+        clusterBalanceStats.writeTo(out);// TODO only for 8.7
         out.writeMap(
             routingTable,
             StreamOutput::writeString,
@@ -63,9 +72,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(Iterators.single((builder, p) -> {
             builder.startObject();
-            builder.startObject("stats");
-            stats.toXContent(builder, p);
-            builder.endObject();
+            builder.field("stats", stats);
             return builder.startObject("routing_table");
         }), routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, p) -> {
             builder.startObject(indexEntry.getKey());

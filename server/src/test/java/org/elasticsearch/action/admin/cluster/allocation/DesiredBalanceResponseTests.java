@@ -34,7 +34,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     @Override
     protected DesiredBalanceResponse createTestInstance() {
-        return new DesiredBalanceResponse(randomStats(), randomRoutingTable());
+        return new DesiredBalanceResponse(randomStats(), null, randomRoutingTable());
     }
 
     private DesiredBalanceStats randomStats() {
@@ -94,16 +94,17 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         return switch (randomInt(2)) {
             case 0 -> new DesiredBalanceResponse(
                 instance.getStats(),
+                null,
                 randomValueOtherThan(instance.getRoutingTable(), this::randomRoutingTable)
             );
-            case 1 -> new DesiredBalanceResponse(randomStats(), instance.getRoutingTable());
+            case 1 -> new DesiredBalanceResponse(randomStats(), null, instance.getRoutingTable());
             default -> randomValueOtherThan(instance, this::createTestInstance);
         };
     }
 
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
-        DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomRoutingTable());
+        DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), null, randomRoutingTable());
 
         Map<String, Object> json = createParser(
             ChunkedToXContent.wrapAsXContentObject(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
@@ -157,7 +158,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
     }
 
     public void testToChunkedXContent() {
-        DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), randomRoutingTable());
+        DesiredBalanceResponse response = new DesiredBalanceResponse(randomStats(), null, randomRoutingTable());
         var toXContentChunked = response.toXContentChunked(ToXContent.EMPTY_PARAMS);
         int chunks = 0;
         while (toXContentChunked.hasNext()) {

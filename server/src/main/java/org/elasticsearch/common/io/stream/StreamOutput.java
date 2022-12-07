@@ -956,6 +956,10 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeWriteable(Writeable writeable) throws IOException {
+        writeable.writeTo(this);
+    }
+
     public void writeException(Throwable throwable) throws IOException {
         writeException(throwable, throwable, 0);
     }

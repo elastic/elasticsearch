@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
@@ -60,13 +61,14 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
         mock(ThreadPool.class),
         mock(ActionFilters.class),
         mock(IndexNameExpressionResolver.class),
-        desiredBalanceShardsAllocator
+        desiredBalanceShardsAllocator,
+        mock(WriteLoadForecaster.class)
     );
     @SuppressWarnings("unchecked")
     private final ActionListener<DesiredBalanceResponse> listener = mock(ActionListener.class);
 
     @Before
-    public void setUpMocks() throws Exception {
+    public void setUpMocks() {
         when(clusterState.metadata()).thenReturn(metadata);
     }
 
@@ -79,7 +81,8 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
             mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            mock(ShardsAllocator.class)
+            mock(ShardsAllocator.class),
+            mock(WriteLoadForecaster.class)
         ).masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
 
         ArgumentCaptor<ResourceNotFoundException> exceptionArgumentCaptor = ArgumentCaptor.forClass(ResourceNotFoundException.class);

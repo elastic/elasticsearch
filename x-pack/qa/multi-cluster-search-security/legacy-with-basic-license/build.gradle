@@ -50,9 +50,6 @@ def queryingCluster = testClusters.register('querying-cluster') {
 
 tasks.register('fulfilling-cluster', RestIntegTestTask) {
   useCluster fulfillingCluster
-  outputs.upToDateWhen {
-    gradle.taskGraph.hasTask(":x-pack:qa:multi-cluster-search-security:legacy-with-basic-license:querying-cluster") == false
-  }
   systemProperty 'tests.rest.suite', 'fulfilling_cluster'
 }
 

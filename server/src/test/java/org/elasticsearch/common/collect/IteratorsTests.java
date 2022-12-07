@@ -18,6 +18,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 public class IteratorsTests extends ESTestCase {
     public void testConcatentation() {
@@ -151,6 +152,35 @@ public class IteratorsTests extends ESTestCase {
 
     public void testArrayIteratorOnNull() {
         expectThrows(NullPointerException.class, "Unable to iterate over a null array", () -> Iterators.forArray(null));
+    }
+
+    public void testFlatMap() {
+        final var array = randomIntegerArray();
+        assertEmptyIterator(Iterators.flatMap(Iterators.forArray(array), i -> Iterators.concat()));
+        assertEmptyIterator(Iterators.flatMap(Iterators.concat(), i -> Iterators.single("foo")));
+
+        final var index = new AtomicInteger();
+        Iterators.flatMap(Iterators.forArray(array), Iterators::single)
+            .forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
+
+        index.set(0);
+        Iterators.flatMap(Iterators.forArray(array), i -> Iterators.forArray(new Integer[] { i, i, i }))
+            .forEachRemaining(i -> assertEquals(array[(index.getAndIncrement() / 3)], i));
+        assertEquals(array.length * 3, index.get());
+
+        final var input = new ArrayList<>();
+        for (int i = 1; i <= 4; i++) {
+            IntStream.range(0, between(0, 2)).forEachOrdered(ignored -> input.add(0));
+            input.add(i);
+            IntStream.range(0, between(0, 2)).forEachOrdered(ignored -> input.add(0));
+        }
+
+        index.set(0);
+        final var expectedArray = new Integer[] { 0, 0, 1, 0, 1, 2, 0, 1, 2, 3 };
+        Iterators.flatMap(input.listIterator(), i -> IntStream.range(0, (int) i).iterator())
+            .forEachRemaining(i -> assertEquals(expectedArray[(index.getAndIncrement())], i));
+        assertEquals(expectedArray.length, index.get());
     }
 
     private static Integer[] randomIntegerArray() {

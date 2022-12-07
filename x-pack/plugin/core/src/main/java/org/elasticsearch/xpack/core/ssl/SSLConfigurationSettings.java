@@ -12,9 +12,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
-import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.common.ssl.X509Field;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 
@@ -28,6 +28,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.net.ssl.TrustManagerFactory;
+
+import static org.elasticsearch.common.ssl.SslConfigurationLoader.GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS;
 
 /**
  * Bridges SSLConfiguration into the {@link Settings} framework, using {@link Setting} objects.
@@ -44,7 +46,7 @@ public class SSLConfigurationSettings {
     final Setting<String> truststoreAlgorithm;
     final Setting<Optional<String>> truststoreType;
     final Setting<Optional<String>> trustRestrictionsPath;
-    final Setting<List<String>> trustRestrictionsX509Fields;
+    final Setting<List<X509Field>> trustRestrictionsX509Fields;
     final Setting<List<String>> caPaths;
     final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
     final Setting<Optional<SslVerificationMode>> verificationMode;
@@ -157,30 +159,16 @@ public class SSLConfigurationSettings {
         TRUST_RESTRICTIONS_PATH_TEMPLATE
     );
 
-    public static final Function<String, Setting<List<String>>> TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE = key -> Setting.listSetting(
+    public static final Function<String, Setting<List<X509Field>>> TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE = key -> Setting.listSetting(
         key,
-        List.of("subjectAltName.otherName.commonName"),
-        s -> {
-            RestrictedTrustConfig.SUPPORTED_X_509_FIELDS.stream()
-                .filter(v -> v.equalsIgnoreCase(s))
-                .findAny()
-                .ifPresentOrElse(v -> {}, () -> {
-                    throw new SslConfigException(
-                        s
-                            + " is not a supported x509 field for trust restrictions. "
-                            + "Recognised values are ["
-                            + String.join(",", RestrictedTrustConfig.SUPPORTED_X_509_FIELDS)
-                            + "]"
-                    );
-                });
-            return s;
-        },
+        GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS.stream().map(X509Field::toString).collect(Collectors.toList()),
+        X509Field::parseForRestrictedTrust,
         Property.NodeScope,
         Property.Filtered
     );
 
-    public static final SslSetting<List<String>> TRUST_RESTRICTIONS_X509_FIELDS = SslSetting.setting(
-        "trust_restrictions.x509_fields",
+    public static final SslSetting<List<X509Field>> TRUST_RESTRICTIONS_X509_FIELDS = SslSetting.setting(
+        SslConfigurationKeys.TRUST_RESTRICTIONS_X509_FIELDS,
         TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE
     );
 

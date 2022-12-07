@@ -413,8 +413,8 @@ public class DeploymentManager {
                 : format("Must execute from [%s] but thread is [%s]", UTILITY_THREAD_POOL_NAME, Thread.currentThread().getName());
 
             if (isStopped) {
-                logger.debug("[{}] start process is stopped", task.getModelId());
-                loadedListener.onFailure(new IllegalArgumentException("model loaded but process is stopped"));
+                logger.debug("[{}] model stopped before it is started", task.getModelId());
+                loadedListener.onFailure(new IllegalArgumentException("model stopped before it is started"));
                 return;
             }
 

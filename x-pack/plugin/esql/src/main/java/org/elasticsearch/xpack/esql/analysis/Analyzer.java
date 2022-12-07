@@ -181,17 +181,17 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // continue with removals
             for (var ne : p.removals()) {
                 var resolved = ne instanceof UnresolvedAttribute ua ? resolveAgainstList(ua, childOutput, lazyNames) : singletonList(ne);
-                // the return list might contain either resolved elements or unresolved ones
-                // if things are resolved, remove them - if not add them to the list to trip the Verifier
-                // thus make sure to remove the intersection but add the differences (if any)
-                var intersection = new ArrayList<>(resolved);
-                intersection.retainAll(resolvedProjections);
-                // remove things that are in common
-                resolvedProjections.removeAll(intersection);
-                // from both sides
-                resolved.removeAll(intersection);
-                // keep everything extra (should be unresolved data)
-                resolvedProjections.addAll(resolved);
+                // the return list might contain either resolved elements or unresolved ones.
+                // if things are resolved, remove them - if not add them to the list to trip the Verifier;
+                // thus make sure to remove the intersection but add the unresolved difference (if any).
+                // so, remove things that are in common,
+                resolvedProjections.removeIf(resolved::contains);
+                // but add non-projected, unresolved extras to later trip the Verifier.
+                resolved.forEach(r -> {
+                    if (r.resolved() == false) {
+                        resolvedProjections.add(r);
+                    }
+                });
             }
 
             return new Project(p.source(), p.child(), resolvedProjections);

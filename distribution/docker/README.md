@@ -158,4 +158,4 @@ Ideally this import / export stuff should be completely removed.
 [multi-arch]: https://www.docker.com/blog/multi-arch-build-and-images-the-simple-way/
 [ubi]: https://developers.redhat.com/products/rhel/ubi
 
-[^1]: `podman/buildah` also [support](https://github.com/containers/buildah/issues/1590) building multi-platform images.
+[^1]: `podman/buildah` also [supports building multi-platform images](https://github.com/containers/buildah/issues/1590).

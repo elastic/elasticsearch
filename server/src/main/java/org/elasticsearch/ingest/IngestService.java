@@ -668,13 +668,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     public void executeBulkRequest(
-        int numberOfActionRequests,
-        Iterable<DocWriteRequest<?>> actionRequests,
-        BiConsumer<Integer, Exception> onFailure,
-        BiConsumer<Thread, Exception> onCompletion,
-        IntConsumer onDropped,
-        String executorName
+        final int numberOfActionRequests,
+        final Iterable<DocWriteRequest<?>> actionRequests,
+        final IntConsumer onDropped,
+        final BiConsumer<Integer, Exception> onFailure,
+        final BiConsumer<Thread, Exception> onCompletion,
+        final String executorName
     ) {
+        assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
         threadPool.executor(executorName).execute(new AbstractRunnable() {
 
@@ -886,11 +887,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private void innerExecute(
-        int slot,
-        IndexRequest indexRequest,
-        Pipeline pipeline,
-        IntConsumer itemDroppedHandler,
-        Consumer<Exception> handler
+        final int slot,
+        final IndexRequest indexRequest,
+        final Pipeline pipeline,
+        final IntConsumer itemDroppedHandler,
+        final Consumer<Exception> handler
     ) {
         if (pipeline.getProcessors().isEmpty()) {
             handler.accept(null);

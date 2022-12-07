@@ -110,7 +110,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
                 logger.trace("forwarding request [{}] to ingest node [{}]", actionName, ingestNode);
                 ActionListenerResponseHandler<SimulatePipelineResponse> handler = new ActionListenerResponseHandler<>(
                     listener,
-                    SimulatePipelineResponse::new
+                    SimulatePipelineAction.INSTANCE.getResponseReader()
                 );
                 if (task == null) {
                     transportService.sendRequest(ingestNode, actionName, request, handler);

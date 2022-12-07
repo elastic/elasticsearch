@@ -93,6 +93,10 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         return stats;
     }
 
+    public ClusterBalanceStats getClusterBalanceStats() {
+        return clusterBalanceStats;
+    }
+
     public Map<String, Map<Integer, DesiredShards>> getRoutingTable() {
         return routingTable;
     }
@@ -102,17 +106,24 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         if (this == o) return true;
         return o instanceof DesiredBalanceResponse that
             && Objects.equals(stats, that.stats)
+            && Objects.equals(clusterBalanceStats, that.clusterBalanceStats)
             && Objects.equals(routingTable, that.routingTable);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stats, routingTable);
+        return Objects.hash(stats, clusterBalanceStats, routingTable);
     }
 
     @Override
     public String toString() {
-        return "DesiredBalanceResponse{stats=" + stats + ", routingTable=" + routingTable + "}";
+        return "DesiredBalanceResponse{stats="
+            + stats
+            + ", clusterBalanceStats="
+            + clusterBalanceStats
+            + ", routingTable="
+            + routingTable
+            + "}";
     }
 
     public record DesiredShards(List<ShardView> current, ShardAssignmentView desired) implements Writeable, ToXContentObject {

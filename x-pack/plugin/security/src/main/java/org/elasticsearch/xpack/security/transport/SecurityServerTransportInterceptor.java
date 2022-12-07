@@ -10,6 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -17,11 +19,15 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -32,19 +38,30 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
+    private static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER = "_remote_access_cluster_credential";
+    private static final Version VERSION_REMOTE_ACCESS_HEADERS = Version.V_8_7_0;
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
 
     private final AuthenticationService authcService;
@@ -54,6 +71,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
+    private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -62,7 +80,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         AuthorizationService authzService,
         SSLService sslService,
         SecurityContext securityContext,
-        DestructiveOperations destructiveOperations
+        DestructiveOperations destructiveOperations,
+        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -71,10 +90,15 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
+        this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
     }
 
     @Override
     public AsyncSender interceptSender(AsyncSender sender) {
+        return interceptForAllRequests(interceptForRemoteAccessRequests(sender));
+    }
+
+    private AsyncSender interceptForAllRequests(AsyncSender sender) {
         return new AsyncSender() {
             @Override
             public <T extends TransportResponse> void sendRequest(
@@ -84,6 +108,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
+                logger.info("Sending regular [{}]", request);
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
@@ -133,6 +158,144 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     } else {
                         sendWithUser(connection, action, request, options, handler, sender);
                     }
+            }
+        };
+    }
+
+    private AsyncSender interceptForRemoteAccessRequests(final AsyncSender sender) {
+        return new AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
+                if (shouldSendWithRemoteAccessHeaders(connection, request)) {
+                    sendWithRemoteAccessHeaders(connection, action, request, options, handler);
+                } else {
+                    // Send regular request, without remote access headers
+                    sendRequestWithHandledException(connection, action, request, options, handler);
+                }
+            }
+
+            private boolean shouldSendWithRemoteAccessHeaders(final Transport.Connection connection, final TransportRequest request) {
+                // This is not strictly necessary, but it allows us to skip all additional checks below early
+                if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+                    return false;
+                }
+
+                final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
+                final Authentication authentication = securityContext.getAuthentication();
+                assert authentication != null : "authentication must be present in security context";
+                if (remoteClusterAlias.isEmpty()
+                    || remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get()) == null) {
+                    return false;
+                } else if (false == isWhitelistedForRemoteAccessHeaders(request)) {
+                    logger.debug("Request type is not whitelisted for remote access headers");
+                    return false;
+                } else if (false == authentication.getEffectiveSubject().getType().equals(Subject.Type.USER)) {
+                    logger.debug(
+                        "Effective subject type [{}] is not supported for remote access headers",
+                        authentication.getEffectiveSubject().getType()
+                    );
+                    return false;
+                } else if (User.isInternal(authentication.getEffectiveSubject().getUser())) {
+                    logger.debug("Effective subject is an internal user which is not supported for remote access headers");
+                    return false;
+                } else if (Arrays.stream(authentication.getEffectiveSubject().getUser().roles()).anyMatch(ReservedRolesStore::isReserved)) {
+                    logger.debug("Effective subject has reserved roles which is not supported for remote access headers");
+                    return false;
+                }
+                return true;
+            }
+
+            private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
+                final Transport.Connection connection,
+                final String action,
+                final TransportRequest request,
+                final TransportRequestOptions options,
+                final TransportResponseHandler<T> handler
+            ) {
+                if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
+                    handler.handleException(
+                        new TransportException(
+                            "Settings for remote cluster indicate remote access headers should be sent but target cluster version ["
+                                + connection.getVersion()
+                                + "] does not support receiving them"
+                        )
+                    );
+                    return;
+                }
+
+                final Authentication authentication = securityContext.getAuthentication();
+                assert authentication != null : "authentication must be present in security context";
+                final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
+                assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
+                authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
+                    remoteClusterAlias.get(),
+                    authentication.getEffectiveSubject(),
+                    wrapPreservingContext(ActionListener.wrap(roleDescriptorsIntersection -> {
+                        final ThreadContext threadContext = securityContext.getThreadContext();
+                        final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
+                        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                            final RemoteAccessAuthentication remoteAccessAuthentication = new RemoteAccessAuthentication(
+                                authentication,
+                                roleDescriptorsIntersection
+                            );
+                            remoteAccessAuthentication.writeToContext(threadContext);
+                            writeClusterCredentialToContext(remoteClusterAlias.get(), threadContext);
+                            sendRequestWithHandledException(
+                                connection,
+                                action,
+                                request,
+                                options,
+                                new ContextRestoreResponseHandler<>(contextSupplier, handler)
+                            );
+                        }
+                    }, e -> handler.handleException(new TransportException("failure sending with remote access headers", e))),
+                        securityContext.getThreadContext()
+                    )
+                );
+            }
+
+            private <T extends TransportResponse> void sendRequestWithHandledException(
+                final Transport.Connection connection,
+                final String action,
+                final TransportRequest request,
+                final TransportRequestOptions options,
+                final TransportResponseHandler<T> handler
+            ) {
+                try {
+                    sender.sendRequest(connection, action, request, options, handler);
+                } catch (Exception e) {
+                    handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
+                }
+            }
+
+            private boolean isWhitelistedForRemoteAccessHeaders(final TransportRequest request) {
+                // TODO validate this list is necessary and sufficient for CCS
+                return request instanceof ShardSearchRequest
+                    || request instanceof SearchRequest
+                    || request instanceof ClusterSearchShardsRequest;
+            }
+
+            private void writeClusterCredentialToContext(final String remoteClusterAlias, final ThreadContext threadContext) {
+                final String clusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
+                // This can happen if the cluster credential was updated after we made the initial check to send remote access headers
+                // In this case, fail the request. In the future we may want to retry instead, to pick up the updated remote cluster
+                // configuration
+                if (clusterCredential == null) {
+                    throw new IllegalStateException(
+                        "remote cluster credential unavailable for target cluster [" + remoteClusterAlias + "]"
+                    );
+                }
+                threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER, withApiKeyPrefix(clusterCredential));
+            }
+
+            private String withApiKeyPrefix(final String clusterCredential) {
+                return "ApiKey " + clusterCredential;
             }
         };
     }
@@ -304,6 +467,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } else {
                     final Thread executingThread = Thread.currentThread();
                     filterListener = new AbstractFilterListener(receiveMessage) {
+
                         @Override
                         public void onResponse(Void unused) {
                             if (executingThread == Thread.currentThread()) {

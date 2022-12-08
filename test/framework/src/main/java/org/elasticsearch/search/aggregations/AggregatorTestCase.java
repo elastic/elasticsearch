@@ -103,11 +103,10 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -467,8 +466,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
-     * This is extracted into a seperate function so that stack traces will indicate if a bad allocation happened in the
-     * cranky CB run or the happy path run.
+     * Run an aggregation test against the {@link CrankyCircuitBreakerService}
+     * which fails randomly. This is extracted into a separate function so that
+     * stack traces will indicate if a bad allocation happened in the cranky CB
+     * run or the happy path run.
      */
     private void runWithCrankyCircuitBreaker(IndexSettings indexSettings, IndexSearcher searcher, AggTestConfig aggTestConfig)
         throws IOException {
@@ -477,7 +478,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             try {
                 searchAndReduce(indexSettings, searcher, crankyService, aggTestConfig);
             } catch (CircuitBreakingException e) {
-                // expected
+                // Circuit breaks from the cranky breaker are expected - it randomly fails, after all
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
             } catch (IOException e) {
                 throw e;
             }
@@ -1429,78 +1431,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     (ContextParser<String, AggCardinalityUpperBoundAggregationBuilder>) (p, c) -> null
                 ).addResultReader(InternalAggCardinalityUpperBound::new)
             );
-        }
-    }
-
-    private static class CrankyCircuitBreakerService extends CircuitBreakerService {
-
-        private final CircuitBreaker breaker = new CircuitBreaker() {
-            @Override
-            public void circuitBreak(String fieldName, long bytesNeeded) {
-
-            }
-
-            @Override
-            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                if (random().nextInt(20) == 0) {
-                    throw new CircuitBreakingException("fake error", Durability.PERMANENT);
-                }
-            }
-
-            @Override
-            public void addWithoutBreaking(long bytes) {
-
-            }
-
-            @Override
-            public long getUsed() {
-                return 0;
-            }
-
-            @Override
-            public long getLimit() {
-                return 0;
-            }
-
-            @Override
-            public double getOverhead() {
-                return 0;
-            }
-
-            @Override
-            public long getTrippedCount() {
-                return 0;
-            }
-
-            @Override
-            public String getName() {
-                return CircuitBreaker.FIELDDATA;
-            }
-
-            @Override
-            public Durability getDurability() {
-                return null;
-            }
-
-            @Override
-            public void setLimitAndOverhead(long limit, double overhead) {
-
-            }
-        };
-
-        @Override
-        public CircuitBreaker getBreaker(String name) {
-            return breaker;
-        }
-
-        @Override
-        public AllCircuitBreakerStats stats() {
-            return new AllCircuitBreakerStats(new CircuitBreakerStats[] { stats(CircuitBreaker.FIELDDATA) });
-        }
-
-        @Override
-        public CircuitBreakerStats stats(String name) {
-            return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
         }
     }
 

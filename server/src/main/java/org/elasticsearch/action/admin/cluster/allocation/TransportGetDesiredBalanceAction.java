@@ -87,7 +87,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         listener.onResponse(
             new DesiredBalanceResponse(
                 desiredBalanceShardsAllocator.getStats(),
-                ClusterBalanceStats.createFrom(state.getRoutingNodes(), state.metadata(), writeLoadForecaster),
+                ClusterBalanceStats.createFrom(state, writeLoadForecaster),
                 createRoutingTable(state, latestDesiredBalance)
             )
         );

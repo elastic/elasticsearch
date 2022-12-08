@@ -8,10 +8,10 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.ToDoubleFunction;
 
 import static java.util.stream.Collectors.summarizingDouble;
@@ -34,14 +35,19 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
 
     public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(Map.of());
 
-    public static ClusterBalanceStats createFrom(RoutingNodes routingNodes, Metadata metadata, WriteLoadForecaster writeLoadForecaster) {
+    public static ClusterBalanceStats createFrom(ClusterState clusterState, WriteLoadForecaster writeLoadForecaster) {
         var tierToNodeStats = new HashMap<String, List<NodeStats>>();
-        for (RoutingNode routingNode : routingNodes) {
-            var dataRoles = routingNode.node().getRoles().stream().filter(DiscoveryNodeRole::canContainData).toList();
+        for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
+            var dataRoles = routingNode.node()
+                .getRoles()
+                .stream()
+                .filter(DiscoveryNodeRole::canContainData)
+                .filter(role -> Objects.equals(DiscoveryNodeRole.DATA_ROLE, role) == false)
+                .toList();
             if (dataRoles.isEmpty()) {
                 continue;
             }
-            var nodeStats = NodeStats.createFrom(routingNode, metadata, writeLoadForecaster);
+            var nodeStats = NodeStats.createFrom(routingNode, clusterState.metadata(), writeLoadForecaster);
             for (DiscoveryNodeRole role : dataRoles) {
                 tierToNodeStats.computeIfAbsent(role.roleName(), ignored -> new ArrayList<>()).add(nodeStats);
             }

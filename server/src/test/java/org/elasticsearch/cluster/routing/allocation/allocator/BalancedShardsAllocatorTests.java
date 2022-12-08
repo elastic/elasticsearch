@@ -369,7 +369,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
 
         return ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(createNode("node-1")).add(createNode("node-2")))
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
             .metadata(metadataBuilder)
             .routingTable(routingTableBuilder)
             .build();

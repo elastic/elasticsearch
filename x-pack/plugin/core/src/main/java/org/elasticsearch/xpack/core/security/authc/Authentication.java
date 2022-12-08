@@ -73,7 +73,7 @@ import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMA
  *
  * The authentication is consisted of two {@link Subject}s
  * <ul>
- *     <li>{@link #authenticatingSubject}</li> performs the authentication, i.e. it provides a credential.</li>
+ *     <li>{@link #authenticatingSubject} performs the authentication, i.e. it provides a credential.</li>
  *     <li>{@link #effectiveSubject} The subject that {@link #authenticatingSubject} impersonates ({@link #isRunAs()})</li>
  * </ul>
  * If {@link #isRunAs()} is {@code false}, the two {@link Subject}s will be the same object.

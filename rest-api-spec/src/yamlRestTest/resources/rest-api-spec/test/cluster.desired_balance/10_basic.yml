@@ -57,8 +57,6 @@ setup:
   - gte: { stats.computation_time_in_millis: 0 }
   - gte: { stats.reconciliation_time_in_millis: 0 }
 
-  - is_true: 'cluster_balance_stats'
-
   - match: { routing_table.test.0.current.0.state: 'STARTED' }
   - match: { routing_table.test.0.current.0.shard_id: 0 }
   - match: { routing_table.test.0.current.0.index: test }

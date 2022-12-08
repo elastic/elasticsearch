@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -198,10 +197,6 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
         @Override
         public Version getMinimalSupportedVersion() {
             return Version.CURRENT.minimumCompatibilityVersion();
-        }
-
-        static Diff<LifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {
-            return SimpleDiffable.readDiffFrom(LifecyclePolicyMetadata::new, in);
         }
     }
 }

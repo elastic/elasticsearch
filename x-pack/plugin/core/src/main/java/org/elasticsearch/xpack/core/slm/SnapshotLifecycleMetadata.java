@@ -103,7 +103,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     /**
      * @deprecated use {@link LifecycleOperationMetadata#getSLMOperationMode()} instead. This may be incorrect.
      */
-    @Deprecated(since = "8.6.0")
+    @Deprecated(since = "8.7.0")
     public OperationMode getOperationMode() {
         return operationMode;
     }

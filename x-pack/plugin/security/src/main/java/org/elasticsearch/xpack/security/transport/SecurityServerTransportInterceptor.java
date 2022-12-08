@@ -124,10 +124,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
     @Override
     public AsyncSender interceptSender(AsyncSender sender) {
-        // This is not strictly necessary, but it makes it very obvious we are not interfering with non-feature flagged deployments
-        return false == TcpTransport.isUntrustedRemoteClusterEnabled()
-            ? interceptForAllRequests(sender)
-            : interceptForAllRequests(interceptForRemoteAccessRequests(sender));
+        // Branching based on the feature flag is not strictly necessary here, but it makes it very obvious we are not interfering with
+        // non-feature flagged deployments
+        return interceptForAllRequests(
+            false == TcpTransport.isUntrustedRemoteClusterEnabled() ? sender : interceptForRemoteAccessRequests(sender)
+        );
     }
 
     private AsyncSender interceptForAllRequests(AsyncSender sender) {
@@ -233,6 +234,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             ) {
                 logger.debug("Sending request for action [{}] with remote access headers", action);
                 if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
+                    // TODO it probably does not make sense to treat this as a transport exception
                     handler.handleException(
                         new TransportException(
                             "Settings for remote cluster indicate remote access headers should be sent but target cluster version ["

@@ -12,6 +12,7 @@ import org.gradle.api.internal.tasks.testing.TestCompleteEvent;
 import org.gradle.api.internal.tasks.testing.TestDescriptorInternal;
 import org.gradle.api.internal.tasks.testing.TestResultProcessor;
 import org.gradle.api.internal.tasks.testing.TestStartEvent;
+import org.gradle.api.tasks.testing.TestFailure;
 import org.gradle.api.tasks.testing.TestOutputEvent;
 
 import java.util.ArrayList;
@@ -73,11 +74,25 @@ final class RerunTestResultProcessor implements TestResultProcessor {
     }
 
     @Override
-    public void failure(Object testId, Throwable throwable) {
+    public void failure(Object testId, TestFailure result) {
         if (activeDescriptorsById.containsKey(testId)) {
             activeDescriptorsById.remove(testId);
-            delegate.failure(testId, throwable);
+            try {
+                delegate.failure(testId, result);
+            } catch (IllegalArgumentException illegalArgumentException) {
+                logTracing(testId, illegalArgumentException);
+            }
         }
+    }
+
+    private void logTracing(Object testId, IllegalArgumentException illegalArgumentException) {
+        // Add tracing to diagnose why we see this on CI
+        System.out.println("Rerun failure test id = " + testId);
+        System.out.println("Active test descriptors:");
+        for (Map.Entry<Object, TestDescriptorInternal> entry : activeDescriptorsById.entrySet()) {
+            System.out.println("id= " + entry.getKey() + " -- " + entry.getValue().getDisplayName());
+        }
+        illegalArgumentException.printStackTrace();
     }
 
     public void reset() {

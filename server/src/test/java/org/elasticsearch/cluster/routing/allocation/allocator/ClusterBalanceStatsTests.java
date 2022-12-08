@@ -34,7 +34,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClusterBalanceStatsTest extends ESAllocationTestCase {
+public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     public void testStatsForSingleTierClusterWithNoForecasts() {
 

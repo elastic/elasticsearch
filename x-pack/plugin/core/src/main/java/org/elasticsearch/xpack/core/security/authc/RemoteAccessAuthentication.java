@@ -63,6 +63,24 @@ public final class RemoteAccessAuthentication {
         return roleDescriptorsBytesList;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RemoteAccessAuthentication that = (RemoteAccessAuthentication) o;
+
+        if (!authentication.equals(that.authentication)) return false;
+        return roleDescriptorsBytesList.equals(that.roleDescriptorsBytesList);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = authentication.hashCode();
+        result = 31 * result + roleDescriptorsBytesList.hashCode();
+        return result;
+    }
+
     private static List<RoleDescriptorsBytes> toRoleDescriptorsBytesList(final RoleDescriptorsIntersection roleDescriptorsIntersection)
         throws IOException {
         // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptors to raw bytes is

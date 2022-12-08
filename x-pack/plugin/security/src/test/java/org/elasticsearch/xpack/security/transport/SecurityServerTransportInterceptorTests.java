@@ -17,14 +17,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transport.Connection;
@@ -41,6 +39,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
@@ -57,7 +56,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -65,12 +63,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -176,7 +173,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         doAnswer(i -> null).when(authzService).retrieveRemoteAccessRoleDescriptorsIntersection(any(), any(), listenerCaptor.capture());
         final String remoteClusterAlias = "remote";
 
-        SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
+        final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
             mock(AuthenticationService.class),
@@ -193,7 +190,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
-        final AtomicReference<String> sentAuthorization = new AtomicReference<>();
+        final AtomicReference<String> sentCredential = new AtomicReference<>();
+        final AtomicReference<RemoteAccessAuthentication> sentRemoteAccessAuthentication = new AtomicReference<>();
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
             public <T extends TransportResponse> void sendRequest(
@@ -207,16 +205,29 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     fail("sender called more than once!");
                 }
                 assertThat(securityContext.getAuthentication(), nullValue());
-                sentAuthorization.set(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER));
+                sentCredential.set(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER));
+                try {
+                    sentRemoteAccessAuthentication.set(RemoteAccessAuthentication.readFromContext(securityContext.getThreadContext()));
+                } catch (IOException e) {
+                    fail("no exceptions expected but got " + e);
+                }
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
+        // TODO pick any whitelisted
         sender.sendRequest(connection, SearchAction.NAME, mock(SearchRequest.class), null, null);
         // Call listener to complete flow
-        listenerCaptor.getValue().onResponse(new RoleDescriptorsIntersection(List.of()));
+        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
+            randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
+        );
+        listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
         assertTrue(calledWrappedSender.get());
-        assertThat(sentAuthorization.get(), equalTo("ApiKey " + clusterCredential));
+        assertThat(sentCredential.get(), equalTo("ApiKey " + clusterCredential));
+        assertThat(
+            sentRemoteAccessAuthentication.get(),
+            equalTo(new RemoteAccessAuthentication(authentication, expectedRoleDescriptorsIntersection))
+        );
         verify(securityContext, never()).executeAsInternalUser(any(User.class), any(Version.class), anyConsumer());
     }
 

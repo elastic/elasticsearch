@@ -44,7 +44,7 @@ public class Stateless extends Plugin {
 
     private static final Logger logger = LogManager.getLogger(Stateless.class);
 
-    private static final String NAME = "stateless";
+    public static final String NAME = "stateless";
 
     /** Setting for enabling stateless. Defaults to false. **/
     public static final Setting<Boolean> STATELESS_ENABLED = Setting.boolSetting(

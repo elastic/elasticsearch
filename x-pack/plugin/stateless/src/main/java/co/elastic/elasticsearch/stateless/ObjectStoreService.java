@@ -18,6 +18,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -34,44 +35,50 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     public static final Setting<String> CLIENT = Setting.simpleString("stateless.object_store.client", Setting.Property.NodeScope);
 
-    public static final String TYPE_FS = "fs";
-    public static final String TYPE_S3 = "s3";
-    public static final String TYPE_GCS = "gcs";
-    public static final String TYPE_AZURE = "azure";
+    public enum ObjectStoreType {
+        FS,
+        S3,
+        GCS,
+        AZURE;
 
-    public static final List<String> TYPES_SUPPORTED = List.of(TYPE_FS, TYPE_S3, TYPE_GCS, TYPE_AZURE);
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
 
     private static final List<Setting<?>> TYPE_VALIDATOR_SETTINGS_LIST = List.of(BUCKET, CLIENT);
-    public static final Setting<String> TYPE = Setting.simpleString("stateless.object_store.type", new Setting.Validator<String>() {
-        @Override
-        public void validate(String value) {}
+    public static final Setting<ObjectStoreType> TYPE = Setting.enumSetting(
+        ObjectStoreType.class,
+        "stateless.object_store.type",
+        ObjectStoreType.FS,
+        new Setting.Validator<ObjectStoreType>() {
+            @Override
+            public void validate(ObjectStoreType value) {}
 
-        @Override
-        public void validate(final String value, final Map<Setting<?>, Object> settings, boolean isPresent) {
-            if (TYPES_SUPPORTED.contains(value) == false) {
-                throw new IllegalArgumentException(
-                    "Unsupported object store [" + TYPE.getKey() + "=" + value + "]. Allowed types are: [" + TYPES_SUPPORTED + "]."
-                );
-            }
-
-            final String bucket = (String) settings.get(BUCKET);
-            final String client = (String) settings.get(CLIENT);
-
-            if (bucket.isEmpty()) {
-                throw new IllegalArgumentException("setting " + BUCKET.getKey() + " must be set for an object store of type " + value);
-            }
-            if (value.equals(TYPE_S3) || value.equals(TYPE_GCS) || value.equals(TYPE_AZURE)) {
-                if (client.isEmpty()) {
-                    throw new IllegalArgumentException("setting " + CLIENT.getKey() + " must be set for an object store of type " + value);
+            @Override
+            public void validate(final ObjectStoreType value, final Map<Setting<?>, Object> settings, boolean isPresent) {
+                final String bucket = (String) settings.get(BUCKET);
+                final String client = (String) settings.get(CLIENT);
+                if (bucket.isEmpty()) {
+                    throw new IllegalArgumentException("setting " + BUCKET.getKey() + " must be set for an object store of type " + value);
+                }
+                if (value.equals(ObjectStoreType.S3) || value.equals(ObjectStoreType.GCS) || value.equals(ObjectStoreType.AZURE)) {
+                    if (client.isEmpty()) {
+                        throw new IllegalArgumentException(
+                            "setting " + CLIENT.getKey() + " must be set for an object store of type " + value
+                        );
+                    }
                 }
             }
-        }
 
-        @Override
-        public Iterator<Setting<?>> settings() {
-            return TYPE_VALIDATOR_SETTINGS_LIST.iterator();
-        }
-    }, Setting.Property.NodeScope);
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return TYPE_VALIDATOR_SETTINGS_LIST.iterator();
+            }
+        },
+        Setting.Property.NodeScope
+    );
 
     private final Settings settings;
     private final Environment environment;
@@ -93,31 +100,38 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         return Objects.requireNonNull(objectStore);
     }
 
-    @Override
-    protected void doStart() {
-        assert objectStore == null;
-        String type = TYPE.get(settings);
+    private static RepositoryMetadata getRepositoryMetadata(Settings settings) {
+        ObjectStoreType type = TYPE.get(settings);
         String bucket = BUCKET.get(settings);
         String client = CLIENT.get(settings);
 
         Settings.Builder builder = Settings.builder();
-        if (type.equals(TYPE_FS)) {
+        if (type.equals(ObjectStoreType.FS)) {
             builder = builder.put("location", bucket);
-        } else if (type.equals(TYPE_S3)) {
+        } else if (type.equals(ObjectStoreType.S3)) {
             builder = builder.put("bucket", bucket).put("client", client);
-        } else if (type.equals(TYPE_GCS)) {
+        } else if (type.equals(ObjectStoreType.GCS)) {
             builder = builder.put("bucket", bucket).put("client", client);
-        } else if (type.equals(TYPE_AZURE)) {
+        } else if (type.equals(ObjectStoreType.AZURE)) {
             builder = builder.put("container", bucket).put("client", client);
         }
 
-        final RepositoryMetadata metadata = new RepositoryMetadata("stateless", type, builder.build());
-        Repository repository = getRepositoriesService().createRepository(metadata);
+        return new RepositoryMetadata(Stateless.NAME, type.toString(), builder.build());
+    }
+
+    @Override
+    protected void doStart() {
+        assert objectStore == null;
+        Repository repository = getRepositoriesService().createRepository(getRepositoryMetadata(settings));
         assert repository instanceof BlobStoreRepository;
         this.objectStore = (BlobStoreRepository) repository;
-
         getObjectStore().start();
-        logger.info("started object store service with type [{}], bucket [{}], and client [{}]", type, bucket, client);
+        logger.info(
+            "started object store service with type [{}], bucket [{}], client [{}]",
+            TYPE.get(settings),
+            BUCKET.get(settings),
+            CLIENT.get(settings)
+        );
     }
 
     @Override

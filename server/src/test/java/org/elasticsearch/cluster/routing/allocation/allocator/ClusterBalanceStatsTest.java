@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,6 +36,31 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterBalanceStatsTest extends ESAllocationTestCase {
+
+    public void test() {
+        System.out.println(
+            Strings.toString(
+                new ClusterBalanceStats(
+                    Map.of(
+                        DATA_HOT_NODE_ROLE.roleName(),
+                        new ClusterBalanceStats.TierBalanceStats(
+                            new ClusterBalanceStats.MetricStats(7.0, 2.0, 3.0, 7.0 / 3, stdDev(3.0, 2.0, 2.0)),
+                            new ClusterBalanceStats.MetricStats(21.0, 6.0, 8.5, 7.0, stdDev(6.0, 8.5, 6.5)),
+                            new ClusterBalanceStats.MetricStats(36.0, 10.0, 16.0, 12.0, stdDev(10.0, 10.0, 16.0))
+                        ),
+                        DATA_WARM_NODE_ROLE.roleName(),
+                        new ClusterBalanceStats.TierBalanceStats(
+                            new ClusterBalanceStats.MetricStats(3.0, 1.0, 1.0, 1.0, 0.0),
+                            new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new ClusterBalanceStats.MetricStats(42.0, 12.0, 18.0, 14.0, stdDev(12.0, 12.0, 18.0))
+                        )
+                    )
+                ),
+                true,
+                false
+            )
+        );
+    }
 
     public void testStatsForSingleTierClusterWithNoForecasts() {
 
@@ -60,14 +86,9 @@ public class ClusterBalanceStatsTest extends ESAllocationTestCase {
                     Map.of(
                         DATA_CONTENT_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
-                            Map.of(
-                                "shard_count",
-                                new ClusterBalanceStats.MetricStats(6.0, 2.0, 2.0, 2.0, 0.0),
-                                "total_write_load",
-                                new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
-                                "total_shard_size",
-                                new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0)
-                            )
+                            new ClusterBalanceStats.MetricStats(6.0, 2.0, 2.0, 2.0, 0.0),
+                            new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0)
                         )
                     )
                 )
@@ -99,14 +120,9 @@ public class ClusterBalanceStatsTest extends ESAllocationTestCase {
                     Map.of(
                         DATA_CONTENT_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
-                            Map.of(
-                                "shard_count",
-                                new ClusterBalanceStats.MetricStats(6.0, 2.0, 2.0, 2.0, 0.0),
-                                "total_write_load",
-                                new ClusterBalanceStats.MetricStats(12.0, 3.5, 4.5, 4.0, stdDev(3.5, 4.0, 4.5)),
-                                "total_shard_size",
-                                new ClusterBalanceStats.MetricStats(36.0, 10.0, 14.0, 12.0, stdDev(10.0, 12.0, 14.0))
-                            )
+                            new ClusterBalanceStats.MetricStats(6.0, 2.0, 2.0, 2.0, 0.0),
+                            new ClusterBalanceStats.MetricStats(12.0, 3.5, 4.5, 4.0, stdDev(3.5, 4.0, 4.5)),
+                            new ClusterBalanceStats.MetricStats(36.0, 10.0, 14.0, 12.0, stdDev(10.0, 12.0, 14.0))
                         )
                     )
                 )
@@ -143,25 +159,15 @@ public class ClusterBalanceStatsTest extends ESAllocationTestCase {
                     Map.of(
                         DATA_HOT_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
-                            Map.of(
-                                "shard_count",
-                                new ClusterBalanceStats.MetricStats(7.0, 2.0, 3.0, 7.0 / 3, stdDev(3.0, 2.0, 2.0)),
-                                "total_write_load",
-                                new ClusterBalanceStats.MetricStats(21.0, 6.0, 8.5, 7.0, stdDev(6.0, 8.5, 6.5)),
-                                "total_shard_size",
-                                new ClusterBalanceStats.MetricStats(36.0, 10.0, 16.0, 12.0, stdDev(10.0, 10.0, 16.0))
-                            )
+                            new ClusterBalanceStats.MetricStats(7.0, 2.0, 3.0, 7.0 / 3, stdDev(3.0, 2.0, 2.0)),
+                            new ClusterBalanceStats.MetricStats(21.0, 6.0, 8.5, 7.0, stdDev(6.0, 8.5, 6.5)),
+                            new ClusterBalanceStats.MetricStats(36.0, 10.0, 16.0, 12.0, stdDev(10.0, 10.0, 16.0))
                         ),
                         DATA_WARM_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
-                            Map.of(
-                                "shard_count",
-                                new ClusterBalanceStats.MetricStats(3.0, 1.0, 1.0, 1.0, 0.0),
-                                "total_write_load",
-                                new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
-                                "total_shard_size",
-                                new ClusterBalanceStats.MetricStats(42.0, 12.0, 18.0, 14.0, stdDev(12.0, 12.0, 18.0))
-                            )
+                            new ClusterBalanceStats.MetricStats(3.0, 1.0, 1.0, 1.0, 0.0),
+                            new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new ClusterBalanceStats.MetricStats(42.0, 12.0, 18.0, 14.0, stdDev(12.0, 12.0, 18.0))
                         )
                     )
                 )

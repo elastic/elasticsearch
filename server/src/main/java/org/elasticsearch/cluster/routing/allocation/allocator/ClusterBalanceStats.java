@@ -69,33 +69,37 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
         return builder.map(tiers);
     }
 
-    public record TierBalanceStats(Map<String, MetricStats> metrics) implements Writeable, ToXContentObject {
+    public record TierBalanceStats(MetricStats shardCount, MetricStats totalWriteLoad, MetricStats totalShardSize)
+        implements
+            Writeable,
+            ToXContentObject {
 
         private static TierBalanceStats createFrom(List<NodeStats> nodes) {
             return new TierBalanceStats(
-                Map.of(
-                    "shard_count",
-                    MetricStats.createFrom(nodes, it -> it.shards),
-                    "total_write_load",
-                    MetricStats.createFrom(nodes, it -> it.totalWriteLoad),
-                    "total_shard_size",
-                    MetricStats.createFrom(nodes, it -> it.totalShardSize)
-                )
+                MetricStats.createFrom(nodes, it -> it.shards),
+                MetricStats.createFrom(nodes, it -> it.totalWriteLoad),
+                MetricStats.createFrom(nodes, it -> it.totalShardSize)
             );
         }
 
         public static TierBalanceStats readFrom(StreamInput in) throws IOException {
-            return new TierBalanceStats(in.readImmutableMap(StreamInput::readString, MetricStats::readFrom));
+            return new TierBalanceStats(MetricStats.readFrom(in), MetricStats.readFrom(in), MetricStats.readFrom(in));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(metrics, StreamOutput::writeString, StreamOutput::writeWriteable);
+            shardCount.writeTo(out);
+            totalWriteLoad.writeTo(out);
+            totalShardSize.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.map(metrics);
+            return builder.startObject()
+                .field("shard_count", shardCount)
+                .field("total_write_load", totalWriteLoad)
+                .field("total_shard_size", totalShardSize)
+                .endObject();
         }
     }
 

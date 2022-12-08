@@ -72,14 +72,9 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     private ClusterBalanceStats.TierBalanceStats randomTierBalanceStats() {
         return new ClusterBalanceStats.TierBalanceStats(
-            Map.of(
-                "shard_count",
-                new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
-                "total_write_load",
-                new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
-                "total_shard_size",
-                new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble())
-            )
+            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
+            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
+            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble())
         );
     }
 
@@ -173,27 +168,27 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
             Map<String, Object> shardCountStats = (Map<String, Object>) tierStats.get("shard_count");
             assertEquals(Set.of("total", "average", "min", "max", "std_dev"), shardCountStats.keySet());
-            assertEquals(shardCountStats.get("total"), entry.getValue().metrics().get("shard_count").total());
-            assertEquals(shardCountStats.get("average"), entry.getValue().metrics().get("shard_count").average());
-            assertEquals(shardCountStats.get("min"), entry.getValue().metrics().get("shard_count").min());
-            assertEquals(shardCountStats.get("max"), entry.getValue().metrics().get("shard_count").max());
-            assertEquals(shardCountStats.get("std_dev"), entry.getValue().metrics().get("shard_count").stdDev());
+            assertEquals(shardCountStats.get("total"), entry.getValue().shardCount().total());
+            assertEquals(shardCountStats.get("average"), entry.getValue().shardCount().average());
+            assertEquals(shardCountStats.get("min"), entry.getValue().shardCount().min());
+            assertEquals(shardCountStats.get("max"), entry.getValue().shardCount().max());
+            assertEquals(shardCountStats.get("std_dev"), entry.getValue().shardCount().stdDev());
 
             Map<String, Object> totalWriteLoadStats = (Map<String, Object>) tierStats.get("total_write_load");
             assertEquals(Set.of("total", "average", "min", "max", "std_dev"), totalWriteLoadStats.keySet());
-            assertEquals(totalWriteLoadStats.get("total"), entry.getValue().metrics().get("total_write_load").total());
-            assertEquals(totalWriteLoadStats.get("average"), entry.getValue().metrics().get("total_write_load").average());
-            assertEquals(totalWriteLoadStats.get("min"), entry.getValue().metrics().get("total_write_load").min());
-            assertEquals(totalWriteLoadStats.get("max"), entry.getValue().metrics().get("total_write_load").max());
-            assertEquals(totalWriteLoadStats.get("std_dev"), entry.getValue().metrics().get("total_write_load").stdDev());
+            assertEquals(totalWriteLoadStats.get("total"), entry.getValue().totalWriteLoad().total());
+            assertEquals(totalWriteLoadStats.get("average"), entry.getValue().totalWriteLoad().average());
+            assertEquals(totalWriteLoadStats.get("min"), entry.getValue().totalWriteLoad().min());
+            assertEquals(totalWriteLoadStats.get("max"), entry.getValue().totalWriteLoad().max());
+            assertEquals(totalWriteLoadStats.get("std_dev"), entry.getValue().totalWriteLoad().stdDev());
 
             Map<String, Object> totalShardStats = (Map<String, Object>) tierStats.get("total_shard_size");
             assertEquals(Set.of("total", "average", "min", "max", "std_dev"), totalShardStats.keySet());
-            assertEquals(totalShardStats.get("total"), entry.getValue().metrics().get("total_shard_size").total());
-            assertEquals(totalShardStats.get("average"), entry.getValue().metrics().get("total_shard_size").average());
-            assertEquals(totalShardStats.get("min"), entry.getValue().metrics().get("total_shard_size").min());
-            assertEquals(totalShardStats.get("max"), entry.getValue().metrics().get("total_shard_size").max());
-            assertEquals(totalShardStats.get("std_dev"), entry.getValue().metrics().get("total_shard_size").stdDev());
+            assertEquals(totalShardStats.get("total"), entry.getValue().totalShardSize().total());
+            assertEquals(totalShardStats.get("average"), entry.getValue().totalShardSize().average());
+            assertEquals(totalShardStats.get("min"), entry.getValue().totalShardSize().min());
+            assertEquals(totalShardStats.get("max"), entry.getValue().totalShardSize().max());
+            assertEquals(totalShardStats.get("std_dev"), entry.getValue().totalShardSize().stdDev());
         }
 
         // routing table

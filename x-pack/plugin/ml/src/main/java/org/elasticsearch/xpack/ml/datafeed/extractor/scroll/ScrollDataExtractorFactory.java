@@ -115,7 +115,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             if (optionalAggregatedMetricDouble.isPresent()) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
-                        "field [{}] is of type [{}] and cannot be used in datafeed without aggregations",
+                        "field [{}] is of type [{}] and cannot be used in a datafeed without aggregations",
                         optionalAggregatedMetricDouble.get(),
                         AGGREGATE_METRIC_DOUBLE
                     )

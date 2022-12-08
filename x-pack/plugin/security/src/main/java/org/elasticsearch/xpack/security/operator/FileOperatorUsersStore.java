@@ -69,7 +69,7 @@ public class FileOperatorUsersStore {
         // The special handling for realm name is because there can only be one file or native realm and it does
         // not matter what the name is.
         return operatorUsersDescriptor.groups.stream().anyMatch(group -> {
-            final Authentication.RealmRef realm = authentication.getSourceRealm();
+            final Authentication.RealmRef realm = authentication.getEffectiveSubject().getRealm();
             final boolean match = group.usernames.contains(authentication.getEffectiveSubject().getUser().principal())
                 && group.authenticationType == authentication.getAuthenticationType()
                 && realm.getType().equals(group.realmType)

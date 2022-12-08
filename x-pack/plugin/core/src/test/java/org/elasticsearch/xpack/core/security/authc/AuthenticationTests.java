@@ -40,30 +40,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AuthenticationTests extends ESTestCase {
 
-    public void testWillGetLookedUpByWhenItExists() {
-        final RealmRef authenticatedBy = new RealmRef("auth_by", "auth_by_type", "node");
-        final RealmRef lookedUpBy = new RealmRef("lookup_by", "lookup_by_type", "node");
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User("not-user"))
-            .realmRef(authenticatedBy)
-            .runAs()
-            .user(new User("user"))
-            .realmRef(lookedUpBy)
-            .build();
-
-        assertEquals(lookedUpBy, authentication.getSourceRealm());
-    }
-
-    public void testWillGetAuthenticateByWhenLookupIsNull() {
-        final RealmRef authenticatedBy = new RealmRef("auth_by", "auth_by_type", "node");
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User("user"))
-            .realmRef(authenticatedBy)
-            .build(false);
-
-        assertEquals(authenticatedBy, authentication.getSourceRealm());
-    }
-
     public void testCanAccessResourcesOf() {
         // Same user is the same
         final User user1 = randomUser();

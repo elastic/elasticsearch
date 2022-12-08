@@ -45,7 +45,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testClaimIsNotSingleValued() throws ParseException {
-        final String claimName = randomAlphaOfLength(10);
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
         final String fallbackClaimName = randomAlphaOfLength(12);
 
         final JwtStringClaimValidator validator;
@@ -68,7 +68,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testClaimDoesNotExist() throws ParseException {
-        final String claimName = randomAlphaOfLength(10);
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
         final String fallbackClaimName = randomAlphaOfLength(12);
 
         final JwtStringClaimValidator validator;
@@ -88,7 +88,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testMatchingClaimValues() throws ParseException {
-        final String claimName = randomAlphaOfLength(10);
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
         final String fallbackClaimName = randomAlphaOfLength(12);
         final String claimValue = randomAlphaOfLength(10);
         final boolean singleValuedClaim = randomBoolean();
@@ -129,7 +129,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
     }
 
     public void testDoesNotSupportWildcardOrRegex() throws ParseException {
-        final String claimName = randomAlphaOfLength(10);
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
         final String fallbackClaimName = randomAlphaOfLength(12);
         final String claimValue = randomFrom("*", "/.*/");
 

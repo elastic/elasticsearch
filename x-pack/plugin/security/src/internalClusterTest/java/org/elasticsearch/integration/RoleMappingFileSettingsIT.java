@@ -490,6 +490,15 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                 .keys(),
             containsInAnyOrder("everyone_fleet_alone", "everyone_kibana_alone")
         );
+
+        var request = new GetRoleMappingsRequest();
+        request.setNames("everyone_kibana_alone", "everyone_fleet_alone");
+        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
+        assertTrue(response.hasMappings());
+        assertThat(
+            Arrays.stream(response.mappings()).map(r -> r.getName()).collect(Collectors.toSet()),
+            allOf(notNullValue(), containsInAnyOrder("everyone_kibana_alone", "everyone_fleet_alone"))
+        );
     }
 
     private PutRoleMappingRequest sampleRestRequest(String name) throws Exception {

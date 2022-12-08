@@ -487,94 +487,89 @@ public class SettingsTests extends ESTestCase {
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
     }
 
-    public void testFallbackSecureSettings() throws Exception {
-        boolean stateless = randomBoolean();
-        boolean testFileSettingInsteadOfStringSetting = randomBoolean();
-        boolean testSecureSettingWinsOverFallbackSetting = randomBoolean();
+    public void testFallbackSecureSettingsWithoutStateless() {
+        Setting<?> fallbackSetting = SecureSetting.secureString(FallbackSecureSettings.FALLBACK_PREFIX + "key", null);
 
-        String fallbackSecureKey = "fallback.secure.key";
+        final Settings settings = Settings.builder()
+                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, false)
+                .put(fallbackSetting.getKey(), "fallback.yaml.value")
+                .build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FallbackSecureSettings.installFallbackSecureSettings(settings)
+        );
+        assertTrue(e.getMessage().contains("supported only in stateless"));
+    }
+
+    public void testSecureSettingWinsOverFallbackSetting() {
+        String fallbackSecureKey = "secure.key";
         String fallbackInsecureKey = FallbackSecureSettings.FALLBACK_PREFIX + fallbackSecureKey;
-        Setting<?> fallbackSecureSetting = testFileSettingInsteadOfStringSetting
-            ? SecureSetting.secureFile(fallbackSecureKey, null)
-            : SecureSetting.secureString(fallbackSecureKey, null);
+        Setting<?> fallbackSecureSetting = SecureSetting.secureString(fallbackSecureKey, null);
         Setting<?> fallbackInsecureSetting = Setting.simpleString(fallbackInsecureKey);
+
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(fallbackSecureSetting.getKey(), "secure.value");
+
+        final Settings settings = Settings.builder()
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .put(fallbackInsecureSetting.getKey(), "yaml.value")
+            .setSecureSettings(secureSettings)
+            .build();
+
+        Settings newSettings = FallbackSecureSettings.installFallbackSecureSettings(settings);
+        assertTrue(fallbackSecureSetting.exists(newSettings));
+        assertEquals("secure.value", fallbackSecureSetting.get(newSettings).toString());
+        assertTrue(fallbackInsecureSetting.exists(newSettings));
+        assertEquals("yaml.value", fallbackInsecureSetting.get(newSettings).toString());
+    }
+
+    public void testFallbackSecureSettings() throws Exception {
+        boolean testFileSettingInsteadOfStringSetting = randomBoolean();
 
         Setting<?> standardSecureSetting = testFileSettingInsteadOfStringSetting
             ? SecureSetting.secureFile("standard.secure.key", null)
             : SecureSetting.secureString("standard.secure.key", null);
-
         Setting<?> yamlSetting = Setting.simpleString("yaml.key");
+        Setting<?> fallbackInsecureSetting = Setting.simpleString(FallbackSecureSettings.FALLBACK_PREFIX + "fallback.key");
 
         MockSecureSettings secureSettings = new MockSecureSettings();
         if (testFileSettingInsteadOfStringSetting) {
             secureSettings.setFile(standardSecureSetting.getKey(), "standard.secure.value".getBytes(StandardCharsets.UTF_8));
-            if (testSecureSettingWinsOverFallbackSetting) secureSettings.setFile(
-                fallbackSecureSetting.getKey(),
-                "fallback.secure.value".getBytes(StandardCharsets.UTF_8)
-            );
         } else {
             secureSettings.setString(standardSecureSetting.getKey(), "standard.secure.value");
-            if (testSecureSettingWinsOverFallbackSetting) secureSettings.setString(fallbackSecureSetting.getKey(), "fallback.secure.value");
         }
 
         final Settings settings = Settings.builder()
-            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, stateless)
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
             .put(fallbackInsecureSetting.getKey(), "fallback.yaml.value")
             .put(standardSecureSetting.getKey(), "standard.yaml.value")
             .put(yamlSetting.getKey(), "yaml.value")
             .setSecureSettings(secureSettings)
             .build();
 
-        if (testSecureSettingWinsOverFallbackSetting) {
-            assertTrue(fallbackSecureSetting.exists(settings));
-            assertEquals(
-                "fallback.secure.value",
-                testFileSettingInsteadOfStringSetting
-                    ? new String(((InputStream) fallbackSecureSetting.get(settings)).readAllBytes(), StandardCharsets.UTF_8)
-                    : fallbackSecureSetting.get(settings).toString()
-            );
-        } else {
-            assertFalse(fallbackSecureSetting.exists(settings));
-        }
-        assertTrue(fallbackInsecureSetting.exists(settings));
-        assertEquals("fallback.yaml.value", fallbackInsecureSetting.get(settings).toString());
-        assertTrue(standardSecureSetting.exists(settings));
+        Settings newSettings = FallbackSecureSettings.installFallbackSecureSettings(settings);
+        Setting<?> fallbackSecureSetting = testFileSettingInsteadOfStringSetting
+            ? SecureSetting.secureFile("fallback.key", null)
+            : SecureSetting.secureString("fallback.key", null);
+        assertTrue(fallbackSecureSetting.exists(newSettings));
+        assertEquals(
+            "fallback.yaml.value",
+            testFileSettingInsteadOfStringSetting
+                ? new String(((InputStream) fallbackSecureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
+                : fallbackSecureSetting.get(newSettings).toString()
+        );
+        assertTrue(fallbackInsecureSetting.exists(newSettings));
+        assertEquals("fallback.yaml.value", fallbackInsecureSetting.get(newSettings).toString());
+        assertTrue(standardSecureSetting.exists(newSettings));
         assertEquals(
             "standard.secure.value",
             testFileSettingInsteadOfStringSetting
-                ? new String(((InputStream) standardSecureSetting.get(settings)).readAllBytes(), StandardCharsets.UTF_8)
-                : standardSecureSetting.get(settings).toString()
+                ? new String(((InputStream) standardSecureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
+                : standardSecureSetting.get(newSettings).toString()
         );
-        assertTrue(yamlSetting.exists(settings));
-        assertEquals("yaml.value", yamlSetting.get(settings).toString());
-
-        if (stateless) {
-            Settings newSettings = FallbackSecureSettings.installFallbackSecureSettings(settings);
-            assertTrue(fallbackSecureSetting.exists(newSettings));
-            assertEquals(
-                testSecureSettingWinsOverFallbackSetting ? "fallback.secure.value" : "fallback.yaml.value",
-                testFileSettingInsteadOfStringSetting
-                    ? new String(((InputStream) fallbackSecureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
-                    : fallbackSecureSetting.get(newSettings).toString()
-            );
-            assertTrue(fallbackInsecureSetting.exists(newSettings));
-            assertEquals("fallback.yaml.value", fallbackInsecureSetting.get(newSettings).toString());
-            assertTrue(standardSecureSetting.exists(newSettings));
-            assertEquals(
-                "standard.secure.value",
-                testFileSettingInsteadOfStringSetting
-                    ? new String(((InputStream) standardSecureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
-                    : standardSecureSetting.get(newSettings).toString()
-            );
-            assertTrue(yamlSetting.exists(newSettings));
-            assertEquals("yaml.value", yamlSetting.get(newSettings).toString());
-        } else {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> FallbackSecureSettings.installFallbackSecureSettings(settings)
-            );
-            assertTrue(e.getMessage().contains("supported only in stateless"));
-        }
+        assertTrue(yamlSetting.exists(newSettings));
+        assertEquals("yaml.value", yamlSetting.get(newSettings).toString());
     }
 
     public void testGetAsArrayFailsOnDuplicates() {

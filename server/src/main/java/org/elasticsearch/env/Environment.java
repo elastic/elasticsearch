@@ -160,7 +160,6 @@ public class Environment {
             finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
         }
 
-        SecureSettings secureSettings = finalSettings.getSecureSettings();
         if (DiscoveryNode.isStateless(settings)) {
             this.settings = FallbackSecureSettings.installFallbackSecureSettings(finalSettings.build());
         } else {

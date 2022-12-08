@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.xcontent.ToXContent;
@@ -226,7 +227,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""
@@ -314,7 +315,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .build();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""
@@ -385,7 +386,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""
@@ -451,7 +452,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""
@@ -554,7 +555,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""
@@ -689,7 +690,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(formatted("""

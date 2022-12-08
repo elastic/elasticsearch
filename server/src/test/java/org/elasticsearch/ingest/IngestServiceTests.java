@@ -195,9 +195,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
 
@@ -963,9 +963,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             bulkRequest.numberOfActions(),
             bulkRequest.requests(),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
 
@@ -1009,9 +1009,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             bulkRequest.numberOfActions(),
             bulkRequest.requests(),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         verify(failureHandler, times(1)).accept(
@@ -1045,9 +1045,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         verify(failureHandler, never()).accept(any(), any());
@@ -1085,9 +1085,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         latch.await();
@@ -1113,9 +1113,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         verify(failureHandler, never()).accept(any(), any());
@@ -1176,9 +1176,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         verify(processor).execute(any(), any());
@@ -1220,9 +1220,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
@@ -1278,9 +1278,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         verify(failureHandler, never()).accept(eq(0), any(IngestProcessorException.class));
@@ -1330,9 +1330,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
@@ -1393,9 +1393,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             numRequest,
             bulkRequest.requests(),
+            indexReq -> {},
             requestItemErrorHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
 
@@ -1447,9 +1447,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             numRequest,
             bulkRequest.requests(),
+            indexReq -> {},
             requestItemErrorHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
 
@@ -1517,9 +1517,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         final IngestStats afterFirstRequestStats = ingestService.stats();
@@ -1541,9 +1541,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         final IngestStats afterSecondRequestStats = ingestService.stats();
@@ -1570,9 +1570,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         final IngestStats afterThirdRequestStats = ingestService.stats();
@@ -1600,9 +1600,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             1,
             Collections.singletonList(indexRequest),
+            indexReq -> {},
             failureHandler,
             completionHandler,
-            indexReq -> {},
             Names.WRITE
         );
         final IngestStats afterForthRequestStats = ingestService.stats();
@@ -1698,9 +1698,9 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(
             bulkRequest.numberOfActions(),
             bulkRequest.requests(),
+            dropHandler,
             failureHandler,
             completionHandler,
-            dropHandler,
             Names.WRITE
         );
         verify(failureHandler, never()).accept(any(), any());
@@ -1784,9 +1784,9 @@ public class IngestServiceTests extends ESTestCase {
             ingestService.executeBulkRequest(
                 1,
                 Collections.singletonList(indexRequest),
+                indexReq -> {},
                 (integer, e) -> {},
                 (thread, e) -> {},
-                indexReq -> {},
                 Names.WRITE
             );
         }
@@ -1817,7 +1817,7 @@ public class IngestServiceTests extends ESTestCase {
         bulkRequest.add(indexRequest1);
         bulkRequest.add(indexRequest2);
 
-        ingestService.executeBulkRequest(2, bulkRequest.requests(), (integer, e) -> {}, (thread, e) -> {}, indexReq -> {}, Names.WRITE);
+        ingestService.executeBulkRequest(2, bulkRequest.requests(), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
 
         assertThat(indexRequest1.getRawTimestamp(), equalTo(10));
         assertThat(indexRequest2.getRawTimestamp(), nullValue());

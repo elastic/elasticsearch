@@ -55,8 +55,8 @@ tasks.register('fulfilling-cluster', RestIntegTestTask) {
 
 tasks.register('querying-cluster', RestIntegTestTask) {
   dependsOn 'fulfilling-cluster'
-  useCluster queryingCluster
   useCluster fulfillingCluster
+  useCluster queryingCluster
   systemProperty 'tests.rest.suite', 'querying_cluster'
   if (proxyMode) {
     systemProperty 'tests.rest.blacklist', [

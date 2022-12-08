@@ -21,9 +21,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.Writer;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -188,16 +185,13 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     public void testGetDefaultProjectIdViaProxy() throws Exception {
         String proxyProjectId = randomAlphaOfLength(16);
-        var proxyServer = new MockHttpProxyServer(new MockHttpProxyServer.SocketRequestHandler() {
-            @Override
-            public void handle(BufferedReader reader, Writer writer) throws IOException {
-                assertEquals("GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1", reader.readLine());
-                writer.write(formatted("""
-                    HTTP/1.1 200 OK\r
-                    Content-Length: %s\r
-                    \r
-                    %s""", proxyProjectId.length(), proxyProjectId));
-            }
+        var proxyServer = new MockHttpProxyServer((reader, writer) -> {
+            assertEquals("GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1", reader.readLine());
+            writer.write(formatted("""
+                HTTP/1.1 200 OK\r
+                Content-Length: %s\r
+                \r
+                %s""", proxyProjectId.length(), proxyProjectId));
         }).await();
         try (proxyServer) {
             var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));

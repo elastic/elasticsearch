@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.repositories.gcs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.mocksocket.MockServerSocket;
 
 import java.io.BufferedReader;
@@ -15,14 +17,16 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.net.Socket;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * A Mock single-threaded HTTP Proxy server for testing of the support of HTTP proxies in various SDKs
+ * A mock single-threaded HTTP Proxy server for testing of support of HTTP proxies in various SDKs
  */
 class MockHttpProxyServer implements Closeable {
+
+    private static final Logger log = LogManager.getLogger(MockHttpProxyServer.class);
 
     private final MockServerSocket serverSocket;
     private final Thread serverThread;
@@ -35,20 +39,16 @@ class MockHttpProxyServer implements Closeable {
         serverThread = new Thread(() -> {
             latch.countDown();
             while (Thread.currentThread().isInterrupted() == false) {
-                Socket socket;
-                try {
-                    socket = serverSocket.accept();
-                } catch (IOException e) {
-                    break;
-                }
                 try (
-                    socket;
+                    var socket = serverSocket.accept();
                     var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
                     var writer = new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8)
                 ) {
                     handler.handle(reader, writer);
+                } catch (SocketException e) {
+                    // Server socket is closed
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    log.error("Unable to handle socket request", e);
                 }
             }
         });

@@ -126,8 +126,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         assertThat(shardsWithState(routingNodes, STARTED).size(), equalTo(1));
         assertThat(shardsWithState(routingNodes, INITIALIZING).size(), equalTo(0));
         assertThat(shardsWithState(routingNodes, UNASSIGNED).size(), equalTo(3)); // 2 replicas and one primary
-        assertThat(routingNodes.node(nodeIdRemaining).shardsWithState(STARTED).get(0).primary(), equalTo(true));
+        assertThat(routingNodes.node(nodeIdRemaining).shardsWithState(STARTED).findFirst().get().primary(), equalTo(true));
         assertThat(clusterState.metadata().index("test").primaryTerm(0), equalTo(2L));
-
     }
 }

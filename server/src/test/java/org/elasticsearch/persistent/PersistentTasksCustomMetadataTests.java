@@ -32,7 +32,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class PersistentTasksCustomMetadataTests extends SimpleDiffableSerializationTestCase<Custom> {
+public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Custom> {
 
     @Override
     protected PersistentTasksCustomMetadata createTestInstance() {
@@ -174,7 +174,7 @@ public class PersistentTasksCustomMetadataTests extends SimpleDiffableSerializat
         );
 
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference shuffled = toShuffledXContent(testInstance, xContentType, params, false);
+        BytesReference shuffled = toShuffledXContent(asXContent(testInstance), xContentType, params, false);
 
         PersistentTasksCustomMetadata newInstance;
         try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
@@ -395,5 +395,10 @@ public class PersistentTasksCustomMetadataTests extends SimpleDiffableSerializat
             }
         }
         return new Assignment(randomAlphaOfLength(10), randomAlphaOfLength(10));
+    }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
     }
 }

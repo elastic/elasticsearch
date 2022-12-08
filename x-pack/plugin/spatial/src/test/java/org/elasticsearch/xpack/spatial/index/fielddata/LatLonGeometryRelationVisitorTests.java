@@ -22,10 +22,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LatLonGeometryRelationVisitorTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92151")
     public void testPoint() throws Exception {
         doTestShapes(GeoTestUtil::nextPoint);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92142")
     public void testLine() throws Exception {
         doTestShapes(GeoTestUtil::nextLine);
     }
@@ -60,18 +62,28 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
                 CoordinateEncoder.GEO
             );
             reader.visit(disjoint);
+            Component2DVisitor within = Component2DVisitor.getVisitor(component2D, ShapeField.QueryRelation.WITHIN, CoordinateEncoder.GEO);
+            reader.visit(within);
             if (relation == GeoRelation.QUERY_INSIDE) {
                 assertThat(contains.matches(), equalTo(true));
                 assertThat(intersects.matches(), equalTo(true));
                 assertThat(disjoint.matches(), equalTo(false));
+                assertThat(within.matches(), equalTo(false));
             } else if (relation == GeoRelation.QUERY_CROSSES) {
                 assertThat(contains.matches(), equalTo(false));
                 assertThat(intersects.matches(), equalTo(true));
                 assertThat(disjoint.matches(), equalTo(false));
+                assertThat(within.matches(), equalTo(false));
+            } else if (relation == GeoRelation.QUERY_CONTAINS) {
+                assertThat(contains.matches(), equalTo(false));
+                assertThat(intersects.matches(), equalTo(true));
+                assertThat(disjoint.matches(), equalTo(false));
+                assertThat(within.matches(), equalTo(true));
             } else {
                 assertThat(contains.matches(), equalTo(false));
                 assertThat(intersects.matches(), equalTo(false));
                 assertThat(disjoint.matches(), equalTo(true));
+                assertThat(within.matches(), equalTo(false));
             }
         }
     }

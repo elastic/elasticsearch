@@ -17,7 +17,7 @@ dimensions>> are stored unchanged.
 Downsampling, in effect, lets you to trade data resolution and precision for
 storage size. You can include it in an <<index-lifecycle-management,{ilm}
 ({ilm-init})>> policy to automatically manage the volume and associated cost of
-your metrics data at it ages.
+your metrics data as it ages.
 
 Check the following sections to learn more:
 

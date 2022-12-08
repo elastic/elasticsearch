@@ -184,19 +184,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // the return list might contain either resolved elements or unresolved ones.
                 // if things are resolved, remove them - if not add them to the list to trip the Verifier;
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
-                var intersection = new ArrayList<>(resolved);
-                intersection.retainAll(resolvedProjections);
-                // remove things that are in common
-                resolvedProjections.removeAll(intersection);
-                // from both sides
-                resolved.removeAll(intersection);
-                // keep only the unresolved data to be picked up by the Verifier and reported further to the user
-                // the resolved data that still exists until this step shouldn't anyway be considered (it's about removeable projections)
-                for (var exp : resolved) {
-                    if (exp instanceof UnresolvedAttribute) {
-                        resolvedProjections.add(exp);
+                // so, remove things that are in common,
+                resolvedProjections.removeIf(resolved::contains);
+                // but add non-projected, unresolved extras to later trip the Verifier.
+                resolved.forEach(r -> {
+                    if (r.resolved() == false) {
+                        resolvedProjections.add(r);
                     }
-                }
+                });
             }
 
             return new Project(p.source(), p.child(), resolvedProjections);

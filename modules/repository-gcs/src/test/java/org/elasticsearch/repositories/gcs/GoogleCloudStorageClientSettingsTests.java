@@ -15,13 +15,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -36,7 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
@@ -171,44 +165,26 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             ).getBytes(StandardCharsets.UTF_8)
         );
         var settings = Settings.builder().setSecureSettings(secureSettings).build();
-        // Emulate a proxy HTTP server with plain sockets because MockHttpServer doesn't work as a proxy
-        var proxyServerSocket = new MockServerSocket(0);
-        var latch = new CountDownLatch(1);
-        var proxyServerThread = new Thread(() -> {
-            latch.countDown();
-            while (Thread.currentThread().isInterrupted() == false) {
-                try (
-                    var socket = proxyServerSocket.accept();
-                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-                    var writer = new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8)
-                ) {
-                    assertEquals("POST http://oauth2.googleapis.com/oauth2/token HTTP/1.1", reader.readLine());
-                    String body = """
-                        {
-                            "access_token": "proxy_access_token",
-                            "token_type": "bearer",
-                            "expires_in": 3600
-                        }
-                        """;
-                    writer.write(formatted("""
-                        HTTP/1.1 200 OK\r
-                        Content-Length: %s\r
-                        \r
-                        %s""", body.length(), body));
-                } catch (IOException ignored) {}
-            }
-        });
-        proxyServerThread.start();
-        latch.await();
-        var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServerSocket.getLocalPort()));
-
-        try {
+        var proxyServer = new MockHttpProxyServer((reader, writer) -> {
+            assertEquals("POST http://oauth2.googleapis.com/oauth2/token HTTP/1.1", reader.readLine());
+            String body = """
+                {
+                    "access_token": "proxy_access_token",
+                    "token_type": "bearer",
+                    "expires_in": 3600
+                }
+                """;
+            writer.write(formatted("""
+                HTTP/1.1 200 OK\r
+                Content-Length: %s\r
+                \r
+                %s""", body.length(), body));
+        }).await();
+        try (proxyServer) {
+            var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
             ServiceAccountCredentials credentials = loadCredential(settings, clientName, proxy);
             assertNotNull(credentials);
             assertEquals("proxy_access_token", SocketAccess.doPrivilegedIOException(credentials::refreshAccessToken).getTokenValue());
-        } finally {
-            proxyServerThread.interrupt();
-            proxyServerSocket.close();
         }
     }
 

@@ -17,25 +17,21 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -192,34 +188,20 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     public void testGetDefaultProjectIdViaProxy() throws Exception {
         String proxyProjectId = randomAlphaOfLength(16);
-        var proxyServerSocket = new MockServerSocket(0); // Have to use plain sockets because MockHttpServer doesn't work as a proxy
-        var latch = new CountDownLatch(1);
-        var proxyServerThread = new Thread(() -> {
-            latch.countDown();
-            while (Thread.currentThread().isInterrupted() == false) {
-                try (
-                    var socket = proxyServerSocket.accept();
-                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-                    var writer = new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8)
-                ) {
-                    assertEquals("GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1", reader.readLine());
-                    writer.write(formatted("""
-                        HTTP/1.1 200 OK\r
-                        Content-Length: %s\r
-                        \r
-                        %s""", proxyProjectId.length(), proxyProjectId));
-                } catch (IOException ignored) {}
+        var proxyServer = new MockHttpProxyServer(new MockHttpProxyServer.SocketRequestHandler() {
+            @Override
+            public void handle(BufferedReader reader, Writer writer) throws IOException {
+                assertEquals("GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1", reader.readLine());
+                writer.write(formatted("""
+                    HTTP/1.1 200 OK\r
+                    Content-Length: %s\r
+                    \r
+                    %s""", proxyProjectId.length(), proxyProjectId));
             }
-        });
-        proxyServerThread.start();
-        latch.await();
-        var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServerSocket.getLocalPort()));
-
-        try {
+        }).await();
+        try (proxyServer) {
+            var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
             assertEquals(proxyProjectId, SocketAccess.doPrivilegedIOException(() -> GoogleCloudStorageService.getDefaultProjectId(proxy)));
-        } finally {
-            proxyServerThread.interrupt();
-            proxyServerSocket.close();
         }
     }
 }

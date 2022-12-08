@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -93,6 +94,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.operator.LimitOperator.LimitOperatorFactory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 
 /**
@@ -143,7 +145,7 @@ public class LocalExecutionPlanner {
     public PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlanContext context) {
         if (node instanceof AggregateExec aggregate) {
             PhysicalOperation source = plan(aggregate.child(), context);
-            Map<Object, Integer> layout = new HashMap<>();
+            Layout.Builder layout = new Layout.Builder();
             OperatorFactory operatorFactory = null;
 
             if (aggregate.groupings().isEmpty()) {
@@ -158,18 +160,18 @@ public class LocalExecutionPlanner {
                                     new AggregatorFactory(
                                         provider,
                                         AggregatorMode.INITIAL,
-                                        source.layout.get(Expressions.attribute(aggregateFunction.field()).id())
+                                        source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
                                     )
                                 ),
                                 AggregatorMode.INITIAL
                             );
-                            layout.put(alias.id(), 0);
+                            layout.appendChannel(alias.id());
                         } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
                             operatorFactory = new AggregationOperatorFactory(
-                                List.of(new AggregatorFactory(provider, AggregatorMode.FINAL, source.layout.get(alias.id()))),
+                                List.of(new AggregatorFactory(provider, AggregatorMode.FINAL, source.layout.getChannel(alias.id()))),
                                 AggregatorMode.FINAL
                             );
-                            layout.put(alias.id(), 0);
+                            layout.appendChannel(alias.id());
                         } else {
                             throw new UnsupportedOperationException();
                         }
@@ -184,7 +186,7 @@ public class LocalExecutionPlanner {
                     throw new UnsupportedOperationException("just one group, for now");
                 }
                 Attribute grpAttrib = groups.iterator().next();
-                layout.put(grpAttrib.id(), 0);
+                layout.appendChannel(grpAttrib.id());
 
                 for (NamedExpression e : aggregate.aggregates()) {
                     if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
@@ -205,26 +207,32 @@ public class LocalExecutionPlanner {
                         }
                         if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
                             operatorFactory = new HashAggregationOperatorFactory(
-                                source.layout.get(grpAttrib.id()),
+                                source.layout.getChannel(grpAttrib.id()),
                                 List.of(
                                     new GroupingAggregatorFactory(
                                         aggregatorFunc,
                                         AggregatorMode.INITIAL,
-                                        source.layout.get(Expressions.attribute(aggregateFunction.field()).id())
+                                        source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
                                     )
                                 ),
                                 blockHash,
                                 AggregatorMode.INITIAL
                             );
-                            layout.put(alias.id(), 1);  // <<<< TODO: this one looks suspicious
+                            layout.appendChannel(alias.id());  // <<<< TODO: this one looks suspicious
                         } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
                             operatorFactory = new HashAggregationOperatorFactory(
-                                source.layout.get(grpAttrib.id()),
-                                List.of(new GroupingAggregatorFactory(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id()))),
+                                source.layout.getChannel(grpAttrib.id()),
+                                List.of(
+                                    new GroupingAggregatorFactory(
+                                        aggregatorFunc,
+                                        AggregatorMode.FINAL,
+                                        source.layout.getChannel(alias.id())
+                                    )
+                                ),
                                 blockHash,
                                 AggregatorMode.FINAL
                             );
-                            layout.put(alias.id(), 1);
+                            layout.appendChannel(alias.id());
                         } else {
                             throw new UnsupportedOperationException();
                         }
@@ -238,7 +246,7 @@ public class LocalExecutionPlanner {
 
             }
             if (operatorFactory != null) {
-                return new PhysicalOperation(operatorFactory, layout, source);
+                return new PhysicalOperation(operatorFactory, layout.build(), source);
             }
             throw new UnsupportedOperationException();
         } else if (node instanceof EsQueryExec esQuery) {
@@ -248,7 +256,7 @@ public class LocalExecutionPlanner {
         } else if (node instanceof OutputExec outputExec) {
             PhysicalOperation source = plan(outputExec.child(), context);
             var output = outputExec.output();
-            if (output.size() != source.layout.size()) {
+            if (output.size() != source.layout.numberOfIds()) {
                 throw new IllegalStateException(
                     "expected layout:"
                         + output
@@ -265,7 +273,7 @@ public class LocalExecutionPlanner {
             int index = -1;
             boolean transformRequired = false;
             for (var attribute : output) {
-                mappedPosition[++index] = source.layout.get(attribute.id());
+                mappedPosition[++index] = source.layout.getChannel(attribute.id());
                 if (transformRequired == false) {
                     transformRequired = mappedPosition[index] != index;
                 }
@@ -292,7 +300,7 @@ public class LocalExecutionPlanner {
 
             LocalExecutionPlanContext subContext = context.createSubContext();
             PhysicalOperation source = plan(exchangeExec.child(), subContext);
-            Map<Object, Integer> layout = source.layout;
+            Layout layout = source.layout;
             PhysicalOperation physicalOperation = new PhysicalOperation(new ExchangeSinkOperatorFactory(ex), source.layout, source);
             context.addDriverFactory(new DriverFactory(new DriverSupplier(physicalOperation), subContext.driverParallelism()));
             return new PhysicalOperation(new ExchangeSourceOperatorFactory(ex), layout);
@@ -304,7 +312,7 @@ public class LocalExecutionPlanner {
             Order order = topNExec.order().get(0);
             int sortByChannel;
             if (order.child()instanceof Attribute a) {
-                sortByChannel = source.layout.get(a.id());
+                sortByChannel = source.layout.getChannel(a.id());
             } else {
                 throw new UnsupportedOperationException();
             }
@@ -337,11 +345,11 @@ public class LocalExecutionPlanner {
             } else {
                 throw new UnsupportedOperationException();
             }
-            Map<Object, Integer> layout = new HashMap<>(source.layout);
-            layout.put(namedExpression.toAttribute().id(), nextFreeChannel(layout));
+            Layout.Builder layout = source.layout.builder();
+            layout.appendChannel(namedExpression.toAttribute().id());
             return new PhysicalOperation(
                 new EvalOperatorFactory(evaluator, namedExpression.dataType().isRational() ? Double.TYPE : Long.TYPE),
-                layout,
+                layout.build(),
                 source
             );
         } else if (node instanceof RowExec row) {
@@ -352,21 +360,16 @@ public class LocalExecutionPlanner {
                     return f.fold();
                 }
             }).toList();
-            Map<Object, Integer> layout = new HashMap<>();
+            Layout.Builder layout = new Layout.Builder();
             var output = row.output();
             for (int i = 0; i < output.size(); i++) {
-                layout.put(output.get(i).id(), i);
+                layout.appendChannel(output.get(i).id());
             }
-            return new PhysicalOperation(new RowOperatorFactory(obj), layout);
+            return new PhysicalOperation(new RowOperatorFactory(obj), layout.build());
         } else if (node instanceof ProjectExec project) {
             var source = plan(project.child(), context);
 
-            Map<Integer, Set<NameId>> inputChannelToInputIds = new HashMap<>(source.layout.size());
-            for (Map.Entry<Object, Integer> entry : source.layout.entrySet()) {
-                inputChannelToInputIds.computeIfAbsent(entry.getValue(), ignore -> new HashSet<>()).add((NameId) entry.getKey());
-            }
-
-            Map<Integer, Set<NameId>> inputChannelToOutputIds = new HashMap<>(inputChannelToInputIds.size());
+            Map<Integer, Set<NameId>> inputChannelToOutputIds = new HashMap<>();
             for (NamedExpression ne : project.projections()) {
                 NameId inputId;
                 if (ne instanceof Alias a) {
@@ -374,35 +377,34 @@ public class LocalExecutionPlanner {
                 } else {
                     inputId = ne.id();
                 }
-                int inputChannel = source.layout.get(inputId);
+                int inputChannel = source.layout.getChannel(inputId);
                 inputChannelToOutputIds.computeIfAbsent(inputChannel, ignore -> new HashSet<>()).add(ne.id());
             }
 
-            BitSet mask = new BitSet(inputChannelToInputIds.size());
-            Map<Object, Integer> layout = new HashMap<>(project.projections().size());
-            int outChannel = 0;
+            BitSet mask = new BitSet();
+            Layout.Builder layout = new Layout.Builder();
 
-            for (int inChannel = 0; inChannel < inputChannelToInputIds.size(); inChannel++) {
+            for (int inChannel = 0; inChannel < source.layout.numberOfChannels(); inChannel++) {
                 Set<NameId> outputIds = inputChannelToOutputIds.get(inChannel);
 
                 if (outputIds != null) {
                     mask.set(inChannel);
-                    for (NameId outId : outputIds) {
-                        layout.put(outId, outChannel);
-                    }
-                    outChannel++;
+                    layout.appendChannel(outputIds);
                 }
             }
 
-            if (mask.cardinality() == inputChannelToInputIds.size()) {
+            if (mask.cardinality() == source.layout.numberOfChannels()) {
                 // all columns are retained, project operator is not needed but the layout needs to be updated
-                return new PhysicalOperation(source.operatorFactories, layout);
+                return new PhysicalOperation(source.operatorFactories, layout.build());
             } else {
-                return new PhysicalOperation(new ProjectOperatorFactory(mask), layout, source);
+                return new PhysicalOperation(new ProjectOperatorFactory(mask), layout.build(), source);
             }
         } else if (node instanceof FilterExec filter) {
             PhysicalOperation source = plan(filter.child(), context);
             return new PhysicalOperation(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout, source);
+        } else if (node instanceof LimitExec limit) {
+            PhysicalOperation source = plan(limit.child(), context);
+            return new PhysicalOperation(new LimitOperatorFactory((Integer) limit.limit().fold()), source.layout, source);
         }
         throw new UnsupportedOperationException(node.nodeName());
     }
@@ -420,25 +422,23 @@ public class LocalExecutionPlanner {
             taskConcurrency
         );
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, operatorFactory.size()));
-        Map<Object, Integer> layout = new HashMap<>();
+        Layout.Builder layout = new Layout.Builder();
         for (int i = 0; i < esQuery.output().size(); i++) {
-            layout.put(esQuery.output().get(i).id(), i);
+            layout.appendChannel(esQuery.output().get(i).id());
         }
-        return new PhysicalOperation(operatorFactory, layout);
+        return new PhysicalOperation(operatorFactory, layout.build());
     }
 
     private PhysicalOperation planFieldExtractNode(LocalExecutionPlanContext context, FieldExtractExec fieldExtractExec) {
         PhysicalOperation source = plan(fieldExtractExec.child(), context);
-        Map<Object, Integer> layout = new HashMap<>();
-        layout.putAll(source.layout);
+        Layout.Builder layout = source.layout.builder();
 
         var sourceAttrs = fieldExtractExec.sourceAttributes();
 
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-            layout = new HashMap<>(layout);
-            layout.put(attr.id(), nextFreeChannel(layout));
-            Map<Object, Integer> previousLayout = op.layout;
+            layout.appendChannel(attr.id());
+            Layout previousLayout = op.layout;
 
             // Create ValuesSource object for the field to extract its values
             final List<Tuple<ValuesSourceType, ValuesSource>> valuesSources = searchContexts.stream()
@@ -462,19 +462,19 @@ public class LocalExecutionPlanner {
                     valuesSources.stream().map(Tuple::v1).collect(Collectors.toList()),
                     valuesSources.stream().map(Tuple::v2).collect(Collectors.toList()),
                     indexReaders,
-                    previousLayout.get(sourceAttrs.get(0).id()),
-                    previousLayout.get(sourceAttrs.get(1).id()),
-                    previousLayout.get(sourceAttrs.get(2).id()),
+                    previousLayout.getChannel(sourceAttrs.get(0).id()),
+                    previousLayout.getChannel(sourceAttrs.get(1).id()),
+                    previousLayout.getChannel(sourceAttrs.get(2).id()),
                     attr.name()
                 ),
-                layout,
+                layout.build(),
                 op
             );
         }
         return op;
     }
 
-    private ExpressionEvaluator toEvaluator(Expression exp, Map<Object, Integer> layout) {
+    private ExpressionEvaluator toEvaluator(Expression exp, Layout layout) {
         if (exp instanceof ArithmeticOperation ao) {
             ExpressionEvaluator leftEval = toEvaluator(ao.left(), layout);
             ExpressionEvaluator rightEval = toEvaluator(ao.right(), layout);
@@ -492,7 +492,7 @@ public class LocalExecutionPlanner {
                 return (page, pos) -> ((Number) e1.computeRow(page, pos)).longValue() > ((Number) e2.computeRow(page, pos)).longValue();
             }
         } else if (exp instanceof Attribute attr) {
-            int channel = layout.get(attr.id());
+            int channel = layout.getChannel(attr.id());
             return (page, pos) -> page.getBlock(channel).getObject(pos);
         } else if (exp instanceof Literal lit) {
             if (lit.value() == null) { // NULL, the literal
@@ -528,19 +528,19 @@ public class LocalExecutionPlanner {
 
     public static class PhysicalOperation implements Describable {
         private final List<OperatorFactory> operatorFactories = new ArrayList<>();
-        private final Map<Object, Integer> layout; // maps field names to channels
+        private final Layout layout; // maps field names to channels
 
-        PhysicalOperation(OperatorFactory operatorFactory, Map<Object, Integer> layout) {
+        PhysicalOperation(OperatorFactory operatorFactory, Layout layout) {
             this.operatorFactories.add(operatorFactory);
             this.layout = layout;
         }
 
-        PhysicalOperation(List<OperatorFactory> operatorFactories, Map<Object, Integer> layout) {
+        PhysicalOperation(List<OperatorFactory> operatorFactories, Layout layout) {
             this.operatorFactories.addAll(operatorFactories);
             this.layout = layout;
         }
 
-        PhysicalOperation(OperatorFactory operatorFactory, Map<Object, Integer> layout, PhysicalOperation source) {
+        PhysicalOperation(OperatorFactory operatorFactory, Layout layout, PhysicalOperation source) {
             this.operatorFactories.addAll(source.operatorFactories);
             this.operatorFactories.add(operatorFactory);
             this.layout = layout;
@@ -554,16 +554,6 @@ public class LocalExecutionPlanner {
         public String describe() {
             return operatorFactories.stream().map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
         }
-    }
-
-    private static int nextFreeChannel(Map<Object, Integer> layout) {
-        int nextChannel = 0;
-        for (int channel : layout.values()) {
-            if (channel >= nextChannel) {
-                nextChannel = channel + 1;
-            }
-        }
-        return nextChannel;
     }
 
     /**

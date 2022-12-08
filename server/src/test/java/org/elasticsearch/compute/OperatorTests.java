@@ -43,6 +43,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LongGroupingOperator;
 import org.elasticsearch.compute.operator.LongMaxOperator;
 import org.elasticsearch.compute.operator.LongTransformerOperator;
@@ -996,6 +997,28 @@ public class OperatorTests extends ESTestCase {
                     .toArray()
             )
         );
+    }
+
+    public void testLimitOperator() {
+        var positions = 100;
+        var limit = randomIntBetween(90, 101);
+        var values = randomList(positions, positions, ESTestCase::randomLong);
+
+        var results = new ArrayList<Long>();
+
+        var driver = new Driver(
+            List.of(new SequenceLongBlockSourceOperator(values, 100), new LimitOperator(limit), new PageConsumerOperator(page -> {
+                Block block = page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    results.add(block.getLong(i));
+                }
+            })),
+            () -> {}
+        );
+
+        driver.run();
+
+        assertThat(results, contains(values.stream().limit(limit).toArray()));
     }
 
     public void testRandomTopN() {

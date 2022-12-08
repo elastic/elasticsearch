@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
@@ -120,7 +121,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testDoubleExtractorPerFieldEvenWithAliasNoPruningDueToImplicitProjection() {
         var plan = physicalPlan("""
             from test
-            | limit 10
             | where round(emp_no) > 10
             | eval c = first_name
             | stats x = avg(c)
@@ -138,15 +138,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = as(extract.child(), FilterExec.class);
         extract = as(filter.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
-        var limit = as(extract.child(), LimitExec.class);
 
-        var source = as(limit.child(), EsQueryExec.class);
+        var source = as(extract.child(), EsQueryExec.class);
     }
 
     public void testTripleExtractorPerField() {
         var plan = physicalPlan("""
             from test
-            | limit 10
             | where round(emp_no) > 10
             | eval c = first_name
             | stats x = avg(salary)
@@ -168,8 +166,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = as(extract.child(), FilterExec.class);
         extract = as(filter.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
-        var limit = as(extract.child(), LimitExec.class);
-        var source = as(limit.child(), EsQueryExec.class);
+        var source = as(extract.child(), EsQueryExec.class);
     }
 
     public void testExtractorForField() {
@@ -465,6 +462,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(mustClauses.get(1).toString(), containsString("""
             "salary" : {
                         "gte" : 50000"""));
+    }
+
+    public void testLimit() {
+        var optimized = fieldExtractorRule(physicalPlan("""
+            from test
+            | limit 10
+            """));
+
+        var project = as(optimized, ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var limitFinal = as(fieldExtract.child(), LimitExec.class);
+        assertThat(limitFinal.limit().fold(), is(10));
+        assertThat(limitFinal.mode(), is(LimitExec.Mode.FINAL));
+        var exchange = as(limitFinal.child(), ExchangeExec.class);
+        var limitPartial = as(exchange.child(), LimitExec.class);
+        assertThat(limitPartial.limit().fold(), is(10));
+        assertThat(limitPartial.mode(), is(LimitExec.Mode.PARTIAL));
+        as(limitPartial.child(), EsQueryExec.class);
     }
 
     private static PhysicalPlan fieldExtractorRule(PhysicalPlan plan) {

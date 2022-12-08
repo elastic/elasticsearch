@@ -43,6 +43,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -593,6 +594,20 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals("long", results.columns().get(0).type());
         assertEquals(1, results.values().get(0).size());
         assertEquals(0L, results.values().get(0).get(0));
+    }
+
+    public void testFromStatsLimit() {
+        EsqlQueryResponse results = run("from test | stats ac = avg(count) by data | limit 1");
+        logger.info(results);
+        assertThat(results.columns(), contains(new ColumnInfo("ac", "double"), new ColumnInfo("data", "long")));
+        assertThat(results.values(), contains(anyOf(contains(42d, 1L), contains(44d, 2L))));
+    }
+
+    public void testFromLimit() {
+        EsqlQueryResponse results = run("from test | project data | limit 2");
+        logger.info(results);
+        assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
+        assertThat(results.values(), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
     }
 
     private EsqlQueryResponse run(String esqlCommands) {

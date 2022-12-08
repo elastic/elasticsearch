@@ -26,37 +26,35 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return List.of(Stateless.class);
     }
 
+    protected Settings.Builder nodeSettings() {
+        return Settings.builder()
+            .put(Stateless.STATELESS_ENABLED.getKey(), true)
+            .put(ObjectStoreService.TYPE.getKey(), ObjectStoreService.TYPE_FS)
+            .put(ObjectStoreService.BUCKET.getKey(), getTestName() + "_bucket");
+    }
+
     protected String startIndexNode() {
         return internalCluster().startNode(
-            Settings.builder()
-                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
-                .put(Stateless.STATELESS_ENABLED.getKey(), true)
-                .build()
+            nodeSettings().putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName()).build()
         );
     }
 
     protected String startSearchNode() {
         return internalCluster().startNode(
-            Settings.builder()
-                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
-                .put(Stateless.STATELESS_ENABLED.getKey(), true)
-                .build()
+            nodeSettings().putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName()).build()
         );
     }
 
     protected String startMasterOnlyNode() {
-        return internalCluster().startMasterOnlyNode(Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build());
+        return internalCluster().startMasterOnlyNode(nodeSettings().build());
     }
 
     protected String startMasterAndIndexNode() {
         return internalCluster().startNode(
-            Settings.builder()
-                .putList(
-                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                    List.of(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.INDEX_ROLE.roleName())
-                )
-                .put(Stateless.STATELESS_ENABLED.getKey(), true)
-                .build()
+            nodeSettings().putList(
+                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                List.of(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.INDEX_ROLE.roleName())
+            ).build()
         );
     }
 

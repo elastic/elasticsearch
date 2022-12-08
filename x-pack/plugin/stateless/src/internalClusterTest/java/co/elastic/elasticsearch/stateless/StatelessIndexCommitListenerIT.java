@@ -55,11 +55,11 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
         protected Engine.IndexCommitListener createIndexCommitListener() {
             return new Engine.IndexCommitListener() {
                 @Override
-                public void onNewCommit(ShardId shardId, Engine.IndexCommitRef commitRef) {
+                public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef) {
                     synchronized (mutex) {
                         Map<Long, Engine.IndexCommitRef> commits = retainedCommits.computeIfAbsent(shardId, s -> new HashMap<>());
-                        var previous = commits.put(commitRef.getIndexCommit().getGeneration(), commitRef);
-                        assertThat("Commit already exists " + commitRef.getIndexCommit().getGeneration(), previous, nullValue());
+                        var previous = commits.put(indexCommitRef.getIndexCommit().getGeneration(), indexCommitRef);
+                        assertThat("Commit already exists " + indexCommitRef.getIndexCommit().getGeneration(), previous, nullValue());
                     }
                 }
 

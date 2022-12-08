@@ -35,6 +35,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -57,6 +58,10 @@ public class Stateless extends Plugin {
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
     private final Settings settings;
 
+    private ObjectStoreService getObjectStoreService() {
+        return Objects.requireNonNull(this.objectStoreService.get());
+    }
+
     public Stateless(Settings settings) {
         this.settings = requireValidSettings(settings);
     }
@@ -77,13 +82,13 @@ public class Stateless extends Plugin {
         Tracer tracer,
         AllocationDeciders allocationDeciders
     ) {
-        objectStoreService.set(new ObjectStoreService());
+        objectStoreService.set(new ObjectStoreService(settings, environment, repositoriesServiceSupplier));
         return List.of(objectStoreService.get());
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(STATELESS_ENABLED);
+        return List.of(STATELESS_ENABLED, ObjectStoreService.TYPE, ObjectStoreService.BUCKET, ObjectStoreService.CLIENT);
     }
 
     @Override
@@ -112,10 +117,10 @@ public class Stateless extends Plugin {
      * @return a {@link Engine.IndexCommitListener}
      */
     protected Engine.IndexCommitListener createIndexCommitListener() {
-        final ObjectStoreService service = this.objectStoreService.get();
+        final ObjectStoreService service = getObjectStoreService();
         return new Engine.IndexCommitListener() {
             @Override
-            public void onNewCommit(ShardId shardId, Engine.IndexCommitRef indexCommitRef) {
+            public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef) {
                 service.onCommitCreation(new StatelessCommitRef(shardId, indexCommitRef));
             }
 

@@ -124,7 +124,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
     @Override
     public AsyncSender interceptSender(AsyncSender sender) {
-        return interceptForAllRequests(interceptForRemoteAccessRequests(sender));
+        // This is not strictly necessary, but it makes it very obvious we are not interfering with non-feature flagged deployments
+        return false == TcpTransport.isUntrustedRemoteClusterEnabled()
+            ? interceptForAllRequests(sender)
+            : interceptForAllRequests(interceptForRemoteAccessRequests(sender));
     }
 
     private AsyncSender interceptForAllRequests(AsyncSender sender) {
@@ -209,14 +212,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             }
 
             private boolean shouldSendWithRemoteAccessHeaders(final Transport.Connection connection, final TransportRequest request) {
-                // This is not strictly necessary, but it allows us to skip all additional checks below early
-                if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
-                    return false;
-                }
-                final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
                 final Subject effectiveSubject = authentication.getEffectiveSubject();
+                final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 return remoteClusterAlias.isPresent()
                     && remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get()) != null
                     && isWhitelistedForRemoteAccessHeaders(request)
@@ -232,6 +231,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportRequestOptions options,
                 final TransportResponseHandler<T> handler
             ) {
+                logger.debug("Sending request for action [{}] with remote access headers", action);
                 if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     handler.handleException(
                         new TransportException(
@@ -259,7 +259,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 roleDescriptorsIntersection
                             );
                             remoteAccessAuthentication.writeToContext(threadContext);
-                            writeClusterCredentialToContext(remoteClusterAlias.get(), threadContext);
+                            writeCredentialForClusterToContext(remoteClusterAlias.get(), threadContext);
                             sendRequestWithHandledException(
                                 connection,
                                 action,
@@ -296,7 +296,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
             }
 
-            private void writeClusterCredentialToContext(final String remoteClusterAlias, final ThreadContext threadContext) {
+            private void writeCredentialForClusterToContext(final String remoteClusterAlias, final ThreadContext threadContext) {
                 final String clusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
                 // This can happen if the cluster credential was updated after we made the initial check to send remote access headers
                 // In this case, fail the request. In the future we may want to retry instead, to pick up the updated remote cluster

@@ -26,7 +26,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.core.Is.is;
+import static org.hamcrest.Matchers.is;
 
 public class ScriptProcessorTests extends ESTestCase {
 

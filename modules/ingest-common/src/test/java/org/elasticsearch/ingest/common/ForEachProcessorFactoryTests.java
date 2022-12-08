@@ -13,7 +13,6 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,6 +20,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class ForEachProcessorFactoryTests extends ESTestCase {
@@ -38,9 +39,9 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
         ForEachProcessor forEachProcessor = forEachFactory.create(registry, null, null, config);
-        assertThat(forEachProcessor, Matchers.notNullValue());
+        assertThat(forEachProcessor, notNullValue());
         assertThat(forEachProcessor.getField(), equalTo("_field"));
-        assertThat(forEachProcessor.getInnerProcessor(), Matchers.sameInstance(processor));
+        assertThat(forEachProcessor.getInnerProcessor(), sameInstance(processor));
         assertFalse(forEachProcessor.isIgnoreMissing());
     }
 
@@ -55,9 +56,9 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
         config.put("ignore_missing", true);
         ForEachProcessor forEachProcessor = forEachFactory.create(registry, null, null, config);
-        assertThat(forEachProcessor, Matchers.notNullValue());
+        assertThat(forEachProcessor, notNullValue());
         assertThat(forEachProcessor.getField(), equalTo("_field"));
-        assertThat(forEachProcessor.getInnerProcessor(), Matchers.sameInstance(processor));
+        assertThat(forEachProcessor.getInnerProcessor(), sameInstance(processor));
         assertTrue(forEachProcessor.isIgnoreMissing());
     }
 

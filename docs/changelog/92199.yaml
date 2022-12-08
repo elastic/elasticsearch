@@ -1,0 +1,5 @@
+pr: 92199
+summary: Expose tier balancing stats via internal endpoint
+area: "Distributed, Allocation"
+type: enhancement
+issues: []

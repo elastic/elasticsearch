@@ -956,6 +956,10 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * This method allow to use a method reference when writing collection elements such as
+     * {@code out.writeMap(map, StreamOutput::writeString, StreamOutput::writeWriteable)}
+     */
     public void writeWriteable(Writeable writeable) throws IOException {
         writeable.writeTo(this);
     }

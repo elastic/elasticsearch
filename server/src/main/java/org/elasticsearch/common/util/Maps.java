@@ -298,6 +298,9 @@ public class Maps {
         return transformValues(source, copyValueFunction);
     }
 
+    /**
+     * Copy a map and transform it values using supplied function
+     */
     public static <K, V1, V2> Map<K, V2> transformValues(Map<K, V1> source, Function<V1, V2> copyValueFunction) {
         var copy = Maps.<K, V2>newHashMapWithExpectedSize(source.size());
         for (var entry : source.entrySet()) {

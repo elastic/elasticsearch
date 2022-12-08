@@ -57,8 +57,8 @@ Some {stack} features also require specific node roles:
 - {ml-cap} features, such as {anomaly-detect}, require the `ml` role.
 ====
 
-As the cluster grows and in particular if you have large {ml} jobs or
-{ctransforms}, consider separating dedicated master-eligible nodes from
+As the cluster grows, if you have large {ml} jobs or
+{transforms}, consider separating dedicated master-eligible nodes from
 dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 <<master-node,Master-eligible node>>::
@@ -168,7 +168,7 @@ node.roles: [ master ]
 
 A voting-only master-eligible node is a node that participates in
 <<modules-discovery,master elections>> but which will not act as the cluster's
-elected master node. In particular, a voting-only node can serve as a tiebreaker
+elected master node. A voting-only node can serve as a tiebreaker
 in elections.
 
 It may seem confusing to use the term "master-eligible" to describe a

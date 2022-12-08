@@ -1528,6 +1528,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         assertThat(ApiKeyService.getCreatorRealmName(authentication5), equalTo(authentication5.getEffectiveSubject().getRealm().getName()));
         assertThat(ApiKeyService.getCreatorRealmType(authentication5), equalTo(authentication5.getEffectiveSubject().getRealm().getType()));
+
+        // Failed run-as returns authenticating subject's realm
+        final Authentication authentication6 = authentication3.runAs(AuthenticationTests.randomUser(), null);
+        assertThat(
+            ApiKeyService.getCreatorRealmName(authentication6),
+            equalTo(authentication6.getAuthenticatingSubject().getRealm().getName())
+        );
+        assertThat(
+            ApiKeyService.getCreatorRealmType(authentication6),
+            equalTo(authentication6.getAuthenticatingSubject().getRealm().getType())
+        );
     }
 
     public void testGetOwnersRealmNames() {

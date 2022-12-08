@@ -1748,7 +1748,7 @@ public class ApiKeyService {
         } else {
             // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be
             // `null`. Since this method is used in audit logging, this requires some care.
-            if (authentication.isFailedRuns()) {
+            if (authentication.isFailedRunAs()) {
                 return authentication.getAuthenticatingSubject().getRealm().getName();
             } else {
                 return authentication.getEffectiveSubject().getRealm().getName();
@@ -1795,7 +1795,7 @@ public class ApiKeyService {
         } else {
             // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be
             // `null`. Since this method is used in audit logging, this requires some care.
-            if (authentication.isFailedRuns()) {
+            if (authentication.isFailedRunAs()) {
                 return authentication.getAuthenticatingSubject().getRealm().getType();
             } else {
                 return authentication.getEffectiveSubject().getRealm().getType();

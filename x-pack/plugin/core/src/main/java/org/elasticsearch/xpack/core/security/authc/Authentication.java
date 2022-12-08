@@ -183,7 +183,7 @@ public final class Authentication implements ToXContentObject {
         return authenticatingSubject != effectiveSubject;
     }
 
-    public boolean isFailedRuns() {
+    public boolean isFailedRunAs() {
         return isRunAs() && effectiveSubject.getRealm() == null;
     }
 
@@ -328,7 +328,7 @@ public final class Authentication implements ToXContentObject {
      * Returns {@code true} if the effective user belongs to a realm under a domain.
      */
     boolean isAssignedToDomain() {
-        if (isFailedRuns()) {
+        if (isFailedRunAs()) {
             return false;
         }
         return getEffectiveSubject().getRealm().getDomain() != null;
@@ -344,7 +344,7 @@ public final class Authentication implements ToXContentObject {
      */
     @Nullable
     RealmDomain getDomain() {
-        if (isFailedRuns()) {
+        if (isFailedRunAs()) {
             return null;
         }
         return getEffectiveSubject().getRealm().getDomain();

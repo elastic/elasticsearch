@@ -40,6 +40,16 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AuthenticationTests extends ESTestCase {
 
+    public void testIsFailedRunAs() {
+        final Authentication failedAuthentication = randomRealmAuthentication(randomBoolean()).runAs(randomUser(), null);
+        assertTrue(failedAuthentication.isRunAs());
+        assertTrue(failedAuthentication.isFailedRunAs());
+
+        final Authentication authentication = AuthenticationTestHelper.builder().realm().runAs().build();
+        assertTrue(authentication.isRunAs());
+        assertFalse(authentication.isFailedRunAs());
+    }
+
     public void testCanAccessResourcesOf() {
         // Same user is the same
         final User user1 = randomUser();

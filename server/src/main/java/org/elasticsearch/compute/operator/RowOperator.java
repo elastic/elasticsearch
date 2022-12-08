@@ -22,16 +22,16 @@ import java.util.Objects;
 
 import static java.util.stream.Collectors.joining;
 
-public class RowOperator implements Operator {
+public class RowOperator extends SourceOperator {
 
     private final List<Object> objects;
 
     boolean finished;
 
-    public record RowOperatorFactory(List<Object> objects) implements OperatorFactory {
+    public record RowOperatorFactory(List<Object> objects) implements SourceOperatorFactory {
 
         @Override
-        public Operator get() {
+        public SourceOperator get() {
             return new RowOperator(objects);
         }
 
@@ -43,16 +43,6 @@ public class RowOperator implements Operator {
 
     public RowOperator(List<Object> objects) {
         this.objects = objects;
-    }
-
-    @Override
-    public boolean needsInput() {
-        return false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        throw new UnsupportedOperationException();
     }
 
     @Override

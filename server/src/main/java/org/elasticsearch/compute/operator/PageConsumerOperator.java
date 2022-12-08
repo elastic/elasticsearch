@@ -17,7 +17,7 @@ import java.util.function.Consumer;
  * Sink operator that's useful for passing off pages to a {@link Consumer}.
  */
 @Experimental
-public class PageConsumerOperator implements Operator {
+public class PageConsumerOperator extends SinkOperator {
 
     private final Consumer<Page> pageConsumer;
 
@@ -26,11 +26,6 @@ public class PageConsumerOperator implements Operator {
     }
 
     boolean finished = false;
-
-    @Override
-    public Page getOutput() {
-        return null;
-    }
 
     @Override
     public boolean isFinished() {

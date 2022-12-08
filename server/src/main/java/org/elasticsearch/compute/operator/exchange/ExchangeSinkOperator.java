@@ -11,22 +11,21 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorFactory;
+import org.elasticsearch.compute.operator.SinkOperator;
 
 /**
  * Sink operator implementation that pushes data to an {@link ExchangeSink}
  */
 @Experimental
-public class ExchangeSinkOperator implements Operator {
+public class ExchangeSinkOperator extends SinkOperator {
 
     private final ExchangeSink sink;
 
     private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
 
-    public record ExchangeSinkOperatorFactory(Exchange ex) implements OperatorFactory {
+    public record ExchangeSinkOperatorFactory(Exchange ex) implements SinkOperatorFactory {
 
-        public Operator get() {
+        public SinkOperator get() {
             return new ExchangeSinkOperator(ex.createSink());
         }
 
@@ -38,11 +37,6 @@ public class ExchangeSinkOperator implements Operator {
 
     public ExchangeSinkOperator(ExchangeSink sink) {
         this.sink = sink;
-    }
-
-    @Override
-    public Page getOutput() {
-        return null;
     }
 
     @Override

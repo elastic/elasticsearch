@@ -22,7 +22,7 @@ import static java.util.stream.Collectors.joining;
  * i.e. the names of the rows that are outputted.
  */
 @Experimental
-public class OutputOperator implements Operator {
+public class OutputOperator extends SinkOperator {
 
     private final List<String> columns;
     private final BiConsumer<List<String>, Page> pageConsumer;
@@ -30,10 +30,10 @@ public class OutputOperator implements Operator {
 
     public record OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, BiConsumer<List<String>, Page> pageConsumer)
         implements
-            OperatorFactory {
+            SinkOperatorFactory {
 
         @Override
-        public Operator get() {
+        public SinkOperator get() {
             return new OutputOperator(columns, mapper, pageConsumer);
         }
 
@@ -50,11 +50,6 @@ public class OutputOperator implements Operator {
     }
 
     boolean finished = false;
-
-    @Override
-    public Page getOutput() {
-        return null;
-    }
 
     @Override
     public boolean isFinished() {

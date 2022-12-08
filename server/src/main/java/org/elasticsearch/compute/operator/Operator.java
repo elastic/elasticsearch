@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 
@@ -32,6 +33,7 @@ public interface Operator {
 
     /**
      * adds an input page to the operator. only called when needsInput() == true and isFinished() == false
+     * @throws UnsupportedOperationException  if the operator is a {@link SourceOperator}
      */
     void addInput(Page page);
 
@@ -47,6 +49,7 @@ public interface Operator {
 
     /**
      * returns non-null if output page available. Only called when isFinished() == false
+     * @throws UnsupportedOperationException  if the operator is a {@link SinkOperator}
      */
     Page getOutput();
 
@@ -72,5 +75,14 @@ public interface Operator {
         ListenableActionFuture<Void> fut = new ListenableActionFuture<>();
         fut.onResponse(null);
         return fut;
+    }
+
+    /**
+     * A factory for creating intermediate operators.
+     */
+    interface OperatorFactory extends Describable {
+
+        /** Creates a new intermediate operator. */
+        Operator get();
     }
 }

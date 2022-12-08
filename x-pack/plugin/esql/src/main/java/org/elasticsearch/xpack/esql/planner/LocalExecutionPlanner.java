@@ -34,9 +34,13 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorFactory;
+import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
+import org.elasticsearch.compute.operator.SinkOperator;
+import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
+import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
@@ -87,11 +91,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.operator.LimitOperator.LimitOperatorFactory;
@@ -246,7 +252,7 @@ public class LocalExecutionPlanner {
 
             }
             if (operatorFactory != null) {
-                return new PhysicalOperation(operatorFactory, layout.build(), source);
+                return source.with(operatorFactory, layout.build());
             }
             throw new UnsupportedOperationException();
         } else if (node instanceof EsQueryExec esQuery) {
@@ -286,10 +292,9 @@ public class LocalExecutionPlanner {
                 return new Page(blocks);
             } : Function.identity();
 
-            return new PhysicalOperation(
+            return source.withSink(
                 new OutputOperatorFactory(Expressions.names(outputExec.output()), mapper, outputExec.getPageConsumer()),
-                source.layout,
-                source
+                source.layout
             );
         } else if (node instanceof ExchangeExec exchangeExec) {
             DriverParallelism parallelism = exchangeExec.getType() == ExchangeExec.Type.GATHER
@@ -301,9 +306,9 @@ public class LocalExecutionPlanner {
             LocalExecutionPlanContext subContext = context.createSubContext();
             PhysicalOperation source = plan(exchangeExec.child(), subContext);
             Layout layout = source.layout;
-            PhysicalOperation physicalOperation = new PhysicalOperation(new ExchangeSinkOperatorFactory(ex), source.layout, source);
-            context.addDriverFactory(new DriverFactory(new DriverSupplier(physicalOperation), subContext.driverParallelism()));
-            return new PhysicalOperation(new ExchangeSourceOperatorFactory(ex), layout);
+            PhysicalOperation sink = source.withSink(new ExchangeSinkOperatorFactory(ex), source.layout);
+            context.addDriverFactory(new DriverFactory(new DriverSupplier(sink), subContext.driverParallelism()));
+            return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(ex), layout);
         } else if (node instanceof TopNExec topNExec) {
             PhysicalOperation source = plan(topNExec.child(), context);
             if (topNExec.order().size() != 1) {
@@ -323,15 +328,14 @@ public class LocalExecutionPlanner {
                 throw new UnsupportedOperationException();
             }
 
-            return new PhysicalOperation(
+            return source.with(
                 new TopNOperatorFactory(
                     sortByChannel,
                     order.direction() == Order.OrderDirection.ASC,
                     limit,
                     order.nullsPosition().equals(Order.NullsPosition.FIRST)
                 ),
-                source.layout,
-                source
+                source.layout
             );
         } else if (node instanceof EvalExec eval) {
             PhysicalOperation source = plan(eval.child(), context);
@@ -347,10 +351,9 @@ public class LocalExecutionPlanner {
             }
             Layout.Builder layout = source.layout.builder();
             layout.appendChannel(namedExpression.toAttribute().id());
-            return new PhysicalOperation(
+            return source.with(
                 new EvalOperatorFactory(evaluator, namedExpression.dataType().isRational() ? Double.TYPE : Long.TYPE),
-                layout.build(),
-                source
+                layout.build()
             );
         } else if (node instanceof RowExec row) {
             List<Object> obj = row.fields().stream().map(f -> {
@@ -365,7 +368,7 @@ public class LocalExecutionPlanner {
             for (int i = 0; i < output.size(); i++) {
                 layout.appendChannel(output.get(i).id());
             }
-            return new PhysicalOperation(new RowOperatorFactory(obj), layout.build());
+            return PhysicalOperation.fromSource(new RowOperatorFactory(obj), layout.build());
         } else if (node instanceof ProjectExec project) {
             var source = plan(project.child(), context);
 
@@ -395,16 +398,16 @@ public class LocalExecutionPlanner {
 
             if (mask.cardinality() == source.layout.numberOfChannels()) {
                 // all columns are retained, project operator is not needed but the layout needs to be updated
-                return new PhysicalOperation(source.operatorFactories, layout.build());
+                return source.with(layout.build());
             } else {
-                return new PhysicalOperation(new ProjectOperatorFactory(mask), layout.build(), source);
+                return source.with(new ProjectOperatorFactory(mask), layout.build());
             }
         } else if (node instanceof FilterExec filter) {
             PhysicalOperation source = plan(filter.child(), context);
-            return new PhysicalOperation(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout, source);
+            return source.with(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout);
         } else if (node instanceof LimitExec limit) {
             PhysicalOperation source = plan(limit.child(), context);
-            return new PhysicalOperation(new LimitOperatorFactory((Integer) limit.limit().fold()), source.layout, source);
+            return source.with(new LimitOperatorFactory((Integer) limit.limit().fold()), source.layout);
         }
         throw new UnsupportedOperationException(node.nodeName());
     }
@@ -426,7 +429,7 @@ public class LocalExecutionPlanner {
         for (int i = 0; i < esQuery.output().size(); i++) {
             layout.appendChannel(esQuery.output().get(i).id());
         }
-        return new PhysicalOperation(operatorFactory, layout.build());
+        return PhysicalOperation.fromSource(operatorFactory, layout.build());
     }
 
     private PhysicalOperation planFieldExtractNode(LocalExecutionPlanContext context, FieldExtractExec fieldExtractExec) {
@@ -457,7 +460,7 @@ public class LocalExecutionPlanner {
                 .map(ctx -> ctx.getSearchExecutionContext().getIndexReader())
                 .collect(Collectors.toList());
 
-            op = new PhysicalOperation(
+            op = op.with(
                 new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(
                     valuesSources.stream().map(Tuple::v1).collect(Collectors.toList()),
                     valuesSources.stream().map(Tuple::v2).collect(Collectors.toList()),
@@ -467,8 +470,7 @@ public class LocalExecutionPlanner {
                     previousLayout.getChannel(sourceAttrs.get(2).id()),
                     attr.name()
                 ),
-                layout.build(),
-                op
+                layout.build()
             );
         }
         return op;
@@ -526,33 +528,75 @@ public class LocalExecutionPlanner {
         }
     }
 
-    public static class PhysicalOperation implements Describable {
-        private final List<OperatorFactory> operatorFactories = new ArrayList<>();
+    /**
+     * Immutable physical operation.
+     */
+    static class PhysicalOperation implements Describable {
+        private final SourceOperatorFactory sourceOperatorFactory;
+        private final List<OperatorFactory> intermediateOperatorFactories;
+        private final SinkOperatorFactory sinkOperatorFactory;
+
         private final Layout layout; // maps field names to channels
 
-        PhysicalOperation(OperatorFactory operatorFactory, Layout layout) {
-            this.operatorFactories.add(operatorFactory);
+        /** Creates a new physical operation with the given source and layout. */
+        static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
+            return new PhysicalOperation(sourceOperatorFactory, layout);
+        }
+
+        /** Creates a new physical operation from this operation with the given layout. */
+        PhysicalOperation with(Layout layout) {
+            return new PhysicalOperation(this, Optional.empty(), Optional.empty(), layout);
+        }
+
+        /** Creates a new physical operation from this operation with the given intermediate operator and layout. */
+        PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
+            return new PhysicalOperation(this, Optional.of(operatorFactory), Optional.empty(), layout);
+        }
+
+        /** Creates a new physical operation from this operation with the given sink and layout. */
+        PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
+            return new PhysicalOperation(this, Optional.empty(), Optional.of(sink), layout);
+        }
+
+        private PhysicalOperation(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
+            this.sourceOperatorFactory = sourceOperatorFactory;
+            this.intermediateOperatorFactories = List.of();
+            this.sinkOperatorFactory = null;
             this.layout = layout;
         }
 
-        PhysicalOperation(List<OperatorFactory> operatorFactories, Layout layout) {
-            this.operatorFactories.addAll(operatorFactories);
+        private PhysicalOperation(
+            PhysicalOperation physicalOperation,
+            Optional<OperatorFactory> intermediateOperatorFactory,
+            Optional<SinkOperatorFactory> sinkOperatorFactory,
+            Layout layout
+        ) {
+            sourceOperatorFactory = physicalOperation.sourceOperatorFactory;
+            intermediateOperatorFactories = new ArrayList<>();
+            intermediateOperatorFactories.addAll(physicalOperation.intermediateOperatorFactories);
+            intermediateOperatorFactory.ifPresent(intermediateOperatorFactories::add);
+            this.sinkOperatorFactory = sinkOperatorFactory.isPresent() ? sinkOperatorFactory.get() : null;
             this.layout = layout;
         }
 
-        PhysicalOperation(OperatorFactory operatorFactory, Layout layout, PhysicalOperation source) {
-            this.operatorFactories.addAll(source.operatorFactories);
-            this.operatorFactories.add(operatorFactory);
-            this.layout = layout;
+        public SourceOperator source() {
+            return sourceOperatorFactory.get();
         }
 
         public List<Operator> operators() {
-            return operatorFactories.stream().map(OperatorFactory::get).collect(Collectors.toList());
+            return intermediateOperatorFactories.stream().map(OperatorFactory::get).toList();
+        }
+
+        public SinkOperator sink() {
+            return sinkOperatorFactory.get();
         }
 
         @Override
         public String describe() {
-            return operatorFactories.stream().map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
+            return Stream.concat(
+                Stream.concat(Stream.of(sourceOperatorFactory), intermediateOperatorFactories.stream()),
+                Stream.of(sinkOperatorFactory)
+            ).map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
         }
     }
 
@@ -609,7 +653,7 @@ public class LocalExecutionPlanner {
 
         @Override
         public Driver get() {
-            return new Driver(physicalOperation.operators(), () -> {});
+            return new Driver(physicalOperation.source(), physicalOperation.operators(), physicalOperation().sink(), () -> {});
         }
 
         @Override

@@ -40,11 +40,16 @@ public class Driver implements Runnable {
 
     /**
      * Creates a new driver with a chain of operators.
-     * @param operators  the chain of operators to execute
+     * @param source source operator
+     * @param intermediateOperators  the chain of operators to execute
+     * @param sink sink operator
      * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
      */
-    public Driver(List<Operator> operators, Releasable releasable) {
-        this.activeOperators = new ArrayList<>(operators);
+    public Driver(SourceOperator source, List<Operator> intermediateOperators, SinkOperator sink, Releasable releasable) {
+        this.activeOperators = new ArrayList<>();
+        activeOperators.add(source);
+        activeOperators.addAll(intermediateOperators);
+        activeOperators.add(sink);
         this.releasable = releasable;
     }
 

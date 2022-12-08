@@ -11,7 +11,7 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.List;
 
@@ -20,7 +20,7 @@ import java.util.List;
  * random fashion.
  */
 @Experimental
-public class RandomUnionSourceOperator implements Operator {
+public class RandomUnionSourceOperator extends SourceOperator {
 
     private final List<ExchangeSource> sources;
 
@@ -42,16 +42,6 @@ public class RandomUnionSourceOperator implements Operator {
     @Override
     public void finish() {
         sources.forEach(ExchangeSource::finish);
-    }
-
-    @Override
-    public boolean needsInput() {
-        return false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -23,8 +23,7 @@ import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorFactory;
+import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -44,7 +43,7 @@ import java.util.stream.StreamSupport;
  * Source operator that incrementally runs Lucene searches
  */
 @Experimental
-public class LuceneSourceOperator implements Operator {
+public class LuceneSourceOperator extends SourceOperator {
 
     private static final int PAGE_SIZE = ByteSizeValue.ofKb(16).bytesAsInt();
 
@@ -68,7 +67,7 @@ public class LuceneSourceOperator implements Operator {
 
     private int currentScorerPos;
 
-    public static class LuceneSourceOperatorFactory implements OperatorFactory {
+    public static class LuceneSourceOperatorFactory implements SourceOperatorFactory {
 
         private final Function<SearchExecutionContext, Query> queryFunction;
 
@@ -96,7 +95,7 @@ public class LuceneSourceOperator implements Operator {
         }
 
         @Override
-        public Operator get() {
+        public SourceOperator get() {
             if (iterator == null) {
                 iterator = sourceOperatorIterator();
             }
@@ -158,16 +157,6 @@ public class LuceneSourceOperator implements Operator {
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
         currentPage = new int[maxPageSize];
-    }
-
-    @Override
-    public boolean needsInput() {
-        return false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        throw new UnsupportedOperationException();
     }
 
     @Override

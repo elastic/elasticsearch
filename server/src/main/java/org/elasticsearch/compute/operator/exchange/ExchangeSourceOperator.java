@@ -11,22 +11,21 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorFactory;
+import org.elasticsearch.compute.operator.SourceOperator;
 
 /**
  * Source operator implementation that retrieves data from an {@link ExchangeSource}
  */
 @Experimental
-public class ExchangeSourceOperator implements Operator {
+public class ExchangeSourceOperator extends SourceOperator {
 
     private final ExchangeSource source;
     private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
 
-    public record ExchangeSourceOperatorFactory(Exchange exchange) implements OperatorFactory {
+    public record ExchangeSourceOperatorFactory(Exchange exchange) implements SourceOperatorFactory {
 
         @Override
-        public Operator get() {
+        public SourceOperator get() {
             return new ExchangeSourceOperator(exchange.getNextSource());
         }
 
@@ -53,16 +52,6 @@ public class ExchangeSourceOperator implements Operator {
     @Override
     public void finish() {
         source.finish();
-    }
-
-    @Override
-    public boolean needsInput() {
-        return false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        throw new UnsupportedOperationException();
     }
 
     @Override

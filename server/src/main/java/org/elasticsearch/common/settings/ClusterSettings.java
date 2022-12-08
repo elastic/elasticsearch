@@ -540,7 +540,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         WriteAckDelay.WRITE_ACK_DELAY_INTERVAL,
         WriteAckDelay.WRITE_ACK_DELAY_RANDOMNESS_BOUND,
         TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION : null,
-        FallbackSecureSettings.FALLBACK_SETTINGS
+        StatelessSecureSettings.STATELESS_SECURE_SETTINGS
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

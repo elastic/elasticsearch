@@ -21,15 +21,15 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * An implementation of secure settings that fall back to the YML settings.
+ * An implementation of secure settings that can fall back to the YML settings.
  *
  * WARNING: this is a temporary class to be used only in the context of Stateless. It applies only to YML settings with a predetermined
- * prefix. Other secure settings do not fall back to YML settings.
+ * prefix. Other original secure settings are still kept and are accessible (without falling back to YML settings).
  */
-public class FallbackSecureSettings implements SecureSettings {
-    static final String FALLBACK_PREFIX = "insecure.";
-    static final Setting.AffixSetting<String> FALLBACK_SETTINGS = Setting.prefixKeySetting(
-        FALLBACK_PREFIX,
+public class StatelessSecureSettings implements SecureSettings {
+    static final String PREFIX = "insecure.";
+    static final Setting.AffixSetting<String> STATELESS_SECURE_SETTINGS = Setting.prefixKeySetting(
+        PREFIX,
         (key) -> Setting.simpleString(key, Setting.Property.NodeScope)
     );
 
@@ -37,23 +37,25 @@ public class FallbackSecureSettings implements SecureSettings {
     private final Settings settings;
     private final Set<String> names;
 
-    private FallbackSecureSettings(Settings settings) {
+    private StatelessSecureSettings(Settings settings) {
         if (DiscoveryNode.isStateless(settings) == false) {
-            throw new IllegalArgumentException("FallbackSecureSettings are supported only in stateless");
+            throw new IllegalArgumentException("StatelessSecureSettings are supported only in stateless");
         }
 
         SecureSettings secureSettings = Settings.builder().put(settings, true).getSecureSettings();
         this.secureSettings = secureSettings;
         this.settings = Settings.builder().put(settings, false).build();
 
-        Stream<String> stream = settings.keySet()
-            .stream()
-            .filter(key -> (key.startsWith(FALLBACK_PREFIX)))
-            .map(s -> s.replace(FALLBACK_PREFIX, ""));
+        Stream<String> stream = settings.keySet().stream().filter(key -> (key.startsWith(PREFIX))).map(s -> s.replace(PREFIX, ""));
         if (secureSettings != null) {
             stream = Stream.concat(stream, secureSettings.getSettingNames().stream());
         }
         this.names = stream.collect(Collectors.toUnmodifiableSet());
+    }
+
+    public static Settings install(Settings settings) {
+        StatelessSecureSettings statelessSecureSettings = new StatelessSecureSettings(settings);
+        return Settings.builder().put(settings, false).setSecureSettings(statelessSecureSettings).build();
     }
 
     @Override
@@ -76,7 +78,7 @@ public class FallbackSecureSettings implements SecureSettings {
                 return secureSettings.getString(setting);
             }
         }
-        return new SecureString(FALLBACK_SETTINGS.getConcreteSetting(FALLBACK_PREFIX + setting).get(settings).toCharArray());
+        return new SecureString(STATELESS_SECURE_SETTINGS.getConcreteSetting(PREFIX + setting).get(settings).toCharArray());
     }
 
     @Override
@@ -87,7 +89,7 @@ public class FallbackSecureSettings implements SecureSettings {
             }
         }
         return new ByteArrayInputStream(
-            FALLBACK_SETTINGS.getConcreteSetting(FALLBACK_PREFIX + setting).get(settings).getBytes(StandardCharsets.UTF_8)
+            STATELESS_SECURE_SETTINGS.getConcreteSetting(PREFIX + setting).get(settings).getBytes(StandardCharsets.UTF_8)
         );
     }
 
@@ -99,7 +101,7 @@ public class FallbackSecureSettings implements SecureSettings {
             }
         }
         return MessageDigests.sha256()
-            .digest(FALLBACK_SETTINGS.getConcreteSetting(FALLBACK_PREFIX + setting).get(settings).getBytes(StandardCharsets.UTF_8));
+            .digest(STATELESS_SECURE_SETTINGS.getConcreteSetting(PREFIX + setting).get(settings).getBytes(StandardCharsets.UTF_8));
     }
 
     @Override
@@ -107,10 +109,5 @@ public class FallbackSecureSettings implements SecureSettings {
         if (secureSettings != null) {
             secureSettings.close();
         }
-    }
-
-    public static Settings installFallbackSecureSettings(Settings settings) {
-        FallbackSecureSettings fallbackSecureSettings = new FallbackSecureSettings(settings);
-        return Settings.builder().put(settings, false).setSecureSettings(fallbackSecureSettings).build();
     }
 }

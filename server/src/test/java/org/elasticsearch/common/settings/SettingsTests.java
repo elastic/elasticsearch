@@ -487,51 +487,47 @@ public class SettingsTests extends ESTestCase {
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
     }
 
-    public void testFallbackSecureSettingsWithoutStateless() {
-        Setting<?> fallbackSetting = SecureSetting.secureString(FallbackSecureSettings.FALLBACK_PREFIX + "key", null);
+    public void testStatelessSecureSettingsWithoutStateless() {
+        Setting<?> setting = SecureSetting.secureString(StatelessSecureSettings.PREFIX + "key", null);
 
         final Settings settings = Settings.builder()
-                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, false)
-                .put(fallbackSetting.getKey(), "fallback.yaml.value")
-                .build();
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, false)
+            .put(setting.getKey(), "yaml.value")
+            .build();
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> FallbackSecureSettings.installFallbackSecureSettings(settings)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> StatelessSecureSettings.install(settings));
         assertTrue(e.getMessage().contains("supported only in stateless"));
     }
 
-    public void testSecureSettingWinsOverFallbackSetting() {
-        String fallbackSecureKey = "secure.key";
-        String fallbackInsecureKey = FallbackSecureSettings.FALLBACK_PREFIX + fallbackSecureKey;
-        Setting<?> fallbackSecureSetting = SecureSetting.secureString(fallbackSecureKey, null);
-        Setting<?> fallbackInsecureSetting = Setting.simpleString(fallbackInsecureKey);
+    public void testStatelessSecureSettingWinsOverFallbackSetting() {
+        String key = "secure.key";
+        String yamlKey = StatelessSecureSettings.PREFIX + key;
+        Setting<?> secureSetting = SecureSetting.secureString(key, null);
+        Setting<?> yamlSetting = Setting.simpleString(yamlKey);
 
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(fallbackSecureSetting.getKey(), "secure.value");
+        secureSettings.setString(secureSetting.getKey(), "secure.value");
 
         final Settings settings = Settings.builder()
             .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-            .put(fallbackInsecureSetting.getKey(), "yaml.value")
+            .put(yamlSetting.getKey(), "yaml.value")
             .setSecureSettings(secureSettings)
             .build();
 
-        Settings newSettings = FallbackSecureSettings.installFallbackSecureSettings(settings);
-        assertTrue(fallbackSecureSetting.exists(newSettings));
-        assertEquals("secure.value", fallbackSecureSetting.get(newSettings).toString());
-        assertTrue(fallbackInsecureSetting.exists(newSettings));
-        assertEquals("yaml.value", fallbackInsecureSetting.get(newSettings).toString());
+        Settings newSettings = StatelessSecureSettings.install(settings);
+        assertTrue(secureSetting.exists(newSettings));
+        assertEquals("secure.value", secureSetting.get(newSettings).toString());
+        assertTrue(yamlSetting.exists(newSettings));
+        assertEquals("yaml.value", yamlSetting.get(newSettings).toString());
     }
 
-    public void testFallbackSecureSettings() throws Exception {
+    public void testStatelessSecureSettings() throws Exception {
         boolean testFileSettingInsteadOfStringSetting = randomBoolean();
 
         Setting<?> standardSecureSetting = testFileSettingInsteadOfStringSetting
             ? SecureSetting.secureFile("standard.secure.key", null)
             : SecureSetting.secureString("standard.secure.key", null);
-        Setting<?> yamlSetting = Setting.simpleString("yaml.key");
-        Setting<?> fallbackInsecureSetting = Setting.simpleString(FallbackSecureSettings.FALLBACK_PREFIX + "fallback.key");
+        Setting<?> yamlSetting = Setting.simpleString(StatelessSecureSettings.PREFIX + "stateless.key");
 
         MockSecureSettings secureSettings = new MockSecureSettings();
         if (testFileSettingInsteadOfStringSetting) {
@@ -542,25 +538,24 @@ public class SettingsTests extends ESTestCase {
 
         final Settings settings = Settings.builder()
             .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-            .put(fallbackInsecureSetting.getKey(), "fallback.yaml.value")
+            .put(yamlSetting.getKey(), "stateless.yaml.value")
             .put(standardSecureSetting.getKey(), "standard.yaml.value")
-            .put(yamlSetting.getKey(), "yaml.value")
             .setSecureSettings(secureSettings)
             .build();
 
-        Settings newSettings = FallbackSecureSettings.installFallbackSecureSettings(settings);
-        Setting<?> fallbackSecureSetting = testFileSettingInsteadOfStringSetting
-            ? SecureSetting.secureFile("fallback.key", null)
-            : SecureSetting.secureString("fallback.key", null);
-        assertTrue(fallbackSecureSetting.exists(newSettings));
+        Settings newSettings = StatelessSecureSettings.install(settings);
+        Setting<?> secureSetting = testFileSettingInsteadOfStringSetting
+            ? SecureSetting.secureFile("stateless.key", null)
+            : SecureSetting.secureString("stateless.key", null);
+        assertTrue(secureSetting.exists(newSettings));
         assertEquals(
-            "fallback.yaml.value",
+            "stateless.yaml.value",
             testFileSettingInsteadOfStringSetting
-                ? new String(((InputStream) fallbackSecureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
-                : fallbackSecureSetting.get(newSettings).toString()
+                ? new String(((InputStream) secureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
+                : secureSetting.get(newSettings).toString()
         );
-        assertTrue(fallbackInsecureSetting.exists(newSettings));
-        assertEquals("fallback.yaml.value", fallbackInsecureSetting.get(newSettings).toString());
+        assertTrue(yamlSetting.exists(newSettings));
+        assertEquals("stateless.yaml.value", yamlSetting.get(newSettings).toString());
         assertTrue(standardSecureSetting.exists(newSettings));
         assertEquals(
             "standard.secure.value",
@@ -568,8 +563,6 @@ public class SettingsTests extends ESTestCase {
                 ? new String(((InputStream) standardSecureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
                 : standardSecureSetting.get(newSettings).toString()
         );
-        assertTrue(yamlSetting.exists(newSettings));
-        assertEquals("yaml.value", yamlSetting.get(newSettings).toString());
     }
 
     public void testGetAsArrayFailsOnDuplicates() {

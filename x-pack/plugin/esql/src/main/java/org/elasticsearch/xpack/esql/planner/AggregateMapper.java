@@ -11,6 +11,9 @@ import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionProviders;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 
 import static org.elasticsearch.compute.aggregation.AggregatorFunctionProviders.avgDouble;
@@ -30,6 +33,12 @@ class AggregateMapper {
 
         if (aggregateFunction instanceof Count) {
             return AggregatorFunctionProviders.count();
+        } else if (aggregateFunction instanceof Max) {
+            return AggregatorFunctionProviders.max();
+        } else if (aggregateFunction instanceof Min) {
+            return AggregatorFunctionProviders.min();
+        } else if (aggregateFunction instanceof Sum) {
+            return AggregatorFunctionProviders.sum();
         }
 
         throw new UnsupportedOperationException("No provider available for aggregate function=" + aggregateFunction);

@@ -28,6 +28,10 @@ public final class AggregatorFunctionProviders {
         return MaxAggregator::create;
     }
 
+    public static AggregatorFunction.Provider min() {
+        return MinAggregator::create;
+    }
+
     public static AggregatorFunction.Provider sum() {
         return SumAggregator::create;
     }

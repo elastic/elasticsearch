@@ -16,16 +16,16 @@ import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 
 @Experimental
-final class SumAggregator implements AggregatorFunction {
+final class MinAggregator implements AggregatorFunction {
 
     private final DoubleState state;
     private final int channel;
 
-    static SumAggregator create(int inputChannel) {
-        return new SumAggregator(inputChannel, new DoubleState());
+    static MinAggregator create(int inputChannel) {
+        return new MinAggregator(inputChannel, new DoubleState(Double.POSITIVE_INFINITY));
     }
 
-    private SumAggregator(int channel, DoubleState state) {
+    private MinAggregator(int channel, DoubleState state) {
         this.channel = channel;
         this.state = state;
     }
@@ -34,39 +34,38 @@ final class SumAggregator implements AggregatorFunction {
     public void addRawInput(Page page) {
         assert channel >= 0;
         Block block = page.getBlock(channel);
-        double sum;
+        double min;
         if (block instanceof LongArrayBlock longBlock) {
-            long cur = (long) state.doubleValue();
-            state.doubleValue(Math.addExact(cur, sumFromLongBlock(longBlock)));
+            min = minFromLongBlock(longBlock);
         } else {
-            state.doubleValue(state.doubleValue() + sumFromBlock(block));
+            min = minFromBlock(block);
         }
+        state.doubleValue(Math.min(state.doubleValue(), min));
     }
 
-    static double sumFromBlock(Block block) {
-        double sum = 0;
-        for (int i = 0; i < block.getPositionCount(); i++) {
-            if (block.isNull(i) == false) {
-                sum += block.getDouble(i);
-            }
-        }
-        return sum;
-    }
-
-    static long sumFromLongBlock(LongArrayBlock block) {
-        long sum = 0;
-        for (int i = 0; i < block.getPositionCount(); i++) {
-            if (block.isNull(i) == false) {
-                try {
-                    sum = Math.addExact(sum, block.getLong(i));
-                } catch (ArithmeticException e) {
-                    var ex = new ArithmeticException("addition overflow"); // TODO: customize the exception
-                    ex.initCause(e);
-                    throw ex;
+    static double minFromBlock(Block block) {
+        double min = Double.POSITIVE_INFINITY;
+        int len = block.getPositionCount();
+        if (block.areAllValuesNull() == false) {
+            for (int i = 0; i < len; i++) {
+                if (block.isNull(i) == false) {
+                    min = Math.min(min, block.getDouble(i));
                 }
             }
         }
-        return sum;
+        return min;
+    }
+
+    static double minFromLongBlock(LongArrayBlock block) {
+        double min = Double.POSITIVE_INFINITY;
+        if (block.areAllValuesNull() == false) {
+            for (int i = 0; i < block.getPositionCount(); i++) {
+                if (block.isNull(i) == false) {
+                    min = Math.min(min, block.getLong(i));
+                }
+            }
+        }
+        return min;
     }
 
     @Override
@@ -79,7 +78,7 @@ final class SumAggregator implements AggregatorFunction {
             DoubleState tmpState = new DoubleState();
             for (int i = 0; i < block.getPositionCount(); i++) {
                 blobBlock.get(i, tmpState);
-                state.doubleValue(state.doubleValue() + tmpState.doubleValue());
+                state.doubleValue(Math.min(state.doubleValue(), tmpState.doubleValue()));
             }
         } else {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);

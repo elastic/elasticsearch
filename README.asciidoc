@@ -48,7 +48,7 @@ https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elastics
 **Start Elasticsearch**
 
 . Install and start https://www.docker.com/products/docker-desktop[Docker
-Desktop]. Go to **Preferences > Resources > Advanced** and set Memory to at least 4GB.
+Desktop]. Go to **Preferences > Resources > Advanced** and set Memory to at least 4 GB.
 
 . Start an Elasticsearch container:
 +

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,6 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
-import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
@@ -40,9 +40,9 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
         var clusterState = createClusterState(
             List.of(
-                newNode("node-1", Set.of(DATA_ROLE, DATA_CONTENT_NODE_ROLE)),
-                newNode("node-2", Set.of(DATA_ROLE, DATA_CONTENT_NODE_ROLE)),
-                newNode("node-3", Set.of(DATA_ROLE, DATA_CONTENT_NODE_ROLE))
+                newNode("node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-3", Set.of(DATA_CONTENT_NODE_ROLE))
             ),
             List.of(
                 startedIndex("index-1", null, null, "node-1", "node-2"),
@@ -74,9 +74,9 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
         var clusterState = createClusterState(
             List.of(
-                newNode("node-1", Set.of(DATA_ROLE, DATA_CONTENT_NODE_ROLE)),
-                newNode("node-2", Set.of(DATA_ROLE, DATA_CONTENT_NODE_ROLE)),
-                newNode("node-3", Set.of(DATA_ROLE, DATA_CONTENT_NODE_ROLE))
+                newNode("node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-3", Set.of(DATA_CONTENT_NODE_ROLE))
             ),
             List.of(
                 startedIndex("index-1", 1.5, 8L, "node-1", "node-2"),
@@ -108,12 +108,12 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
         var clusterState = createClusterState(
             List.of(
-                newNode("node-hot-1", Set.of(DATA_ROLE, DATA_HOT_NODE_ROLE)),
-                newNode("node-hot-2", Set.of(DATA_ROLE, DATA_HOT_NODE_ROLE)),
-                newNode("node-hot-3", Set.of(DATA_ROLE, DATA_HOT_NODE_ROLE)),
-                newNode("node-warm-1", Set.of(DATA_ROLE, DATA_WARM_NODE_ROLE)),
-                newNode("node-warm-2", Set.of(DATA_ROLE, DATA_WARM_NODE_ROLE)),
-                newNode("node-warm-3", Set.of(DATA_ROLE, DATA_WARM_NODE_ROLE))
+                newNode("node-hot-1", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
+                newNode("node-hot-2", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
+                newNode("node-hot-3", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
+                newNode("node-warm-1", Set.of(DATA_WARM_NODE_ROLE)),
+                newNode("node-warm-2", Set.of(DATA_WARM_NODE_ROLE)),
+                newNode("node-warm-3", Set.of(DATA_WARM_NODE_ROLE))
             ),
             List.of(
                 startedIndex("index-hot-1", 4.0, 4L, "node-hot-1", "node-hot-2", "node-hot-3"),
@@ -131,6 +131,12 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             equalTo(
                 new ClusterBalanceStats(
                     Map.of(
+                        DATA_CONTENT_NODE_ROLE.roleName(),
+                        new ClusterBalanceStats.TierBalanceStats(
+                            new ClusterBalanceStats.MetricStats(7.0, 2.0, 3.0, 7.0 / 3, stdDev(3.0, 2.0, 2.0)),
+                            new ClusterBalanceStats.MetricStats(21.0, 6.0, 8.5, 7.0, stdDev(6.0, 8.5, 6.5)),
+                            new ClusterBalanceStats.MetricStats(36.0, 10.0, 16.0, 12.0, stdDev(10.0, 10.0, 16.0))
+                        ),
                         DATA_HOT_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
                             new ClusterBalanceStats.MetricStats(7.0, 2.0, 3.0, 7.0 / 3, stdDev(3.0, 2.0, 2.0)),
@@ -195,16 +201,6 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
     }
 
     private static double stdDev(double... data) {
-        var avg = 0.0;
-        for (double d : data) {
-            avg += d;
-        }
-        avg /= data.length;
-
-        var stdDev = 0.0;
-        for (double d : data) {
-            stdDev += Math.pow(d - avg, 2);
-        }
-        return Math.sqrt(stdDev / data.length);
+        return MovingFunctions.stdDev(data, MovingFunctions.unweightedAvg(data));
     }
 }

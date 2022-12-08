@@ -17,8 +17,19 @@ setup:
   - gte: { stats.computation_converged_index: 0 }
   - gte: { stats.computation_time_in_millis: 0 }
   - gte: { stats.reconciliation_time_in_millis: 0 }
-  - is_true: 'cluster_balance_stats'
   - match: { routing_table: {} }
+
+---
+"Test cluster_balance_stats":
+
+  - skip:
+      version: " - 8.6.99"
+      reason: "Field added in in 8.7.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'cluster_balance_stats'
 
 ---
 "Test get desired balance for single shard":

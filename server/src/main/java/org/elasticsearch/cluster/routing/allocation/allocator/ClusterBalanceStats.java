@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -26,7 +27,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.ToDoubleFunction;
 
 import static java.util.stream.Collectors.summarizingDouble;
@@ -38,12 +38,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
     public static ClusterBalanceStats createFrom(ClusterState clusterState, WriteLoadForecaster writeLoadForecaster) {
         var tierToNodeStats = new HashMap<String, List<NodeStats>>();
         for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
-            var dataRoles = routingNode.node()
-                .getRoles()
-                .stream()
-                .filter(DiscoveryNodeRole::canContainData)
-                .filter(role -> Objects.equals(DiscoveryNodeRole.DATA_ROLE, role) == false)
-                .toList();
+            var dataRoles = routingNode.node().getRoles().stream().filter(DiscoveryNodeRole::canContainData).toList();
             if (dataRoles.isEmpty()) {
                 continue;
             }
@@ -107,16 +102,8 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
 
         private static MetricStats createFrom(List<NodeStats> nodes, ToDoubleFunction<NodeStats> metricExtractor) {
             var summary = nodes.stream().collect(summarizingDouble(metricExtractor));
-            var stdDev = stdDev(nodes.stream().mapToDouble(metricExtractor).toArray(), summary.getAverage());
+            var stdDev = MovingFunctions.stdDev(nodes.stream().mapToDouble(metricExtractor).toArray(), summary.getAverage());
             return new MetricStats(summary.getSum(), summary.getMin(), summary.getMax(), summary.getAverage(), stdDev);
-        }
-
-        private static double stdDev(double[] data, double avg) {
-            var stdDev = 0.0;
-            for (double d : data) {
-                stdDev += Math.pow(d - avg, 2);
-            }
-            return Math.sqrt(stdDev / data.length);
         }
 
         public static MetricStats readFrom(StreamInput in) throws IOException {

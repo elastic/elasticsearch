@@ -204,8 +204,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
                         HTTP/1.1 200 OK\r
                         Content-Length: %s\r
                         \r
-                        %s\r
-                        """, proxyProjectId.length(), proxyProjectId));
+                        %s""", proxyProjectId.length(), proxyProjectId));
                 } catch (IOException ignored) {}
             }
         });

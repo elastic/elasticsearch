@@ -191,8 +191,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
                         HTTP/1.1 200 OK\r
                         Content-Length: %s\r
                         \r
-                        %s\r
-                        """, body.length(), body));
+                        %s""", body.length(), body));
                 } catch (IOException ignored) {}
             }
         });

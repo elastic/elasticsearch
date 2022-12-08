@@ -35,6 +35,7 @@ import java.security.KeyPairGenerator;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -189,10 +190,12 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertEquals(0, GoogleCloudStorageService.toTimeout(TimeValue.MINUS_ONE).intValue());
     }
 
-    public void testGetDefaultProjectIdViaProxy() throws IOException {
+    public void testGetDefaultProjectIdViaProxy() throws Exception {
         String proxyProjectId = randomAlphaOfLength(16);
         var proxyServerSocket = new MockServerSocket(0); // Have to use plain sockets because MockHttpServer doesn't work as a proxy
+        var latch = new CountDownLatch(1);
         var proxyServerThread = new Thread(() -> {
+            latch.countDown();
             while (Thread.currentThread().isInterrupted() == false) {
                 try (
                     var socket = proxyServerSocket.accept();
@@ -209,6 +212,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             }
         });
         proxyServerThread.start();
+        latch.await();
         var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServerSocket.getLocalPort()));
 
         try {

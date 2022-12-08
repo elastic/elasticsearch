@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
@@ -172,7 +173,9 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         var settings = Settings.builder().setSecureSettings(secureSettings).build();
         // Emulate a proxy HTTP server with plain sockets because MockHttpServer doesn't work as a proxy
         var proxyServerSocket = new MockServerSocket(0);
+        var latch = new CountDownLatch(1);
         var proxyServerThread = new Thread(() -> {
+            latch.countDown();
             while (Thread.currentThread().isInterrupted() == false) {
                 try (
                     var socket = proxyServerSocket.accept();
@@ -196,6 +199,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             }
         });
         proxyServerThread.start();
+        latch.await();
         var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServerSocket.getLocalPort()));
 
         try {

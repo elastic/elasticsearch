@@ -51,7 +51,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );
         distributionDownloadPlugin.setDockerAvailability(
-            dockerSupport.map(dockerSupportService -> dockerSupportService.getDockerAvailability().isAvailable)
+            dockerSupport.map(dockerSupportService -> dockerSupportService.getDockerAvailability().isAvailable())
         );
         registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
     }

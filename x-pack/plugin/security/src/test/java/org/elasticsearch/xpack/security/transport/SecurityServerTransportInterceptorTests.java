@@ -8,15 +8,21 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -42,6 +48,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -63,6 +70,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
@@ -79,6 +87,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -156,22 +165,30 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
     public void testSendWithRemoteAccessHeaders() throws Exception {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
-        final User user = new User("test", randomRoles());
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(user)
-            .realmRef(new RealmRef("ldap", "foo", "node1"))
-            .build(false);
+            .user(
+                new User(
+                    randomAlphaOfLengthBetween(3, 10),
+                    randomArray(
+                        0,
+                        4,
+                        String[]::new,
+                        () -> randomValueOtherThanMany(ReservedRolesStore::isReserved, () -> randomAlphaOfLengthBetween(1, 20))
+                    )
+                )
+            )
+            .realm()
+            .build();
         authentication.writeToContext(threadContext);
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
-        final String clusterCredential = "key";
-        when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(clusterCredential);
+        final String remoteClusterCredential = randomAlphaOfLengthBetween(10, 42);
+        when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(remoteClusterCredential);
         final AuthorizationService authzService = mock(AuthorizationService.class);
-        // We capture the listener so that we can complete the full flow, by passing onResponse further down
+        final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
+        // We capture the listener so that we can complete the full flow, by calling onResponse further down
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<RoleDescriptorsIntersection>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(authzService).retrieveRemoteAccessRoleDescriptorsIntersection(any(), any(), listenerCaptor.capture());
-        final String remoteClusterAlias = "remote";
 
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
@@ -202,7 +219,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 TransportResponseHandler<T> handler
             ) {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
-                    fail("sender called more than once!");
+                    fail("sender called more than once");
                 }
                 assertThat(securityContext.getAuthentication(), nullValue());
                 sentCredential.set(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER));
@@ -215,20 +232,31 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
-        // TODO pick any whitelisted
-        sender.sendRequest(connection, SearchAction.NAME, mock(SearchRequest.class), null, null);
+        final Tuple<String, TransportRequest> actionAndReq = randomFrom(
+            new Tuple<>(SearchAction.NAME, mock(SearchRequest.class)),
+            new Tuple<>(SearchTransportService.QUERY_ACTION_NAME, mock(ShardSearchRequest.class)),
+            new Tuple<>(SearchTransportService.FETCH_ID_ACTION_NAME, mock(ShardFetchRequest.class)),
+            new Tuple<>(ClusterSearchShardsAction.NAME, mock(ClusterSearchShardsRequest.class))
+        );
+        sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, null);
         // Call listener to complete flow
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
             randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
         );
         listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
         assertTrue(calledWrappedSender.get());
-        assertThat(sentCredential.get(), equalTo("ApiKey " + clusterCredential));
+        assertThat(sentCredential.get(), equalTo("ApiKey " + remoteClusterCredential));
         assertThat(
             sentRemoteAccessAuthentication.get(),
             equalTo(new RemoteAccessAuthentication(authentication, expectedRoleDescriptorsIntersection))
         );
-        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(Version.class), anyConsumer());
+        verify(securityContext, never()).executeAsInternalUser(any(), any(), anyConsumer());
+        verify(remoteClusterAuthorizationResolver, times(2)).resolveAuthorization(eq(remoteClusterAlias));
+        verify(authzService).retrieveRemoteAccessRoleDescriptorsIntersection(
+            eq(remoteClusterAlias),
+            eq(authentication.getEffectiveSubject()),
+            anyActionListener()
+        );
     }
 
     public void testSendAsyncSwitchToSystem() throws Exception {

@@ -70,7 +70,7 @@ public final class RemoteAccessAuthentication {
 
         RemoteAccessAuthentication that = (RemoteAccessAuthentication) o;
 
-        if (!authentication.equals(that.authentication)) return false;
+        if (false == authentication.equals(that.authentication)) return false;
         return roleDescriptorsBytesList.equals(that.roleDescriptorsBytesList);
     }
 
@@ -79,6 +79,16 @@ public final class RemoteAccessAuthentication {
         int result = authentication.hashCode();
         result = 31 * result + roleDescriptorsBytesList.hashCode();
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return "RemoteAccessAuthentication{"
+            + "authentication="
+            + authentication
+            + ", roleDescriptorsBytesList="
+            + roleDescriptorsBytesList
+            + '}';
     }
 
     private static List<RoleDescriptorsBytes> toRoleDescriptorsBytesList(final RoleDescriptorsIntersection roleDescriptorsIntersection)
@@ -112,16 +122,6 @@ public final class RemoteAccessAuthentication {
         final Authentication authentication = new Authentication(in);
         final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readImmutableList(RoleDescriptorsBytes::new);
         return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesList);
-    }
-
-    @Override
-    public String toString() {
-        return "RemoteAccessAuthentication{"
-            + "authentication="
-            + authentication
-            + ", roleDescriptorsBytesList="
-            + roleDescriptorsBytesList
-            + '}';
     }
 
     public static final class RoleDescriptorsBytes extends AbstractBytesReference {

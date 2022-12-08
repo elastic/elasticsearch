@@ -25,6 +25,7 @@ import org.hamcrest.Matchers;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -190,22 +191,21 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     public void testGetDefaultProjectIdViaProxy() throws IOException {
         String proxyProjectId = randomAlphaOfLength(16);
-        var proxyServerSocket = new MockServerSocket(0);
+        var proxyServerSocket = new MockServerSocket(0); // Have to use plain sockets because MockHttpServer doesn't work as a proxy
         var proxyServerThread = new Thread(() -> {
             while (Thread.currentThread().isInterrupted() == false) {
                 try (
                     var socket = proxyServerSocket.accept();
-                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
+                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+                    var writer = new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8)
                 ) {
-                    // No `CONNECT` HTTP tunnels, because it's just a direct HTTP call,
                     assertEquals("GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1", reader.readLine());
-                    socket.getOutputStream().write(formatted("""
+                    writer.write(formatted("""
                         HTTP/1.1 200 OK\r
                         Content-Length: %s\r
                         \r
                         %s\r
-                        """, proxyProjectId.length(), proxyProjectId).getBytes(StandardCharsets.UTF_8));
-                    socket.getOutputStream().flush();
+                        """, proxyProjectId.length(), proxyProjectId));
                 } catch (IOException ignored) {}
             }
         });

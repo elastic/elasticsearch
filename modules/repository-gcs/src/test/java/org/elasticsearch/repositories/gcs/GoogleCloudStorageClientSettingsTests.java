@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -169,12 +170,14 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             ).getBytes(StandardCharsets.UTF_8)
         );
         var settings = Settings.builder().setSecureSettings(secureSettings).build();
+        // Emulate a proxy HTTP server with plain sockets because MockHttpServer doesn't work as a proxy
         var proxyServerSocket = new MockServerSocket(0);
         var proxyServerThread = new Thread(() -> {
             while (Thread.currentThread().isInterrupted() == false) {
                 try (
                     var socket = proxyServerSocket.accept();
-                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
+                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+                    var writer = new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8)
                 ) {
                     assertEquals("POST http://oauth2.googleapis.com/oauth2/token HTTP/1.1", reader.readLine());
                     String body = """
@@ -184,13 +187,12 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
                             "expires_in": 3600
                         }
                         """;
-                    socket.getOutputStream().write(formatted("""
+                    writer.write(formatted("""
                         HTTP/1.1 200 OK\r
                         Content-Length: %s\r
                         \r
                         %s\r
-                        """, body.length(), body).getBytes(StandardCharsets.UTF_8));
-                    socket.getOutputStream().flush();
+                        """, body.length(), body));
                 } catch (IOException ignored) {}
             }
         });

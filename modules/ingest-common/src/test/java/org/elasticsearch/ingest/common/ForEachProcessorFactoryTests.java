@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -37,7 +38,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
+        config.put("processor", Map.of("_name", Collections.emptyMap()));
         ForEachProcessor forEachProcessor = forEachFactory.create(registry, null, null, config);
         assertThat(forEachProcessor, notNullValue());
         assertThat(forEachProcessor.getField(), equalTo("_field"));
@@ -53,7 +54,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
+        config.put("processor", Map.of("_name", Collections.emptyMap()));
         config.put("ignore_missing", true);
         ForEachProcessor forEachProcessor = forEachFactory.create(registry, null, null, config);
         assertThat(forEachProcessor, notNullValue());
@@ -72,8 +73,8 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         Map<String, Object> processorTypes = new HashMap<>();
-        processorTypes.put("_first", Collections.emptyMap());
-        processorTypes.put("_second", Collections.emptyMap());
+        processorTypes.put("_first", Map.of());
+        processorTypes.put("_second", Map.of());
         config.put("processor", processorTypes);
         Exception exception = expectThrows(ElasticsearchParseException.class, () -> forEachFactory.create(registry, null, null, config));
         assertThat(exception.getMessage(), equalTo("[processor] Must specify exactly one processor type"));
@@ -83,10 +84,10 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
+        config.put("processor", Map.of("_name", Collections.emptyMap()));
         Exception expectedException = expectThrows(
             ElasticsearchParseException.class,
-            () -> forEachFactory.create(Collections.emptyMap(), null, null, config)
+            () -> forEachFactory.create(Map.of(), null, null, config)
         );
         assertThat(expectedException.getMessage(), equalTo("No processor type exists with name [_name]"));
     }
@@ -97,7 +98,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         registry.put("_name", (r, t, description, c) -> processor);
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
         Map<String, Object> config = new HashMap<>();
-        config.put("processor", Collections.singletonList(Collections.singletonMap("_name", Collections.emptyMap())));
+        config.put("processor", List.of(Map.of("_name", Map.of())));
         Exception exception = expectThrows(Exception.class, () -> forEachFactory.create(registry, null, null, config));
         assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
     }
@@ -106,7 +107,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory(scriptService);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        Exception exception = expectThrows(Exception.class, () -> forEachFactory.create(Collections.emptyMap(), null, null, config));
+        Exception exception = expectThrows(Exception.class, () -> forEachFactory.create(Map.of(), null, null, config));
         assertThat(exception.getMessage(), equalTo("[processor] required property is missing"));
     }
 

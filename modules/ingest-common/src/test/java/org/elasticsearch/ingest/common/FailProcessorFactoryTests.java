@@ -14,7 +14,6 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,7 +34,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         FailProcessor failProcessor = factory.create(null, processorTag, null, config);
         assertThat(failProcessor.getTag(), equalTo(processorTag));
-        assertThat(failProcessor.getMessage().newInstance(Collections.emptyMap()).execute(), equalTo("error"));
+        assertThat(failProcessor.getMessage().newInstance(Map.of()).execute(), equalTo("error"));
     }
 
     public void testCreateMissingMessageField() throws Exception {

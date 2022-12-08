@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
@@ -29,14 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DissectProcessorTests extends ESTestCase {
 
     public void testMatch() {
-        IngestDocument ingestDocument = new IngestDocument(
-            "_index",
-            "_id",
-            1,
-            null,
-            null,
-            Collections.singletonMap("message", "foo,bar,baz")
-        );
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("message", "foo,bar,baz"));
         DissectProcessor dissectProcessor = new DissectProcessor("", null, "message", "%{a},%{b},%{c}", "", true);
         dissectProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("a", String.class), equalTo("foo"));
@@ -68,7 +62,7 @@ public class DissectProcessorTests extends ESTestCase {
             1,
             null,
             null,
-            Collections.singletonMap("message", "foo       bar,,,,,,,baz nope:notagain 😊 🐇 🙃")
+            Map.of("message", "foo       bar,,,,,,,baz nope:notagain 😊 🐇 🙃")
         );
         DissectProcessor dissectProcessor = new DissectProcessor(
             "",
@@ -87,14 +81,7 @@ public class DissectProcessorTests extends ESTestCase {
     }
 
     public void testMiss() {
-        IngestDocument ingestDocument = new IngestDocument(
-            "_index",
-            "_id",
-            1,
-            null,
-            null,
-            Collections.singletonMap("message", "foo:bar,baz")
-        );
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("message", "foo:bar,baz"));
         DissectProcessor dissectProcessor = new DissectProcessor("", null, "message", "%{a},%{b},%{c}", "", true);
         DissectException e = expectThrows(DissectException.class, () -> dissectProcessor.execute(ingestDocument));
         assertThat(e.getMessage(), containsString("Unable to find match for dissect pattern"));

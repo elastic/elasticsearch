@@ -40,12 +40,13 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
     private static final String NAMED_COMPONENTS_FILE = "named_components.json";
 
     private final WorkerExecutor workerExecutor;
+    private FileCollection pluginScannerClasspath;
     private FileCollection classpath;
     private ExecOperations execOperations;
     private ProjectLayout projectLayout;
     @Inject
     public GenerateNamedComponentsTask(WorkerExecutor workerExecutor,
-                                       ObjectFactory objectFactory,
+                                       ExecOperations execOperations,
                                        ProjectLayout projectLayout
                                        ) {
         this.workerExecutor = workerExecutor;
@@ -57,10 +58,11 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
 
     @TaskAction
     public void scanPluginClasses() {
-        workerExecutor.noIsolation().submit(GenerateNamedComponentsAction.class, params -> {
-            params.getExecOperations().set(execOperations);
-            params.getClasspath().from(classpath);
-            params.getOutputFile().set(getOutputFile());
+        var s = pluginScannerClasspath.getFiles();
+        System.out.println("ff"+s);
+        LoggedExec.javaexec(execOperations, spec -> {
+            spec.environment("CLASSPATH", pluginScannerClasspath.plus(getClasspath()).getAsPath());
+            spec.getMainClass().set("org.elasticsearch.plugin.scanner.NamedComponentScanner");
         });
     }
 
@@ -74,6 +76,10 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
 
     public void setClasspath(FileCollection classpath) {
         this.classpath = classpath;
+    }
+
+    public void setPluginScannerClasspath(FileCollection pluginScannerClasspath) {
+        this.pluginScannerClasspath = pluginScannerClasspath;
     }
 
     public abstract static class GenerateNamedComponentsAction implements WorkAction<Parameters> {

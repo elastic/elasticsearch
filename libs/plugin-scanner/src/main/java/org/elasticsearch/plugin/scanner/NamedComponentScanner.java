@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugin.scanner;
 
+
 import org.elasticsearch.jdk.JarHell;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
@@ -17,7 +18,6 @@ import java.io.File;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -26,27 +26,29 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class NamedComponentScanner {
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+//    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final String NAMED_COMPONENTS_FILE = "named_components.json";
+    static final String dir = "generated-named-components/";
 
+    // main method to be used by gradle build plugin
     public static void main(String[] args) {
         Set<URL> classpathFiles = JarHell.parseClassPath(System.getProperty("java.class.path"));
         List<ClassReader> classReaders = ClassReaders.ofPaths(classpathFiles).collect(Collectors.toList());
 
         NamedComponentScanner scanner = new NamedComponentScanner();
-        scanner.scanForNamedClasses(classReaders);
+        Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
         scanner.writeToFile(namedComponentsMap);
     }
 
     private void writeToFile(Map<String, Map<String, String>> namedComponentsMap) {
-        try {
-            String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
-            File file = getParameters().getOutputFile().getAsFile().get();
-            Path of = Path.of(file.getAbsolutePath());
-            Files.writeString(of, json);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
+//        try {
+//            String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
+//            File file = new File(dir, NAMED_COMPONENTS_FILE);
+//            Path of = Path.of(file.getAbsolutePath());
+//            Files.writeString(of, json);
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
     }
 
     // returns a Map<String, Map<String,String> - extensible interface -> map{ namedName -> className }

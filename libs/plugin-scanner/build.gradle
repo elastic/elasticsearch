@@ -16,8 +16,15 @@ tasks.named("test").configure { enabled = false }
 tasks.named('forbiddenApisMain').configure { enabled = false}
 tasks.named("jarHell").configure { enabled = false }
 
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /asm-.*/, to: 'asm'
+}
+
 dependencies {
   api project(':libs:elasticsearch-core')
   implementation 'org.ow2.asm:asm:9.2'
   implementation 'org.ow2.asm:asm-tree:9.2'
+//  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+//  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }

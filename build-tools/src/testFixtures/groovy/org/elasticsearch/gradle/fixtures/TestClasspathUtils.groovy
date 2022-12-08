@@ -21,12 +21,17 @@ import static org.junit.Assert.fail
 
 class TestClasspathUtils {
 
+    static void setupNamedComponentScanner(File projectRoot, String version) {
+        generateJarWithClass(projectRoot, "org.elasticsearch.plugin.scanner.NamedComponentScanner","elasticsearch-plugin-scanner",
+            version, FixedValue.value(TypeDescription.VOID))
+    }
+
     static void setupJarHellJar(File projectRoot) {
-        generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JarHell", "current", FixedValue.value(TypeDescription.VOID))
+        generateJarWithClass(projectRoot, "org.elasticsearch.jdk.JarHell","elasticsearch-core", "current", FixedValue.value(TypeDescription.VOID))
     }
 
     static void setupJarHellJar(File projectRoot, String version) {
-        generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JarHell", version, FixedValue.value(TypeDescription.VOID))
+        generateJarWithClass(projectRoot, "org.elasticsearch.jdk.JarHell", "elasticsearch-core", version, FixedValue.value(TypeDescription.VOID))
     }
 
     static void setupJarJdkClasspath(File projectRoot) {
@@ -39,10 +44,10 @@ class TestClasspathUtils {
     }
 
     private static void generateJdkJarHellCheck(File targetDir, String className, Implementation mainImplementation) {
-        generateJdkJarHellCheck(targetDir, className, "current", mainImplementation)
+        generateJarWithClass(targetDir, className, "elasticsearch-core", "current", mainImplementation)
     }
 
-        private static void generateJdkJarHellCheck(File targetDir, String className, String version, Implementation mainImplementation) {
+    private static void generateJarWithClass(File targetDir, String className, String artifactName, String version, Implementation mainImplementation) {
         DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
             .name(className)
             .defineMethod("main", void.class, Visibility.PUBLIC, Ownership.STATIC)
@@ -50,15 +55,15 @@ class TestClasspathUtils {
             .intercept(mainImplementation)
             .make()
         try {
-            dynamicType.toJar(targetFile(targetDir, version))
+            dynamicType.toJar(targetFile(targetDir, artifactName, version))
         } catch (IOException e) {
             e.printStackTrace()
             fail("Cannot setup jdk jar hell classpath")
         }
     }
 
-    private static File targetFile(File projectRoot, String version) {
-        File targetFile = new File(projectRoot, "elasticsearch-core-${version}.jar")
+    private static File targetFile(File projectRoot, String artifactName, String version) {
+        File targetFile = new File(projectRoot, "${artifactName}-${version}.jar")
 
         println "targetFile = $targetFile"
         targetFile.getParentFile().mkdirs()

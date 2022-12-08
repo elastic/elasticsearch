@@ -37,31 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterBalanceStatsTest extends ESAllocationTestCase {
 
-    public void test() {
-        System.out.println(
-            Strings.toString(
-                new ClusterBalanceStats(
-                    Map.of(
-                        DATA_HOT_NODE_ROLE.roleName(),
-                        new ClusterBalanceStats.TierBalanceStats(
-                            new ClusterBalanceStats.MetricStats(7.0, 2.0, 3.0, 7.0 / 3, stdDev(3.0, 2.0, 2.0)),
-                            new ClusterBalanceStats.MetricStats(21.0, 6.0, 8.5, 7.0, stdDev(6.0, 8.5, 6.5)),
-                            new ClusterBalanceStats.MetricStats(36.0, 10.0, 16.0, 12.0, stdDev(10.0, 10.0, 16.0))
-                        ),
-                        DATA_WARM_NODE_ROLE.roleName(),
-                        new ClusterBalanceStats.TierBalanceStats(
-                            new ClusterBalanceStats.MetricStats(3.0, 1.0, 1.0, 1.0, 0.0),
-                            new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
-                            new ClusterBalanceStats.MetricStats(42.0, 12.0, 18.0, 14.0, stdDev(12.0, 12.0, 18.0))
-                        )
-                    )
-                ),
-                true,
-                false
-            )
-        );
-    }
-
     public void testStatsForSingleTierClusterWithNoForecasts() {
 
         var clusterState = createClusterState(

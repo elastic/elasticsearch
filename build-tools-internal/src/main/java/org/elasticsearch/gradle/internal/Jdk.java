@@ -152,9 +152,14 @@ public class Jdk implements Buildable, Iterable<File> {
         return new Object() {
             @Override
             public String toString() {
-                return getHomeRoot() + "/bin/java";
+                return getHomeRoot() + getPlatformBinPath();
             }
         };
+    }
+
+    private String getPlatformBinPath() {
+        boolean isWindows = "windows".equals(getPlatform());
+        return "/bin/java" + (isWindows ? ".exe" : "");
     }
 
     public Object getJavaHomePath() {

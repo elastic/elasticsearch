@@ -190,7 +190,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 resolvedProjections.removeAll(intersection);
                 // from both sides
                 resolved.removeAll(intersection);
-                // keep everything extra (should be unresolved data)
+                // keep only the unresolved data to be picked up by the Verifier and reported further to the user
+                // the resolved data that still exists until this step shouldn't anyway be considered (it's about removeable projections)
                 for (var exp : resolved) {
                     if (exp instanceof UnresolvedAttribute) {
                         resolvedProjections.add(exp);

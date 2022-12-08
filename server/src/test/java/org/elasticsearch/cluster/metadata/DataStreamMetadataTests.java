@@ -10,8 +10,9 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.test.AbstractNamedWriteableTestCase;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -20,15 +21,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
-
-public class DataStreamMetadataTests extends AbstractNamedWriteableTestCase<DataStreamMetadata> {
-
-    public void testFromXContent() throws IOException {
-        xContentTester(this::createParser, this::createTestInstance, ToXContent.EMPTY_PARAMS, DataStreamMetadata::fromXContent)
-            .assertEqualsConsumer(this::assertEqualInstances)
-            .test();
-    }
+public class DataStreamMetadataTests extends AbstractChunkedSerializingTestCase<DataStreamMetadata> {
 
     @Override
     protected DataStreamMetadata createTestInstance() {
@@ -61,7 +54,17 @@ public class DataStreamMetadataTests extends AbstractNamedWriteableTestCase<Data
     }
 
     @Override
-    protected Class<DataStreamMetadata> categoryClass() {
-        return DataStreamMetadata.class;
+    protected DataStreamMetadata doParseInstance(XContentParser parser) throws IOException {
+        return DataStreamMetadata.fromXContent(parser);
+    }
+
+    @Override
+    protected Writeable.Reader<DataStreamMetadata> instanceReader() {
+        return DataStreamMetadata::new;
+    }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
     }
 }

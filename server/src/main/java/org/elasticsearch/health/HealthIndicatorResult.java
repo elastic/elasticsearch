@@ -15,9 +15,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 
 public record HealthIndicatorResult(
     String name,
@@ -29,16 +26,11 @@ public record HealthIndicatorResult(
 ) implements ChunkedToXContent {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        Iterator<? extends ToXContent> diagnosisIterator = Collections.emptyIterator();
-        if (diagnosisList != null && diagnosisList.isEmpty() == false) {
-            diagnosisIterator = diagnosisList.stream()
-                .flatMap(
-                    s -> StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(s.toXContentChunked(outerParams), Spliterator.ORDERED),
-                        false
-                    )
-                )
-                .iterator();
+        final Iterator<? extends ToXContent> diagnosisIterator;
+        if (diagnosisList == null) {
+            diagnosisIterator = Collections.emptyIterator();
+        } else {
+            diagnosisIterator = Iterators.flatMap(diagnosisList.iterator(), s -> s.toXContentChunked(outerParams));
         }
         return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
             builder.startObject();

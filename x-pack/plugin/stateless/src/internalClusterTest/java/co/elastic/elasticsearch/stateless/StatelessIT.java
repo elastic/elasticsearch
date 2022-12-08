@@ -7,72 +7,25 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class StatelessIT extends ESIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(Stateless.class);
-    }
-
-    private String startIndexNode() {
-        return internalCluster().startNode(
-            Settings.builder()
-                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
-                .put(Stateless.STATELESS_ENABLED.getKey(), true)
-                .build()
-        );
-    }
-
-    private String startMasterOnlyNode() {
-        return internalCluster().startMasterOnlyNode(Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build());
-    }
-
-    private String startMasterAndIndexNode() {
-        return internalCluster().startNode(
-            Settings.builder()
-                .putList(
-                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                    List.of(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.INDEX_ROLE.roleName())
-                )
-                .put(Stateless.STATELESS_ENABLED.getKey(), true)
-                .build()
-        );
-    }
-
-    private List<String> startIndexNodes(int numOfNodes) {
-        final List<String> nodes = new ArrayList<>(numOfNodes);
-        for (int i = 0; i < numOfNodes; i++) {
-            nodes.add(startIndexNode());
-        }
-        return List.copyOf(nodes);
-    }
+public class StatelessIT extends AbstractStatelessIntegTestCase {
 
     public void testClusterCanFormWithStatelessEnabled() {
         startMasterOnlyNode();
@@ -87,7 +40,7 @@ public class StatelessIT extends ESIntegTestCase {
         assertThat(plugins.size(), greaterThan(0));
     }
 
-    @TestLogging(reason = "testing logging at TRACE level", value = "co.elastic.elasticsearch.stateless.lucene:TRACE")
+    @TestLogging(reason = "testing logging at TRACE level", value = "co.elastic.elasticsearch.stateless:TRACE")
     public void testDirectoryListener() throws Exception {
         startMasterAndIndexNode();
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -162,26 +115,15 @@ public class StatelessIT extends ESIntegTestCase {
                 )
             );
 
-            assertAcked(
-                prepareCreate(indexName).setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
-                        .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                        .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                        .build()
-                )
-                    .setMapping(
-                        "@timestamp",
-                        "type=date",
-                        "field_integer",
-                        "type=integer",
-                        "field_keyword",
-                        "type=keyword",
-                        "field_text",
-                        "type=text"
-                    )
+            createIndex(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                    .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                    .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .build()
             );
             ensureGreen(indexName);
 

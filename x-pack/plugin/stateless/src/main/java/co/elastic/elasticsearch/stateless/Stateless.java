@@ -1,8 +1,11 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
+import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.lucene.StatelessDirectory;
 
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -15,8 +18,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -49,6 +54,7 @@ public class Stateless extends Plugin {
 
     static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
+    private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
     private final Settings settings;
 
     public Stateless(Settings settings) {
@@ -71,7 +77,8 @@ public class Stateless extends Plugin {
         Tracer tracer,
         AllocationDeciders allocationDeciders
     ) {
-        return List.of();
+        objectStoreService.set(new ObjectStoreService());
+        return List.of(objectStoreService.get());
     }
 
     @Override
@@ -83,6 +90,10 @@ public class Stateless extends Plugin {
     public void onIndexModule(IndexModule indexModule) {
         // set a Lucene directory wrapper for all indices, so that stateless is notified of all operations on Lucene files
         indexModule.setDirectoryWrapper(StatelessDirectory::new);
+        // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
+        if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)) {
+            indexModule.setIndexCommitListener(createIndexCommitListener());
+        }
         // register a default listener when the shard is created in order to know the shard id and primary term
         indexModule.addIndexEventListener(new IndexEventListener() {
             @Override
@@ -91,6 +102,26 @@ public class Stateless extends Plugin {
                 directory.addListener(new DefaultDirectoryListener(indexShard.shardId(), indexShard::getOperationPrimaryTerm));
             }
         });
+
+    }
+
+    /**
+     * Creates an {@link Engine.IndexCommitListener} that notifies the {@link ObjectStoreService} of all commit points created by Lucene.
+     * This method is protected and overridable in tests.
+     *
+     * @return a {@link Engine.IndexCommitListener}
+     */
+    protected Engine.IndexCommitListener createIndexCommitListener() {
+        final ObjectStoreService service = this.objectStoreService.get();
+        return new Engine.IndexCommitListener() {
+            @Override
+            public void onNewCommit(ShardId shardId, Engine.IndexCommitRef indexCommitRef) {
+                service.onCommitCreation(new StatelessCommitRef(shardId, indexCommitRef));
+            }
+
+            @Override
+            public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {}
+        };
     }
 
     /**

@@ -18,13 +18,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
- * An implementation of secure settings that can fall back to the YML settings.
+ * An implementation of secure settings from YML settings.
  *
- * WARNING: this is a temporary class to be used only in the context of Stateless. It applies only to YML settings with a predetermined
- * prefix. Other original secure settings are still kept and are accessible (without falling back to YML settings).
+ * WARNING: this is a temporary class only for Stateless. It applies only to YML settings with a predetermined prefix.
  */
 public class StatelessSecureSettings implements SecureSettings {
     static final String PREFIX = "insecure.";
@@ -33,7 +31,6 @@ public class StatelessSecureSettings implements SecureSettings {
         (key) -> Setting.simpleString(key, Setting.Property.NodeScope)
     );
 
-    private final SecureSettings secureSettings;
     private final Settings settings;
     private final Set<String> names;
 
@@ -41,16 +38,12 @@ public class StatelessSecureSettings implements SecureSettings {
         if (DiscoveryNode.isStateless(settings) == false) {
             throw new IllegalArgumentException("StatelessSecureSettings are supported only in stateless");
         }
-
-        SecureSettings secureSettings = Settings.builder().put(settings, true).getSecureSettings();
-        this.secureSettings = secureSettings;
         this.settings = Settings.builder().put(settings, false).build();
-
-        Stream<String> stream = settings.keySet().stream().filter(key -> (key.startsWith(PREFIX))).map(s -> s.replace(PREFIX, ""));
-        if (secureSettings != null) {
-            stream = Stream.concat(stream, secureSettings.getSettingNames().stream());
-        }
-        this.names = stream.collect(Collectors.toUnmodifiableSet());
+        this.names = settings.keySet()
+            .stream()
+            .filter(key -> (key.startsWith(PREFIX)))
+            .map(s -> s.replace(PREFIX, ""))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     public static Settings install(Settings settings) {
@@ -60,9 +53,6 @@ public class StatelessSecureSettings implements SecureSettings {
 
     @Override
     public boolean isLoaded() {
-        if (secureSettings != null) {
-            return secureSettings.isLoaded();
-        }
         return true;
     }
 
@@ -73,21 +63,11 @@ public class StatelessSecureSettings implements SecureSettings {
 
     @Override
     public SecureString getString(String setting) throws GeneralSecurityException {
-        if (secureSettings != null) {
-            if (secureSettings.getSettingNames().contains(setting)) {
-                return secureSettings.getString(setting);
-            }
-        }
         return new SecureString(STATELESS_SECURE_SETTINGS.getConcreteSetting(PREFIX + setting).get(settings).toCharArray());
     }
 
     @Override
     public InputStream getFile(String setting) throws GeneralSecurityException {
-        if (secureSettings != null) {
-            if (secureSettings.getSettingNames().contains(setting)) {
-                return secureSettings.getFile(setting);
-            }
-        }
         return new ByteArrayInputStream(
             STATELESS_SECURE_SETTINGS.getConcreteSetting(PREFIX + setting).get(settings).getBytes(StandardCharsets.UTF_8)
         );
@@ -95,19 +75,10 @@ public class StatelessSecureSettings implements SecureSettings {
 
     @Override
     public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
-        if (secureSettings != null) {
-            if (secureSettings.getSettingNames().contains(setting)) {
-                return secureSettings.getSHA256Digest(setting);
-            }
-        }
         return MessageDigests.sha256()
             .digest(STATELESS_SECURE_SETTINGS.getConcreteSetting(PREFIX + setting).get(settings).getBytes(StandardCharsets.UTF_8));
     }
 
     @Override
-    public void close() throws IOException {
-        if (secureSettings != null) {
-            secureSettings.close();
-        }
-    }
+    public void close() throws IOException {}
 }

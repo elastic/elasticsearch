@@ -499,54 +499,20 @@ public class SettingsTests extends ESTestCase {
         assertTrue(e.getMessage().contains("supported only in stateless"));
     }
 
-    public void testStatelessSecureSettingWinsOverFallbackSetting() {
-        String key = "secure.key";
-        String yamlKey = StatelessSecureSettings.PREFIX + key;
-        Setting<?> secureSetting = SecureSetting.secureString(key, null);
-        Setting<?> yamlSetting = Setting.simpleString(yamlKey);
-
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(secureSetting.getKey(), "secure.value");
-
-        final Settings settings = Settings.builder()
-            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-            .put(yamlSetting.getKey(), "yaml.value")
-            .setSecureSettings(secureSettings)
-            .build();
-
-        Settings newSettings = StatelessSecureSettings.install(settings);
-        assertTrue(secureSetting.exists(newSettings));
-        assertEquals("secure.value", secureSetting.get(newSettings).toString());
-        assertTrue(yamlSetting.exists(newSettings));
-        assertEquals("yaml.value", yamlSetting.get(newSettings).toString());
-    }
-
     public void testStatelessSecureSettings() throws Exception {
         boolean testFileSettingInsteadOfStringSetting = randomBoolean();
 
-        Setting<?> standardSecureSetting = testFileSettingInsteadOfStringSetting
-            ? SecureSetting.secureFile("standard.secure.key", null)
-            : SecureSetting.secureString("standard.secure.key", null);
         Setting<?> yamlSetting = Setting.simpleString(StatelessSecureSettings.PREFIX + "stateless.key");
-
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        if (testFileSettingInsteadOfStringSetting) {
-            secureSettings.setFile(standardSecureSetting.getKey(), "standard.secure.value".getBytes(StandardCharsets.UTF_8));
-        } else {
-            secureSettings.setString(standardSecureSetting.getKey(), "standard.secure.value");
-        }
+        Setting<?> secureSetting = testFileSettingInsteadOfStringSetting
+            ? SecureSetting.secureFile("stateless.key", null)
+            : SecureSetting.secureString("stateless.key", null);
 
         final Settings settings = Settings.builder()
             .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
             .put(yamlSetting.getKey(), "stateless.yaml.value")
-            .put(standardSecureSetting.getKey(), "standard.yaml.value")
-            .setSecureSettings(secureSettings)
             .build();
 
         Settings newSettings = StatelessSecureSettings.install(settings);
-        Setting<?> secureSetting = testFileSettingInsteadOfStringSetting
-            ? SecureSetting.secureFile("stateless.key", null)
-            : SecureSetting.secureString("stateless.key", null);
         assertTrue(secureSetting.exists(newSettings));
         assertEquals(
             "stateless.yaml.value",
@@ -556,13 +522,6 @@ public class SettingsTests extends ESTestCase {
         );
         assertTrue(yamlSetting.exists(newSettings));
         assertEquals("stateless.yaml.value", yamlSetting.get(newSettings).toString());
-        assertTrue(standardSecureSetting.exists(newSettings));
-        assertEquals(
-            "standard.secure.value",
-            testFileSettingInsteadOfStringSetting
-                ? new String(((InputStream) standardSecureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
-                : standardSecureSetting.get(newSettings).toString()
-        );
     }
 
     public void testGetAsArrayFailsOnDuplicates() {

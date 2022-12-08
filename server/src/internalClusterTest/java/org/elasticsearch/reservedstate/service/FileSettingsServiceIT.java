@@ -186,6 +186,38 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
     }
 
+    public void testReservedStatePersistsOnRestart() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        assertMasterNode(internalCluster().masterClient(), masterNode);
+        var savedClusterState = setupClusterStateListener(masterNode);
+
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+        assertTrue(masterFileSettingsService.watching());
+
+        logger.info("--> write some settings");
+        writeJSONFile(masterNode, testJSON);
+        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
+
+        logger.info("--> restart master");
+        internalCluster().restartNode(masterNode);
+
+        final ClusterStateResponse clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
+        assertEquals(
+            1,
+            clusterStateResponse.getState()
+                .metadata()
+                .reservedStateMetadata()
+                .get(FileSettingsService.NAMESPACE)
+                .handlers()
+                .get(ReservedClusterSettingsAction.NAME)
+                .keys()
+                .size()
+        );
+    }
+
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);

@@ -231,6 +231,13 @@ public class AnalyzerTests extends ESTestCase {
             """, "last_name");
     }
 
+    public void testProjectKeepAndExcludeName() {
+        assertProjection("""
+            from test
+            | project last_name, -first_name
+            """, "last_name");
+    }
+
     public void testProjectExcludePattern() {
         assertProjection("""
             from test
@@ -301,6 +308,15 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | project -un*
             """, "Cannot use field [unsupported] with unsupported type");
+    }
+
+    public void testCantFilterAfterProjectedAway() {
+        verifyUnsupported("""
+            from test
+            | stats c = avg(float) by int
+            | project -int
+            | where int > 0
+            """, "Unknown column [int]");
     }
 
     public void testProjectAggGroupsRefs() {

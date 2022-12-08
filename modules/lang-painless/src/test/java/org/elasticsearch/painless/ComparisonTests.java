@@ -19,6 +19,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("def x = (float)6; def y = (int)2; return x == y"));
         assertEquals(false, exec("def x = (double)7; def y = (int)1; return x == y"));
 
+        assertEquals(true, exec("def x = (byte)7; def y = (long)7; return x == y"));
+        assertEquals(true, exec("def x = (short)6; def y = (long)6; return x == y"));
+        assertEquals(true, exec("def x = (char)5; def y = (long)5; return x == y"));
+        assertEquals(true, exec("def x = (int)4; def y = (long)4; return x == y"));
+        assertEquals(false, exec("def x = (long)5; def y = (long)3; return x == y"));
+        assertEquals(false, exec("def x = (float)6; def y = (long)2; return x == y"));
+        assertEquals(false, exec("def x = (double)7; def y = (long)1; return x == y"));
+
+        assertEquals(true, exec("def x = (byte)7; def y = (float)7; return x == y"));
+        assertEquals(true, exec("def x = (short)6; def y = (float)6; return x == y"));
+        assertEquals(true, exec("def x = (char)5; def y = (float)5; return x == y"));
+        assertEquals(true, exec("def x = (int)4; def y = (float)4; return x == y"));
+        assertEquals(false, exec("def x = (long)5; def y = (float)3; return x == y"));
+        assertEquals(false, exec("def x = (float)6; def y = (float)2; return x == y"));
+        assertEquals(false, exec("def x = (double)7; def y = (float)1; return x == y"));
+
         assertEquals(true, exec("def x = (byte)7; def y = (double)7; return x == y"));
         assertEquals(true, exec("def x = (short)6; def y = (double)6; return x == y"));
         assertEquals(true, exec("def x = (char)5; def y = (double)5; return x == y"));
@@ -49,6 +65,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("float x = (float)6; def y = (int)2; return x == y"));
         assertEquals(false, exec("double x = (double)7; def y = (int)1; return x == y"));
 
+        assertEquals(true, exec("byte x = (byte)7; def y = (long)7; return x == y"));
+        assertEquals(true, exec("short x = (short)6; def y = (long)6; return x == y"));
+        assertEquals(true, exec("char x = (char)5; def y = (long)5; return x == y"));
+        assertEquals(true, exec("int x = (int)4; def y = (long)4; return x == y"));
+        assertEquals(false, exec("long x = (long)5; def y = (long)3; return x == y"));
+        assertEquals(false, exec("float x = (float)6; def y = (long)2; return x == y"));
+        assertEquals(false, exec("double x = (double)7; def y = (long)1; return x == y"));
+
+        assertEquals(true, exec("byte x = (byte)7; def y = (float)7; return x == y"));
+        assertEquals(true, exec("short x = (short)6; def y = (float)6; return x == y"));
+        assertEquals(true, exec("char x = (char)5; def y = (float)5; return x == y"));
+        assertEquals(true, exec("int x = (int)4; def y = (float)4; return x == y"));
+        assertEquals(false, exec("long x = (long)5; def y = (float)3; return x == y"));
+        assertEquals(false, exec("float x = (float)6; def y = (float)2; return x == y"));
+        assertEquals(false, exec("double x = (double)7; def y = (float)1; return x == y"));
+
         assertEquals(true, exec("byte x = (byte)7; def y = (double)7; return x == y"));
         assertEquals(true, exec("short x = (short)6; def y = (double)6; return x == y"));
         assertEquals(true, exec("char x = (char)5; def y = (double)5; return x == y"));
@@ -78,6 +110,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("def x = (float)6; int y = (int)2; return x == y"));
         assertEquals(false, exec("def x = (double)7; int y = (int)1; return x == y"));
 
+        assertEquals(true, exec("def x = (byte)7; double y = (long)7; return x == y"));
+        assertEquals(true, exec("def x = (short)6; double y = (long)6; return x == y"));
+        assertEquals(true, exec("def x = (char)5; double y = (long)5; return x == y"));
+        assertEquals(true, exec("def x = (int)4; double y = (long)4; return x == y"));
+        assertEquals(false, exec("def x = (long)5; double y = (long)3; return x == y"));
+        assertEquals(false, exec("def x = (float)6; double y = (long)2; return x == y"));
+        assertEquals(false, exec("def x = (double)7; double y = (long)1; return x == y"));
+
+        assertEquals(true, exec("def x = (byte)7; double y = (float)7; return x == y"));
+        assertEquals(true, exec("def x = (short)6; double y = (float)6; return x == y"));
+        assertEquals(true, exec("def x = (char)5; double y = (float)5; return x == y"));
+        assertEquals(true, exec("def x = (int)4; double y = (float)4; return x == y"));
+        assertEquals(false, exec("def x = (long)5; double y = (float)3; return x == y"));
+        assertEquals(false, exec("def x = (float)6; double y = (float)2; return x == y"));
+        assertEquals(false, exec("def x = (double)7; double y = (float)1; return x == y"));
+
         assertEquals(true, exec("def x = (byte)7; double y = (double)7; return x == y"));
         assertEquals(true, exec("def x = (short)6; double y = (double)6; return x == y"));
         assertEquals(true, exec("def x = (char)5; double y = (double)5; return x == y"));
@@ -106,6 +154,31 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("def x = (long)5; def y = (int)3; return x === y"));
         assertEquals(false, exec("def x = (float)6; def y = (int)2; return x === y"));
         assertEquals(false, exec("def x = (double)7; def y = (int)1; return x === y"));
+
+        assertEquals(false, exec("def x = (byte)7; def y = (long)7; return x === y"));
+        assertEquals(false, exec("def x = (short)6; def y = (long)6; return x === y"));
+        assertEquals(false, exec("def x = (char)5; def y = (long)5; return x === y"));
+        assertEquals(true, exec("def x = (int)4; def y = (long)4; return x === y"));
+        assertEquals(false, exec("def x = (long)5; def y = (long)3; return x === y"));
+        assertEquals(false, exec("def x = (float)6; def y = (long)2; return x === y"));
+        assertEquals(false, exec("def x = (double)7; def y = (long)1; return x === y"));
+
+        assertEquals(false, exec("def x = (byte)7; def y = (float)7; return x === y"));
+        assertEquals(false, exec("def x = (short)6; def y = (float)6; return x === y"));
+        assertEquals(false, exec("def x = (char)5; def y = (float)5; return x === y"));
+        assertEquals(true, exec("def x = (int)4; def y = (float)4; return x === y"));
+        assertEquals(false, exec("def x = (long)5; def y = (float)3; return x === y"));
+        assertEquals(false, exec("def x = (float)6; def y = (float)2; return x === y"));
+        assertEquals(false, exec("def x = (double)7; def y = (float)1; return x === y"));
+
+        assertEquals(false, exec("def x = (byte)7; def y = (double)7; return x === y"));
+        assertEquals(false, exec("def x = (short)6; def y = (double)6; return x === y"));
+        assertEquals(false, exec("def x = (char)5; def y = (double)5; return x === y"));
+        assertEquals(true, exec("def x = (int)4; def y = (double)4; return x === y"));
+        assertEquals(false, exec("def x = (long)5; def y = (double)3; return x === y"));
+        assertEquals(false, exec("def x = (float)6; def y = (double)2; return x === y"));
+        assertEquals(false, exec("def x = (double)7; def y = (double)1; return x === y"));
+
         assertEquals(false, exec("def x = false; def y = true; return x === y"));
 
         assertEquals(false, exec("def x = new HashMap(); def y = new HashMap(); return x === y"));
@@ -122,6 +195,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("def x = (long)5; def y = (int)3; return x != y"));
         assertEquals(true, exec("def x = (float)6; def y = (int)2; return x != y"));
         assertEquals(true, exec("def x = (double)7; def y = (int)1; return x != y"));
+
+        assertEquals(false, exec("def x = (byte)7; def y = (long)7; return x != y"));
+        assertEquals(false, exec("def x = (short)6; def y = (long)6; return x != y"));
+        assertEquals(false, exec("def x = (char)5; def y = (long)5; return x != y"));
+        assertEquals(false, exec("def x = (int)4; def y = (long)4; return x != y"));
+        assertEquals(true, exec("def x = (long)5; def y = (long)3; return x != y"));
+        assertEquals(true, exec("def x = (float)6; def y = (long)2; return x != y"));
+        assertEquals(true, exec("def x = (double)7; def y = (long)1; return x != y"));
+
+        assertEquals(false, exec("def x = (byte)7; def y = (float)7; return x != y"));
+        assertEquals(false, exec("def x = (short)6; def y = (float)6; return x != y"));
+        assertEquals(false, exec("def x = (char)5; def y = (float)5; return x != y"));
+        assertEquals(false, exec("def x = (int)4; def y = (float)4; return x != y"));
+        assertEquals(true, exec("def x = (long)5; def y = (float)3; return x != y"));
+        assertEquals(true, exec("def x = (float)6; def y = (float)2; return x != y"));
+        assertEquals(true, exec("def x = (double)7; def y = (float)1; return x != y"));
 
         assertEquals(false, exec("def x = (byte)7; def y = (double)7; return x != y"));
         assertEquals(false, exec("def x = (short)6; def y = (double)6; return x != y"));
@@ -151,6 +240,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("float x = (float)6; def y = (int)2; return x != y"));
         assertEquals(true, exec("double x = (double)7; def y = (int)1; return x != y"));
 
+        assertEquals(false, exec("byte x = (byte)7; def y = (long)7; return x != y"));
+        assertEquals(false, exec("short x = (short)6; def y = (long)6; return x != y"));
+        assertEquals(false, exec("char x = (char)5; def y = (long)5; return x != y"));
+        assertEquals(false, exec("int x = (int)4; def y = (long)4; return x != y"));
+        assertEquals(true, exec("long x = (long)5; def y = (long)3; return x != y"));
+        assertEquals(true, exec("float x = (float)6; def y = (long)2; return x != y"));
+        assertEquals(true, exec("double x = (double)7; def y = (long)1; return x != y"));
+
+        assertEquals(false, exec("byte x = (byte)7; def y = (float)7; return x != y"));
+        assertEquals(false, exec("short x = (short)6; def y = (float)6; return x != y"));
+        assertEquals(false, exec("char x = (char)5; def y = (float)5; return x != y"));
+        assertEquals(false, exec("int x = (int)4; def y = (float)4; return x != y"));
+        assertEquals(true, exec("long x = (long)5; def y = (float)3; return x != y"));
+        assertEquals(true, exec("float x = (float)6; def y = (float)2; return x != y"));
+        assertEquals(true, exec("double x = (double)7; def y = (float)1; return x != y"));
+
         assertEquals(false, exec("byte x = (byte)7; def y = (double)7; return x != y"));
         assertEquals(false, exec("short x = (short)6; def y = (double)6; return x != y"));
         assertEquals(false, exec("char x = (char)5; def y = (double)5; return x != y"));
@@ -178,6 +283,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("def x = (long)5; int y = (int)3; return x != y"));
         assertEquals(true, exec("def x = (float)6; int y = (int)2; return x != y"));
         assertEquals(true, exec("def x = (double)7; int y = (int)1; return x != y"));
+
+        assertEquals(false, exec("def x = (byte)7; double y = (long)7; return x != y"));
+        assertEquals(false, exec("def x = (short)6; double y = (long)6; return x != y"));
+        assertEquals(false, exec("def x = (char)5; double y = (long)5; return x != y"));
+        assertEquals(false, exec("def x = (int)4; double y = (long)4; return x != y"));
+        assertEquals(true, exec("def x = (long)5; double y = (long)3; return x != y"));
+        assertEquals(true, exec("def x = (float)6; double y = (long)2; return x != y"));
+        assertEquals(true, exec("def x = (double)7; double y = (long)1; return x != y"));
+
+        assertEquals(false, exec("def x = (byte)7; double y = (float)7; return x != y"));
+        assertEquals(false, exec("def x = (short)6; double y = (float)6; return x != y"));
+        assertEquals(false, exec("def x = (char)5; double y = (float)5; return x != y"));
+        assertEquals(false, exec("def x = (int)4; double y = (float)4; return x != y"));
+        assertEquals(true, exec("def x = (long)5; double y = (float)3; return x != y"));
+        assertEquals(true, exec("def x = (float)6; double y = (float)2; return x != y"));
+        assertEquals(true, exec("def x = (double)7; double y = (float)1; return x != y"));
 
         assertEquals(false, exec("def x = (byte)7; double y = (double)7; return x != y"));
         assertEquals(false, exec("def x = (short)6; double y = (double)6; return x != y"));
@@ -207,6 +328,30 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("def x = (float)6; def y = (int)2; return x !== y"));
         assertEquals(true, exec("def x = (double)7; def y = (int)1; return x !== y"));
 
+        assertEquals(true, exec("def x = (byte)7; def y = (long)7; return x !== y"));
+        assertEquals(true, exec("def x = (short)6; def y = (long)6; return x !== y"));
+        assertEquals(true, exec("def x = (char)5; def y = (long)5; return x !== y"));
+        assertEquals(false, exec("def x = (int)4; def y = (long)4; return x !== y"));
+        assertEquals(true, exec("def x = (long)5; def y = (long)3; return x !== y"));
+        assertEquals(true, exec("def x = (float)6; def y = (long)2; return x !== y"));
+        assertEquals(true, exec("def x = (double)7; def y = (long)1; return x !== y"));
+
+        assertEquals(true, exec("def x = (byte)7; def y = (float)7; return x !== y"));
+        assertEquals(true, exec("def x = (short)6; def y = (float)6; return x !== y"));
+        assertEquals(true, exec("def x = (char)5; def y = (float)5; return x !== y"));
+        assertEquals(false, exec("def x = (int)4; def y = (float)4; return x !== y"));
+        assertEquals(true, exec("def x = (long)5; def y = (float)3; return x !== y"));
+        assertEquals(true, exec("def x = (float)6; def y = (float)2; return x !== y"));
+        assertEquals(true, exec("def x = (double)7; def y = (float)1; return x !== y"));
+
+        assertEquals(true, exec("def x = (byte)7; def y = (long)7; return x !== y"));
+        assertEquals(true, exec("def x = (short)6; def y = (long)6; return x !== y"));
+        assertEquals(true, exec("def x = (char)5; def y = (long)5; return x !== y"));
+        assertEquals(false, exec("def x = (int)4; def y = (long)4; return x !== y"));
+        assertEquals(true, exec("def x = (long)5; def y = (long)3; return x !== y"));
+        assertEquals(true, exec("def x = (float)6; def y = (long)2; return x !== y"));
+        assertEquals(true, exec("def x = (double)7; def y = (long)1; return x !== y"));
+
         assertEquals(true, exec("def x = new HashMap(); def y = new HashMap(); return x !== y"));
         assertEquals(true, exec("def x = new HashMap(); x.put(3, 3); def y = new HashMap(); return x !== y"));
         assertEquals(true, exec("def x = new HashMap(); x.put(3, 3); def y = new HashMap(); y.put(3, 3); return x !== y"));
@@ -221,6 +366,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("def x = (long)5; def y = (int)3; return x < y"));
         assertEquals(false, exec("def x = (float)6; def y = (int)2; return x < y"));
         assertEquals(false, exec("def x = (double)7; def y = (int)1; return x < y"));
+
+        assertEquals(true, exec("def x = (byte)1; def y = (long)7; return x < y"));
+        assertEquals(true, exec("def x = (short)2; def y = (long)6; return x < y"));
+        assertEquals(true, exec("def x = (char)3; def y = (long)5; return x < y"));
+        assertEquals(false, exec("def x = (int)4; def y = (long)4; return x < y"));
+        assertEquals(false, exec("def x = (long)5; def y = (long)3; return x < y"));
+        assertEquals(false, exec("def x = (float)6; def y = (long)2; return x < y"));
+        assertEquals(false, exec("def x = (double)7; def y = (long)1; return x < y"));
+
+        assertEquals(true, exec("def x = (byte)1; def y = (float)7; return x < y"));
+        assertEquals(true, exec("def x = (short)2; def y = (float)6; return x < y"));
+        assertEquals(true, exec("def x = (char)3; def y = (float)5; return x < y"));
+        assertEquals(false, exec("def x = (int)4; def y = (float)4; return x < y"));
+        assertEquals(false, exec("def x = (long)5; def y = (float)3; return x < y"));
+        assertEquals(false, exec("def x = (float)6; def y = (float)2; return x < y"));
+        assertEquals(false, exec("def x = (double)7; def y = (float)1; return x < y"));
 
         assertEquals(true, exec("def x = (byte)1; def y = (double)7; return x < y"));
         assertEquals(true, exec("def x = (short)2; def y = (double)6; return x < y"));
@@ -240,6 +401,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("float x = (float)6; def y = (int)2; return x < y"));
         assertEquals(false, exec("double x = (double)7; def y = (int)1; return x < y"));
 
+        assertEquals(true, exec("byte x = (byte)1; def y = (long)7; return x < y"));
+        assertEquals(true, exec("short x = (short)2; def y = (long)6; return x < y"));
+        assertEquals(true, exec("char x = (char)3; def y = (long)5; return x < y"));
+        assertEquals(false, exec("int x = (int)4; def y = (long)4; return x < y"));
+        assertEquals(false, exec("long x = (long)5; def y = (long)3; return x < y"));
+        assertEquals(false, exec("float x = (float)6; def y = (long)2; return x < y"));
+        assertEquals(false, exec("double x = (double)7; def y = (long)1; return x < y"));
+
+        assertEquals(true, exec("byte x = (byte)1; def y = (float)7; return x < y"));
+        assertEquals(true, exec("short x = (short)2; def y = (float)6; return x < y"));
+        assertEquals(true, exec("char x = (char)3; def y = (float)5; return x < y"));
+        assertEquals(false, exec("int x = (int)4; def y = (float)4; return x < y"));
+        assertEquals(false, exec("long x = (long)5; def y = (float)3; return x < y"));
+        assertEquals(false, exec("float x = (float)6; def y = (float)2; return x < y"));
+        assertEquals(false, exec("double x = (double)7; def y = (float)1; return x < y"));
+
         assertEquals(true, exec("byte x = (byte)1; def y = (double)7; return x < y"));
         assertEquals(true, exec("short x = (short)2; def y = (double)6; return x < y"));
         assertEquals(true, exec("char x = (char)3; def y = (double)5; return x < y"));
@@ -257,6 +434,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("def x = (long)5; int y = (int)3; return x < y"));
         assertEquals(false, exec("def x = (float)6; int y = (int)2; return x < y"));
         assertEquals(false, exec("def x = (double)7; int y = (int)1; return x < y"));
+
+        assertEquals(true, exec("def x = (byte)1; double y = (long)7; return x < y"));
+        assertEquals(true, exec("def x = (short)2; double y = (long)6; return x < y"));
+        assertEquals(true, exec("def x = (char)3; double y = (long)5; return x < y"));
+        assertEquals(false, exec("def x = (int)4; double y = (long)4; return x < y"));
+        assertEquals(false, exec("def x = (long)5; double y = (long)3; return x < y"));
+        assertEquals(false, exec("def x = (float)6; double y = (long)2; return x < y"));
+        assertEquals(false, exec("def x = (double)7; double y = (long)1; return x < y"));
+
+        assertEquals(true, exec("def x = (byte)1; double y = (float)7; return x < y"));
+        assertEquals(true, exec("def x = (short)2; double y = (float)6; return x < y"));
+        assertEquals(true, exec("def x = (char)3; double y = (float)5; return x < y"));
+        assertEquals(false, exec("def x = (int)4; double y = (float)4; return x < y"));
+        assertEquals(false, exec("def x = (long)5; double y = (float)3; return x < y"));
+        assertEquals(false, exec("def x = (float)6; double y = (float)2; return x < y"));
+        assertEquals(false, exec("def x = (double)7; double y = (float)1; return x < y"));
 
         assertEquals(true, exec("def x = (byte)1; double y = (double)7; return x < y"));
         assertEquals(true, exec("def x = (short)2; double y = (double)6; return x < y"));
@@ -276,6 +469,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("def x = (float)6; def y = (int)2; return x <= y"));
         assertEquals(false, exec("def x = (double)7; def y = (int)1; return x <= y"));
 
+        assertEquals(true, exec("def x = (byte)1; def y = (long)7; return x <= y"));
+        assertEquals(true, exec("def x = (short)2; def y = (long)6; return x <= y"));
+        assertEquals(true, exec("def x = (char)3; def y = (long)5; return x <= y"));
+        assertEquals(true, exec("def x = (int)4; def y = (long)4; return x <= y"));
+        assertEquals(false, exec("def x = (long)5; def y = (long)3; return x <= y"));
+        assertEquals(false, exec("def x = (float)6; def y = (long)2; return x <= y"));
+        assertEquals(false, exec("def x = (double)7; def y = (long)1; return x <= y"));
+
+        assertEquals(true, exec("def x = (byte)1; def y = (float)7; return x <= y"));
+        assertEquals(true, exec("def x = (short)2; def y = (float)6; return x <= y"));
+        assertEquals(true, exec("def x = (char)3; def y = (float)5; return x <= y"));
+        assertEquals(true, exec("def x = (int)4; def y = (float)4; return x <= y"));
+        assertEquals(false, exec("def x = (long)5; def y = (float)3; return x <= y"));
+        assertEquals(false, exec("def x = (float)6; def y = (float)2; return x <= y"));
+        assertEquals(false, exec("def x = (double)7; def y = (float)1; return x <= y"));
+
         assertEquals(true, exec("def x = (byte)1; def y = (double)7; return x <= y"));
         assertEquals(true, exec("def x = (short)2; def y = (double)6; return x <= y"));
         assertEquals(true, exec("def x = (char)3; def y = (double)5; return x <= y"));
@@ -293,6 +502,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("long x = (long)5; def y = (int)3; return x <= y"));
         assertEquals(false, exec("float x = (float)6; def y = (int)2; return x <= y"));
         assertEquals(false, exec("double x = (double)7; def y = (int)1; return x <= y"));
+
+        assertEquals(true, exec("byte x = (byte)1; def y = (long)7; return x <= y"));
+        assertEquals(true, exec("short x = (short)2; def y = (long)6; return x <= y"));
+        assertEquals(true, exec("char x = (char)3; def y = (long)5; return x <= y"));
+        assertEquals(true, exec("int x = (int)4; def y = (long)4; return x <= y"));
+        assertEquals(false, exec("long x = (long)5; def y = (long)3; return x <= y"));
+        assertEquals(false, exec("float x = (float)6; def y = (long)2; return x <= y"));
+        assertEquals(false, exec("double x = (double)7; def y = (long)1; return x <= y"));
+
+        assertEquals(true, exec("byte x = (byte)1; def y = (float)7; return x <= y"));
+        assertEquals(true, exec("short x = (short)2; def y = (float)6; return x <= y"));
+        assertEquals(true, exec("char x = (char)3; def y = (float)5; return x <= y"));
+        assertEquals(true, exec("int x = (int)4; def y = (float)4; return x <= y"));
+        assertEquals(false, exec("long x = (long)5; def y = (float)3; return x <= y"));
+        assertEquals(false, exec("float x = (float)6; def y = (float)2; return x <= y"));
+        assertEquals(false, exec("double x = (double)7; def y = (float)1; return x <= y"));
 
         assertEquals(true, exec("byte x = (byte)1; def y = (double)7; return x <= y"));
         assertEquals(true, exec("short x = (short)2; def y = (double)6; return x <= y"));
@@ -312,6 +537,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(false, exec("def x = (float)6; int y = (int)2; return x <= y"));
         assertEquals(false, exec("def x = (double)7; int y = (int)1; return x <= y"));
 
+        assertEquals(true, exec("def x = (byte)1; double y = (long)7; return x <= y"));
+        assertEquals(true, exec("def x = (short)2; double y = (long)6; return x <= y"));
+        assertEquals(true, exec("def x = (char)3; double y = (long)5; return x <= y"));
+        assertEquals(true, exec("def x = (int)4; double y = (long)4; return x <= y"));
+        assertEquals(false, exec("def x = (long)5; double y = (long)3; return x <= y"));
+        assertEquals(false, exec("def x = (float)6; double y = (long)2; return x <= y"));
+        assertEquals(false, exec("def x = (double)7; double y = (long)1; return x <= y"));
+
+        assertEquals(true, exec("def x = (byte)1; double y = (float)7; return x <= y"));
+        assertEquals(true, exec("def x = (short)2; double y = (float)6; return x <= y"));
+        assertEquals(true, exec("def x = (char)3; double y = (float)5; return x <= y"));
+        assertEquals(true, exec("def x = (int)4; double y = (float)4; return x <= y"));
+        assertEquals(false, exec("def x = (long)5; double y = (float)3; return x <= y"));
+        assertEquals(false, exec("def x = (float)6; double y = (float)2; return x <= y"));
+        assertEquals(false, exec("def x = (double)7; double y = (float)1; return x <= y"));
+
         assertEquals(true, exec("def x = (byte)1; double y = (double)7; return x <= y"));
         assertEquals(true, exec("def x = (short)2; double y = (double)6; return x <= y"));
         assertEquals(true, exec("def x = (char)3; double y = (double)5; return x <= y"));
@@ -329,6 +570,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("def x = (long)5; def y = (int)3; return x > y"));
         assertEquals(true, exec("def x = (float)6; def y = (int)2; return x > y"));
         assertEquals(true, exec("def x = (double)7; def y = (int)1; return x > y"));
+
+        assertEquals(false, exec("def x = (byte)1; def y = (long)7; return x > y"));
+        assertEquals(false, exec("def x = (short)2; def y = (long)6; return x > y"));
+        assertEquals(false, exec("def x = (char)3; def y = (long)5; return x > y"));
+        assertEquals(false, exec("def x = (int)4; def y = (long)4; return x > y"));
+        assertEquals(true, exec("def x = (long)5; def y = (long)3; return x > y"));
+        assertEquals(true, exec("def x = (float)6; def y = (long)2; return x > y"));
+        assertEquals(true, exec("def x = (double)7; def y = (long)1; return x > y"));
+
+        assertEquals(false, exec("def x = (byte)1; def y = (float)7; return x > y"));
+        assertEquals(false, exec("def x = (short)2; def y = (float)6; return x > y"));
+        assertEquals(false, exec("def x = (char)3; def y = (float)5; return x > y"));
+        assertEquals(false, exec("def x = (int)4; def y = (float)4; return x > y"));
+        assertEquals(true, exec("def x = (long)5; def y = (float)3; return x > y"));
+        assertEquals(true, exec("def x = (float)6; def y = (float)2; return x > y"));
+        assertEquals(true, exec("def x = (double)7; def y = (float)1; return x > y"));
 
         assertEquals(false, exec("def x = (byte)1; def y = (double)7; return x > y"));
         assertEquals(false, exec("def x = (short)2; def y = (double)6; return x > y"));
@@ -348,6 +605,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("float x = (float)6; def y = (int)2; return x > y"));
         assertEquals(true, exec("double x = (double)7; def y = (int)1; return x > y"));
 
+        assertEquals(false, exec("byte x = (byte)1; def y = (long)7; return x > y"));
+        assertEquals(false, exec("short x = (short)2; def y = (long)6; return x > y"));
+        assertEquals(false, exec("char x = (char)3; def y = (long)5; return x > y"));
+        assertEquals(false, exec("int x = (int)4; def y = (long)4; return x > y"));
+        assertEquals(true, exec("long x = (long)5; def y = (long)3; return x > y"));
+        assertEquals(true, exec("float x = (float)6; def y = (long)2; return x > y"));
+        assertEquals(true, exec("double x = (double)7; def y = (long)1; return x > y"));
+
+        assertEquals(false, exec("byte x = (byte)1; def y = (float)7; return x > y"));
+        assertEquals(false, exec("short x = (short)2; def y = (float)6; return x > y"));
+        assertEquals(false, exec("char x = (char)3; def y = (float)5; return x > y"));
+        assertEquals(false, exec("int x = (int)4; def y = (float)4; return x > y"));
+        assertEquals(true, exec("long x = (long)5; def y = (float)3; return x > y"));
+        assertEquals(true, exec("float x = (float)6; def y = (float)2; return x > y"));
+        assertEquals(true, exec("double x = (double)7; def y = (float)1; return x > y"));
+
         assertEquals(false, exec("byte x = (byte)1; def y = (double)7; return x > y"));
         assertEquals(false, exec("short x = (short)2; def y = (double)6; return x > y"));
         assertEquals(false, exec("char x = (char)3; def y = (double)5; return x > y"));
@@ -365,6 +638,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("def x = (long)5; int y = (int)3; return x > y"));
         assertEquals(true, exec("def x = (float)6; int y = (int)2; return x > y"));
         assertEquals(true, exec("def x = (double)7; int y = (int)1; return x > y"));
+
+        assertEquals(false, exec("def x = (byte)1; double y = (long)7; return x > y"));
+        assertEquals(false, exec("def x = (short)2; double y = (long)6; return x > y"));
+        assertEquals(false, exec("def x = (char)3; double y = (long)5; return x > y"));
+        assertEquals(false, exec("def x = (int)4; double y = (long)4; return x > y"));
+        assertEquals(true, exec("def x = (long)5; double y = (long)3; return x > y"));
+        assertEquals(true, exec("def x = (float)6; double y = (long)2; return x > y"));
+        assertEquals(true, exec("def x = (double)7; double y = (long)1; return x > y"));
+
+        assertEquals(false, exec("def x = (byte)1; double y = (float)7; return x > y"));
+        assertEquals(false, exec("def x = (short)2; double y = (float)6; return x > y"));
+        assertEquals(false, exec("def x = (char)3; double y = (float)5; return x > y"));
+        assertEquals(false, exec("def x = (int)4; double y = (float)4; return x > y"));
+        assertEquals(true, exec("def x = (long)5; double y = (float)3; return x > y"));
+        assertEquals(true, exec("def x = (float)6; double y = (float)2; return x > y"));
+        assertEquals(true, exec("def x = (double)7; double y = (float)1; return x > y"));
 
         assertEquals(false, exec("def x = (byte)1; double y = (double)7; return x > y"));
         assertEquals(false, exec("def x = (short)2; double y = (double)6; return x > y"));
@@ -384,6 +673,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("def x = (float)6; def y = (int)2; return x >= y"));
         assertEquals(true, exec("def x = (double)7; def y = (int)1; return x >= y"));
 
+        assertEquals(false, exec("def x = (byte)1; def y = (long)7; return x >= y"));
+        assertEquals(false, exec("def x = (short)2; def y = (long)6; return x >= y"));
+        assertEquals(false, exec("def x = (char)3; def y = (long)5; return x >= y"));
+        assertEquals(true, exec("def x = (int)4; def y = (long)4; return x >= y"));
+        assertEquals(true, exec("def x = (long)5; def y = (long)3; return x >= y"));
+        assertEquals(true, exec("def x = (float)6; def y = (long)2; return x >= y"));
+        assertEquals(true, exec("def x = (double)7; def y = (long)1; return x >= y"));
+
+        assertEquals(false, exec("def x = (byte)1; def y = (float)7; return x >= y"));
+        assertEquals(false, exec("def x = (short)2; def y = (float)6; return x >= y"));
+        assertEquals(false, exec("def x = (char)3; def y = (float)5; return x >= y"));
+        assertEquals(true, exec("def x = (int)4; def y = (float)4; return x >= y"));
+        assertEquals(true, exec("def x = (long)5; def y = (float)3; return x >= y"));
+        assertEquals(true, exec("def x = (float)6; def y = (float)2; return x >= y"));
+        assertEquals(true, exec("def x = (double)7; def y = (float)1; return x >= y"));
+
         assertEquals(false, exec("def x = (byte)1; def y = (double)7; return x >= y"));
         assertEquals(false, exec("def x = (short)2; def y = (double)6; return x >= y"));
         assertEquals(false, exec("def x = (char)3; def y = (double)5; return x >= y"));
@@ -402,6 +707,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("float x = (float)6; def y = (int)2; return x >= y"));
         assertEquals(true, exec("double x = (double)7; def y = (int)1; return x >= y"));
 
+        assertEquals(false, exec("byte x = (byte)1; def y = (long)7; return x >= y"));
+        assertEquals(false, exec("short x = (short)2; def y = (long)6; return x >= y"));
+        assertEquals(false, exec("char x = (char)3; def y = (long)5; return x >= y"));
+        assertEquals(true, exec("int x = (int)4; def y = (long)4; return x >= y"));
+        assertEquals(true, exec("long x = (long)5; def y = (long)3; return x >= y"));
+        assertEquals(true, exec("float x = (float)6; def y = (long)2; return x >= y"));
+        assertEquals(true, exec("double x = (double)7; def y = (long)1; return x >= y"));
+
+        assertEquals(false, exec("byte x = (byte)1; def y = (float)7; return x >= y"));
+        assertEquals(false, exec("short x = (short)2; def y = (float)6; return x >= y"));
+        assertEquals(false, exec("char x = (char)3; def y = (float)5; return x >= y"));
+        assertEquals(true, exec("int x = (int)4; def y = (float)4; return x >= y"));
+        assertEquals(true, exec("long x = (long)5; def y = (float)3; return x >= y"));
+        assertEquals(true, exec("float x = (float)6; def y = (float)2; return x >= y"));
+        assertEquals(true, exec("double x = (double)7; def y = (float)1; return x >= y"));
+
         assertEquals(false, exec("byte x = (byte)1; def y = (double)7; return x >= y"));
         assertEquals(false, exec("short x = (short)2; def y = (double)6; return x >= y"));
         assertEquals(false, exec("char x = (char)3; def y = (double)5; return x >= y"));
@@ -419,6 +740,22 @@ public class ComparisonTests extends ScriptTestCase {
         assertEquals(true, exec("def x = (long)5; int y = (int)3; return x >= y"));
         assertEquals(true, exec("def x = (float)6; int y = (int)2; return x >= y"));
         assertEquals(true, exec("def x = (double)7; int y = (int)1; return x >= y"));
+
+        assertEquals(false, exec("def x = (byte)1; double y = (long)7; return x >= y"));
+        assertEquals(false, exec("def x = (short)2; double y = (long)6; return x >= y"));
+        assertEquals(false, exec("def x = (char)3; double y = (long)5; return x >= y"));
+        assertEquals(true, exec("def x = (int)4; double y = (long)4; return x >= y"));
+        assertEquals(true, exec("def x = (long)5; double y = (long)3; return x >= y"));
+        assertEquals(true, exec("def x = (float)6; double y = (long)2; return x >= y"));
+        assertEquals(true, exec("def x = (double)7; double y = (long)1; return x >= y"));
+
+        assertEquals(false, exec("def x = (byte)1; double y = (float)7; return x >= y"));
+        assertEquals(false, exec("def x = (short)2; double y = (float)6; return x >= y"));
+        assertEquals(false, exec("def x = (char)3; double y = (float)5; return x >= y"));
+        assertEquals(true, exec("def x = (int)4; double y = (float)4; return x >= y"));
+        assertEquals(true, exec("def x = (long)5; double y = (float)3; return x >= y"));
+        assertEquals(true, exec("def x = (float)6; double y = (float)2; return x >= y"));
+        assertEquals(true, exec("def x = (double)7; double y = (float)1; return x >= y"));
 
         assertEquals(false, exec("def x = (byte)1; double y = (double)7; return x >= y"));
         assertEquals(false, exec("def x = (short)2; double y = (double)6; return x >= y"));

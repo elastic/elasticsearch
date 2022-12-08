@@ -71,14 +71,14 @@ import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMA
  * and can also be cached by long-running jobs that continue to act on behalf of the user, beyond
  * the lifetime of the original request.
  *
- * The authentication is consisted of two {@link Subject}s
+ * The authentication consists of two {@link Subject}s
  * <ul>
  *     <li>{@link #authenticatingSubject} performs the authentication, i.e. it provides a credential.</li>
  *     <li>{@link #effectiveSubject} The subject that {@link #authenticatingSubject} impersonates ({@link #isRunAs()})</li>
  * </ul>
  * If {@link #isRunAs()} is {@code false}, the two {@link Subject}s will be the same object.
  *
- * Authentication also has a {@link #type} that tells which mechanism the {@link #authenticatingSubject}
+ * Authentication also has a {@link #type} that indicates which mechanism the {@link #authenticatingSubject}
  * uses to perform the authentication.
  *
  * The Authentication's version is its {@link Subject}'s version, i.e. {@code getEffectiveSubject().getVersion()}.

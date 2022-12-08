@@ -110,6 +110,36 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
              }
         }""";
 
+    private static String testJSONOnlyRoleMappings = """
+        {
+             "metadata": {
+                 "version": "%s",
+                 "compatibility": "8.4.0"
+             },
+             "state": {
+                 "role_mappings": {
+                       "everyone_kibana_alone": {
+                          "enabled": true,
+                          "roles": [ "kibana_user" ],
+                          "rules": { "field": { "username": "*" } },
+                          "metadata": {
+                             "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
+                             "_foo": "something"
+                          }
+                       },
+                       "everyone_fleet_alone": {
+                          "enabled": true,
+                          "roles": [ "fleet_user" ],
+                          "rules": { "field": { "username": "*" } },
+                          "metadata": {
+                             "uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7",
+                             "_foo": "something_else"
+                          }
+                       }
+                 }
+             }
+        }""";
+
     private static String testErrorJSON = """
         {
              "metadata": {
@@ -164,7 +194,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
+    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
@@ -174,7 +204,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
                 if (reservedState != null) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
-                    if (handlerMetadata != null && handlerMetadata.keys().contains("everyone_kibana")) {
+                    if (handlerMetadata != null && handlerMetadata.keys().contains(expectedKey)) {
                         clusterService.removeListener(this);
                         metadataVersion.set(event.state().metadata().version());
                         savedClusterState.countDown();
@@ -280,7 +310,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
     public void testRoleMappingsApplied() throws Exception {
         ensureGreen();
 
-        var savedClusterState = setupClusterStateListener(internalCluster().getMasterName());
+        var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
         writeJSONFile(internalCluster().getMasterName(), testJSON);
 
         assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
@@ -430,6 +460,36 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
         assertTrue(handlerMetadata == null || handlerMetadata.keys().isEmpty());
+    }
+
+    public void testReservedStatePersistsOnRestart() throws Exception {
+        ensureGreen();
+        final String masterNode = internalCluster().getMasterName();
+        var savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
+
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+        assertTrue(masterFileSettingsService.watching());
+
+        logger.info("--> write some role mappings, no other file settings");
+        writeJSONFile(masterNode, testJSONOnlyRoleMappings);
+        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        logger.info("--> restart master");
+        internalCluster().restartNode(masterNode);
+
+        var clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
+        assertThat(
+            clusterStateResponse.getState()
+                .metadata()
+                .reservedStateMetadata()
+                .get(FileSettingsService.NAMESPACE)
+                .handlers()
+                .get(ReservedRoleMappingAction.NAME)
+                .keys(),
+            containsInAnyOrder("everyone_fleet_alone", "everyone_kibana_alone")
+        );
     }
 
     private PutRoleMappingRequest sampleRestRequest(String name) throws Exception {

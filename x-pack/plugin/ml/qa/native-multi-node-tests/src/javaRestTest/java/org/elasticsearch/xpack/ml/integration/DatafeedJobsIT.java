@@ -878,7 +878,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
             e.getMessage(),
-            containsString("field [presum] is of type [aggregate_metric_double] and cannot be used in datafeed without aggregations")
+            containsString("field [presum] is of type [aggregate_metric_double] and cannot be used in a datafeed without aggregations")
         );
     }
 }

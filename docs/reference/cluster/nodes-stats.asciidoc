@@ -2679,8 +2679,8 @@ requests.
 [[cluster-nodes-stats-api-example]]
 ==== {api-examples-title}
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-limit]
+----
 # return just indices
 GET /_nodes/stats/indices
 
@@ -2689,8 +2689,7 @@ GET /_nodes/stats/os,process
 
 # return just process for node with IP address 10.0.0.1
 GET /_nodes/10.0.0.1/stats/process
---------------------------------------------------
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/91081"]
+----
 
 All stats can be explicitly requested via `/_nodes/stats/_all` or
 `/_nodes/stats?metric=_all`.
@@ -2698,8 +2697,8 @@ All stats can be explicitly requested via `/_nodes/stats/_all` or
 You can get information about indices stats on `node`, `indices`, or `shards`
 level.
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-indices]
+----
 # Fielddata summarized by node
 GET /_nodes/stats/indices/fielddata?fields=field1,field2
 
@@ -2711,21 +2710,19 @@ GET /_nodes/stats/indices/fielddata?level=shards&fields=field1,field2
 
 # You can use wildcards for field names
 GET /_nodes/stats/indices/fielddata?fields=field*
---------------------------------------------------
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/91081"]
+----
 
 You can get statistics about search groups for searches executed
 on this node.
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-groups]
+----
 # All groups with all stats
 GET /_nodes/stats?groups=_all
 
 # Some groups from just the indices stats
 GET /_nodes/stats/indices?groups=foo,bar
---------------------------------------------------
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/91081"]
+----
 
 [[cluster-nodes-stats-ingest-ex]]
 ===== Retrieve ingest statistics only
@@ -2734,25 +2731,23 @@ To return only ingest-related node statistics, set the `<metric>` path
 parameter to `ingest` and use the
 <<common-options-response-filtering,`filter_path`>> query parameter.
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-filter-path]
+----
 GET /_nodes/stats/ingest?filter_path=nodes.*.ingest
---------------------------------------------------
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/91081"]
+----
 
 You can use the `metric` and `filter_path` query parameters to get the same
 response.
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-metric-filter-path]
+----
 GET /_nodes/stats?metric=ingest&filter_path=nodes.*.ingest
---------------------------------------------------
+----
 
 To further refine the response, change the `filter_path` value.
 For example, the following request only returns ingest pipeline statistics.
 
-[source,console]
---------------------------------------------------
+[source,console,id=nodes-stats-metric-filter-path-refined]
+----
 GET /_nodes/stats?metric=ingest&filter_path=nodes.*.ingest.pipelines
---------------------------------------------------
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/91081"]
+----

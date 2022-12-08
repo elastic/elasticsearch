@@ -96,7 +96,7 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
         }
         if (this.minX <= minX && this.maxX >= maxX && this.minY <= minY && this.maxY >= maxY) {
             // the rectangle fully contains the shape
-            relation = GeoRelation.QUERY_CROSSES;
+            relation = GeoRelation.QUERY_CONTAINS;
             return false;
         }
         return true;

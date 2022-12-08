@@ -28,14 +28,6 @@ The `categorize_text` aggregation has been moved from technical preview to gener
 
 {es-pull}88600[#88600]
 
-[discrete]
-[[categorize-text-agg-ga]]
-=== The categorize text aggregation is generally available
-
-The {ref}/search-aggregations-bucket-categorize-text-aggregation.html[multi-bucket aggregation]
-that can group semi-structured text into categories is generally available
-from 8.6.
-
 // end::notable-highlights[]
 
 
@@ -58,7 +50,7 @@ The type has been corrected to `half_float`. You can force a rollover to see the
 ----
 POST .monitoring-logstash-8-mb/_rollover
 ----
-// TEST[skip:"quick changelog code snippet"]
+// TESTRESPONSE[skip:"quick changelog code snippet"]
 
 {es-pull}90494[#90494]
 

@@ -16,8 +16,14 @@ Allocation::
 * Avoid NPE when disassociateDeadNodes is executed for a node present in the desired balance {es-pull}91659[#91659]
 * Check `NodesShutdownMetadata` type before assuming restart {es-pull}90807[#90807]
 
+Authentication::
+* Fix time unit for connection request timeout of JWKs reload {es-pull}92080[#92080]
+* Improve performance for role mapping with DNs {es-pull}92074[#92074]
+* Improve robustness of `JwkSet` reloading {es-pull}92081[#92081]
+
 Authorization::
 * Avoid potential unsupported operation exception in doc bitset cache {es-pull}91490[#91490]
+* Make adding auth info to REST responses more robust {es-pull}92168[#92168]
 * Security remove datemath special handling {es-pull}91047[#91047]
 
 Cluster Coordination::
@@ -38,6 +44,7 @@ Indices APIs::
 
 Infra/Core::
 * Add `trace.id` to request trace logs {es-pull}91772[#91772] (issue: {es-issue}88174[#88174])
+* Check reserved state in Metadata.isGlobalStateEquals {es-pull}92124[#92124]
 * Datastream unavailable exception metadata {es-pull}91461[#91461]
 * Fix `BytesRefArray` on append empty `BytesRef` {es-pull}91364[#91364]
 * Fix index expression options for requests with a single name or pattern {es-pull}91231[#91231]
@@ -90,6 +97,7 @@ Vector Search::
 
 Allocation::
 * Deprecate state field in /_cluster/reroute response {es-pull}90399[#90399]
+* Ensure balance threshold is at least 1 {es-pull}92100[#92100]
 
 Ingest Node::
 * Deprecate 'remove_binary' default of false for ingest attachment processor {es-pull}90460[#90460]
@@ -151,6 +159,9 @@ Infra/Plugins::
 
 Infra/Scripting::
 * Use an explicit null check for null receivers in painless, rather than an NPE {es-pull}91347[#91347] (issue: {es-issue}91236[#91236])
+
+Ingest Node::
+* Refactor enrich maintenance coordination logic {es-pull}90931[#90931]
 
 Machine Learning::
 * Add a filter parameter to frequent items {es-pull}91137[#91137]
@@ -225,7 +236,6 @@ Health::
 
 Machine Learning::
 * Make `categorize_text` aggregation GA {es-pull}88600[#88600]
-* Semantic search endpoint {es-pull}90450[#90450]
 
 Vector Search::
 * Add fielddata and scripting support for byte-sized vectors {es-pull}91184[#91184]

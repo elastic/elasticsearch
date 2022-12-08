@@ -30,6 +30,8 @@ setup:
   - gte: { stats.computation_time_in_millis: 0 }
   - gte: { stats.reconciliation_time_in_millis: 0 }
 
+  - is_true: 'cluster_balance_stats'
+
   # Can't match node ids and desired node status for replicas since we don't know
   # whether the test is run on a single or multi-node cluster. Also can't match the status
   # because we can't control the ordering of replicas and primaries in the output

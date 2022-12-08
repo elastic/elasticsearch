@@ -19,23 +19,48 @@ public class LimitExec extends UnaryExec {
 
     private final Expression limit;
 
+    private final Mode mode;
+
+    public enum Mode {
+        SINGLE,
+        PARTIAL, // maps raw inputs to intermediate outputs
+        FINAL, // maps intermediate inputs to final outputs
+    }
+
     public LimitExec(Source source, PhysicalPlan child, Expression limit) {
+        this(source, child, limit, Mode.SINGLE);
+    }
+
+    public LimitExec(Source source, PhysicalPlan child, Expression limit, Mode mode) {
         super(source, child);
         this.limit = limit;
+        this.mode = mode;
     }
 
     @Override
     protected NodeInfo<LimitExec> info() {
-        return NodeInfo.create(this, LimitExec::new, child(), limit);
+        return NodeInfo.create(this, LimitExec::new, child(), limit, mode);
     }
 
     @Override
     public LimitExec replaceChild(PhysicalPlan newChild) {
-        return new LimitExec(source(), newChild, limit);
+        return new LimitExec(source(), newChild, limit, mode);
     }
 
     public Expression limit() {
         return limit;
+    }
+
+    public Mode mode() {
+        return mode;
+    }
+
+    @Override
+    public boolean singleNode() {
+        if (mode != Mode.PARTIAL) {
+            return true;
+        }
+        return child().singleNode();
     }
 
     @Override

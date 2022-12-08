@@ -143,3 +143,9 @@ row a = 1.5, b = 2.6, c = null | eval s = a - b * c | stats avg(s);
 avg(s):double
 NaN
 ;
+
+limitRow-Ignore
+row a = 1 | limit 0;
+
+a:integer
+;

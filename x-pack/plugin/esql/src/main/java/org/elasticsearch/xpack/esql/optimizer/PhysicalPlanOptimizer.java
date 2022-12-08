@@ -72,7 +72,7 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
         batches.add(new Batch("Push filters to source", Limiter.ONCE, new PushFiltersToSource()));
         batches.add(new Batch("Lazy field extraction", Limiter.ONCE, new InsertFieldExtraction()));
 
-        batches.add(new Batch("Split nodes", Limiter.ONCE, new SplitAggregate(), new SplitTopN()));
+        batches.add(new Batch("Split nodes", Limiter.ONCE, new SplitAggregate(), new SplitTopN(), new SplitLimit()));
         batches.add(new Batch("Add exchange", Limiter.ONCE, new AddExchangeOnSingleNodeSplit()));
 
         if (ADD_TASK_PARALLELISM_ABOVE_QUERY.get(configuration.pragmas())) {
@@ -185,6 +185,22 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
                 );
             }
             return topNExec;
+        }
+    }
+
+    private static class SplitLimit extends OptimizerRule<LimitExec> {
+
+        @Override
+        protected PhysicalPlan rule(LimitExec limitExec) {
+            if (limitExec.mode() == LimitExec.Mode.SINGLE) {
+                return new LimitExec(
+                    limitExec.source(),
+                    new LimitExec(limitExec.source(), limitExec.child(), limitExec.limit(), LimitExec.Mode.PARTIAL),
+                    limitExec.limit(),
+                    LimitExec.Mode.FINAL
+                );
+            }
+            return limitExec;
         }
     }
 

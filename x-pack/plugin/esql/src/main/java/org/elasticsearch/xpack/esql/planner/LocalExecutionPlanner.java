@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -93,6 +94,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.operator.LimitOperator.LimitOperatorFactory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 
 /**
@@ -400,6 +402,9 @@ public class LocalExecutionPlanner {
         } else if (node instanceof FilterExec filter) {
             PhysicalOperation source = plan(filter.child(), context);
             return new PhysicalOperation(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout, source);
+        } else if (node instanceof LimitExec limit) {
+            PhysicalOperation source = plan(limit.child(), context);
+            return new PhysicalOperation(new LimitOperatorFactory((Integer) limit.limit().fold()), source.layout, source);
         }
         throw new UnsupportedOperationException(node.nodeName());
     }

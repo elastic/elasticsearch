@@ -13,38 +13,6 @@ as described in <<collecting-monitoring-data>>.
 
 image::monitoring/images/metricbeat.png[Example monitoring architecture]
 
-. Enable the collection of monitoring data.
-+
---
-// tag::enable-collection[]
-Set `xpack.monitoring.collection.enabled` to `true` on the
-production cluster. By default, it is disabled (`false`). 
-
-You can use the following APIs to review and change this setting:
-
-[source,console]
-----------------------------------
-GET _cluster/settings
-----------------------------------
-
-[source,console]
-----------------------------------
-PUT _cluster/settings
-{
-  "persistent": {
-    "xpack.monitoring.collection.enabled": true
-  }
-}
-----------------------------------
-// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.]
-
-If {es} {security-features} are enabled, you must have `monitor` cluster privileges to 
-view the cluster settings and `manage` cluster privileges to change them.
-// end::enable-collection[]
-
-For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
---
-
 . {metricbeat-ref}/metricbeat-installation-configuration.html[Install
 {metricbeat}]. Ideally install a single {metricbeat} instance configured with
 `scope: cluster` and configure `hosts` to point to an endpoint (e.g. a
@@ -186,29 +154,5 @@ For more information about these configuration options, see
 --
 
 . {metricbeat-ref}/metricbeat-starting.html[Start {metricbeat}] on each node. 
-
-. Disable the default collection of {es} monitoring metrics.
-+
---
-Set `xpack.monitoring.elasticsearch.collection.enabled` to `false` on the 
-production cluster.
-
-You can use the following API to change this setting:
-
-[source,console]
-----------------------------------
-PUT _cluster/settings
-{
-  "persistent": {
-    "xpack.monitoring.elasticsearch.collection.enabled": false
-  }
-}
-----------------------------------
-// TEST[warning:[xpack.monitoring.elasticsearch.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.]
-
-If {es} {security-features} are enabled, you must have `monitor` cluster
-privileges to view the cluster settings and `manage` cluster privileges
-to change them.
---
 
 . {kibana-ref}/monitoring-data.html[View the monitoring data in {kib}]. 

@@ -134,9 +134,9 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         List<FailedNodeException> failedNodeExceptions
     ) {
         if (taskOperationFailures.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+            throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
         } else if (failedNodeExceptions.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+            throw failedNodeExceptions.get(0);
         } else if (tasks.isEmpty()) {
             throw new ElasticsearchStatusException(
                 "Unable to find deployment task for model [{}] please stop and start the deployment or try again momentarily",

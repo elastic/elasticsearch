@@ -43,6 +43,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_DETAILS_XCONTENT_PARAM;
 import static org.elasticsearch.test.AbstractXContentTestCase.chunkedXContentTester;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class GetSnapshotsResponseTests extends ESTestCase {
@@ -164,9 +165,8 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             .asMatchPredicate()
             .or(Pattern.compile("snapshots\\.\\d+\\.index_details").asMatchPredicate())
             .or(Pattern.compile("failures\\.*").asMatchPredicate());
-        chunkedXContentTester(this::createParser, (XContentType t) -> createTestInstance(), params, this::doParseInstance).numberOfTestRuns(
-            1
-        )
+        chunkedXContentTester(this::createParser, (XContentType t) -> createTestInstance(), params, this::doParseInstance, false)
+            .numberOfTestRuns(1)
             .supportsUnknownFields(true)
             .shuffleFieldsExceptions(Strings.EMPTY_ARRAY)
             .randomFieldsExcludeFilter(predicate)
@@ -179,7 +179,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
 
     public void testToChunkedXContent() {
         final GetSnapshotsResponse response = createTestInstance();
-        final Iterator<ToXContent> serialization = response.toXContentChunked();
+        final Iterator<ToXContent> serialization = response.toXContentChunked(EMPTY_PARAMS);
         int chunks = 0;
         while (serialization.hasNext()) {
             serialization.next();

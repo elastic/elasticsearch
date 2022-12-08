@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -138,21 +139,42 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         boolean relocatingNodeIsDesired,
         int shardId,
         String index,
-        AllocationId allocationId
+        @Nullable Double forecastedWriteLoad,
+        @Nullable Long forecastedShardSizeInBytes
     ) implements Writeable, ToXContentObject {
 
+        private static final Version ADD_FORECASTS_VERSION = Version.V_8_7_0;
+
         public static ShardView from(StreamInput in) throws IOException {
-            return new ShardView(
-                ShardRoutingState.fromValue(in.readByte()),
-                in.readBoolean(),
-                in.readOptionalString(),
-                in.readBoolean(),
-                in.readOptionalString(),
-                in.readBoolean(),
-                in.readVInt(),
-                in.readString(),
-                in.readOptionalWriteable(AllocationId::new)
-            );
+            if (in.getVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
+                return new ShardView(
+                    ShardRoutingState.fromValue(in.readByte()),
+                    in.readBoolean(),
+                    in.readOptionalString(),
+                    in.readBoolean(),
+                    in.readOptionalString(),
+                    in.readBoolean(),
+                    in.readVInt(),
+                    in.readString(),
+                    in.readOptionalDouble(),
+                    in.readOptionalLong()
+                );
+            } else {
+                var shardView = new ShardView(
+                    ShardRoutingState.fromValue(in.readByte()),
+                    in.readBoolean(),
+                    in.readOptionalString(),
+                    in.readBoolean(),
+                    in.readOptionalString(),
+                    in.readBoolean(),
+                    in.readVInt(),
+                    in.readString(),
+                    null,
+                    null
+                );
+                in.readOptionalWriteable(AllocationId::new);
+                return shardView;
+            }
         }
 
         @Override
@@ -165,7 +187,12 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             out.writeBoolean(relocatingNodeIsDesired);
             out.writeVInt(shardId);
             out.writeString(index);
-            out.writeOptionalWriteable(allocationId);
+            if (out.getVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
+                out.writeOptionalDouble(forecastedWriteLoad);
+                out.writeOptionalLong(forecastedShardSizeInBytes);
+            } else {
+                out.writeMissingWriteable(AllocationId.class);
+            }
         }
 
         @Override
@@ -179,6 +206,8 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                 .field("relocating_node_is_desired", relocatingNodeIsDesired)
                 .field("shard_id", shardId)
                 .field("index", index)
+                .field("forecasted_write_load", forecastedWriteLoad)
+                .field("forecasted_shard_size_in_bytes", forecastedShardSizeInBytes)
                 .endObject();
         }
     }

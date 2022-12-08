@@ -20,11 +20,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * A {@link RoutingNode} represents a cluster node associated with a single {@link DiscoveryNode} including all shards
@@ -209,55 +209,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert invariant();
     }
 
-    /**
-     * Determine the number of shards with a specific state
-     * @param states set of states which should be counted
-     * @return number of shards
-     */
-    public int numberOfShardsWithState(ShardRoutingState... states) {
-        if (states.length == 1) {
-            if (states[0] == ShardRoutingState.INITIALIZING) {
-                return initializingShards.size();
-            } else if (states[0] == ShardRoutingState.RELOCATING) {
-                return relocatingShards.size();
-            } else if (states[0] == ShardRoutingState.STARTED) {
-                return startedShards.size();
-            }
-        }
-
-        int count = 0;
-        for (ShardRouting shardEntry : this) {
-            for (ShardRoutingState state : states) {
-                if (shardEntry.state() == state) {
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
-
-    /**
-     * Determine the shards with a specific state
-     * @param state state which should be listed
-     * @return List of shards
-     */
-    public List<ShardRouting> shardsWithState(ShardRoutingState state) {
-        if (state == ShardRoutingState.INITIALIZING) {
-            return new ArrayList<>(initializingShards);
-        } else if (state == ShardRoutingState.RELOCATING) {
-            return new ArrayList<>(relocatingShards);
-        } else if (state == ShardRoutingState.STARTED) {
-            return new ArrayList<>(startedShards);
-        }
-        List<ShardRouting> shards = new ArrayList<>();
-        for (ShardRouting shardEntry : this) {
-            if (shardEntry.state() == state) {
-                shards.add(shardEntry);
-            }
-        }
-        return shards;
-    }
-
     private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
 
     public ShardRouting[] initializing() {
@@ -273,53 +224,44 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     /**
+     * Determine the number of shards with a specific state
+     * @param state which should be counted
+     * @return number of shards
+     */
+    public int numberOfShardsWithState(ShardRoutingState state) {
+        return internalGetShardsWithState(state).size();
+    }
+
+    /**
+     * Determine the shards with a specific state
+     * @param state state which should be listed
+     * @return List of shards
+     */
+    public Stream<ShardRouting> shardsWithState(ShardRoutingState state) {
+        return internalGetShardsWithState(state).stream();
+    }
+
+    /**
      * Determine the shards of an index with a specific state
      * @param index id of the index
      * @param states set of states which should be listed
      * @return a list of shards
      */
-    public List<ShardRouting> shardsWithState(String index, ShardRoutingState... states) {
-        List<ShardRouting> shards = new ArrayList<>();
+    public Stream<ShardRouting> shardsWithState(String index, ShardRoutingState... states) {
+        return Stream.of(states).flatMap(state -> shardsWithState(index, state));
+    }
 
-        if (states.length == 1) {
-            if (states[0] == ShardRoutingState.INITIALIZING) {
-                for (ShardRouting shardEntry : initializingShards) {
-                    if (shardEntry.getIndexName().equals(index) == false) {
-                        continue;
-                    }
-                    shards.add(shardEntry);
-                }
-                return shards;
-            } else if (states[0] == ShardRoutingState.RELOCATING) {
-                for (ShardRouting shardEntry : relocatingShards) {
-                    if (shardEntry.getIndexName().equals(index) == false) {
-                        continue;
-                    }
-                    shards.add(shardEntry);
-                }
-                return shards;
-            } else if (states[0] == ShardRoutingState.STARTED) {
-                for (ShardRouting shardEntry : startedShards) {
-                    if (shardEntry.getIndexName().equals(index) == false) {
-                        continue;
-                    }
-                    shards.add(shardEntry);
-                }
-                return shards;
-            }
-        }
+    public Stream<ShardRouting> shardsWithState(String index, ShardRoutingState state) {
+        return shardsWithState(state).filter(shardRouting -> Objects.equals(shardRouting.getIndexName(), index));
+    }
 
-        for (ShardRouting shardEntry : this) {
-            if (shardEntry.getIndexName().equals(index) == false) {
-                continue;
-            }
-            for (ShardRoutingState state : states) {
-                if (shardEntry.state() == state) {
-                    shards.add(shardEntry);
-                }
-            }
-        }
-        return shards;
+    private LinkedHashSet<ShardRouting> internalGetShardsWithState(ShardRoutingState state) {
+        return switch (state) {
+            case UNASSIGNED -> throw new IllegalArgumentException("Unassigned shards are not linked to a routing node");
+            case INITIALIZING -> initializingShards;
+            case STARTED -> startedShards;
+            case RELOCATING -> relocatingShards;
+        };
     }
 
     /**

@@ -290,9 +290,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
         completionHandler.getValue().accept(null, exception);
@@ -332,9 +332,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
         completionHandler.getValue().accept(null, exception);
@@ -378,9 +378,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.SYSTEM_WRITE)
         );
         completionHandler.getValue().accept(null, exception);
@@ -535,9 +535,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
@@ -583,9 +583,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
         completionHandler.getValue().accept(null, exception);
@@ -677,9 +677,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
     }
@@ -721,9 +721,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
     }
@@ -751,9 +751,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
         indexRequest1.autoGenerateId();
@@ -788,9 +788,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
         assertEquals(indexRequest.getPipeline(), "default_pipeline");

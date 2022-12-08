@@ -272,7 +272,7 @@ public class SSLConfigurationSettings {
 
     public static final Function<String, Setting<List<String>>> TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE = key -> Setting.listSetting(
         key,
-        org.elasticsearch.core.List.of("subjectAltName.otherName.commonName"),
+        org.elasticsearch.core.List.of(RestrictedTrustConfig.SAN_OTHER_COMMON),
         s -> {
             Optional<String> value = RestrictedTrustConfig.SUPPORTED_X_509_FIELDS.stream().filter(v -> v.equalsIgnoreCase(s)).findAny();
             if (value.isPresent() == false) {

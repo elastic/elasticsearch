@@ -59,6 +59,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -70,9 +71,11 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
+import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -164,11 +167,15 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             .build(false);
         authentication.writeToContext(threadContext);
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
-        when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn("key");
+        final String clusterCredential = "key";
+        when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(clusterCredential);
         final AuthorizationService authzService = mock(AuthorizationService.class);
+        // We capture the listener so that we can complete the full flow, by passing onResponse further down
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<ActionListener<RoleDescriptorsIntersection>> captor = ArgumentCaptor.forClass(ActionListener.class);
-        doAnswer(i -> null).when(authzService).retrieveRemoteAccessRoleDescriptorsIntersection(any(), any(), captor.capture());
+        final ArgumentCaptor<ActionListener<RoleDescriptorsIntersection>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        doAnswer(i -> null).when(authzService).retrieveRemoteAccessRoleDescriptorsIntersection(any(), any(), listenerCaptor.capture());
+        final String remoteClusterAlias = "remote";
+
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
@@ -180,13 +187,14 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            remoteClusterAuthorizationResolver
+            remoteClusterAuthorizationResolver,
+            ignored -> Optional.of(remoteClusterAlias)
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
-        AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
-        AtomicReference<User> sendingUser = new AtomicReference<>();
-        AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
+        final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
+        final AtomicReference<String> sentAuthorization = new AtomicReference<>();
+        final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
             public <T extends TransportResponse> void sendRequest(
                 Transport.Connection connection,
@@ -198,17 +206,17 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
                     fail("sender called more than once!");
                 }
-                sendingUser.set(securityContext.getUser());
+                assertThat(securityContext.getAuthentication(), nullValue());
+                sentAuthorization.set(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER));
             }
         });
-        final RemoteConnectionManager.InternalRemoteConnection connection = mock(RemoteConnectionManager.InternalRemoteConnection.class);
-        when(connection.getClusterAlias()).thenReturn("remote");
+        final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
         sender.sendRequest(connection, SearchAction.NAME, mock(SearchRequest.class), null, null);
-        captor.getValue().onResponse(new RoleDescriptorsIntersection(List.of()));
+        // Call listener to complete flow
+        listenerCaptor.getValue().onResponse(new RoleDescriptorsIntersection(List.of()));
         assertTrue(calledWrappedSender.get());
-        assertEquals(user, sendingUser.get());
-        assertEquals(user, securityContext.getUser());
+        assertThat(sentAuthorization.get(), equalTo("ApiKey " + clusterCredential));
         verify(securityContext, never()).executeAsInternalUser(any(User.class), any(Version.class), anyConsumer());
     }
 

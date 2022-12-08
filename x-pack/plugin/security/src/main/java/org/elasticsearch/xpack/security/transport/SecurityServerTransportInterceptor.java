@@ -54,6 +54,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
@@ -61,7 +62,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
-    private static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER = "_remote_access_cluster_credential";
+    public static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER = "_remote_access_cluster_credential";
     private static final Version VERSION_REMOTE_ACCESS_HEADERS = Version.V_8_7_0;
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
 
@@ -73,6 +74,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
+    private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -84,6 +86,31 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         DestructiveOperations destructiveOperations,
         RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
     ) {
+        this(
+            settings,
+            threadPool,
+            authcService,
+            authzService,
+            sslService,
+            securityContext,
+            destructiveOperations,
+            remoteClusterAuthorizationResolver,
+            RemoteConnectionManager::resolveRemoteClusterAlias
+        );
+    }
+
+    public SecurityServerTransportInterceptor(
+        Settings settings,
+        ThreadPool threadPool,
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        SSLService sslService,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations,
+        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
+        // Inject for simplified testing
+        Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
+    ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -92,6 +119,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
         this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
+        this.remoteClusterAliasResolver = remoteClusterAliasResolver;
     }
 
     @Override
@@ -185,7 +213,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
                     return false;
                 }
-                final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
+                final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
                 final Subject effectiveSubject = authentication.getEffectiveSubject();
@@ -217,7 +245,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
-                final Optional<String> remoteClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
+                final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
                 authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
                     remoteClusterAlias.get(),

@@ -272,8 +272,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         public void onRemoved() {}
     }
 
-    // TODO undo
-    public static class InternalRemoteConnection implements Transport.Connection {
+    private static final class InternalRemoteConnection implements Transport.Connection {
 
         private final Transport.Connection connection;
         private final String clusterAlias;

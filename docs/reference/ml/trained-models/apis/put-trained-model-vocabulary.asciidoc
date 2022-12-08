@@ -56,7 +56,7 @@ preference. Example: ["f o", "fo o"]. Must be provided for RoBERTa and BART styl
 The following example shows how to create a model vocabulary for a
 previously stored trained model configuration.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/vocabulary
 {
@@ -67,7 +67,7 @@ PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-englis
   ]
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TEST[s/\.\.\./"[PAD]"/ skip:TBD]
 
 The API returns the following results:
 

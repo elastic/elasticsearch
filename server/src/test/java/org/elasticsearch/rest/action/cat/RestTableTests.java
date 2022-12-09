@@ -259,6 +259,7 @@ public class RestTableTests extends ESTestCase {
         assertEquals(Arrays.asList(1, 0, 2), rowOrder);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92181")
     public void testPlainTextChunking() throws Exception {
         final var expectedBody = new StringBuilder();
         final var rowCount = between(10000, 20000);

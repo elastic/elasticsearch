@@ -212,7 +212,7 @@ public class BigArrays {
         }
     }
 
-    private static class ByteArrayAsLongArrayWrapper extends AbstractArrayWrapper implements LongArray {
+    static final class ByteArrayAsLongArrayWrapper extends AbstractArrayWrapper implements LongArray {
 
         private final byte[] array;
 
@@ -884,10 +884,14 @@ public class BigArrays {
 
     /** Resize the array to the exact provided size. */
     public LongDoubleDoubleArray resize(LongDoubleDoubleArray array, long size) {
-        if (array instanceof LongDoubleDoubleArray) {
-            return resizeInPlace((BigLongDoubleDoubleArray) array, size);
+        if (array instanceof BigLongDoubleDoubleArray bigLongDoubleDoubleArray) {
+            return resizeInPlace(bigLongDoubleDoubleArray, size);
         } else {
-            throw new UnsupportedOperationException();
+            AbstractArray arr = (AbstractArray) array;
+            final LongDoubleDoubleArray newArray = newLongDoubleDoubleArray(size, arr.clearOnResize);
+            newArray.set(0, ((ByteArrayAsLongDoubleDoubleArrayWrapper) arr).array, 0, (int) Math.min(size, array.size()));
+            array.close();
+            return newArray;
         }
     }
 

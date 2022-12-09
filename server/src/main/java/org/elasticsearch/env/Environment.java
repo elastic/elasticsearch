@@ -160,7 +160,7 @@ public class Environment {
         }
 
         if (DiscoveryNode.isStateless(settings)) {
-            this.settings = StatelessSecureSettings.install(settings);
+            this.settings = StatelessSecureSettings.install(finalSettings.build());
         } else {
             this.settings = finalSettings.build();
         }

@@ -235,7 +235,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportRequestOptions options,
                 final TransportResponseHandler<T> handler
             ) {
-                logger.debug("Sending request for action [{}] with remote access headers", action);
+                logger.debug("Sending request with remote access headers for [{}] action", action);
                 if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     handler.handleException(
                         new TransportException(

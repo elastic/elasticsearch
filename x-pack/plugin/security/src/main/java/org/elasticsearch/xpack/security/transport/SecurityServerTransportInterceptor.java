@@ -57,7 +57,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
@@ -124,10 +123,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
     @Override
     public AsyncSender interceptSender(AsyncSender sender) {
-        // Branching based on the feature flag is not strictly necessary here, but it makes it very obvious we are not interfering with
-        // non-feature flagged deployments
         return interceptForAllRequests(
-            false == TcpTransport.isUntrustedRemoteClusterEnabled() ? sender : interceptForRemoteAccessRequests(sender)
+            // Branching based on the feature flag is not strictly necessary here, but it makes it more obvious we are not interfering with
+            // non-feature flagged deployments
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? interceptForRemoteAccessRequests(sender) : sender
         );
     }
 
@@ -208,7 +207,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     sendWithRemoteAccessHeaders(connection, action, request, options, handler);
                 } else {
                     // Send regular request, without remote access headers
-                    sendRequestWithHandledException(connection, action, request, options, handler);
+                    try {
+                        sender.sendRequest(connection, action, request, options, handler);
+                    } catch (Exception e) {
+                        handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
+                    }
                 }
             }
 
@@ -234,7 +237,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             ) {
                 logger.debug("Sending request for action [{}] with remote access headers", action);
                 if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
-                    // TODO it probably does not make sense to treat this as a transport exception
                     handler.handleException(
                         new TransportException(
                             "Settings for remote cluster indicate remote access headers should be sent but target cluster version ["
@@ -249,31 +251,23 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 assert authentication != null : "authentication must be present in security context";
                 final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
+                final ThreadContext threadContext = securityContext.getThreadContext();
+                final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
+                final var contextRestoreHandler = new ContextRestoreResponseHandler<>(contextSupplier, handler);
                 authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
                     remoteClusterAlias.get(),
                     authentication.getEffectiveSubject(),
-                    wrapPreservingContext(ActionListener.wrap(roleDescriptorsIntersection -> {
-                        final ThreadContext threadContext = securityContext.getThreadContext();
-                        final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
+                    ActionListener.wrap(roleDescriptorsIntersection -> {
                         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                            writeCredentialForClusterToContext(remoteClusterAlias.get(), threadContext);
                             final RemoteAccessAuthentication remoteAccessAuthentication = new RemoteAccessAuthentication(
                                 authentication,
                                 roleDescriptorsIntersection
                             );
                             remoteAccessAuthentication.writeToContext(threadContext);
-                            writeCredentialForClusterToContext(remoteClusterAlias.get(), threadContext);
-                            sendRequestWithHandledException(
-                                connection,
-                                action,
-                                request,
-                                options,
-                                new ContextRestoreResponseHandler<>(contextSupplier, handler)
-                            );
+                            sender.sendRequest(connection, action, request, options, handler);
                         }
-                        // TODO should handler be wrapped here?
-                    }, e -> handler.handleException(new TransportException("failure sending with remote access headers", e))),
-                        securityContext.getThreadContext()
-                    )
+                    }, e -> contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
                 );
             }
 
@@ -282,20 +276,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     || request instanceof ShardFetchRequest
                     || request instanceof SearchRequest
                     || request instanceof ClusterSearchShardsRequest;
-            }
-
-            private <T extends TransportResponse> void sendRequestWithHandledException(
-                final Transport.Connection connection,
-                final String action,
-                final TransportRequest request,
-                final TransportRequestOptions options,
-                final TransportResponseHandler<T> handler
-            ) {
-                try {
-                    sender.sendRequest(connection, action, request, options, handler);
-                } catch (Exception e) {
-                    handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
-                }
             }
 
             private void writeCredentialForClusterToContext(final String remoteClusterAlias, final ThreadContext threadContext) {

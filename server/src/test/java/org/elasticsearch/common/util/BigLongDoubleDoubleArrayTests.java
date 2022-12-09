@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+// @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class BigLongDoubleDoubleArrayTests extends ESTestCase {
 
     private final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
@@ -37,7 +38,6 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
         }
     }
 
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     public void testSetGet() {
         final int size = randomIntBetween(1, 1_000_000);
         final long startLong = randomIntBetween(1, 1000);
@@ -60,7 +60,6 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
         }
     }
 
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     public void testLongDoubleDoubleArrayGrowth() {
         final int totalLen = randomIntBetween(1, 1_000_000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
@@ -89,7 +88,6 @@ public class BigLongDoubleDoubleArrayTests extends ESTestCase {
         array.close();
     }
 
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     public void testIncrement() {
         final int totalLen = randomIntBetween(1, 1_000_000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);

@@ -31,6 +31,8 @@ public interface LongDoubleDoubleArray extends BigArray { // TODO: implement Wri
      */
     void set(long index, long lValue0, double dValue0, double dValue1);
 
+    void set(long index, byte[] buf, int offset, int len);
+
     void increment(long index, long lValue0Inc, double dValue0Inc, double dValue1Inc);
 
     /**
@@ -50,12 +52,15 @@ public interface LongDoubleDoubleArray extends BigArray { // TODO: implement Wri
             byteIndex = byteIndex(indexInPage(index));
         }
 
+        // 9 511
         private static int pageIndex(long index) {
-            return (int) (index / BigLongDoubleDoubleArray.ELEMENTS_PER_PAGE);
+            // return (int) (index / BigLongDoubleDoubleArray.ELEMENTS_PER_PAGE);
+            return (int) (index >> 9);
         }
 
         private static int indexInPage(long index) {
-            return (int) (index % BigLongDoubleDoubleArray.ELEMENTS_PER_PAGE);
+            // return (int) (index % BigLongDoubleDoubleArray.ELEMENTS_PER_PAGE);
+            return (int) (index & 0x1FF);
         }
 
         private static int byteIndex(int indexInPage) {

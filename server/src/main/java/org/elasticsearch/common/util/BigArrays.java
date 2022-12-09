@@ -871,15 +871,15 @@ public class BigArrays {
      * @param clearOnResize  whether to clear on resize, or not
      */
     public LongDoubleDoubleArray newLongDoubleDoubleArray(long size, boolean clearOnResize) {
-        // if (size > PageCacheRecycler.LONG_DOUBLE_DOUBLE_PAGE_SIZE || (size >= PageCacheRecycler.LONG_DOUBLE_DOUBLE_PAGE_SIZE / 2 &&
-        // recycler != null)) {
-        // when allocating big arrays, we want to first ensure we have the capacity by
-        // checking with the circuit breaker before attempting to allocate
-        adjustBreaker(BigLongDoubleDoubleArray.estimateRamBytes(size), false);
-        return new BigLongDoubleDoubleArray(size, this, clearOnResize);
-        // } else {
-        // return validate(new ByteLongDoubleDoubleArrayWrapper(this, size, clearOnResize));
-        // }
+        if (size > PageCacheRecycler.LONG_DOUBLE_DOUBLE_PAGE_SIZE
+            || (size >= PageCacheRecycler.LONG_DOUBLE_DOUBLE_PAGE_SIZE / 2 && recycler != null)) {
+            // when allocating big arrays, we want to first ensure we have the capacity by
+            // checking with the circuit breaker before attempting to allocate
+            adjustBreaker(BigLongDoubleDoubleArray.estimateRamBytes(size), false);
+            return new BigLongDoubleDoubleArray(size, this, clearOnResize);
+        } else {
+            return validate(new ByteArrayAsLongDoubleDoubleArrayWrapper(this, size, clearOnResize));
+        }
     }
 
     /** Resize the array to the exact provided size. */
@@ -903,4 +903,154 @@ public class BigArrays {
         return resize(array, newSize);
     }
 
+    private static final class ByteArrayAsLongDoubleDoubleArrayWrapper extends AbstractArrayWrapper implements LongDoubleDoubleArray {
+
+        private static final int ELEMENT_SHIFT = 5;
+
+        private final byte[] array;
+
+        ByteArrayAsLongDoubleDoubleArrayWrapper(BigArrays bigArrays, long size, boolean clearOnResize) {
+            super(bigArrays, size, null, clearOnResize);
+            assert size >= 0 && size <= PageCacheRecycler.LONG_PAGE_SIZE;
+            this.array = new byte[(int) size << ELEMENT_SHIFT];
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
+        }
+
+        @Override
+        public long getLong0(long index) {
+            assert index >= 0 && index < size();
+            return (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << ELEMENT_SHIFT);
+        }
+
+        @Override
+        public double getDouble0(long index) {
+            assert index >= 0 && index < size();
+            return (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) (index << ELEMENT_SHIFT) + Long.BYTES);
+        }
+
+        @Override
+        public double getDouble1(long index) {
+            assert index >= 0 && index < size();
+            return (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) (index << ELEMENT_SHIFT) + 16);
+        }
+
+        @Override
+        public void set(long index, long lValue0, double dValue0, double dValue1) {
+            assert index >= 0 && index < size();
+            VH_PLATFORM_NATIVE_LONG.set(array, (int) index << ELEMENT_SHIFT, lValue0);
+            VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) (index << ELEMENT_SHIFT) + Long.BYTES, dValue0);
+            VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) (index << ELEMENT_SHIFT) + 16, dValue1);
+        }
+
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            assert index >= 0 && index < size();
+            System.arraycopy(buf, offset << ELEMENT_SHIFT, array, (int) index << ELEMENT_SHIFT, len << ELEMENT_SHIFT);
+        }
+
+        @Override
+        public void increment(long index, long lValue0Inc, double dValue0Inc, double dValue1Inc) {
+            assert index >= 0 && index < size();
+            final int offset = (int) index << ELEMENT_SHIFT;
+            var newLong0 = (long) VH_PLATFORM_NATIVE_LONG.get(array, offset) + lValue0Inc;
+            var newDouble0 = (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, offset + Long.BYTES) + dValue0Inc;
+            var newDouble1 = (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, offset + 16) + dValue1Inc;
+            VH_PLATFORM_NATIVE_LONG.set(array, offset, newLong0);
+            VH_PLATFORM_NATIVE_DOUBLE.set(array, offset + Long.BYTES, newDouble0);
+            VH_PLATFORM_NATIVE_DOUBLE.set(array, offset + 16, newDouble1);
+        }
+
+        @Override
+        public void get(long index, Holder holder) {
+            assert index >= 0 && index < size();
+            final int offset = (int) index << ELEMENT_SHIFT;
+            holder.setLong0((long) VH_PLATFORM_NATIVE_LONG.get(array, offset));
+            holder.setDouble0((double) VH_PLATFORM_NATIVE_DOUBLE.get(array, offset + 8));
+            holder.setDouble1((double) VH_PLATFORM_NATIVE_DOUBLE.get(array, offset + 16));
+        }
+    }
+
+    /**
+     * Allocates a new {@link LongDoubleArray}.
+     * @param size           the initial length of the array
+     * @param clearOnResize  whether to clear on resize, or not
+     */
+    public LongDoubleArray newLongDoubleArray(long size, boolean clearOnResize) {
+        if (size > PageCacheRecycler.LONG_DOUBLE_PAGE_SIZE || (size >= PageCacheRecycler.LONG_DOUBLE_PAGE_SIZE / 2 && recycler != null)) {
+            // when allocating big arrays, we want to first ensure we have the capacity by
+            // checking with the circuit breaker before attempting to allocate
+            adjustBreaker(BigLongDoubleArray.estimateRamBytes(size), false);
+            return new BigLongDoubleArray(size, this, clearOnResize);
+        } else {
+            return validate(new ByteArrayAsLongDoubleArrayWrapper(this, size, clearOnResize));
+        }
+    }
+
+    /** Resize the array to the exact provided size. */
+    public LongDoubleArray resize(LongDoubleArray array, long size) {
+        if (array instanceof BigLongDoubleArray longDoubleArray) {
+            return resizeInPlace(longDoubleArray, size);
+        } else {
+            AbstractArray arr = (AbstractArray) array;
+            final LongDoubleArray newArray = newLongDoubleArray(size, arr.clearOnResize);
+            newArray.set(0, ((ByteArrayAsLongDoubleArrayWrapper) arr).array, 0, (int) Math.min(size, array.size()));
+            array.close();
+            return newArray;
+        }
+    }
+
+    public LongDoubleArray grow(LongDoubleArray array, long minSize) {
+        if (minSize <= array.size()) {
+            return array;
+        }
+        final long newSize = overSize(minSize, PageCacheRecycler.LONG_DOUBLE_PAGE_SIZE, BigLongDoubleArray.ELEMENT_SIZE_IN_BYTES);
+        return resize(array, newSize);
+    }
+
+    private static final class ByteArrayAsLongDoubleArrayWrapper extends AbstractArrayWrapper implements LongDoubleArray {
+
+        private static final int ELEMENT_SHIFT = 4;
+
+        private final byte[] array;
+
+        ByteArrayAsLongDoubleArrayWrapper(BigArrays bigArrays, long size, boolean clearOnResize) {
+            super(bigArrays, size, null, clearOnResize);
+            assert size >= 0 && size <= PageCacheRecycler.LONG_PAGE_SIZE;
+            this.array = new byte[(int) size << ELEMENT_SHIFT];
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
+        }
+
+        @Override
+        public long getLong(long index) {
+            assert index >= 0 && index < size();
+            return (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << ELEMENT_SHIFT);
+        }
+
+        @Override
+        public double getDouble(long index) {
+            assert index >= 0 && index < size();
+            return (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) (index << ELEMENT_SHIFT) + Long.BYTES);
+        }
+
+        @Override
+        public void set(long index, long lValue, double dValue) {
+            assert index >= 0 && index < size();
+            VH_PLATFORM_NATIVE_LONG.set(array, (int) index << ELEMENT_SHIFT, lValue);
+            VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) (index << ELEMENT_SHIFT) + Long.BYTES, dValue);
+        }
+
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            assert index >= 0 && index < size();
+            System.arraycopy(buf, offset << ELEMENT_SHIFT, array, (int) index << ELEMENT_SHIFT, len << ELEMENT_SHIFT);
+        }
+    }
 }

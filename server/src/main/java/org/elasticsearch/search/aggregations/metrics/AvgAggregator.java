@@ -31,8 +31,6 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     LongDoubleDoubleArray array;
 
-    LongDoubleDoubleArray.OpaqueIndex opaqueIndex;
-
     LongDoubleDoubleArray.Holder holder;
 
     DocValueFormat format;
@@ -51,7 +49,6 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             array = bigArrays.newLongDoubleDoubleArray(1, true);
-            opaqueIndex = new LongDoubleDoubleArray.OpaqueIndex();
             holder = new LongDoubleDoubleArray.Holder();
         }
     }

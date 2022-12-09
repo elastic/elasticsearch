@@ -76,6 +76,7 @@ public class PageCacheRecycler {
     public static final int DOUBLE_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Double.BYTES;
     public static final int BYTE_PAGE_SIZE = PAGE_SIZE_IN_BYTES;
 
+    public static final int LONG_DOUBLE_PAGE_SIZE = BigLongDoubleArray.ELEMENTS_PER_PAGE;
     public static final int LONG_DOUBLE_DOUBLE_PAGE_SIZE = BigLongDoubleDoubleArray.ELEMENTS_PER_PAGE;
 
     private final Recycler<byte[]> bytePage;

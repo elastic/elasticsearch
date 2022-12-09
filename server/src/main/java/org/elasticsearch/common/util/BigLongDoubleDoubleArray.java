@@ -42,17 +42,25 @@ final class BigLongDoubleDoubleArray extends AbstractBigArray.PowerOfTwoAbstract
         }
     }
 
+    static int specialPageIndex(long index) {
+        return (int) (index >>> 9);
+    }
+
+    static int specialIndexInPage(long index) {
+        return (int) (index & 0x1FF);
+    }
+
     @Override
     public long getLong0(long index) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = specialPageIndex(index);
+        final int indexInPage = specialIndexInPage(index);
         return (long) VH_PLATFORM_NATIVE_LONG.get(pages[pageIndex], indexInPage << ELEMENT_SHIFT);
     }
 
     @Override
     public double getDouble0(long index) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = specialPageIndex(index);
+        final int indexInPage = specialIndexInPage(index);
         // + prev all elements, which is one long
         var d = (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], (indexInPage << ELEMENT_SHIFT) + 8);
         return d;
@@ -60,16 +68,16 @@ final class BigLongDoubleDoubleArray extends AbstractBigArray.PowerOfTwoAbstract
 
     @Override
     public double getDouble1(long index) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = specialPageIndex(index);
+        final int indexInPage = specialIndexInPage(index);
         // + prev all elements, which is one long and one double
         return (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], (indexInPage << ELEMENT_SHIFT) + 16);
     }
 
     @Override
     public void set(long index, long lValue0, double dValue0, double dValue1) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = specialPageIndex(index);
+        final int indexInPage = specialIndexInPage(index);
         final byte[] page = pages[pageIndex];
         final int offset = indexInPage << ELEMENT_SHIFT;
         VH_PLATFORM_NATIVE_LONG.set(page, offset, lValue0);
@@ -80,11 +88,11 @@ final class BigLongDoubleDoubleArray extends AbstractBigArray.PowerOfTwoAbstract
 
     @Override
     public void increment(long index, long lValue0Inc, double dValue0Inc, double dValue1Inc) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = specialPageIndex(index);
+        final int indexInPage = specialIndexInPage(index);
         final byte[] page = pages[pageIndex];
         final int offset = indexInPage << ELEMENT_SHIFT;
-        var newLong0 = (long) VH_PLATFORM_NATIVE_LONG.get(pages[pageIndex], offset) + +lValue0Inc;
+        var newLong0 = (long) VH_PLATFORM_NATIVE_LONG.get(pages[pageIndex], offset) + lValue0Inc;
         var newDouble0 = (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], offset + 8) + dValue0Inc;
         var newDouble1 = (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], offset + 16) + dValue1Inc;
         VH_PLATFORM_NATIVE_LONG.set(page, offset, newLong0);
@@ -94,13 +102,18 @@ final class BigLongDoubleDoubleArray extends AbstractBigArray.PowerOfTwoAbstract
 
     @Override
     public void get(long index, Holder holder) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = specialPageIndex(index);
+        final int indexInPage = specialIndexInPage(index);
         final byte[] page = pages[pageIndex];
         final int offset = indexInPage << ELEMENT_SHIFT;
         holder.setLong0((long) VH_PLATFORM_NATIVE_LONG.get(page, offset));
         holder.setDouble0((double) VH_PLATFORM_NATIVE_DOUBLE.get(page, offset + 8));
         holder.setDouble1((double) VH_PLATFORM_NATIVE_DOUBLE.get(page, offset + 16));
+    }
+
+    @Override
+    public void set(long index, byte[] buf, int offset, int len) {
+        set(index, buf, offset, len, pages, ELEMENT_SHIFT);
     }
 
     /** Changes the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */

@@ -601,6 +601,53 @@ public class CoordinationStateTests extends ESTestCase {
         cs2.handlePublishRequest(new PublishRequest(state2));
     }
 
+    public void testHandlePublishRequestPreservesLastCommittedData() {
+        VotingConfiguration initialConfig = VotingConfiguration.of(node1);
+        ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);
+        cs1.setInitialState(state1);
+        StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
+        Join v1 = cs1.handleStartJoin(startJoinRequest1);
+        if (randomBoolean()) {
+            assertTrue(cs1.handleJoin(v1));
+            assertTrue(cs1.electionWon());
+        }
+
+        VotingConfiguration newConfig = VotingConfiguration.of(node2);
+        ClusterState state2 = clusterState(startJoinRequest1.getTerm(), randomLongBetween(1, 10), node1, initialConfig, newConfig, 13L);
+        PublishResponse publishResponse = cs1.handlePublishRequest(new PublishRequest(state2));
+        assertThat(publishResponse.getTerm(), equalTo(state2.term()));
+        assertThat(publishResponse.getVersion(), equalTo(state2.version()));
+        assertThat(cs1.getLastAcceptedState(), equalTo(state2));
+        assertThat(value(cs1.getLastAcceptedState()), equalTo(13L));
+
+        assertEquals(initialConfig, cs1.getLastCommittedConfiguration());
+        assertEquals(newConfig, cs1.getLastAcceptedConfiguration());
+        assertFalse(cs1.getLastAcceptedState().metadata().clusterUUIDCommitted());
+
+        cs1.handleCommit(new ApplyCommitRequest(node1, startJoinRequest1.getTerm(), state2.version()));
+
+        assertEquals(newConfig, cs1.getLastCommittedConfiguration());
+        assertEquals(newConfig, cs1.getLastAcceptedConfiguration());
+        assertTrue(cs1.getLastAcceptedState().metadata().clusterUUIDCommitted());
+
+        ClusterState state3 = clusterState(
+            startJoinRequest1.getTerm(),
+            state2.version() + randomLongBetween(1, 10),
+            node1,
+            initialConfig,
+            newConfig,
+            15L
+        );
+        cs1.handlePublishRequest(new PublishRequest(state3));
+
+        assertThat(cs1.getLastAcceptedState().version(), equalTo(state3.version()));
+        assertThat(cs1.getLastAcceptedState().stateUUID(), equalTo(state3.stateUUID()));
+        assertThat(value(cs1.getLastAcceptedState()), equalTo(15L));
+        assertTrue(cs1.getLastAcceptedState().metadata().clusterUUIDCommitted());
+        assertEquals(newConfig, cs1.getLastCommittedConfiguration());
+        assertEquals(newConfig, cs1.getLastAcceptedConfiguration());
+    }
+
     public void testHandlePublishResponseWithCommit() {
         VotingConfiguration initialConfig = VotingConfiguration.of(node1);
         ClusterState state1 = clusterState(0L, 0L, node1, initialConfig, initialConfig, 42L);

@@ -389,10 +389,43 @@ public class CoordinationState {
             clusterState.version(),
             clusterState.term()
         );
-        persistedState.setLastAcceptedState(clusterState);
-        assert getLastAcceptedState() == clusterState;
+
+        var stateToAccept = withClusterUuidCommittedFlag(
+            withLastCommittedConfiguration(clusterState, getLastCommittedConfiguration()),
+            getLastAcceptedState().metadata().clusterUUIDCommitted()
+        );
+
+        persistedState.setLastAcceptedState(stateToAccept);
+        assert getLastAcceptedState() == stateToAccept;
+        assert stateToAccept.term() == clusterState.term();
+        assert stateToAccept.version() == clusterState.version();
 
         return new PublishResponse(clusterState.term(), clusterState.version());
+    }
+
+    static ClusterState withLastCommittedConfiguration(ClusterState clusterState, VotingConfiguration lastCommittedConfiguration) {
+        if (clusterState.getLastCommittedConfiguration().equals(lastCommittedConfiguration)) {
+            return clusterState;
+        }
+        return ClusterState.builder(clusterState)
+            .metadata(
+                clusterState.metadata()
+                    .withCoordinationMetadata(
+                        CoordinationMetadata.builder(clusterState.coordinationMetadata())
+                            .lastCommittedConfiguration(lastCommittedConfiguration)
+                            .build()
+                    )
+            )
+            .build();
+    }
+
+    static ClusterState withClusterUuidCommittedFlag(ClusterState clusterState, boolean clusterUUIDCommitted) {
+        if (clusterState.metadata().clusterUUIDCommitted() == clusterUUIDCommitted) {
+            return clusterState;
+        }
+        return ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).clusterUUIDCommitted(clusterUUIDCommitted))
+            .build();
     }
 
     /**

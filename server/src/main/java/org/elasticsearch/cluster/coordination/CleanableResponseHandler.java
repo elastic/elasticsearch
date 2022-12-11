@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 
 /**
@@ -26,6 +27,7 @@ public class CleanableResponseHandler<T extends TransportResponse> extends Actio
     }
 
     public void runCleanup() {
+        assert ThreadPool.assertCurrentThreadPool(); // should only be called from tests which simulate abrupt node restarts
         cleanup.run();
     }
 }

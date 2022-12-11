@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
 
-public class TrainedModelAssignmentMetadataTests extends AbstractXContentSerializingTestCase<TrainedModelAssignmentMetadata> {
+public class TrainedModelAssignmentMetadataTests extends AbstractChunkedSerializingTestCase<TrainedModelAssignmentMetadata> {
 
     public static TrainedModelAssignmentMetadata randomInstance() {
         LinkedHashMap<String, TrainedModelAssignment> map = Stream.generate(() -> randomAlphaOfLength(10))
@@ -72,4 +72,8 @@ public class TrainedModelAssignmentMetadataTests extends AbstractXContentSeriali
         );
     }
 
+    @Override
+    protected boolean isFragment() {
+        return true;
+    }
 }

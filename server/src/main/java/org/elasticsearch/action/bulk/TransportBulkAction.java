@@ -789,6 +789,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ingestService.executeBulkRequest(
             original.numberOfActions(),
             () -> bulkRequestModifier,
+            bulkRequestModifier::markItemAsDropped,
             bulkRequestModifier::markItemAsFailed,
             (originalThread, exception) -> {
                 if (exception != null) {
@@ -832,7 +833,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 }
             },
-            bulkRequestModifier::markItemAsDropped,
             executorName
         );
     }

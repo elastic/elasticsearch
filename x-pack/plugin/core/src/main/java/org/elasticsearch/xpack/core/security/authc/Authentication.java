@@ -328,10 +328,7 @@ public final class Authentication implements ToXContentObject {
      * Returns {@code true} if the effective user belongs to a realm under a domain.
      */
     boolean isAssignedToDomain() {
-        if (isFailedRunAs()) {
-            return false;
-        }
-        return getEffectiveSubject().getRealm().getDomain() != null;
+        return getDomain() != null;
     }
 
     // Package private for tests

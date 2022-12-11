@@ -2,4 +2,5 @@ pr: 92259
 summary: Include last-committed data in publication
 area: Cluster Coordination
 type: bug
-issues: []
+issues:
+ - 90158

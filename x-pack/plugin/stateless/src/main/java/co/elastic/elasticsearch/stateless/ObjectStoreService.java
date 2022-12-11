@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class ObjectStoreService extends AbstractLifecycleComponent {
@@ -36,10 +37,35 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     public static final Setting<String> CLIENT = Setting.simpleString("stateless.object_store.client", Setting.Property.NodeScope);
 
     public enum ObjectStoreType {
-        FS,
-        S3,
-        GCS,
-        AZURE;
+        FS((bucket, builder) -> builder.put("location", bucket), (client, builder) -> {}, false),
+        S3((bucket, builder) -> builder.put("bucket", bucket), (client, builder) -> builder.put("client", client), true),
+        GCS((bucket, builder) -> builder.put("bucket", bucket), (client, builder) -> builder.put("client", client), true),
+        AZURE((bucket, builder) -> builder.put("container", bucket), (client, builder) -> builder.put("client", client), true);
+
+        private final BiConsumer<String, Settings.Builder> bucketConsumer;
+        private final BiConsumer<String, Settings.Builder> clientConsumer;
+        private final boolean needsClient;
+
+        ObjectStoreType(
+            BiConsumer<String, Settings.Builder> bucketConsumer,
+            BiConsumer<String, Settings.Builder> clientConsumer,
+            boolean needsClient
+        ) {
+            this.bucketConsumer = bucketConsumer;
+            this.clientConsumer = clientConsumer;
+            this.needsClient = needsClient;
+        }
+
+        public Settings repositorySettings(String bucket, String client) {
+            Settings.Builder builder = Settings.builder();
+            bucketConsumer.accept(bucket, builder);
+            clientConsumer.accept(client, builder);
+            return builder.build();
+        }
+
+        public boolean needsClient() {
+            return needsClient;
+        }
 
         @Override
         public String toString() {
@@ -63,7 +89,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 if (bucket.isEmpty()) {
                     throw new IllegalArgumentException("setting " + BUCKET.getKey() + " must be set for an object store of type " + value);
                 }
-                if (value.equals(ObjectStoreType.S3) || value.equals(ObjectStoreType.GCS) || value.equals(ObjectStoreType.AZURE)) {
+                if (value.needsClient()) {
                     if (client.isEmpty()) {
                         throw new IllegalArgumentException(
                             "setting " + CLIENT.getKey() + " must be set for an object store of type " + value
@@ -105,18 +131,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         String bucket = BUCKET.get(settings);
         String client = CLIENT.get(settings);
 
-        Settings.Builder builder = Settings.builder();
-        if (type.equals(ObjectStoreType.FS)) {
-            builder = builder.put("location", bucket);
-        } else if (type.equals(ObjectStoreType.S3)) {
-            builder = builder.put("bucket", bucket).put("client", client);
-        } else if (type.equals(ObjectStoreType.GCS)) {
-            builder = builder.put("bucket", bucket).put("client", client);
-        } else if (type.equals(ObjectStoreType.AZURE)) {
-            builder = builder.put("container", bucket).put("client", client);
-        }
-
-        return new RepositoryMetadata(Stateless.NAME, type.toString(), builder.build());
+        return new RepositoryMetadata(Stateless.NAME, type.toString(), type.repositorySettings(bucket, client));
     }
 
     @Override

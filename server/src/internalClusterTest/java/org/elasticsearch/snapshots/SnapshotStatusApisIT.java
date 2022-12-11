@@ -661,8 +661,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final var waitForCompletion = randomBoolean();
         final var createsListener = new PlainActionFuture<Void>();
         final var createsGroupedListener = new GroupedActionListener<CreateSnapshotResponse>(
-            createsListener.map(ignored -> null),
-            snapshotNames.length
+            snapshotNames.length,
+            createsListener.map(ignored -> null)
         );
         for (final var snapshotName : snapshotNames) {
             clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)

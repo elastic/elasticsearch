@@ -70,6 +70,22 @@ import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMA
  * Authentication is serialized and travels across the cluster nodes as the sub-requests are handled,
  * and can also be cached by long-running jobs that continue to act on behalf of the user, beyond
  * the lifetime of the original request.
+ *
+ * The authentication consists of two {@link Subject}s
+ * <ul>
+ *     <li>{@link #authenticatingSubject} performs the authentication, i.e. it provides a credential.</li>
+ *     <li>{@link #effectiveSubject} The subject that {@link #authenticatingSubject} impersonates ({@link #isRunAs()})</li>
+ * </ul>
+ * If {@link #isRunAs()} is {@code false}, the two {@link Subject}s will be the same object.
+ *
+ * Authentication also has a {@link #type} that indicates which mechanism the {@link #authenticatingSubject}
+ * uses to perform the authentication.
+ *
+ * The Authentication's version is its {@link Subject}'s version, i.e. {@code getEffectiveSubject().getVersion()}.
+ * It is guaranteed that the versions are identical for the two Subjects. Hence {@code getAuthenticatingSubject().getVersion()}
+ * will give out the same result. But using {@code getEffectiveSubject()} is more idiomatic since most callers
+ * of this class should just need to know about the {@link #effectiveSubject}. That is, often times, the caller
+ * begins with {@code authentication.getEffectiveSubject()} for interrogating an Authentication object.
  */
 public final class Authentication implements ToXContentObject {
 
@@ -167,22 +183,8 @@ public final class Authentication implements ToXContentObject {
         return authenticatingSubject != effectiveSubject;
     }
 
-    /**
-     * Get the realm where the effective user comes from.
-     * The effective user is the es-security-runas-user if present or the authenticated user.
-     *
-     * Use {@code getEffectiveSubject().getRealm()} instead.
-     */
-    @Deprecated
-    public RealmRef getSourceRealm() {
-        // TODO: This code retains the existing behaviour which is slightly wrong because
-        // when run-as lookup fails, the effectiveSubject will have a null realm. In this
-        // case, the code returns the authenticatingSubject's realm. This is wrong in theory
-        // because it is not the intention of this method. In practice, it does not matter
-        // because failed lookup will be rejected at authZ time. But fixing it causes test
-        // failures. So leave it for now.
-        final RealmRef sourceRealm = effectiveSubject.getRealm();
-        return sourceRealm == null ? authenticatingSubject.getRealm() : sourceRealm;
+    public boolean isFailedRunAs() {
+        return isRunAs() && effectiveSubject.getRealm() == null;
     }
 
     /**
@@ -228,9 +230,6 @@ public final class Authentication implements ToXContentObject {
             );
 
         }
-        if (isAssignedToDomain() && false == newAuthentication.isAssignedToDomain()) {
-            logger.info("Rewriting authentication [" + this + "] without domain");
-        }
         return newAuthentication;
     }
 
@@ -262,7 +261,6 @@ public final class Authentication implements ToXContentObject {
     public Authentication token() {
         assert false == isServiceAccount();
         final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
-        assert Objects.equals(getDomain(), newTokenAuthentication.getDomain());
         return newTokenAuthentication;
     }
 
@@ -325,14 +323,15 @@ public final class Authentication implements ToXContentObject {
         }
     }
 
+    // Package private for tests
     /**
      * Returns {@code true} if the effective user belongs to a realm under a domain.
-     * See also {@link #getDomain()} and {@link #getSourceRealm()}.
      */
-    public boolean isAssignedToDomain() {
+    boolean isAssignedToDomain() {
         return getDomain() != null;
     }
 
+    // Package private for tests
     /**
      * Returns the {@link RealmDomain} that the effective user belongs to.
      * A user belongs to a realm which in turn belongs to a domain.
@@ -340,8 +339,12 @@ public final class Authentication implements ToXContentObject {
      * The same username can be authenticated by different realms (e.g. with different credential types),
      * but resources created across realms cannot be accessed unless the realms are also part of the same domain.
      */
-    public @Nullable RealmDomain getDomain() {
-        return getSourceRealm().getDomain();
+    @Nullable
+    RealmDomain getDomain() {
+        if (isFailedRunAs()) {
+            return null;
+        }
+        return getEffectiveSubject().getRealm().getDomain();
     }
 
     public boolean isAuthenticatedWithServiceAccount() {
@@ -861,6 +864,7 @@ public final class Authentication implements ToXContentObject {
 
     private static RealmRef maybeRewriteRealmRef(Version streamVersion, RealmRef realmRef) {
         if (realmRef != null && realmRef.getDomain() != null && streamVersion.before(VERSION_REALM_DOMAINS)) {
+            logger.info("Rewriting realm [" + realmRef + "] without domain");
             // security domain erasure
             new RealmRef(realmRef.getName(), realmRef.getType(), realmRef.getNodeName(), null);
         }

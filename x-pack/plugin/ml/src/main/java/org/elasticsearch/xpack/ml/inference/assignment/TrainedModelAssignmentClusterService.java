@@ -729,7 +729,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         final String modelId = request.getModelId();
         final String nodeId = request.getNodeId();
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
-        logger.trace(() -> format("[%s] [%s] current metadata before update %s", modelId, nodeId, Strings.toString(metadata)));
+        logger.trace(() -> format("[%s] [%s] current metadata before update %s", modelId, nodeId, Strings.toString(metadata, false)));
         final TrainedModelAssignment existingAssignment = metadata.getModelAssignment(modelId);
         final TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
         // If state is stopped, this indicates the node process is closed, remove the node from the assignment

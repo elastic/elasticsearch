@@ -241,6 +241,6 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, false);
     }
 }

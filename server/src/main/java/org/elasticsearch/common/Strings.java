@@ -755,8 +755,8 @@ public class Strings {
      * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
      */
     @Deprecated
-    public static String toString(ChunkedToXContent chunkedToXContent) {
-        return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent));
+    public static String toString(ChunkedToXContent chunkedToXContent, boolean isFragment) {
+        return toString(ChunkedToXContent.wrapAsXContent(chunkedToXContent, isFragment));
     }
 
     /**

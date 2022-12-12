@@ -148,7 +148,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
                   }
                 }
               ]
-            }""".replaceAll("\\s+", ""), Strings.toString(response));
+            }""".replaceAll("\\s+", ""), Strings.toString(response, false));
     }
 
     private static FieldCapabilitiesResponse createSimpleResponse() {

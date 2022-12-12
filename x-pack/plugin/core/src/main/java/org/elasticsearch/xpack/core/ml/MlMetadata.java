@@ -202,7 +202,7 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public final String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, false);
     }
 
     @Override

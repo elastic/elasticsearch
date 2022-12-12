@@ -1490,17 +1490,21 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     // deserialized from the resulting JSON
     private boolean assertPreviousStateConsistency(ClusterStatePublicationEvent clusterStatePublicationEvent) {
         assert clusterStatePublicationEvent.getOldState() == coordinationState.get().getLastAcceptedState()
-            || XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(clusterStatePublicationEvent.getOldState()), false)
+            || XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                Strings.toString(clusterStatePublicationEvent.getOldState(), true),
+                false
+            )
                 .equals(
                     XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
-                        Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())),
+                        Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()), true),
                         false
                     )
                 )
-            : Strings.toString(clusterStatePublicationEvent.getOldState())
+            : Strings.toString(clusterStatePublicationEvent.getOldState(), true)
                 + " vs "
-                + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
+                + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()), true);
         return true;
     }
 

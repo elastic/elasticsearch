@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -62,6 +63,7 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92307")
 public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTestCase {
     DiscoveryNode node1;
     DiscoveryNode node2;

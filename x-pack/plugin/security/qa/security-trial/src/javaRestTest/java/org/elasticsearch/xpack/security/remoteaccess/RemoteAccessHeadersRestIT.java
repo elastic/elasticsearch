@@ -28,7 +28,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
@@ -41,16 +40,23 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -69,23 +75,100 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
     }
 
     public void testRemoteAccessHeadersSent() throws Exception {
-        try (MockTransportService remoteTransport = startTransport("node0", new CopyOnWriteArrayList<>(), Version.CURRENT, threadPool)) {
+        final String remoteNodeName = "remoteNode";
+        final String clusterCredential = randomAlphaOfLengthBetween(42, 100);
+        final ConcurrentHashMap<String, Map<String, String>> capturedHeadersByActionName = new ConcurrentHashMap<>();
+        try (
+            MockTransportService remoteTransport = startTransport(
+                remoteNodeName,
+                new CopyOnWriteArrayList<>(),
+                threadPool,
+                capturedHeadersByActionName
+            )
+        ) {
             final DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
-            updateRemoteClusterSettings(
-                Map.of(
-                    "authorization",
-                    "ZmU0SzdZUUJkRUZzTC1jMlZPalE6M2wxbG9KZWFRVXlkT3RPUzJaU0tsdw==",
-                    "seeds",
-                    remoteNode.getAddress().toString()
-                )
-            );
+            updateRemoteClusterSettings(Map.of("authorization", clusterCredential, "seeds", remoteNode.getAddress().toString()));
             final Request searchRequest = new Request("GET", "/my_remote_cluster:test_idx/_search");
             assertOK(client().performRequest(searchRequest));
+            assertThat(
+                capturedHeadersByActionName.get(SearchAction.NAME).keySet(),
+                contains(
+                    RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
+                    SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER
+                )
+            );
         }
     }
 
-    // TODO
-    private static void updateRemoteClusterSettings(Map<String, Object> settings) throws IOException {
+    private static MockTransportService startTransport(
+        final String nodeName,
+        final List<DiscoveryNode> knownNodes,
+        final ThreadPool threadPool,
+        final Map<String, Map<String, String>> capturedHeadersByActionName
+    ) {
+        boolean success = false;
+        final Settings settings = Settings.builder().put("node.name", nodeName).build();
+        final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
+        final MockTransportService newService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
+        try {
+            newService.registerRequestHandler(
+                ClusterStateAction.NAME,
+                ThreadPool.Names.SAME,
+                ClusterStateRequest::new,
+                (request, channel, task) -> {
+                    channel.sendResponse(new ClusterStateResponse(clusterName, ClusterState.builder(clusterName).build(), false));
+                }
+            );
+            newService.registerRequestHandler(
+                ClusterSearchShardsAction.NAME,
+                ThreadPool.Names.SAME,
+                ClusterSearchShardsRequest::new,
+                (request, channel, task) -> {
+                    capturedHeadersByActionName.put(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()));
+                    channel.sendResponse(
+                        new ClusterSearchShardsResponse(
+                            new ClusterSearchShardsGroup[0],
+                            knownNodes.toArray(new DiscoveryNode[0]),
+                            Collections.emptyMap()
+                        )
+                    );
+                }
+            );
+            newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {
+                capturedHeadersByActionName.put(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()));
+                channel.sendResponse(
+                    new SearchResponse(
+                        new InternalSearchResponse(
+                            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                            InternalAggregations.EMPTY,
+                            null,
+                            null,
+                            false,
+                            null,
+                            1
+                        ),
+                        null,
+                        1,
+                        1,
+                        0,
+                        100,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY
+                    )
+                );
+            });
+            newService.start();
+            newService.acceptIncomingRequests();
+            success = true;
+            return newService;
+        } finally {
+            if (success == false) {
+                newService.close();
+            }
+        }
+    }
+
+    private static void updateRemoteClusterSettings(final Map<String, Object> settings) throws IOException {
         final Request request = new Request("PUT", "/_cluster/settings");
         request.setEntity(buildUpdateSettingsRequestBody(settings));
         final Response response = adminClient().performRequest(request);
@@ -93,7 +176,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    private static HttpEntity buildUpdateSettingsRequestBody(Map<String, Object> settings) throws IOException {
+    private static HttpEntity buildUpdateSettingsRequestBody(final Map<String, Object> settings) throws IOException {
         final String requestBody;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -116,83 +199,4 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
         return new NStringEntity(requestBody, ContentType.APPLICATION_JSON);
     }
 
-    private static MockTransportService startTransport(
-        final String id,
-        final List<DiscoveryNode> knownNodes,
-        final Version version,
-        final ThreadPool threadPool
-    ) {
-        boolean success = false;
-        final Settings s = Settings.builder().put("node.name", id).build();
-        final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(s);
-        final MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, null);
-        try {
-            newService.registerRequestHandler(
-                ClusterSearchShardsAction.NAME,
-                ThreadPool.Names.SAME,
-                ClusterSearchShardsRequest::new,
-                (request, channel, task) -> {
-                    expectRemoteAccessHeaders(threadPool);
-                    channel.sendResponse(
-                        new ClusterSearchShardsResponse(
-                            new ClusterSearchShardsGroup[0],
-                            knownNodes.toArray(new DiscoveryNode[0]),
-                            Collections.emptyMap()
-                        )
-                    );
-                }
-            );
-            newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {
-                expectRemoteAccessHeaders(threadPool);
-                channel.sendResponse(
-                    new SearchResponse(
-                        new InternalSearchResponse(
-                            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-                            InternalAggregations.EMPTY,
-                            null,
-                            null,
-                            false,
-                            null,
-                            1
-                        ),
-                        null,
-                        1,
-                        1,
-                        0,
-                        100,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    )
-                );
-            });
-            newService.registerRequestHandler(
-                ClusterStateAction.NAME,
-                ThreadPool.Names.SAME,
-                ClusterStateRequest::new,
-                (request, channel, task) -> {
-                    assertThat(threadPool.getThreadContext().getHeader("_xpack_security_authentication"), notNullValue());
-                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-                    for (DiscoveryNode node : knownNodes) {
-                        builder.add(node);
-                    }
-                    ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
-                    channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
-                }
-            );
-            newService.start();
-            newService.acceptIncomingRequests();
-            success = true;
-            return newService;
-        } finally {
-            if (success == false) {
-                newService.close();
-            }
-        }
-    }
-
-    private static void expectRemoteAccessHeaders(ThreadPool threadPool) {
-        assertThat(threadPool.getThreadContext().getHeader("_xpack_security_authentication"), nullValue());
-        assertThat(threadPool.getThreadContext().getHeader("_remote_access_authentication"), notNullValue());
-        assertThat(threadPool.getThreadContext().getHeader("_remote_access_cluster_credential"), notNullValue());
-    }
 }

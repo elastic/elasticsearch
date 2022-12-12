@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Iterator;
 
 /**
@@ -40,6 +41,29 @@ public interface ChunkedToXContent {
                 serialization.next().toXContent(builder, params);
             }
             return builder;
+        };
+    }
+
+    /**
+     * Wraps the given instance in a {@link ToXContent} that will fully serialize the instance when serialized.
+     * @param chunkedToXContent instance to wrap
+     * @param isFragment        whether the wrapped instance is a fragment or a well-formed XContent object
+     */
+    static ToXContent wrapAsXContent(ChunkedToXContent chunkedToXContent, boolean isFragment) {
+        return new ToXContent() {
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked(params);
+                while (serialization.hasNext()) {
+                    serialization.next().toXContent(builder, params);
+                }
+                return builder;
+            }
+
+            @Override
+            public boolean isFragment() {
+                return isFragment;
+            }
         };
     }
 }

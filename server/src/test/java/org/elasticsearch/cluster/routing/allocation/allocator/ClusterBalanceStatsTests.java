@@ -155,6 +155,36 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
         );
     }
 
+    public void testStatsForNoIndicesInTier() {
+
+        var clusterState = createClusterState(
+            List.of(
+                newNode("node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
+                newNode("node-3", Set.of(DATA_CONTENT_NODE_ROLE))
+            ),
+            List.of()
+        );
+
+        var stats = ClusterBalanceStats.createFrom(clusterState, TEST_WRITE_LOAD_FORECASTER);
+
+        assertThat(
+            stats,
+            equalTo(
+                new ClusterBalanceStats(
+                    Map.of(
+                        DATA_CONTENT_NODE_ROLE.roleName(),
+                        new ClusterBalanceStats.TierBalanceStats(
+                            new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new ClusterBalanceStats.MetricStats(0.0, 0.0, 0.0, 0.0, 0.0)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
     private static ClusterState createClusterState(List<DiscoveryNode> nodes, List<Tuple<IndexMetadata.Builder, String[]>> indices) {
         var discoveryNodesBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : nodes) {

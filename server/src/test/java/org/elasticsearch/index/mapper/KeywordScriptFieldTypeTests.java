@@ -430,6 +430,6 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     private static KeywordScriptFieldType build(Script script) {
-        return new KeywordScriptFieldType("test", factory(script), script, emptyMap());
+        return new KeywordScriptFieldType("test", factory(script), script, emptyMap(), false);
     }
 }

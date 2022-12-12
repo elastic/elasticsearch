@@ -315,6 +315,6 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private static LongScriptFieldType build(Script script) {
-        return new LongScriptFieldType("test", factory(script), script, emptyMap());
+        return new LongScriptFieldType("test", factory(script), script, emptyMap(), false);
     }
 }

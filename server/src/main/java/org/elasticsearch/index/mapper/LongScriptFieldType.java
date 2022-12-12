@@ -44,7 +44,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
         @Override
         AbstractScriptFieldType<?> createFieldType(String name, LongFieldScript.Factory factory, Script script, Map<String, String> meta) {
-            return new LongScriptFieldType(name, factory, script, meta);
+            return new LongScriptFieldType(name, factory, script, meta, onErrorContinue());
         }
 
         @Override
@@ -62,13 +62,20 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         return new Builder(name).createRuntimeField(LongFieldScript.PARSE_FROM_SOURCE);
     }
 
-    public LongScriptFieldType(String name, LongFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    public LongScriptFieldType(
+        String name,
+        LongFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        boolean onErrorContinue
+    ) {
         super(
             name,
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            onErrorContinue
         );
     }
 

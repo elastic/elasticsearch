@@ -445,6 +445,6 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     private static BooleanScriptFieldType build(Script script) {
-        return new BooleanScriptFieldType("test", factory(script), script, emptyMap());
+        return new BooleanScriptFieldType("test", factory(script), script, emptyMap(), false);
     }
 }

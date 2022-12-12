@@ -52,7 +52,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             Script script,
             Map<String, String> meta
         ) {
-            return new GeoPointScriptFieldType(name, factory, getScript(), meta());
+            return new GeoPointScriptFieldType(name, factory, getScript(), meta(), onErrorContinue());
         }
 
         @Override
@@ -66,13 +66,20 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         }
     });
 
-    GeoPointScriptFieldType(String name, GeoPointFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    GeoPointScriptFieldType(
+        String name,
+        GeoPointFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        boolean onErrorContinue
+    ) {
         super(
             name,
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            onErrorContinue
         );
     }
 

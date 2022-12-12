@@ -285,6 +285,6 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     }
 
     private static IpScriptFieldType build(Script script) {
-        return new IpScriptFieldType("test", factory(script), script, emptyMap());
+        return new IpScriptFieldType("test", factory(script), script, emptyMap(), false);
     }
 }

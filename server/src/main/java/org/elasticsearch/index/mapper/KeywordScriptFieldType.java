@@ -56,7 +56,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             Script script,
             Map<String, String> meta
         ) {
-            return new KeywordScriptFieldType(name, factory, script, meta);
+            return new KeywordScriptFieldType(name, factory, script, meta, onErrorContinue());
         }
 
         @Override
@@ -74,13 +74,20 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         return new Builder(name).createRuntimeField(StringFieldScript.PARSE_FROM_SOURCE);
     }
 
-    public KeywordScriptFieldType(String name, StringFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    public KeywordScriptFieldType(
+        String name,
+        StringFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        boolean onErrorContinue
+    ) {
         super(
             name,
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            onErrorContinue
         );
     }
 

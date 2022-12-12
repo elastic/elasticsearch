@@ -44,18 +44,21 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
+    protected final Boolean onErrorContinue;
 
     AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
         boolean isResultDeterministic,
-        Map<String, String> meta
+        Map<String, String> meta,
+        Boolean onErrorContinue
     ) {
         super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
         this.isResultDeterministic = isResultDeterministic;
+        this.onErrorContinue = onErrorContinue;
     }
 
     @Override
@@ -215,7 +218,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     abstract static class Builder<Factory> extends RuntimeField.Builder {
         private final ScriptContext<Factory> scriptContext;
 
-        final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
+        private final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
             "script",
             true,
             () -> null,
@@ -224,6 +227,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             XContentBuilder::field,
             Objects::toString
         ).setSerializerCheck((id, ic, v) -> ic);
+
+        private final FieldMapper.Parameter<String> onScriptError = FieldMapper.Parameter.onScriptErrorParam(m -> m.onScriptError, script);
 
         Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
@@ -287,6 +292,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         protected List<FieldMapper.Parameter<?>> getParameters() {
             List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
             parameters.add(script);
+            parameters.add(onScriptError);
             return Collections.unmodifiableList(parameters);
         }
 
@@ -295,6 +301,10 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
                 return DEFAULT_SCRIPT;
             }
             return script.get();
+        }
+
+        protected boolean onErrorContinue() {
+            return onScriptError.get().equals("continue");
         }
     }
 }

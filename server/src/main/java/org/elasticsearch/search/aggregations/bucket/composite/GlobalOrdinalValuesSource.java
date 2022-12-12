@@ -246,14 +246,12 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         }
     }
 
-    public void updateHighestCompetitiveValue(int slot, boolean updateCompetitiveBounds) throws IOException {
+    public void updateHighestCompetitiveValue(int slot) throws IOException {
         highestCompetitiveValueGlobalOrd = values.get(slot);
-        logger.debug("Highest observed set to [{}]", highestCompetitiveValueGlobalOrd);
-        if (updateCompetitiveBounds) {
-            final CompetitiveIterator competitiveIterator = currentCompetitiveIterator;
-            if (competitiveIterator != null) {
-                competitiveIterator.updateBounds();
-            }
+        logger.trace("Highest observed set to [{}]", highestCompetitiveValueGlobalOrd);
+        final CompetitiveIterator competitiveIterator = currentCompetitiveIterator;
+        if (competitiveIterator != null) {
+            competitiveIterator.updateBounds();
         }
     }
 

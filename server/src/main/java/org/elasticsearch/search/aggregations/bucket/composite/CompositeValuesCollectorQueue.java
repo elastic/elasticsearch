@@ -51,8 +51,8 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     }
 
     @FunctionalInterface
-    private interface TopChangedListener {
-        void topChanged(int slot, boolean updateCompetitiveBounds) throws IOException;
+    private interface CompetitiveBoundsChangedListener {
+        void boundsChanged(int topSlot) throws IOException;
     }
 
     private static final Logger logger = LogManager.getLogger(CompositeValuesCollectorQueue.class);
@@ -64,7 +64,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     private final int maxSize;
     private final Map<Slot, Integer> map;
     private final SingleDimensionValuesSource<?>[] arrays;
-    private final TopChangedListener topChangedListener;
+    private final CompetitiveBoundsChangedListener competitiveBoundsChangedListener;
 
     private LongArray docCounts;
     private boolean afterKeyIsSet = false;
@@ -84,12 +84,9 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         // If the leading source is a GlobalOrdinalValuesSource we can apply an optimization which requires
         // tracking the highest competitive value.
         if (arrays[0]instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
-            topChangedListener = (slot, updateCompetitiveBounds) -> globalOrdinalValuesSource.updateHighestCompetitiveValue(
-                slot,
-                updateCompetitiveBounds
-            );
+            competitiveBoundsChangedListener = topSlot -> globalOrdinalValuesSource.updateHighestCompetitiveValue(topSlot);
         } else {
-            topChangedListener = null;
+            competitiveBoundsChangedListener = null;
         }
 
         this.map = Maps.newMapWithExpectedSize(size);
@@ -247,8 +244,8 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
 
         // As we are starting to collect from a new segment we need to update the topChangedListener if present
         // and if the queue is full.
-        if (topChangedListener != null && size() >= maxSize) {
-            topChangedListener.topChanged(top(), true);
+        if (competitiveBoundsChangedListener != null && size() >= maxSize) {
+            competitiveBoundsChangedListener.boundsChanged(top());
         }
         return leafBucketCollector;
     }
@@ -342,8 +339,8 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         map.put(new Slot(newSlot), newSlot);
         add(newSlot);
 
-        if (topChangedListener != null) {
-            topChangedListener.topChanged(top(), size() >= maxSize);
+        if (competitiveBoundsChangedListener != null && size() >= maxSize) {
+            competitiveBoundsChangedListener.boundsChanged(top());
         }
         return true;
     }

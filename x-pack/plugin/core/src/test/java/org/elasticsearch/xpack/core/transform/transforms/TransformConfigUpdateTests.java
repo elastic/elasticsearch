@@ -413,7 +413,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
     static class FooSync implements SyncConfig {
 
         @Override
-        public QueryBuilder getRangeQuery(Instant from, TransformCheckpoint newCheckpoint) {
+        public QueryBuilder getRangeQuery(TransformCheckpoint newCheckpoint) {
             return null;
         }
 

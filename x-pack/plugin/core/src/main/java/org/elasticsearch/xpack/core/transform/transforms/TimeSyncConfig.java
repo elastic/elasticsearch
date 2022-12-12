@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -131,14 +130,8 @@ public class TimeSyncConfig implements SyncConfig {
     }
 
     @Override
-    public QueryBuilder getRangeQuery(Instant from, TransformCheckpoint newCheckpoint) {
-        RangeQueryBuilder builder = new RangeQueryBuilder(field);
-        if (from != null) {
-            builder.gte(from.toEpochMilli());
-        }
-        builder.lt(newCheckpoint.getTimeUpperBound());
-        builder.format("epoch_millis");
-        return builder;
+    public QueryBuilder getRangeQuery(TransformCheckpoint newCheckpoint) {
+        return new RangeQueryBuilder(field).lt(newCheckpoint.getTimeUpperBound()).format("epoch_millis");
     }
 
     @Override

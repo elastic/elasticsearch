@@ -11,13 +11,11 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ToXContentObject;
 
-import java.time.Instant;
-
 public interface SyncConfig extends ToXContentObject, NamedWriteable {
 
     String getField();
 
-    QueryBuilder getRangeQuery(Instant from, TransformCheckpoint newCheckpoint);
+    QueryBuilder getRangeQuery(TransformCheckpoint newCheckpoint);
 
     QueryBuilder getRangeQuery(TransformCheckpoint oldCheckpoint, TransformCheckpoint newCheckpoint);
 }

@@ -96,6 +96,14 @@ public class SecurityContext {
         }
     }
 
+    public void setParentAuthorization(AuthorizationEngine.ParentActionAuthorization parentAuthorization) {
+        try {
+            parentAuthorization.writeToThreadContext(threadContext);
+        } catch (IOException e) {
+            throw new AssertionError("failed to write parent authorization to the thread context", e);
+        }
+    }
+
     /**
      * Returns the "secondary authentication" (see {@link SecondaryAuthentication}) information,
      * or {@code null} if the current request does not have a secondary authentication context

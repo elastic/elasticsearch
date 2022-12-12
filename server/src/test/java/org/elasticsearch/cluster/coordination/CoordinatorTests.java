@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -97,6 +98,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92307")
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     public void testCanUpdateClusterStateAfterStabilisation() {
@@ -568,7 +570,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90158")
     public void testUnhealthyLeaderIsReplaced() {
         final AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(HEALTHY, "healthy-info"));
         final int initialClusterSize = between(1, 3);
@@ -1635,8 +1636,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         reason = "test includes assertions about JoinHelper logging",
         value = "org.elasticsearch.cluster.coordination.JoinHelper:INFO"
     )
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91837")
-    public void testCannotJoinClusterWithDifferentUUID() throws IllegalAccessException {
+    public void testCannotJoinClusterWithDifferentUUID() {
         try (Cluster cluster1 = new Cluster(randomIntBetween(1, 3))) {
             cluster1.runRandomly();
             cluster1.stabilise();

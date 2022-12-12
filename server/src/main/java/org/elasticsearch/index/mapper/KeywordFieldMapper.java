@@ -995,12 +995,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
-        if (fieldType().isDimension()) {
-            context.getDimensions().addString(fieldType().name(), value);
-        }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
+
+        if (fieldType().isDimension()) {
+            context.getDimensions().addString(fieldType().name(), binaryValue);
+        }
 
         // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to roll
         // back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only

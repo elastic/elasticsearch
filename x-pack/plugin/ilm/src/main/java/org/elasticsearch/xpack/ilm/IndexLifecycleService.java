@@ -36,7 +36,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -240,9 +239,13 @@ public class IndexLifecycleService
             }
 
             if (safeToStop && OperationMode.STOPPING == currentMode) {
-                submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
+                stopILM();
             }
         }
+    }
+
+    private void stopILM() {
+        submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
     }
 
     @Override
@@ -320,14 +323,7 @@ public class IndexLifecycleService
                 });
             }
 
-            final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
-            final LifecycleOperationMetadata lifecycleOperationMetadata = event.state().metadata().custom(LifecycleOperationMetadata.TYPE);
-            if (lifecycleMetadata != null) {
-                triggerPolicies(event.state(), true);
-            } else if (lifecycleOperationMetadata != null && OperationMode.STOPPING == currentILMMode(event.state())) {
-                // This covers the case where ILM is being stopped before any policies had been created.
-                submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
-            }
+            triggerPolicies(event.state(), true);
         }
     }
 
@@ -376,11 +372,14 @@ public class IndexLifecycleService
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
 
+        OperationMode currentMode = currentILMMode(clusterState);
         if (currentMetadata == null) {
+            if (currentMode == OperationMode.STOPPING) {
+                // There are no policies and ILM is in stopping mode, so stop ILM and get out of here
+                stopILM();
+            }
             return;
         }
-
-        OperationMode currentMode = currentILMMode(clusterState);
 
         if (OperationMode.STOPPED.equals(currentMode)) {
             return;
@@ -460,7 +459,7 @@ public class IndexLifecycleService
         }
 
         if (safeToStop && OperationMode.STOPPING == currentMode) {
-            submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
+            stopILM();
         }
     }
 

@@ -918,8 +918,7 @@ public class Security extends Plugin
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                remoteClusterAuthorizationResolver,
-                clusterService
+                remoteClusterAuthorizationResolver
             )
         );
 

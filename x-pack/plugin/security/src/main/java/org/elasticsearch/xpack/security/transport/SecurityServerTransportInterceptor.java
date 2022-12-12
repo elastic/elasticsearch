@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -33,11 +33,13 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
+import org.elasticsearch.xpack.security.authz.PreAuthorizationUtil;
 
 import java.util.Collections;
 import java.util.Map;
@@ -56,7 +58,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
-    private final ClusterService clusterService;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -66,8 +67,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
-        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
-        ClusterService clusterService
+        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -77,7 +77,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
         this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
-        this.clusterService = clusterService;
     }
 
     @Override
@@ -91,76 +90,81 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
-                // ourselves otherwise we wind up using a version newer than what we can actually send
-                final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
-
-                // Sometimes a system action gets executed like a internal create index request or update mappings request
-                // which means that the user is copied over to system actions so we need to change the user
-                if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-                    securityContext.executeAsSystemUser(
-                        minVersion,
-                        original -> sendWithUser(
+                if (PreAuthorizationUtil.shouldRemoveParentAuthorizationFromThreadContext(connection, action, securityContext)) {
+                    securityContext.executeAfterRemovingParentAuthorization(original -> {
+                        sendRequestInner(
+                            sender,
                             connection,
                             action,
                             request,
                             options,
-                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
-                            sender
-                        )
-                    );
-                } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
-                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
-                        threadPool.getThreadContext(),
-                        securityContext,
-                        minVersion,
-                        (original) -> sendWithUser(
-                            connection,
-                            action,
-                            request,
-                            options,
-                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
-                            sender
-                        )
-                    );
-                } else if (securityContext.getAuthentication() != null
-                    && securityContext.getAuthentication().getEffectiveSubject().getVersion().equals(minVersion) == false) {
-                        // re-write the authentication since we want the authentication version to match the version of the connection
-                        securityContext.executeAfterRewritingAuthentication(original -> {
-                            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
-                                AuthorizationUtils.maybePreAuthorizeChildAction(
-                                    threadPool.getThreadContext(),
-                                    connection,
-                                    request,
-                                    action,
-                                    clusterService.state()
-                                );
-                                sendWithUser(
-                                    connection,
-                                    action,
-                                    request,
-                                    options,
-                                    new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
-                                    sender
-                                );
-                            }
-                        }, minVersion);
-                    } else {
-                        // We need to store the thread context here to avoid that we pollute the context with parent authorization header,
-                        // which we only want to keep for a single transport request.
-                        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
-                            AuthorizationUtils.maybePreAuthorizeChildAction(
-                                threadPool.getThreadContext(),
-                                connection,
-                                request,
-                                action,
-                                clusterService.state()
-                            );
-                            sendWithUser(connection, action, request, options, handler, sender);
-                        }
-                    }
+                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler)
+                        );
+                    });
+                } else {
+                    sendRequestInner(sender, connection, action, request, options, handler);
+                }
             }
         };
+    }
+
+    public <T extends TransportResponse> void sendRequestInner(
+        AsyncSender sender,
+        Transport.Connection connection,
+        String action,
+        TransportRequest request,
+        TransportRequestOptions options,
+        TransportResponseHandler<T> handler
+    ) {
+        // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
+        // ourselves otherwise we wind up using a version newer than what we can actually send
+        final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
+
+        // Sometimes a system action gets executed like a internal create index request or update mappings request
+        // which means that the user is copied over to system actions so we need to change the user
+        if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
+            securityContext.executeAsSystemUser(
+                minVersion,
+                original -> sendWithUser(
+                    connection,
+                    action,
+                    request,
+                    options,
+                    new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                    sender
+                )
+            );
+        } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
+            AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
+                threadPool.getThreadContext(),
+                securityContext,
+                minVersion,
+                (original) -> sendWithUser(
+                    connection,
+                    action,
+                    request,
+                    options,
+                    new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                    sender
+                )
+            );
+        } else if (securityContext.getAuthentication() != null
+            && securityContext.getAuthentication().getEffectiveSubject().getVersion().equals(minVersion) == false) {
+                // re-write the authentication since we want the authentication version to match the version of the connection
+                securityContext.executeAfterRewritingAuthentication(
+                    original -> sendWithUser(
+                        connection,
+                        action,
+                        request,
+                        options,
+                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                        sender
+                    ),
+                    minVersion
+                );
+            } else {
+                sendWithUser(connection, action, request, options, handler, sender);
+            }
     }
 
     private <T extends TransportResponse> void sendWithUser(
@@ -176,6 +180,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             // in tests and may be hit by a user
             assertNoAuthentication(action);
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
+        }
+
+        if (securityContext.getThreadContext().getHeader(AuthorizationEngine.ParentActionAuthorization.THREAD_CONTEXT_KEY) != null) {
+            if (RemoteConnectionManager.resolveRemoteClusterAlias(connection).isPresent()) {
+                assert false : "parent authorization header should not be set for remote cluster requests";
+            }
         }
 
         try {

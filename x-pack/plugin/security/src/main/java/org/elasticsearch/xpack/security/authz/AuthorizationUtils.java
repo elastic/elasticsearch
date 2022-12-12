@@ -6,36 +6,19 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.transport.RemoteConnectionManager;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -60,28 +43,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public final class AuthorizationUtils {
-
-    private static final Logger logger = LogManager.getLogger(AuthorizationUtils.class);
-
-    /**
-     * This map holds parent-child action relationships for which we can optimize authorization
-     * and pre-authorize child actions if the parent action is successfully authorized.
-     * Normally every action would be authorized on a local node on which it's being executed.
-     * Here we define all child actions for which the authorization can be safely skipped
-     * on remote node as they only access a subset of resources.
-     */
-    private static final Map<String, Set<String>> PRE_AUTHORIZED_CHILD_ACTIONS_BY_PARENT = Map.of(
-        "indices:data/read/search",
-        Set.of(
-            "indices:data/read/search[free_context]",
-            "indices:data/read/search[phase/dfs]",
-            "indices:data/read/search[phase/query]",
-            "indices:data/read/search[phase/query/id]",
-            "indices:data/read/search[phase/fetch/id]",
-            "indices:data/read/search[can_match]",
-            "indices:data/read/search[can_match][n]"
-        )
-    );
 
     private static final Predicate<String> INTERNAL_PREDICATE = Automatons.predicate("internal:*");
 
@@ -191,167 +152,5 @@ public final class AuthorizationUtils {
 
     private static boolean isInternalAction(String action) {
         return INTERNAL_PREDICATE.test(action);
-    }
-
-    public static boolean isParentAction(String action) {
-        return PRE_AUTHORIZED_CHILD_ACTIONS_BY_PARENT.containsKey(action);
-    }
-
-    public static boolean shouldPreAuthorizeChildAction(final String parent, final String child) {
-        final Set<String> children = PRE_AUTHORIZED_CHILD_ACTIONS_BY_PARENT.get(parent);
-        return children != null && (parent.equals(child) || children.contains(child));
-    }
-
-    public static void putParentAuthorizationContext(ThreadContext threadContext, AuthorizationEngine.AuthorizationContext context) {
-        AuthorizationEngine.AuthorizationContext existing = threadContext.getTransient(
-            AuthorizationServiceField.PARENT_AUTHORIZATION_CONTEXT_KEY
-        );
-        if (existing == null) {
-            threadContext.putTransient(AuthorizationServiceField.PARENT_AUTHORIZATION_CONTEXT_KEY, context);
-        } else if (existing.getAction().equals(context.getAction()) == false) {
-            throw new AssertionError("parent authorization context already set in thread context");
-        }
-    }
-
-    public static AuthorizationEngine.AuthorizationContext readParentAuthorizationContext(ThreadContext threadContext) {
-        return threadContext.getTransient(AuthorizationServiceField.PARENT_AUTHORIZATION_CONTEXT_KEY);
-    }
-
-    public static void maybePreAuthorizeChildAction(
-        ThreadContext threadContext,
-        Transport.Connection connection,
-        TransportRequest request,
-        String childAction,
-        ClusterState clusterState
-
-    ) {
-        if (RemoteConnectionManager.resolveRemoteClusterAlias(connection).isPresent()) {
-            // We can only pre-authorize actions targeting a node which belongs to the same cluster.
-            if (threadContext.getHeader(ParentActionAuthorization.THREAD_CONTEXT_KEY) != null) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "attempted to send the request ["
-                            + childAction
-                            + "] to the remote cluster ["
-                            + RemoteConnectionManager.resolveRemoteClusterAlias(connection).get()
-                            + "] with the pre-authorization header ["
-                            + threadContext.getHeader(ParentActionAuthorization.THREAD_CONTEXT_KEY)
-                            + "]"
-                    );
-                }
-                throw new AssertionError("pre-authorization not expected to be set for remote cluster requests");
-            }
-            return;
-        }
-
-        final AuthorizationEngine.AuthorizationContext parentContext = readParentAuthorizationContext(threadContext);
-        if (parentContext == null) {
-            return;
-        }
-
-        final IndicesAccessControl indicesAccessControl = parentContext.getIndicesAccessControl();
-        if (indicesAccessControl == null) {
-            // This can happen if the parent request was authorized by index name only - e.g. bulk request
-            // A missing IAC is not an error, but it means we can't safely tie authz of the child action to the parent authz
-            return;
-        }
-
-        // Just a sanity check. If we ended up here, the authz should have been granted.
-        if (indicesAccessControl.isGranted() == false) {
-            return;
-        }
-
-        final IndicesRequest indicesRequest;
-        if (request instanceof IndicesRequest) {
-            indicesRequest = (IndicesRequest) request;
-        } else {
-            // We can only pre-authorize indices request.
-            return;
-        }
-
-        final Role role = RBACEngine.maybeGetRBACEngineRole(parentContext.getAuthorizationInfo());
-        if (role == null) {
-            // If role is null, it means a custom authorization engine is in use, hence we cannot do the optimization here.
-            return;
-        }
-
-        // We can't safely pre-authorize actions if DLS or FLS is configured without passing IAC as well with the authorization result.
-        // For simplicity, we only pre-authorize actions when FLS and DLS are not configured, otherwise we would have to compute and send
-        // indices access control as well, which we want to avoid with this optimization.
-        if (role.hasFieldOrDocumentLevelSecurity()) {
-            return;
-        }
-
-        final String parentAction = parentContext.getAction();
-        if (shouldPreAuthorizeChildAction(parentAction, childAction) == false) {
-            return;
-        }
-
-        if (connection.getNode().equals(clusterState.nodes().getLocalNode())) {
-            // Child actions targeting local (same) node are handled differently and already pre-authorized by parent action.
-            return;
-        }
-
-        final String[] indices = indicesRequest.indices();
-        if (indices == null || indices.length == 0 || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
-            // No indices to check
-            return;
-        }
-
-        // Checks if the parent context has already successfully authorized access to the child's indices.
-        if (Arrays.stream(indices).allMatch(indicesAccessControl::hasIndexPermissions) == false) {
-            return;
-        }
-
-        try {
-            final Optional<ParentActionAuthorization> existingParentAuthorization = Optional.ofNullable(
-                ParentActionAuthorization.readFromThreadContext(threadContext)
-            );
-            if (existingParentAuthorization.isPresent()) {
-                if (existingParentAuthorization.get().action().equals(parentAction)) {
-                    // Single request can fan-out a child action to multiple nodes in the cluster, e.g. node1 and node2.
-                    // Sending a child action to node1 would have already put parent authorization in the thread context.
-                    // To avoid attempting to pre-authorize the same parent action twice we simply return here
-                    // since pre-authorization is already set in the context.
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            "child action [" + childAction + "] of parent action [" + parentAction + "] is already pre-authorized"
-                        );
-                    }
-                    return;
-                } else {
-                    throw new AssertionError(
-                        "Found parent authorization for action ["
-                            + existingParentAuthorization.get().action()
-                            + "] while attempting to pre-authorize child action ["
-                            + childAction
-                            + "] of parent ["
-                            + parentAction
-                            + "]"
-                    );
-                }
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("adding pre-authorization for child action [" + childAction + "] of parent action [" + parentAction + "]");
-                }
-                new ParentActionAuthorization(parentAction).writeToThreadContext(threadContext);
-            }
-        } catch (Exception e) {
-            logger.error("Failed to write authorization to thread context.", e);
-            throw internalError(
-                "Failed to write pre-authorization for child action ["
-                    + childAction
-                    + "] of parent action ["
-                    + parentAction
-                    + "] to the thread context"
-            );
-        }
-    }
-
-    private static ElasticsearchSecurityException internalError(String message) {
-        // When running with assertions enabled (testing) kill the node so that there is a hard failure in CI
-        assert false : message;
-        // Otherwise (production) just throw an exception so that we don't authorize something incorrectly
-        return new ElasticsearchSecurityException(message);
     }
 }

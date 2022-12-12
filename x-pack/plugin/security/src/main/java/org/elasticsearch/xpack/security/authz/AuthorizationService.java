@@ -533,10 +533,8 @@ public class AuthorizationService {
         final String action = requestInfo.getAction();
         securityContext.putIndicesAccessControl(indicesAccessControl);
 
-        if (result.isGranted() && AuthorizationUtils.isParentAction(action)) {
-            AuthorizationContext parentContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
-            AuthorizationUtils.putParentAuthorizationContext(threadContext, parentContext);
-        }
+        final AuthorizationContext parentContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
+        PreAuthorizationUtil.maybeSkipChildrenActionAuthorization(threadContext, request, parentContext);
 
         // if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
@@ -549,7 +547,6 @@ public class AuthorizationService {
                 runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             } else {
                 Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
-                final AuthorizationContext parentContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
                 final RequestInfo aliasesRequestInfo = new RequestInfo(authentication, request, IndicesAliasesAction.NAME, parentContext);
                 authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo, ril -> {
                     resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {

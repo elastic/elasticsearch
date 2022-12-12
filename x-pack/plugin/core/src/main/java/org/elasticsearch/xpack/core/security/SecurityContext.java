@@ -86,6 +86,16 @@ public class SecurityContext {
         return Objects.requireNonNull(threadContext.getTransient(AUTHORIZATION_INFO_KEY), "authorization info is missing from context");
     }
 
+    @Nullable
+    public AuthorizationEngine.ParentActionAuthorization getParentAuthorization() {
+        try {
+            return AuthorizationEngine.ParentActionAuthorization.readFromThreadContext(threadContext);
+        } catch (IOException e) {
+            logger.error("failed to read parent authorization from thread context", e);
+            throw new UncheckedIOException(e);
+        }
+    }
+
     /**
      * Returns the "secondary authentication" (see {@link SecondaryAuthentication}) information,
      * or {@code null} if the current request does not have a secondary authentication context
@@ -179,6 +189,23 @@ public class SecurityContext {
             setAuthentication(authentication.maybeRewriteForOlderVersion(version));
             existingRequestHeaders.forEach((k, v) -> {
                 if (threadContext.getHeader(k) == null) {
+                    threadContext.putHeader(k, v);
+                }
+            });
+            consumer.accept(original);
+        }
+    }
+
+    /**
+     * Executes consumer in a new thread context after removing {@link AuthorizationEngine.ParentActionAuthorization}.
+     * The original context is provided to the consumer. When this method returns, the original context is restored.
+     */
+    public void executeAfterRemovingParentAuthorization(Consumer<StoredContext> consumer) {
+        final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
+        final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            existingRequestHeaders.forEach((k, v) -> {
+                if (AuthorizationEngine.ParentActionAuthorization.THREAD_CONTEXT_KEY.equals(k) == false) {
                     threadContext.putHeader(k, v);
                 }
             });

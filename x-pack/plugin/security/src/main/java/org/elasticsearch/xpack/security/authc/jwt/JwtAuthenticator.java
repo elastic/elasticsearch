@@ -51,11 +51,9 @@ public class JwtAuthenticator implements Releasable {
             this.fallbackClaimNames = Map.of();
             this.jwtFieldValidators = configureFieldValidatorsForIdToken(realmConfig);
         } else {
-            this.fallbackClaimNames = Map.of(
-                "sub",
-                realmConfig.getSetting(JwtRealmSettings.FALLBACK_SUB_CLAIM),
-                "aud",
-                realmConfig.getSetting(JwtRealmSettings.FALLBACK_AUD_CLAIM)
+            this.fallbackClaimNames = Map.ofEntries(
+                Map.entry("sub", realmConfig.getSetting(JwtRealmSettings.FALLBACK_SUB_CLAIM)),
+                Map.entry("aud", realmConfig.getSetting(JwtRealmSettings.FALLBACK_AUD_CLAIM))
             );
             this.jwtFieldValidators = configureFieldValidatorsForAccessToken(realmConfig, fallbackClaimNames);
         }

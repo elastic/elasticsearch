@@ -224,6 +224,7 @@ POST _snapshot/my_repository/snapshot-20200617/_restore
   "include_aliases": true
 }
 ----
+// TEST[skip:illustration purposes only]
 
 . Finally we can verify that the indices health is now `green` via the <<cat-indices,cat indices API>>.
 +
@@ -458,6 +459,7 @@ POST _snapshot/my_repository/snapshot-20200617/_restore
   "include_aliases": true
 }
 ----
+// TEST[skip:illustration purposes only]
 
 . Finally we can verify that the indices health is now `green` via the <<cat-indices,cat indices API>>.
 +

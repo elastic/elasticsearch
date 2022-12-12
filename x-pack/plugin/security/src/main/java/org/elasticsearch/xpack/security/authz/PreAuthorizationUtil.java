@@ -110,12 +110,12 @@ public final class PreAuthorizationUtil {
                     // To avoid attempting to pre-authorize the same parent action twice we simply return here
                     // since pre-authorization is already set in the context.
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Authorization for parent action [" + parentAction + "] is already set in thread context.");
+                        logger.debug("authorization for parent action [" + parentAction + "] is already set in the thread context");
                     }
                     return;
                 } else {
                     throw new AssertionError(
-                        "Found parent authorization for action ["
+                        "found parent authorization for action ["
                             + existingParentAuthorization.get().action()
                             + "] while attempting to set authorization for new parent action ["
                             + parentAction
@@ -124,19 +124,19 @@ public final class PreAuthorizationUtil {
                 }
             } else {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Adding authorization for parent action [" + parentAction + "] to thread context.");
+                    logger.debug("adding authorization for parent action [" + parentAction + "] to the thread context");
                 }
                 new AuthorizationEngine.ParentActionAuthorization(parentAction).writeToThreadContext(threadContext);
             }
         } catch (Exception e) {
-            logger.error("Failed to write parent authorization to thread context.", e);
+            logger.error("failed to write parent authorization to thread context", e);
             throw new ElasticsearchSecurityException(
-                "Failed to write authorization for parent action [" + parentAction + "] to thread context."
+                "Failed to write authorization for parent action [" + parentAction + "] to the thread context"
             );
         }
     }
 
-    public static boolean shouldPreAuthorizeChildAction(final String parent, final String child) {
+    public static boolean shouldPreAuthorizeChildByParentAction(final String parent, final String child) {
         final Set<String> children = PRE_AUTHORIZED_CHILD_ACTIONS_BY_PARENT.get(parent);
         return children != null && (parent.equals(child) || children.contains(child));
     }
@@ -153,12 +153,12 @@ public final class PreAuthorizationUtil {
         }
 
         if (RemoteConnectionManager.resolveRemoteClusterAlias(connection).isPresent()) {
-            // We should never send parent authorization header to remote clusters.
+            // We never want to send the parent authorization header to remote clusters.
             return true;
         }
 
-        if (shouldPreAuthorizeChildAction(parentAuthorization.action(), childAction) == false) {
-            // We should remove parent authorization header if child action is not one of a white listed.
+        if (shouldPreAuthorizeChildByParentAction(parentAuthorization.action(), childAction) == false) {
+            // We want to remove the parent authorization header if the child action is not one of the white listed.
             return true;
         }
 

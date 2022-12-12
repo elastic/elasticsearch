@@ -409,7 +409,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         final String parentAction = parentAuthorization.action();
         final String childAction = requestInfo.getAction();
-        if (PreAuthorizationUtil.shouldPreAuthorizeChildAction(parentAction, childAction) == false) {
+        if (PreAuthorizationUtil.shouldPreAuthorizeChildByParentAction(parentAction, childAction) == false) {
             // We only pre-authorize explicitly allowed child actions.
             return false;
         }

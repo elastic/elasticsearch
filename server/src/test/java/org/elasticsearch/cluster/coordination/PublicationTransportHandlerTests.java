@@ -427,6 +427,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             )
             .build();
 
+        final ClusterState receivedState0;
         var context0 = transportHandlersByNode.get(localNode)
             .newPublicationContext(
                 new ClusterStatePublicationEvent(
@@ -445,11 +446,15 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 ActionListener.wrap(() -> assertTrue(completed.compareAndSet(false, true)))
             );
             assertTrue(completed.getAndSet(false));
-            var receivedState = receivedStateRef.getAndSet(null);
-            assertEquals(clusterState0.stateUUID(), receivedState.stateUUID());
-            assertEquals(otherNode, receivedState.nodes().getLocalNode());
-            assertFalse(receivedState.metadata().clusterUUIDCommitted());
-            assertEquals(VotingConfiguration.of(), receivedState.getLastCommittedConfiguration());
+            receivedState0 = receivedStateRef.getAndSet(null);
+            assertEquals(clusterState0.stateUUID(), receivedState0.stateUUID());
+            assertEquals(otherNode, receivedState0.nodes().getLocalNode());
+            assertFalse(receivedState0.metadata().clusterUUIDCommitted());
+            assertEquals(VotingConfiguration.of(), receivedState0.getLastCommittedConfiguration());
+            final var receivedStateStats = transportHandlersByNode.get(otherNode).stats();
+            assertEquals(0, receivedStateStats.getCompatibleClusterStateDiffReceivedCount());
+            assertEquals(1, receivedStateStats.getIncompatibleClusterStateDiffReceivedCount());
+            assertEquals(1, receivedStateStats.getFullClusterStateReceivedCount());
         } finally {
             context0.decRef();
         }
@@ -482,11 +487,16 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 ActionListener.wrap(() -> assertTrue(completed.compareAndSet(false, true)))
             );
             assertTrue(completed.getAndSet(false));
-            var receivedState = receivedStateRef.getAndSet(null);
-            assertEquals(clusterState1.stateUUID(), receivedState.stateUUID());
-            assertEquals(otherNode, receivedState.nodes().getLocalNode());
-            assertTrue(receivedState.metadata().clusterUUIDCommitted());
-            assertEquals(VotingConfiguration.of(localNode), receivedState.getLastCommittedConfiguration());
+            var receivedState1 = receivedStateRef.getAndSet(null);
+            assertEquals(clusterState1.stateUUID(), receivedState1.stateUUID());
+            assertEquals(otherNode, receivedState1.nodes().getLocalNode());
+            assertSame(receivedState0.nodes(), receivedState1.nodes()); // it was a diff
+            assertTrue(receivedState1.metadata().clusterUUIDCommitted());
+            assertEquals(VotingConfiguration.of(localNode), receivedState1.getLastCommittedConfiguration());
+            final var receivedStateStats = transportHandlersByNode.get(otherNode).stats();
+            assertEquals(1, receivedStateStats.getCompatibleClusterStateDiffReceivedCount());
+            assertEquals(1, receivedStateStats.getIncompatibleClusterStateDiffReceivedCount());
+            assertEquals(1, receivedStateStats.getFullClusterStateReceivedCount());
         } finally {
             context1.decRef();
         }

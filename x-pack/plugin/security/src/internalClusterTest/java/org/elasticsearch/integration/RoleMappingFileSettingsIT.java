@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAc
 import org.junit.After;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -110,36 +109,6 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
              }
         }""";
 
-    private static String testJSONOnlyRoleMappings = """
-        {
-             "metadata": {
-                 "version": "%s",
-                 "compatibility": "8.4.0"
-             },
-             "state": {
-                 "role_mappings": {
-                       "everyone_kibana_alone": {
-                          "enabled": true,
-                          "roles": [ "kibana_user" ],
-                          "rules": { "field": { "username": "*" } },
-                          "metadata": {
-                             "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
-                             "_foo": "something"
-                          }
-                       },
-                       "everyone_fleet_alone": {
-                          "enabled": true,
-                          "roles": [ "fleet_user" ],
-                          "rules": { "field": { "username": "*" } },
-                          "metadata": {
-                             "uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7",
-                             "_foo": "something_else"
-                          }
-                       }
-                 }
-             }
-        }""";
-
     private static String testErrorJSON = """
         {
              "metadata": {
@@ -168,7 +137,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         }""";
 
     @After
-    public void cleanUp() throws IOException {
+    public void cleanUp() {
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -177,7 +146,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertTrue(settingsResponse.isAcknowledged());
     }
 
-    private void writeJSONFile(String node, String json) throws Exception {
+    protected void writeJSONFile(String node, String json) throws Exception {
         long version = versionCounter.incrementAndGet();
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
@@ -194,7 +163,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
+    protected Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
@@ -460,45 +429,6 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
         assertTrue(handlerMetadata == null || handlerMetadata.keys().isEmpty());
-    }
-
-    public void testReservedStatePersistsOnRestart() throws Exception {
-        ensureGreen();
-        final String masterNode = internalCluster().getMasterName();
-        var savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
-
-        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
-
-        assertTrue(masterFileSettingsService.watching());
-
-        logger.info("--> write some role mappings, no other file settings");
-        writeJSONFile(masterNode, testJSONOnlyRoleMappings);
-        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
-        assertTrue(awaitSuccessful);
-
-        logger.info("--> restart master");
-        internalCluster().restartNode(masterNode);
-
-        var clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
-        assertThat(
-            clusterStateResponse.getState()
-                .metadata()
-                .reservedStateMetadata()
-                .get(FileSettingsService.NAMESPACE)
-                .handlers()
-                .get(ReservedRoleMappingAction.NAME)
-                .keys(),
-            containsInAnyOrder("everyone_fleet_alone", "everyone_kibana_alone")
-        );
-
-        var request = new GetRoleMappingsRequest();
-        request.setNames("everyone_kibana_alone", "everyone_fleet_alone");
-        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
-        assertTrue(response.hasMappings());
-        assertThat(
-            Arrays.stream(response.mappings()).map(r -> r.getName()).collect(Collectors.toSet()),
-            allOf(notNullValue(), containsInAnyOrder("everyone_kibana_alone", "everyone_fleet_alone"))
-        );
     }
 
     private PutRoleMappingRequest sampleRestRequest(String name) throws Exception {

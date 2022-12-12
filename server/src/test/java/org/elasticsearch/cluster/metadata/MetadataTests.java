@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -44,6 +45,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -2310,6 +2312,60 @@ public class MetadataTests extends ESTestCase {
                 + v2TemplateChunks + 1,
             chunksSeen
         );
+    }
+
+    /**
+     * With this test we ensure that we consider whether a new field added to Metadata should be checked
+     * in Metadata.isGlobalStateEquals. We force the instance fields to be either in the checked list
+     * or in the excluded list.
+     * <p>
+     * This prevents from accidentally forgetting that a new field should be checked in isGlobalStateEquals.
+     */
+    @SuppressForbidden(reason = "need access to all fields, they are mostly private")
+    public void testEnsureMetadataFieldCheckedForGlobalStateChanges() {
+        Set<String> checkedForGlobalStateChanges = Set.of(
+            "coordinationMetadata",
+            "persistentSettings",
+            "hashesOfConsistentSettings",
+            "templates",
+            "clusterUUID",
+            "clusterUUIDCommitted",
+            "customs",
+            "reservedStateMetadata"
+        );
+        Set<String> excludedFromGlobalStateCheck = Set.of(
+            "version",
+            "transientSettings",
+            "settings",
+            "indices",
+            "aliasedIndices",
+            "totalNumberOfShards",
+            "totalOpenIndexShards",
+            "allIndices",
+            "visibleIndices",
+            "allOpenIndices",
+            "visibleOpenIndices",
+            "allClosedIndices",
+            "visibleClosedIndices",
+            "indicesLookup",
+            "mappingsByHash",
+            "oldestIndexVersion"
+        );
+
+        var diff = new HashSet<>(checkedForGlobalStateChanges);
+        diff.removeAll(excludedFromGlobalStateCheck);
+
+        // sanity check that the two field sets are mutually exclusive
+        assertEquals(checkedForGlobalStateChanges, diff);
+
+        // any declared non-static field in metadata must be either in the list of fields
+        // we check for global state changes, or in the fields excluded from the global state check.
+        var unclassifiedFields = Arrays.stream(Metadata.class.getDeclaredFields())
+            .filter(f -> Modifier.isStatic(f.getModifiers()) == false)
+            .map(f -> f.getName())
+            .filter(n -> (checkedForGlobalStateChanges.contains(n) || excludedFromGlobalStateCheck.contains(n)) == false)
+            .collect(Collectors.toSet());
+        assertThat(unclassifiedFields, empty());
     }
 
     public static Metadata randomMetadata() {

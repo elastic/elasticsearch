@@ -170,8 +170,8 @@ public final class ClearScrollController implements Runnable {
         }
         lookupListener.whenComplete(nodeLookup -> {
             final GroupedActionListener<Boolean> groupedListener = new GroupedActionListener<>(
-                listener.map(rs -> Math.toIntExact(rs.stream().filter(r -> r).count())),
-                contextIds.size()
+                contextIds.size(),
+                listener.map(rs -> Math.toIntExact(rs.stream().filter(r -> r).count()))
             );
             for (SearchContextIdForNode contextId : contextIds) {
                 final DiscoveryNode node = nodeLookup.apply(contextId.getClusterAlias(), contextId.getNode());

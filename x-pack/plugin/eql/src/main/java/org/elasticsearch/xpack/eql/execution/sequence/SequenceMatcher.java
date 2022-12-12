@@ -141,9 +141,6 @@ public class SequenceMatcher {
                 } else {
                     trackSequence(seq);
                 }
-            } else if (missingEvents[stage]) {
-                log.trace("Matching hit {}  - missing event", ko.ordinal);
-                addMissing(stage, ko.key, ko.ordinal, hit);
             } else {
                 log.trace("Matching hit {}  - match", ko.ordinal);
                 match(stage, ko.key, ko.ordinal, hit);
@@ -172,17 +169,6 @@ public class SequenceMatcher {
 
     private boolean exceedsMaxSpan(Sequence sequence, Ordinal ordinal) {
         return maxSpanInNanos > 0 && ordinal.timestamp().delta(sequence.startOrdinal().timestamp()) > maxSpanInNanos;
-    }
-
-    private void addMissing(int stage, SequenceKey key, Ordinal ordinal, HitReference hit) {
-        stats.seen++;
-        if (firstPositiveStage() < stage && stage < lastPositiveStage()) { // missing events in between
-            if (keyToSequences.groupIfPresent(previousPositiveStage(stage), key) != null) {
-                keyToSequences.addMissingEvent(stage, key, new Match(ordinal, hit));
-            }
-        } else {
-            throw new IllegalArgumentException("Error managing leading/trailing missing event in sequence");
-        }
     }
 
     private boolean tailLimitReached() {
@@ -236,21 +222,6 @@ public class SequenceMatcher {
                 if (nearestUntil.between(sequence.ordinal(), ordinal)) {
                     stats.rejectionUntil++;
                     return;
-                }
-            }
-        }
-
-        // handle missing events
-        MissingEventGroup[] missingGroups = keyToSequences.missingBetweenStages(key, previousStage, stage);
-        for (MissingEventGroup missingGroup : missingGroups) {
-            if (missingGroup != null) {
-                Match nearestMissing = missingGroup.before(ordinal);
-                if (nearestMissing != null) {
-                    // check if Missing matches
-                    if (nearestMissing.ordinal().between(sequence.ordinal(), ordinal)) {
-                        stats.rejectionMissing++;
-                        return;
-                    }
                 }
             }
         }

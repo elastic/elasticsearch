@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.core.security.authz;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -45,10 +43,8 @@ public class ParentActionAuthorizationTests extends ESTestCase {
     }
 
     private static ParentActionAuthorization createRandom() {
-        String id = randomAlphaOfLengthBetween(3, 10);
         String action = randomAlphaOfLengthBetween(5, 20);
-        Version version = randomFrom(VersionUtils.allVersions());
-        return new ParentActionAuthorization(version, action, id);
+        return new ParentActionAuthorization(action);
     }
 
 }

@@ -133,7 +133,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                     connection,
                                     request,
                                     action,
-                                    minVersion,
                                     clusterService.state()
                                 );
                                 sendWithUser(
@@ -155,7 +154,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 connection,
                                 request,
                                 action,
-                                minVersion,
                                 clusterService.state()
                             );
                             sendWithUser(connection, action, request, options, handler, sender);

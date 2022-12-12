@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.Transport;
@@ -223,7 +222,6 @@ public final class AuthorizationUtils {
         Transport.Connection connection,
         TransportRequest request,
         String childAction,
-        Version version,
         ClusterState clusterState
 
     ) {
@@ -317,13 +315,7 @@ public final class AuthorizationUtils {
                     // since pre-authorization is already set in the context.
                     if (logger.isDebugEnabled()) {
                         logger.debug(
-                            "["
-                                + existingParentAuthorization.get().id()
-                                + "] child action ["
-                                + childAction
-                                + "] of parent action ["
-                                + parentAction
-                                + "] is already pre-authorized"
+                            "child action [" + childAction + "] of parent action [" + parentAction + "] is already pre-authorized"
                         );
                     }
                     return;
@@ -339,19 +331,10 @@ public final class AuthorizationUtils {
                     );
                 }
             } else {
-                final String id = UUIDs.randomBase64UUID();
                 if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "["
-                            + id
-                            + "] adding pre-authorization for child action ["
-                            + childAction
-                            + "] of parent action ["
-                            + parentAction
-                            + "]"
-                    );
+                    logger.debug("adding pre-authorization for child action [" + childAction + "] of parent action [" + parentAction + "]");
                 }
-                new ParentActionAuthorization(version, parentAction, id).writeToThreadContext(threadContext);
+                new ParentActionAuthorization(parentAction).writeToThreadContext(threadContext);
             }
         } catch (Exception e) {
             logger.error("Failed to write authorization to thread context.", e);

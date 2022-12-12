@@ -146,7 +146,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertTrue(settingsResponse.isAcknowledged());
     }
 
-    protected void writeJSONFile(String node, String json) throws Exception {
+    private void writeJSONFile(String node, String json) throws Exception {
         long version = versionCounter.incrementAndGet();
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
@@ -163,7 +163,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
-    protected Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
+    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);

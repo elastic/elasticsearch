@@ -157,7 +157,9 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         // to terms that are within the range based on what the composite queue is tracking.
         // For example, if the composite agg size is 5, and we have seen terms with ordinals [1, 4, 5, 10, 11],
         // we know that we never need to look at terms with and ordinal higher than 11.
-        final CompetitiveIterator competitiveIterator = new CompetitiveIterator(context, fieldType.name(), false);
+        final CompetitiveIterator competitiveIterator = fieldType == null
+            ? null
+            : new CompetitiveIterator(context, fieldType.name(), false);
         currentCompetitiveIterator = competitiveIterator;
 
         return new LeafBucketCollector() {

@@ -158,7 +158,14 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
     @Override
     public ScoreMode scoreMode() {
-        return ScoreMode.TOP_DOCS;
+        if (canApplyGlobalOrdinalDynamicPruningForLeadingSource()) {
+            return super.scoreMode().needsScores() ? ScoreMode.TOP_DOCS_WITH_SCORES : ScoreMode.TOP_DOCS;
+        }
+        return super.scoreMode();
+    }
+
+    private boolean canApplyGlobalOrdinalDynamicPruningForLeadingSource() {
+        return sources[0] instanceof GlobalOrdinalValuesSource;
     }
 
     @Override

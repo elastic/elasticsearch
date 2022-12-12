@@ -96,6 +96,64 @@ public class CountDownActionListenerTests extends ESTestCase {
         assertFalse(called.get());
     }
 
+    public void testValidation() throws InterruptedException {
+        AtomicBoolean called = new AtomicBoolean(false);
+        ActionListener<Void> result = new ActionListener<>() {
+            @Override
+            public void onResponse(Void ignored) {
+                called.compareAndSet(false, true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                called.compareAndSet(false, true);
+            }
+        };
+
+        // can't use a groupSize of 0
+        expectThrows(AssertionError.class, () -> new CountDownActionListener(0, result));
+
+        // can't use a null listener or runnable
+        expectThrows(NullPointerException.class, () -> new CountDownActionListener(1, (ActionListener<Void>) null));
+        expectThrows(NullPointerException.class, () -> new CountDownActionListener(1, (Runnable) null));
+
+        final int overage = randomIntBetween(1, 10);
+        AtomicInteger exceptionsThrown = new AtomicInteger();
+        final int groupSize = randomIntBetween(10, 1000);
+        AtomicInteger count = new AtomicInteger();
+        CountDownActionListener listener = new CountDownActionListener(groupSize, result);
+        int numThreads = randomIntBetween(2, 5);
+        Thread[] threads = new Thread[numThreads];
+        CyclicBarrier barrier = new CyclicBarrier(numThreads);
+        for (int i = 0; i < numThreads; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    barrier.await(10, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+                int c;
+                while ((c = count.incrementAndGet()) <= groupSize + overage) {
+                    try {
+                        if (c % 10 == 1) { // a mix of failures and non-failures
+                            listener.onFailure(new RuntimeException());
+                        } else {
+                            listener.onResponse(null);
+                        }
+                    } catch (IllegalStateException e) {
+                        exceptionsThrown.incrementAndGet();
+                    }
+                }
+            });
+            threads[i].start();
+        }
+        for (Thread t : threads) {
+            t.join();
+        }
+        assertTrue(called.get());
+        assertEquals(overage, exceptionsThrown.get());
+    }
+
     public void testConcurrentFailures() throws InterruptedException {
         AtomicReference<Exception> finalException = new AtomicReference<>();
         int numGroups = randomIntBetween(10, 100);

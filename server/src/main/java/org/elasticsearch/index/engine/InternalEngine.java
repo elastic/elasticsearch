@@ -328,12 +328,13 @@ public class InternalEngine extends Engine {
     private CombinedDeletionPolicy.CommitsListener newCommitsListener() {
         final Engine.IndexCommitListener listener = engineConfig.getIndexCommitListener();
         if (listener != null) {
+            var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
             return new CombinedDeletionPolicy.CommitsListener() {
                 @Override
                 public void onNewAcquiredCommit(final IndexCommit commit) {
                     final IndexCommitRef indexCommitRef = acquireIndexCommitRef(() -> commit);
                     assert indexCommitRef.getIndexCommit() == commit;
-                    listener.onNewCommit(shardId, indexCommitRef);
+                    listener.onNewCommit(shardId, primaryTerm, indexCommitRef);
                 }
 
                 @Override

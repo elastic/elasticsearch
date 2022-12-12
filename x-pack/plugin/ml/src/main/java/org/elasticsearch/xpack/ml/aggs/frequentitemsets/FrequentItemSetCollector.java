@@ -308,7 +308,6 @@ public final class FrequentItemSetCollector {
                 ItemSetBitSet.SetRelation relation = itemSet.setRelation(otherSet.getItems());
 
                 if (relation.equals(ItemSetBitSet.SetRelation.SUPER_SET)) {
-                    logger.info("replace subset with this super set");
                     removeFromFrequentItemsByCount(otherSet);
                     queue.remove(otherSet);
                     break;
@@ -316,7 +315,6 @@ public final class FrequentItemSetCollector {
 
                 if (relation.equals(ItemSetBitSet.SetRelation.SUB_SET)) {
                     // closed set criteria: don't add if we already store a superset
-                    logger.info("skip itemset with super set");
                     return queue.size() < size ? min : queue.top().getDocCount();
                 }
             }

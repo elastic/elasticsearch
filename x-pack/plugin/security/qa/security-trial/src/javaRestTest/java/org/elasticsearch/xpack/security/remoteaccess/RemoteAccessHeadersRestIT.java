@@ -36,11 +36,19 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.elasticsearch.xpack.security.authz.RBACEngine;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -48,10 +56,11 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCase {
     @BeforeClass
@@ -100,7 +109,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
     public void testRemoteAccessHeadersSent() throws Exception {
         final String remoteNodeName = "remoteNode";
         final String clusterCredential = randomAlphaOfLengthBetween(42, 100);
-        final BlockingQueue<CapturedRequestWithHeaders> capturedRequests = ConcurrentCollections.newBlockingQueue();
+        final BlockingQueue<CapturedActionWithHeaders> capturedRequests = ConcurrentCollections.newBlockingQueue();
         try (MockTransportService remoteTransport = startTransport(remoteNodeName, threadPool, capturedRequests)) {
             final DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             updateRemoteClusterSettings(Map.of("authorization", clusterCredential, "seeds", remoteNode.getAddress().toString()));
@@ -110,15 +119,71 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                     .toBuilder()
                     .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
             );
+
             assertOK(client().performRequest(searchRequest));
-            assertThat(capturedRequests, hasSize(3));
+
+            final RemoteAccessAuthentication expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
+                Authentication.newRealmAuthentication(
+                    new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
+                    new Authentication.RealmRef("default_native", "native", "javaRestTest-0")
+                ),
+                new RoleDescriptorsIntersection(
+                    List.of(
+                        Set.of(
+                            new RoleDescriptor(
+                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                )
+            );
+            assertThat(
+                capturedRequests,
+                containsInAnyOrder(
+                    new CapturedActionWithHeaders(
+                        ClusterStateAction.NAME,
+                        Map.of(
+                            AuthenticationField.AUTHENTICATION_KEY,
+                            Authentication.newInternalAuthentication(SystemUser.INSTANCE, Version.CURRENT, "javaRestTest-0").encode()
+                        )
+                    ),
+                    new CapturedActionWithHeaders(
+                        ClusterStateAction.NAME,
+                        Map.of(
+                            AuthenticationField.AUTHENTICATION_KEY,
+                            Authentication.newInternalAuthentication(SystemUser.INSTANCE, Version.CURRENT, "javaRestTest-1").encode()
+                        )
+                    ),
+                    new CapturedActionWithHeaders(
+                        SearchAction.NAME,
+                        Map.of(
+                            RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
+                            expectedRemoteAccessAuthentication.encode(),
+                            SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
+                            "ApiKey " + clusterCredential
+                        )
+                    )
+                )
+            );
         }
     }
 
     private static MockTransportService startTransport(
         final String nodeName,
         final ThreadPool threadPool,
-        final BlockingQueue<CapturedRequestWithHeaders> capturedRequests
+        final BlockingQueue<CapturedActionWithHeaders> capturedHeaders
     ) {
         boolean success = false;
         final Settings settings = Settings.builder().put("node.name", nodeName).build();
@@ -130,14 +195,16 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                 ThreadPool.Names.SAME,
                 ClusterStateRequest::new,
                 (request, channel, task) -> {
-                    capturedRequests.add(
-                        new CapturedRequestWithHeaders(task.getAction(), request, threadPool.getThreadContext().getHeaders())
+                    capturedHeaders.add(
+                        new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
                     channel.sendResponse(new ClusterStateResponse(clusterName, ClusterState.builder(clusterName).build(), false));
                 }
             );
             newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {
-                capturedRequests.add(new CapturedRequestWithHeaders(task.getAction(), request, threadPool.getThreadContext().getHeaders()));
+                capturedHeaders.add(
+                    new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
+                );
                 channel.sendResponse(
                     new SearchResponse(
                         new InternalSearchResponse(
@@ -170,7 +237,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
         }
     }
 
-    private record CapturedRequestWithHeaders(String action, TransportRequest request, Map<String, String> headers) {}
+    private record CapturedActionWithHeaders(String action, Map<String, String> headers) {}
 
     private static void updateRemoteClusterSettings(final Map<String, Object> settings) throws IOException {
         final Request request = new Request("PUT", "/_cluster/settings");

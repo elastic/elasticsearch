@@ -104,7 +104,7 @@ public final class RemoteAccessAuthentication {
         return roleDescriptorsBytesList;
     }
 
-    private String encode() throws IOException {
+    public String encode() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(authentication.getEffectiveSubject().getVersion());
         Version.writeVersion(authentication.getEffectiveSubject().getVersion(), out);
@@ -113,7 +113,7 @@ public final class RemoteAccessAuthentication {
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
-    private static RemoteAccessAuthentication decode(final String header) throws IOException {
+    public static RemoteAccessAuthentication decode(final String header) throws IOException {
         Objects.requireNonNull(header);
         final byte[] bytes = Base64.getDecoder().decode(header);
         final StreamInput in = StreamInput.wrap(bytes);

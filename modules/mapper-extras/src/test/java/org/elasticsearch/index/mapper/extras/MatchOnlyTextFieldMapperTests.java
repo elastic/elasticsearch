@@ -57,7 +57,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return "value";
+        return "text value";
     }
 
     public void testExistsStandardSource() throws IOException {

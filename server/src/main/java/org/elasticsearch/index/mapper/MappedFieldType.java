@@ -214,6 +214,10 @@ public abstract class MappedFieldType {
         );
     }
 
+    public Query exactQuery(Object value, SearchExecutionContext context) {
+        return new ConstantScoreQuery(termQuery(value, context));
+    }
+
     /** Build a constant-scoring query that matches all values. The default implementation uses a
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */

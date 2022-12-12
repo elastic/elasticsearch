@@ -20,6 +20,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -119,6 +120,37 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertExistsQuery(mapperService);
         assertParseMinimalWarnings();
+    }
+
+    public final void testExactQuery() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertParseMinimalWarnings();
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        SourceToParse source = source(this::writeField);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
+
+            LeafReaderContext ctx = ir.leaves().get(0);
+
+            SearchLookup searchLookup = new SearchLookup(mapperService::fieldType, (f, s, o) -> null, new SourceLookup.BytesSourceProvider(doc.source()));
+            FieldDataContext fdc = new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+            DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(fdc)
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(ctx)
+                .getScriptFieldFactory("test");
+            docValuesFieldSource.setNextDocId(0);
+
+            Object value = docValuesFieldSource.toScriptDocValues().get(0);
+
+            IndexSearcher searcher = new IndexSearcher(ir);
+            SearchExecutionContext sec = createSearchExecutionContext(mapperService, searcher);
+            Query exactQuery = fieldType.exactQuery(value, sec);
+
+            TopDocs topDocs = searcher.search(exactQuery, 1);
+            assertEquals(1, topDocs.totalHits.value);
+            assertEquals(1.0f, topDocs.scoreDocs[0].score, 0.00001f);
+        });
     }
 
     // TODO make this final once we've worked out what is happening with DenseVector

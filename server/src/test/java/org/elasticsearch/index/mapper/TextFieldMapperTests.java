@@ -85,7 +85,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return "value";
+        return "text value";
     }
 
     public final void testExistsQueryIndexDisabled() throws IOException {

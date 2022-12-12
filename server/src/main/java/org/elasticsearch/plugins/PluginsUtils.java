@@ -217,12 +217,12 @@ public class PluginsUtils {
         Set<PluginBundle> bundles = new HashSet<>(getPluginBundles(pluginsDir));
         bundles.addAll(getModuleBundles(modulesDir));
         bundles.add(new PluginBundle(candidateInfo, candidateDir));
-        List<PluginBundle> sortedBundles = sortBundles(bundles);
+        Graph<PluginBundle> sortedBundles = sortBundles(bundles);
 
         // check jarhell of all plugins so we know this plugin and anything depending on it are ok together
         // TODO: optimize to skip any bundles not connected to the candidate plugin?
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        for (PluginBundle bundle : sortedBundles) {
+        for (PluginBundle bundle : sortedBundles.nodes()) {
             checkBundleJarHell(classpath, bundle, transitiveUrls);
         }
 
@@ -301,50 +301,35 @@ public class PluginsUtils {
      *
      * @throws IllegalStateException if a dependency cycle is found
      */
-    static List<PluginBundle> sortBundles(Set<PluginBundle> bundles) {
+    static Graph<PluginBundle> sortBundles(Set<PluginBundle> bundles) {
         Map<String, PluginBundle> namedBundles = bundles.stream().collect(Collectors.toMap(b -> b.plugin.getName(), Function.identity()));
-        LinkedHashSet<PluginBundle> sortedBundles = new LinkedHashSet<>();
-        LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
+        Graph<PluginBundle> dependencyGraph = new Graph<>();
         for (PluginBundle bundle : bundles) {
-            addSortedBundle(bundle, namedBundles, sortedBundles, dependencyStack);
+            addSortedBundle(bundle, namedBundles, dependencyGraph);
         }
-        return new ArrayList<>(sortedBundles);
+        dependencyGraph.checkLoops();
+        return dependencyGraph;
     }
 
     // add the given bundle to the sorted bundles, first adding dependencies
     private static void addSortedBundle(
         PluginBundle bundle,
         Map<String, PluginBundle> bundles,
-        LinkedHashSet<PluginBundle> sortedBundles,
-        LinkedHashSet<String> dependencyStack
+        Graph<PluginBundle> dependencyGraph
     ) {
-
-        String name = bundle.plugin.getName();
-        if (dependencyStack.contains(name)) {
-            StringBuilder msg = new StringBuilder("Cycle found in plugin dependencies: ");
-            dependencyStack.forEach(s -> {
-                msg.append(s);
-                msg.append(" -> ");
-            });
-            msg.append(name);
-            throw new IllegalStateException(msg.toString());
-        }
-        if (sortedBundles.contains(bundle)) {
+        if (dependencyGraph.addNode(bundle) == false) {
             // already added this plugin, via a dependency
             return;
         }
 
-        dependencyStack.add(name);
         for (String dependency : bundle.plugin.getExtendedPlugins()) {
             PluginBundle depBundle = bundles.get(dependency);
             if (depBundle == null) {
-                throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + bundle.plugin.getName() + "]");
             }
-            addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
-            assert sortedBundles.contains(depBundle);
+            addSortedBundle(depBundle, bundles, dependencyGraph);
+            assert dependencyGraph.nodes().contains(depBundle);
+            dependencyGraph.addEdge(depBundle, bundle);
         }
-        dependencyStack.remove(name);
-
-        sortedBundles.add(bundle);
     }
 }

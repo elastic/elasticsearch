@@ -21,6 +21,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -57,6 +58,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -119,10 +121,22 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * Constructs a new PluginService
      *
      * @param settings         The settings of the system
+     * @param configPath
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
+        this(settings, configPath, modulesDirectory, pluginsDirectory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    }
+
+    /**
+     * Constructs a new PluginService
+     *
+     * @param settings         The settings of the system
+     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
+     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     */
+    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory, Executor executor) {
         this.settings = settings;
         this.configPath = configPath;
 
@@ -283,9 +297,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private Map<String, LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
         Map<String, LoadedPlugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
+        Graph<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
         Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
-        for (PluginBundle bundle : sortedBundles) {
+        for (var it = sortedBundles.breadthFirst(); it.hasNext(); ) {
+            var bundle = it.next();
             PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
             loadBundle(bundle, loaded);
         }
@@ -300,9 +315,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             .flatMap(t -> t.descriptor().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.instance())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
         for (LoadedPlugin pluginTuple : plugins) {
-            if (pluginTuple.instance() instanceof ExtensiblePlugin) {
+            if (pluginTuple.instance() instanceof ExtensiblePlugin ep) {
                 loadExtensionsForPlugin(
-                    (ExtensiblePlugin) pluginTuple.instance(),
+                    ep,
                     extendingPluginsByName.getOrDefault(pluginTuple.descriptor().getName(), List.of())
                 );
             }

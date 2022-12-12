@@ -98,7 +98,7 @@ public final class IngestMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.array(PIPELINES_FIELD.getPreferredName(), pipelines.values());
+        return ChunkedToXContentHelper.array(PIPELINES_FIELD.getPreferredName(), pipelines.values().iterator());
     }
 
     @Override

@@ -86,6 +86,8 @@ public class PublicationTransportHandler {
         TransportRequestOptions.Type.STATE
     );
 
+    public static final Version INCLUDES_LAST_COMMITTED_DATA_VERSION = Version.V_8_7_0;
+
     private final SerializationStatsTracker serializationStatsTracker = new SerializationStatsTracker();
 
     public PublicationTransportHandler(
@@ -131,6 +133,7 @@ public class PublicationTransportHandler {
                 // Close early to release resources used by the de-compression as early as possible
                 try (StreamInput input = in) {
                     incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
+                    assert input.read() == -1;
                 } catch (Exception e) {
                     logger.warn("unexpected error while deserializing an incoming cluster state", e);
                     assert false : e;
@@ -151,11 +154,30 @@ public class PublicationTransportHandler {
                     ClusterState incomingState;
                     try {
                         final Diff<ClusterState> diff;
+                        final boolean includesLastCommittedData = request.version().onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION);
+                        final boolean clusterUuidCommitted;
+                        final CoordinationMetadata.VotingConfiguration lastCommittedConfiguration;
+
                         // Close stream early to release resources used by the de-compression as early as possible
                         try (StreamInput input = in) {
                             diff = ClusterState.readDiffFrom(input, lastSeen.nodes().getLocalNode());
+                            if (includesLastCommittedData) {
+                                clusterUuidCommitted = in.readBoolean();
+                                lastCommittedConfiguration = new CoordinationMetadata.VotingConfiguration(in);
+                            } else {
+                                clusterUuidCommitted = false;
+                                lastCommittedConfiguration = null;
+                            }
+                            assert input.read() == -1;
                         }
                         incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
+                        if (includesLastCommittedData) {
+                            final var adjustedMetadata = incomingState.metadata()
+                                .withLastCommittedValues(clusterUuidCommitted, lastCommittedConfiguration);
+                            if (adjustedMetadata != incomingState.metadata()) {
+                                incomingState = ClusterState.builder(incomingState).metadata(adjustedMetadata).build();
+                            }
+                        }
                     } catch (IncompatibleClusterStateVersionException e) {
                         incompatibleClusterStateDiffReceivedCount.incrementAndGet();
                         throw e;
@@ -239,7 +261,8 @@ public class PublicationTransportHandler {
         }
     }
 
-    private ReleasableBytesReference serializeDiffClusterState(long clusterStateVersion, Diff<ClusterState> diff, DiscoveryNode node) {
+    private ReleasableBytesReference serializeDiffClusterState(ClusterState newState, Diff<ClusterState> diff, DiscoveryNode node) {
+        final long clusterStateVersion = newState.version();
         final Version nodeVersion = node.getVersion();
         final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
         boolean success = false;
@@ -253,6 +276,10 @@ public class PublicationTransportHandler {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);
+                if (nodeVersion.onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION)) {
+                    stream.writeBoolean(newState.metadata().clusterUUIDCommitted());
+                    newState.getLastCommittedConfiguration().writeTo(stream);
+                }
                 uncompressedBytes = stream.position();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state diff for publishing to node {}", e, node);
@@ -316,7 +343,7 @@ public class PublicationTransportHandler {
                 } else {
                     serializedDiffs.computeIfAbsent(
                         node.getVersion(),
-                        v -> serializeDiffClusterState(newState.version(), diffSupplier.getOrCompute(), node)
+                        v -> serializeDiffClusterState(newState, diffSupplier.getOrCompute(), node)
                     );
                 }
             }

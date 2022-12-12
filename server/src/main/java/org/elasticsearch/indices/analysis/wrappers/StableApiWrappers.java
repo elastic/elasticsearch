@@ -16,7 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugin.api.settings.AnalysisSettings;
-import org.elasticsearch.plugin.api.settings.InjectSettings;
+import org.elasticsearch.plugin.api.Inject;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 
@@ -215,8 +215,8 @@ public class StableApiWrappers {
             if (constructor.getParameterCount() == 0) {
                 return (T) constructor.newInstance();
             } else {
-                InjectSettings injectSettings = constructor.getAnnotation(InjectSettings.class);
-                if (injectSettings != null) {
+                Inject inject = constructor.getAnnotation(Inject.class);
+                if (inject != null) {
                     Class<?>[] parameterTypes = constructor.getParameterTypes();
                     Object[] parameters = new Object[parameterTypes.length];
                     for (int i = 0; i < parameterTypes.length; i++) {

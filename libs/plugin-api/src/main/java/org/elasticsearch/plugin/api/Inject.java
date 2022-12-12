@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugin.api.settings;
+package org.elasticsearch.plugin.api;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -14,10 +14,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * An annotation used to mark constructor to inject settings instance.
+ * An annotation used to mark constructor to inject plugin dependencies iee. settings.
  * A constructor parameter has to be an interface marked with appropriate annotation (i.e AnalysisSetting)
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.CONSTRUCTOR)
-public @interface InjectSettings {
+public @interface Inject {
 }

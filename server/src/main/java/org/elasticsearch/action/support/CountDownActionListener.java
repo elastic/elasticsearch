@@ -8,9 +8,9 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.CountDown;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class CountDownActionListener extends ActionListener.Delegating<Void, Void> {
 
-    private final CountDown countDown;
+    private final AtomicInteger countDown;
     private final AtomicReference<Exception> failure = new AtomicReference<>();
 
     /**
@@ -34,7 +34,7 @@ public final class CountDownActionListener extends ActionListener.Delegating<Voi
             assert false : "illegal group size [" + groupSize + "]";
             throw new IllegalArgumentException("groupSize must be greater than 0 but was " + groupSize);
         }
-        countDown = new CountDown(groupSize);
+        countDown = new AtomicInteger(groupSize);
     }
 
     /**
@@ -46,10 +46,18 @@ public final class CountDownActionListener extends ActionListener.Delegating<Voi
         this(groupSize, ActionListener.wrap(Objects.requireNonNull(runnable)));
     }
 
+    private boolean countDown() {
+        return countDown.updateAndGet(current -> {
+            if (current <= 0) {
+                throw new IllegalStateException("over-decrementing of count down, listener invoked too many times");
+            }
+            return current - 1;
+        }) == 0;
+    }
+
     @Override
     public void onResponse(Void element) {
-        assert countDown.isCountedDown() == false;
-        if (countDown.countDown()) {
+        if (countDown()) {
             if (failure.get() != null) {
                 super.onFailure(failure.get());
             } else {
@@ -60,7 +68,6 @@ public final class CountDownActionListener extends ActionListener.Delegating<Voi
 
     @Override
     public void onFailure(Exception e) {
-        assert countDown.isCountedDown() == false;
         if (failure.compareAndSet(null, e) == false) {
             failure.accumulateAndGet(e, (current, update) -> {
                 // we have to avoid self-suppression!
@@ -70,7 +77,7 @@ public final class CountDownActionListener extends ActionListener.Delegating<Voi
                 return current;
             });
         }
-        if (countDown.countDown()) {
+        if (countDown()) {
             super.onFailure(failure.get());
         }
     }

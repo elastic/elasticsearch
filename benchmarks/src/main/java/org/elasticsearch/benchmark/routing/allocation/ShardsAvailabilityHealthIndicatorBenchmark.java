@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -45,6 +46,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -171,7 +173,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
         );
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
-        indicatorService = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService);
+        indicatorService = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, new SystemIndices(List.of()));
     }
 
     private int toInt(String v) {

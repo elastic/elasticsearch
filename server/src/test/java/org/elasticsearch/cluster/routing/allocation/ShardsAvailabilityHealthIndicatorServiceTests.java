@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -43,7 +44,12 @@ import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.ExecutorNames;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
@@ -57,6 +63,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.RESTART;
@@ -83,6 +91,7 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.FEATURE_STATE;
 import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
@@ -90,7 +99,9 @@ import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -503,7 +514,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    public void testUserActionsNotGeneratedWhenNotDrillingDown() {
+    public void testDiagnosisNotGeneratedWhenNotDrillingDown() {
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
@@ -560,6 +571,119 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         assertThat(definitions, hasSize(1));
         assertThat(definitions, contains(ACTION_RESTORE_FROM_SNAPSHOT));
+    }
+
+    public void testRestoreFromSnapshotReportsFeatureStates() {
+        // this test adds a mix of regular and system indices and data streams
+        // we'll test the `shards_availability` indicator correctly reports the
+        // affected feature states and indices
+
+        IndexMetadata featureIndex = IndexMetadata.builder(".feature-index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        IndexMetadata regularIndex = IndexMetadata.builder("regular-index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        String featureDataStreamName = ".test-ds-feature";
+        IndexMetadata backingIndex = createBackingIndex(featureDataStreamName, 1).build();
+
+        ShardRouting featureIndexRouting = createShardRouting(
+            new ShardId(featureIndex.getIndex(), 0),
+            true,
+            new ShardAllocation(randomNodeId(), UNAVAILABLE, noShardCopy())
+        );
+
+        ShardRouting regularIndexRouting = createShardRouting(
+            new ShardId(regularIndex.getIndex(), 0),
+            true,
+            new ShardAllocation(randomNodeId(), UNAVAILABLE, noShardCopy())
+        );
+
+        ShardRouting backingIndexRouting = createShardRouting(
+            new ShardId(backingIndex.getIndex(), 0),
+            true,
+            new ShardAllocation(randomNodeId(), UNAVAILABLE, noShardCopy())
+        );
+
+        var clusterState = createClusterStateWith(
+            List.of(featureIndex, regularIndex, backingIndex),
+            List.of(
+                IndexRoutingTable.builder(featureIndex.getIndex()).addShard(featureIndexRouting).build(),
+                IndexRoutingTable.builder(regularIndex.getIndex()).addShard(regularIndexRouting).build(),
+                IndexRoutingTable.builder(backingIndex.getIndex()).addShard(backingIndexRouting).build()
+            ),
+            List.of(),
+            List.of()
+        );
+
+        // add the data stream to the cluster state
+        Metadata.Builder mdBuilder = Metadata.builder(clusterState.metadata())
+            .put(newInstance(featureDataStreamName, List.of(backingIndex.getIndex())));
+        ClusterState state = ClusterState.builder(clusterState).metadata(mdBuilder).build();
+
+        var service = createAllocationHealthIndicatorService(
+            Settings.EMPTY,
+            state,
+            Map.of(),
+            new SystemIndices(
+                List.of(
+                    new SystemIndices.Feature(
+                        "feature-with-system-index",
+                        "testing",
+                        List.of(new SystemIndexDescriptor(".feature-*", "feature with index"))
+                    ),
+                    new SystemIndices.Feature(
+                        "feature-with-system-data-stream",
+                        "feature with data stream",
+                        List.of(),
+                        List.of(
+                            new SystemDataStreamDescriptor(
+                                featureDataStreamName,
+                                "description",
+                                SystemDataStreamDescriptor.Type.EXTERNAL,
+                                new ComposableIndexTemplate(
+                                    List.of(".test-ds-*"),
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    new ComposableIndexTemplate.DataStreamTemplate()
+                                ),
+                                Map.of(),
+                                List.of("test"),
+                                new ExecutorNames(
+                                    ThreadPool.Names.SYSTEM_CRITICAL_READ,
+                                    ThreadPool.Names.SYSTEM_READ,
+                                    ThreadPool.Names.SYSTEM_WRITE
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+
+        assertThat(result.status(), is(HealthStatus.RED));
+        assertThat(result.diagnosisList().size(), is(1));
+        Diagnosis diagnosis = result.diagnosisList().get(0);
+        List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
+        assertThat("expecting we report a resource of type INDEX and one of type FEATURE_STATE", affectedResources.size(), is(2));
+        for (Diagnosis.Resource resource : affectedResources) {
+            if (resource.getType() == INDEX) {
+                assertThat(resource.getValues(), hasItems("regular-index"));
+            } else {
+                assertThat(resource.getType(), is(FEATURE_STATE));
+                assertThat(resource.getValues(), hasItems("feature-with-system-data-stream", "feature-with-system-index"));
+            }
+        }
     }
 
     public void testDiagnoseUnknownAllocationDeciderIssue() {
@@ -1464,13 +1588,22 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         ClusterState clusterState,
         final Map<ShardRoutingKey, ShardAllocationDecision> decisions
     ) {
-        return createAllocationHealthIndicatorService(Settings.EMPTY, clusterState, decisions);
+        return createAllocationHealthIndicatorService(Settings.EMPTY, clusterState, decisions, new SystemIndices(List.of()));
     }
 
     private static ShardsAvailabilityHealthIndicatorService createAllocationHealthIndicatorService(
         Settings nodeSettings,
         ClusterState clusterState,
         final Map<ShardRoutingKey, ShardAllocationDecision> decisions
+    ) {
+        return createAllocationHealthIndicatorService(nodeSettings, clusterState, decisions, new SystemIndices(List.of()));
+    }
+
+    private static ShardsAvailabilityHealthIndicatorService createAllocationHealthIndicatorService(
+        Settings nodeSettings,
+        ClusterState clusterState,
+        final Map<ShardRoutingKey, ShardAllocationDecision> decisions,
+        SystemIndices systemIndices
     ) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -1482,6 +1615,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             var key = new ShardRoutingKey(shardRouting.getIndexName(), shardRouting.getId(), shardRouting.primary());
             return decisions.getOrDefault(key, ShardAllocationDecision.NOT_TAKEN);
         });
-        return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService);
+        return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices);
     }
 }

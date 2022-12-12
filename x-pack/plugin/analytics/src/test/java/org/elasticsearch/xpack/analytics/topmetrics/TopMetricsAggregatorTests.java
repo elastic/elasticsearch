@@ -435,7 +435,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                         }
                     }
                     CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> leaf.collect(0, bucketThatBreaks));
-                    assertThat(e.getMessage(), equalTo("test error"));
+                    assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
                     assertThat(e.getByteLimit(), equalTo(max.getBytes()));
                     assertThat(e.getBytesWanted(), equalTo(5872L));
                 }

@@ -1,7 +1,0 @@
-pr: 91704
-summary: '`DoPrivileged` in `ElasticsearchEncaughtExceptionHandler` and check modify
-  thread'
-area: Infra/Core
-type: bug
-issues:
- - 91650

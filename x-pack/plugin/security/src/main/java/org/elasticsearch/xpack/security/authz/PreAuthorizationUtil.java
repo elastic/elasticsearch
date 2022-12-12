@@ -14,10 +14,15 @@ import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationContext;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
+import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -47,7 +52,7 @@ public final class PreAuthorizationUtil {
     );
 
     /**
-     * This method sets {@link AuthorizationEngine.ParentActionAuthorization} as a header in the thread context,
+     * This method sets {@link ParentActionAuthorization} as a header in the thread context,
      * which will be used for skipping authorization of child actions if the following conditions are met:
      *
      * <ul>
@@ -59,7 +64,7 @@ public final class PreAuthorizationUtil {
     public static void maybeSkipChildrenActionAuthorization(
         SecurityContext securityContext,
         TransportRequest parentRequest,
-        AuthorizationEngine.AuthorizationContext parentAuthorizationContext
+        AuthorizationContext parentAuthorizationContext
     ) {
         final String parentAction = parentAuthorizationContext.getAction();
         if (CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.containsKey(parentAction) == false) {
@@ -97,7 +102,7 @@ public final class PreAuthorizationUtil {
             return;
         }
 
-        final Optional<AuthorizationEngine.ParentActionAuthorization> existingParentAuthorization = Optional.ofNullable(
+        final Optional<ParentActionAuthorization> existingParentAuthorization = Optional.ofNullable(
             securityContext.getParentAuthorization()
         );
         if (existingParentAuthorization.isPresent()) {
@@ -122,11 +127,11 @@ public final class PreAuthorizationUtil {
             if (logger.isDebugEnabled()) {
                 logger.debug("adding authorization for parent action [" + parentAction + "] to the thread context");
             }
-            securityContext.setParentAuthorization(new AuthorizationEngine.ParentActionAuthorization(parentAction));
+            securityContext.setParentAuthorization(new ParentActionAuthorization(parentAction));
         }
     }
 
-    public static boolean shouldPreAuthorizeChildByParentAction(final String parent, final String child) {
+    private static boolean isChildActionWhitelistedForParent(final String parent, final String child) {
         final Set<String> children = CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(parent);
         return children != null && (parent.equals(child) || children.contains(child));
     }
@@ -136,7 +141,7 @@ public final class PreAuthorizationUtil {
         String childAction,
         SecurityContext securityContext
     ) {
-        final AuthorizationEngine.ParentActionAuthorization parentAuthorization = securityContext.getParentAuthorization();
+        final ParentActionAuthorization parentAuthorization = securityContext.getParentAuthorization();
         if (parentAuthorization == null) {
             // Nothing to remove.
             return false;
@@ -147,7 +152,7 @@ public final class PreAuthorizationUtil {
             return true;
         }
 
-        if (shouldPreAuthorizeChildByParentAction(parentAuthorization.action(), childAction) == false) {
+        if (isChildActionWhitelistedForParent(parentAuthorization.action(), childAction) == false) {
             // We want to remove the parent authorization header if the child action is not one of the white listed.
             return true;
         }
@@ -155,4 +160,50 @@ public final class PreAuthorizationUtil {
         return false;
     }
 
+    public static boolean shouldPreAuthorizeChildByParentAction(RequestInfo childRequestInfo, AuthorizationInfo childAuthorizationInfo) {
+
+        final ParentActionAuthorization parentAuthorization = childRequestInfo.getParentAuthorization();
+        if (parentAuthorization == null) {
+            return false;
+        }
+
+        Role role = RBACEngine.maybeGetRBACEngineRole(childAuthorizationInfo);
+        if (role.hasFieldOrDocumentLevelSecurity()) {
+            // We can't safely pre-authorize actions if DLS or FLS is configured
+            // without sending IAC as well with authorization result.
+            return false;
+        }
+
+        final String parentAction = parentAuthorization.action();
+        final String childAction = childRequestInfo.getAction();
+        if (isChildActionWhitelistedForParent(parentAction, childAction) == false) {
+            // We only pre-authorize explicitly allowed child actions.
+            return false;
+        }
+
+        final IndicesRequest indicesRequest;
+        if (childRequestInfo.getRequest() instanceof IndicesRequest) {
+            indicesRequest = (IndicesRequest) childRequestInfo.getRequest();
+        } else {
+            // Can only handle indices request here
+            return false;
+        }
+
+        final String[] indices = indicesRequest.indices();
+        if (indices == null || indices.length == 0) {
+            // No indices to check
+            return false;
+        }
+
+        if (Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
+            // Special placeholder for no indices.
+            // We probably can short circuit this, but it's safer not to and just fall through to the regular authorization
+            return false;
+        }
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("pre-authorizing child action [" + childAction + "] of parent action [" + parentAction + "]");
+        }
+        return true;
+    }
 }

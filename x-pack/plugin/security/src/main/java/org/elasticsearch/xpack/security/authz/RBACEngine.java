@@ -357,7 +357,7 @@ public class RBACEngine implements AuthorizationEngine {
             }
         } else if (isChildActionAuthorizedByParentOnLocalNode(requestInfo, authorizationInfo)) {
             listener.onResponse(new IndexAuthorizationResult(requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl()));
-        } else if (isChildActionPreAuthorizedByParentOnRemoteNode(requestInfo, authorizationInfo)) {
+        } else if (PreAuthorizationUtil.shouldPreAuthorizeChildByParentAction(requestInfo, authorizationInfo)) {
             // We only pre-authorize child actions if DLS/FLS is not configured,
             // hence we can allow here access for all requested indices.
             listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.allowAll()));
@@ -392,52 +392,6 @@ public class RBACEngine implements AuthorizationEngine {
 
     private static boolean allowsRemoteIndices(TransportRequest transportRequest) {
         return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
-    }
-
-    private static boolean isChildActionPreAuthorizedByParentOnRemoteNode(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
-        Role role = maybeGetRBACEngineRole(authorizationInfo);
-        if (role.hasFieldOrDocumentLevelSecurity()) {
-            // We can't safely pre-authorize actions if DLS or FLS is configured
-            // without sending IAC as well with authorization result.
-            return false;
-        }
-
-        final ParentActionAuthorization parentAuthorization = requestInfo.getParentAuthorization();
-        if (parentAuthorization == null) {
-            return false;
-        }
-
-        final String parentAction = parentAuthorization.action();
-        final String childAction = requestInfo.getAction();
-        if (PreAuthorizationUtil.shouldPreAuthorizeChildByParentAction(parentAction, childAction) == false) {
-            // We only pre-authorize explicitly allowed child actions.
-            return false;
-        }
-
-        final IndicesRequest indicesRequest;
-        if (requestInfo.getRequest() instanceof IndicesRequest) {
-            indicesRequest = (IndicesRequest) requestInfo.getRequest();
-        } else {
-            // Can only handle indices request here
-            return false;
-        }
-
-        final String[] indices = indicesRequest.indices();
-        if (indices == null || indices.length == 0) {
-            // No indices to check
-            return false;
-        }
-
-        if (Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
-            // Special placeholder for no indices.
-            // We probably can short circuit this, but it's safer not to and just fall through to the regular authorization
-            return false;
-        }
-
-        if (logger.isDebugEnabled()) {
-            logger.debug("pre-authorizing child action [" + childAction + "] of parent action [" + parentAction + "]");
-        }
-        return true;
     }
 
     private static boolean isChildActionAuthorizedByParentOnLocalNode(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {

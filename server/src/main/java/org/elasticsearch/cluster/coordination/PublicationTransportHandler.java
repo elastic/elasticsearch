@@ -86,7 +86,7 @@ public class PublicationTransportHandler {
         TransportRequestOptions.Type.STATE
     );
 
-    public static final Version INCLUDES_LAST_COMMITTED_DATA_VERSION = Version.V_8_7_0;
+    public static final Version INCLUDES_LAST_COMMITTED_DATA_VERSION = Version.V_8_6_0;
 
     private final SerializationStatsTracker serializationStatsTracker = new SerializationStatsTracker();
 

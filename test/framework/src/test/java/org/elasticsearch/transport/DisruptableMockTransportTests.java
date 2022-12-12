@@ -6,29 +6,27 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.test.disruption;
+package org.elasticsearch.transport;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.coordination.CleanableResponseHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.DisruptableMockTransport.ConnectionStatus;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -41,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
@@ -48,6 +47,8 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class DisruptableMockTransportTests extends ESTestCase {
+
+    private static final String TEST_ACTION = "internal:dummy";
 
     private DiscoveryNode node1;
     private DiscoveryNode node2;
@@ -58,10 +59,14 @@ public class DisruptableMockTransportTests extends ESTestCase {
     private DeterministicTaskQueue deterministicTaskQueue;
 
     private Runnable deliverBlackholedRequests;
+    private Runnable blockTestAction;
 
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> disconnectedLinks;
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> blackholedLinks;
     private Set<Tuple<DiscoveryNode, DiscoveryNode>> blackholedRequestLinks;
+
+    private long activeRequestCount;
+    private final Set<DiscoveryNode> rebootedNodes = new HashSet<>();
 
     private ConnectionStatus getConnectionStatus(DiscoveryNode sender, DiscoveryNode destination) {
         Tuple<DiscoveryNode, DiscoveryNode> link = Tuple.tuple(sender, destination);
@@ -93,7 +98,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         deterministicTaskQueue = new DeterministicTaskQueue();
 
-        final DisruptableMockTransport transport1 = new DisruptableMockTransport(node1, logger, deterministicTaskQueue) {
+        final DisruptableMockTransport transport1 = new DisruptableMockTransport(node1, deterministicTaskQueue) {
             @Override
             protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
                 return DisruptableMockTransportTests.this.getConnectionStatus(getLocalNode(), destination);
@@ -106,11 +111,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
             @Override
             protected void execute(Runnable runnable) {
-                deterministicTaskQueue.scheduleNow(runnable);
+                deterministicTaskQueue.scheduleNow(unlessRebooted(node1, runnable));
             }
         };
 
-        final DisruptableMockTransport transport2 = new DisruptableMockTransport(node2, logger, deterministicTaskQueue) {
+        final DisruptableMockTransport transport2 = new DisruptableMockTransport(node2, deterministicTaskQueue) {
             @Override
             protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
                 return DisruptableMockTransportTests.this.getConnectionStatus(getLocalNode(), destination);
@@ -123,7 +128,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
             @Override
             protected void execute(Runnable runnable) {
-                deterministicTaskQueue.scheduleNow(runnable);
+                deterministicTaskQueue.scheduleNow(unlessRebooted(node2, runnable));
             }
         };
 
@@ -159,42 +164,96 @@ public class DisruptableMockTransportTests extends ESTestCase {
         assertTrue(fut2.isDone());
 
         deliverBlackholedRequests = () -> transports.forEach(DisruptableMockTransport::deliverBlackholedRequests);
+
+        blockTestAction = new Runnable() {
+            @Override
+            public void run() {
+                transports.forEach(t -> t.addActionBlock(TEST_ACTION));
+            }
+
+            @Override
+            public String toString() {
+                return "add block for " + TEST_ACTION;
+            }
+        };
+
+        activeRequestCount = 0;
+        rebootedNodes.clear();
     }
 
-    private TransportRequestHandler<TransportRequest.Empty> requestHandlerShouldNotBeCalled() {
-        return (request, channel, task) -> { throw new AssertionError("should not be called"); };
+    @After
+    public void assertAllRequestsReleased() {
+        assertEquals(0, activeRequestCount);
     }
 
-    private TransportRequestHandler<TransportRequest.Empty> requestHandlerRepliesNormally() {
-        return (request, channel, task) -> {
-            logger.debug("got a dummy request, replying normally...");
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+    private Runnable reboot(DiscoveryNode discoveryNode) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                rebootedNodes.add(discoveryNode);
+            }
+
+            @Override
+            public String toString() {
+                return "reboot " + discoveryNode;
+            }
         };
     }
 
-    private TransportRequestHandler<TransportRequest.Empty> requestHandlerRepliesExceptionally(Exception e) {
+    private Runnable unlessRebooted(DiscoveryNode discoveryNode, Runnable runnable) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                if (rebootedNodes.contains(discoveryNode)) {
+                    if (runnable instanceof DisruptableMockTransport.RebootSensitiveRunnable rebootSensitiveRunnable) {
+                        rebootSensitiveRunnable.ifRebooted();
+                    }
+                } else {
+                    runnable.run();
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "unlessRebooted[" + discoveryNode.getId() + "/" + runnable + "]";
+            }
+        };
+    }
+
+    private TransportRequestHandler<TestRequest> requestHandlerShouldNotBeCalled() {
+        return (request, channel, task) -> { throw new AssertionError("should not be called"); };
+    }
+
+    private TransportRequestHandler<TestRequest> requestHandlerRepliesNormally() {
+        return (request, channel, task) -> {
+            logger.debug("got a dummy request, replying normally...");
+            channel.sendResponse(new TestResponse());
+        };
+    }
+
+    private TransportRequestHandler<TestRequest> requestHandlerRepliesExceptionally(Exception e) {
         return (request, channel, task) -> {
             logger.debug("got a dummy request, replying exceptionally...");
             channel.sendResponse(e);
         };
     }
 
-    private TransportRequestHandler<TransportRequest.Empty> requestHandlerCaptures(Consumer<TransportChannel> channelConsumer) {
+    private TransportRequestHandler<TestRequest> requestHandlerCaptures(Consumer<TransportChannel> channelConsumer) {
         return (request, channel, task) -> {
             logger.debug("got a dummy request...");
             channelConsumer.accept(channel);
         };
     }
 
-    private TransportResponseHandler<TransportResponse> responseHandlerShouldNotBeCalled() {
+    private <T extends TransportResponse> TransportResponseHandler<T> responseHandlerShouldNotBeCalled() {
         return new TransportResponseHandler<>() {
             @Override
-            public TransportResponse read(StreamInput in) {
+            public T read(StreamInput in) {
                 throw new AssertionError("should not be called");
             }
 
             @Override
-            public void handleResponse(TransportResponse response) {
+            public void handleResponse(T response) {
                 throw new AssertionError("should not be called");
             }
 
@@ -205,10 +264,15 @@ public class DisruptableMockTransportTests extends ESTestCase {
         };
     }
 
-    private TransportResponseHandler<TransportResponse.Empty> responseHandlerShouldBeCalledNormally(Runnable onCalled) {
-        return new TransportResponseHandler.Empty() {
+    private TransportResponseHandler<TestResponse> responseHandlerShouldBeCalledNormally(Runnable onCalled) {
+        return new TransportResponseHandler<>() {
             @Override
-            public void handleResponse(TransportResponse.Empty response) {
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse(in);
+            }
+
+            @Override
+            public void handleResponse(TestResponse response) {
                 onCalled.run();
             }
 
@@ -219,15 +283,17 @@ public class DisruptableMockTransportTests extends ESTestCase {
         };
     }
 
-    private TransportResponseHandler<TransportResponse> responseHandlerShouldBeCalledExceptionally(Consumer<TransportException> onCalled) {
+    private <T extends TransportResponse> TransportResponseHandler<T> responseHandlerShouldBeCalledExceptionally(
+        Consumer<TransportException> onCalled
+    ) {
         return new TransportResponseHandler<>() {
             @Override
-            public TransportResponse read(StreamInput in) {
+            public T read(StreamInput in) {
                 throw new AssertionError("should not be called");
             }
 
             @Override
-            public void handleResponse(TransportResponse response) {
+            public void handleResponse(T response) {
                 throw new AssertionError("should not be called");
             }
 
@@ -238,8 +304,8 @@ public class DisruptableMockTransportTests extends ESTestCase {
         };
     }
 
-    private void registerRequestHandler(TransportService transportService, TransportRequestHandler<TransportRequest.Empty> handler) {
-        transportService.registerRequestHandler("internal:dummy", ThreadPool.Names.GENERIC, TransportRequest.Empty::new, handler);
+    private void registerRequestHandler(TransportService transportService, TransportRequestHandler<TestRequest> handler) {
+        transportService.registerRequestHandler(TEST_ACTION, ThreadPool.Names.GENERIC, TestRequest::new, handler);
     }
 
     private void send(
@@ -247,7 +313,12 @@ public class DisruptableMockTransportTests extends ESTestCase {
         DiscoveryNode destinationNode,
         TransportResponseHandler<? extends TransportResponse> responseHandler
     ) {
-        transportService.sendRequest(destinationNode, "internal:dummy", TransportRequest.Empty.INSTANCE, responseHandler);
+        final var request = new TestRequest();
+        try {
+            transportService.sendRequest(destinationNode, TEST_ACTION, request, responseHandler);
+        } finally {
+            request.decRef();
+        }
     }
 
     public void testSuccessfulResponse() {
@@ -257,6 +328,18 @@ public class DisruptableMockTransportTests extends ESTestCase {
         send(service1, node2, responseHandlerShouldBeCalledNormally(() -> responseHandlerCalled.set(true)));
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(responseHandlerCalled.get());
+    }
+
+    public void testBlockedAction() {
+        registerRequestHandler(service1, requestHandlerShouldNotBeCalled());
+        registerRequestHandler(service2, requestHandlerRepliesNormally());
+        blockTestAction.run();
+        AtomicReference<TransportException> responseHandlerException = new AtomicReference<>();
+        send(service1, node2, responseHandlerShouldBeCalledExceptionally(responseHandlerException::set));
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertNotNull(responseHandlerException.get());
+        assertNotNull(responseHandlerException.get().getCause());
+        assertThat(responseHandlerException.get().getCause().getMessage(), containsString("action [" + TEST_ACTION + "] is blocked"));
     }
 
     public void testExceptionalResponse() {
@@ -310,7 +393,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         assertNull(responseHandlerException.get());
 
         disconnectedLinks.add(Tuple.tuple(node2, node1));
-        responseHandlerChannel.get().sendResponse(TransportResponse.Empty.INSTANCE);
+        responseHandlerChannel.get().sendResponse(new TestResponse());
         deterministicTaskQueue.runAllTasks();
         deliverBlackholedRequests.run();
         deterministicTaskQueue.runAllTasks();
@@ -348,7 +431,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         assertNotNull(responseHandlerChannel.get());
 
         blackholedLinks.add(Tuple.tuple(node2, node1));
-        responseHandlerChannel.get().sendResponse(TransportResponse.Empty.INSTANCE);
+        responseHandlerChannel.get().sendResponse(new TestResponse());
         deterministicTaskQueue.runAllRunnableTasks();
     }
 
@@ -380,7 +463,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         blackholedRequestLinks.add(Tuple.tuple(node1, node2));
         blackholedRequestLinks.add(Tuple.tuple(node2, node1));
-        responseHandlerChannel.get().sendResponse(TransportResponse.Empty.INSTANCE);
+        responseHandlerChannel.get().sendResponse(new TestResponse());
 
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(responseHandlerCalled.get());
@@ -404,6 +487,73 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(responseHandlerCalled.get());
+    }
+
+    public void testResponseWithReboots() {
+        registerRequestHandler(service1, requestHandlerShouldNotBeCalled());
+        registerRequestHandler(
+            service2,
+            randomFrom(requestHandlerRepliesNormally(), requestHandlerRepliesExceptionally(new ElasticsearchException("simulated")))
+        );
+
+        final var linkDisruptions = List.of(
+            Tuple.tuple("blackhole", blackholedLinks),
+            Tuple.tuple("blackhole-request", blackholedRequestLinks),
+            Tuple.tuple("disconnected", disconnectedLinks)
+        );
+
+        for (Runnable runnable : Stream.concat(
+            Stream.of(reboot(node1), reboot(node2), blockTestAction),
+            Stream.of(Tuple.tuple(node1, node2), Tuple.tuple(node2, node2)).map(link -> {
+                final var disruption = randomFrom(linkDisruptions);
+                return new Runnable() {
+                    @Override
+                    public void run() {
+                        if (linkDisruptions.stream().noneMatch(otherDisruption -> otherDisruption.v2().contains(link))) {
+                            disruption.v2().add(link);
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return disruption.v1() + ": " + link.v1().getId() + " to " + link.v2().getId();
+                    }
+                };
+            })
+        ).toList()) {
+            if (randomBoolean()) {
+                deterministicTaskQueue.scheduleNow(runnable);
+            }
+        }
+
+        AtomicBoolean responseHandlerCalled = new AtomicBoolean();
+        AtomicBoolean responseHandlerReleased = new AtomicBoolean();
+        deterministicTaskQueue.scheduleNow(new Runnable() {
+            @Override
+            public void run() {
+                DisruptableMockTransportTests.this.send(
+                    service1,
+                    node2,
+                    new CleanableResponseHandler<>(
+                        ActionListener.wrap(() -> assertFalse(responseHandlerCalled.getAndSet(true))),
+                        TestResponse::new,
+                        ThreadPool.Names.SAME,
+                        () -> assertFalse(responseHandlerReleased.getAndSet(true))
+                    )
+                );
+            }
+
+            @Override
+            public String toString() {
+                return "send test message";
+            }
+        });
+
+        deterministicTaskQueue.runAllRunnableTasks();
+        deliverBlackholedRequests.run();
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(responseHandlerReleased.get());
     }
 
     public void testBrokenLinkFailsToConnect() {
@@ -439,5 +589,78 @@ public class DisruptableMockTransportTests extends ESTestCase {
                 .getMessage(),
             endsWith("does not exist")
         );
+    }
+
+    private class TestRequest extends TransportRequest {
+        private final RefCounted refCounted;
+
+        TestRequest() {
+            activeRequestCount++;
+            refCounted = AbstractRefCounted.of(() -> activeRequestCount--);
+        }
+
+        TestRequest(StreamInput in) throws IOException {
+            super(in);
+            activeRequestCount++;
+            refCounted = AbstractRefCounted.of(() -> activeRequestCount--);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
+    }
+
+    private class TestResponse extends TransportResponse {
+        private final RefCounted refCounted;
+
+        TestResponse() {
+            activeRequestCount++;
+            refCounted = AbstractRefCounted.of(() -> activeRequestCount--);
+        }
+
+        TestResponse(StreamInput in) throws IOException {
+            super(in);
+            activeRequestCount++;
+            refCounted = AbstractRefCounted.of(() -> activeRequestCount--);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
     }
 }

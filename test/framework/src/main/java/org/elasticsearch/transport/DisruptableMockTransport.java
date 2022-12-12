@@ -5,11 +5,13 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.test.disruption;
+package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.coordination.CleanableResponseHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -21,19 +23,6 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.transport.CloseableConnection;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.NodeNotConnectedException;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.RequestHandlerRegistry;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,14 +37,13 @@ import static org.elasticsearch.test.ESTestCase.copyWriteable;
 
 public abstract class DisruptableMockTransport extends MockTransport {
     private final DiscoveryNode localNode;
-    private final Logger logger;
+    private final Logger logger = LogManager.getLogger(DisruptableMockTransport.class);
     private final DeterministicTaskQueue deterministicTaskQueue;
     private final List<Runnable> blackholedRequests = new ArrayList<>();
     private final Set<String> blockedActions = new HashSet<>();
 
-    public DisruptableMockTransport(DiscoveryNode localNode, Logger logger, DeterministicTaskQueue deterministicTaskQueue) {
+    public DisruptableMockTransport(DiscoveryNode localNode, DeterministicTaskQueue deterministicTaskQueue) {
         this.localNode = localNode;
-        this.logger = logger;
         this.deterministicTaskQueue = deterministicTaskQueue;
     }
 
@@ -111,7 +99,12 @@ public abstract class DisruptableMockTransport extends MockTransport {
                     public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                         throws TransportException {
                         if (blockedActions.contains(action)) {
-                            execute(new Runnable() {
+                            execute(new RebootSensitiveRunnable() {
+                                @Override
+                                public void ifRebooted() {
+                                    cleanupResponseHandler(requestId);
+                                }
+
                                 @Override
                                 public void run() {
                                     handleError(
@@ -127,7 +120,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
                                 @Override
                                 public String toString() {
-                                    return "error response delivery for action [" + action + "] on node [" + node + "]";
+                                    return "error response delivery for blocked action [" + action + "] on node [" + node + "]";
                                 }
                             });
                         } else {
@@ -172,28 +165,20 @@ public abstract class DisruptableMockTransport extends MockTransport {
             @Override
             public void ifRebooted() {
                 request.decRef();
-                deterministicTaskQueue.scheduleNow(new Runnable() {
+                execute(new RebootSensitiveRunnable() {
+                    @Override
+                    public void ifRebooted() {
+                        cleanupResponseHandler(requestId);
+                    }
+
                     @Override
                     public void run() {
-                        execute(new Runnable() {
-                            @Override
-                            public void run() {
-                                handleRemoteError(
-                                    requestId,
-                                    new NodeNotConnectedException(destinationTransport.getLocalNode(), "node rebooted")
-                                );
-                            }
-
-                            @Override
-                            public String toString() {
-                                return "error response (reboot) to " + internalToString();
-                            }
-                        });
+                        handleRemoteError(requestId, new NodeNotConnectedException(destinationTransport.getLocalNode(), "node rebooted"));
                     }
 
                     @Override
                     public String toString() {
-                        return "scheduling of error response (reboot) to " + internalToString();
+                        return "error response (reboot) to " + internalToString();
                     }
                 });
             }
@@ -210,7 +195,12 @@ public abstract class DisruptableMockTransport extends MockTransport {
     }
 
     protected Runnable getDisconnectException(long requestId, String action, DiscoveryNode destination) {
-        return new Runnable() {
+        return new RebootSensitiveRunnable() {
+            @Override
+            public void ifRebooted() {
+                cleanupResponseHandler(requestId);
+            }
+
             @Override
             public void run() {
                 handleError(requestId, new ConnectTransportException(destination, "disconnected"));
@@ -272,13 +262,20 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             @Override
             public void sendResponse(final TransportResponse response) {
-                execute(new Runnable() {
+                execute(new RebootSensitiveRunnable() {
+                    @Override
+                    public void ifRebooted() {
+                        response.decRef();
+                        cleanupResponseHandler(requestId);
+                    }
+
                     @Override
                     public void run() {
                         final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
                         switch (connectionStatus) {
                             case CONNECTED, BLACK_HOLE_REQUESTS_ONLY -> handleResponse(requestId, response);
                             case BLACK_HOLE, DISCONNECTED -> {
+                                response.decRef();
                                 logger.trace("delaying response to {}: channel is {}", requestDescription, connectionStatus);
                                 onBlackholedDuringSend(requestId, action, destinationTransport);
                             }
@@ -295,8 +292,12 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             @Override
             public void sendResponse(Exception exception) {
+                execute(new RebootSensitiveRunnable() {
+                    @Override
+                    public void ifRebooted() {
+                        cleanupResponseHandler(requestId);
+                    }
 
-                execute(new Runnable() {
                     @Override
                     public void run() {
                         final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
@@ -333,6 +334,18 @@ public abstract class DisruptableMockTransport extends MockTransport {
             } catch (Exception ee) {
                 logger.warn("failed to send failure", e);
             }
+        } finally {
+            copiedRequest.decRef();
+        }
+    }
+
+    private void cleanupResponseHandler(long requestId) {
+        TransportResponseHandler<?> handler = getTransportResponseHandler(requestId);
+        while (handler instanceof TransportService.ContextRestoreResponseHandler<?> contextRestoreHandler) {
+            handler = contextRestoreHandler.unwrap();
+        }
+        if (handler instanceof CleanableResponseHandler<?> cleanableResponseHandler) {
+            cleanableResponseHandler.runCleanup();
         }
     }
 

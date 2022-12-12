@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
@@ -419,6 +420,42 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             clusterUUIDCommitted,
             version,
             coordinationMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            indices,
+            aliasedIndices,
+            templates,
+            customs,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion,
+            reservedStateMetadata
+        );
+    }
+
+    public Metadata withLastCommittedValues(
+        boolean clusterUUIDCommitted,
+        CoordinationMetadata.VotingConfiguration lastCommittedConfiguration
+    ) {
+        if (clusterUUIDCommitted == this.clusterUUIDCommitted
+            && lastCommittedConfiguration.equals(this.coordinationMetadata.getLastCommittedConfiguration())) {
+            return this;
+        }
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            CoordinationMetadata.builder(coordinationMetadata).lastCommittedConfiguration(lastCommittedConfiguration).build(),
             transientSettings,
             persistentSettings,
             settings,
@@ -1380,6 +1417,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     private static class MetadataDiff implements Diff<Metadata> {
 
         private static final Version NOOP_METADATA_DIFF_VERSION = Version.V_8_5_0;
+        private static final Version NOOP_METADATA_DIFF_SAFE_VERSION = PublicationTransportHandler.INCLUDES_LAST_COMMITTED_DATA_VERSION;
 
         private final long version;
         private final String clusterUUID;
@@ -1466,12 +1504,15 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(NOOP_METADATA_DIFF_VERSION)) {
+            if (out.getVersion().onOrAfter(NOOP_METADATA_DIFF_SAFE_VERSION)) {
                 out.writeBoolean(empty);
                 if (empty) {
                     // noop diff
                     return;
                 }
+            } else if (out.getVersion().onOrAfter(NOOP_METADATA_DIFF_VERSION)) {
+                // noops are not safe with these versions, see #92259
+                out.writeBoolean(false);
             }
             out.writeString(clusterUUID);
             out.writeBoolean(clusterUUIDCommitted);

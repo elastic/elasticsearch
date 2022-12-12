@@ -398,6 +398,10 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         }
 
         public void updateBounds() throws IOException {
+            if (highestCompetitiveValueGlobalOrd == MISSING_VALUE_FLAG) {
+                return;
+            }
+
             long lowOrd;
             if (afterValueGlobalOrd != null && afterValueGlobalOrd != MISSING_VALUE_FLAG) {
                 lowOrd = afterValueGlobalOrd;

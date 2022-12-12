@@ -74,15 +74,10 @@ public final class AuthorizationUtils {
     private static final Map<String, Set<String>> PRE_AUTHORIZED_CHILD_ACTIONS_BY_PARENT = Map.of(
         "indices:data/read/search",
         Set.of(
-            "indices:data/read/search[free_context/scroll]",
             "indices:data/read/search[free_context]",
-            "indices:data/read/search[clear_scroll_contexts]",
             "indices:data/read/search[phase/dfs]",
             "indices:data/read/search[phase/query]",
             "indices:data/read/search[phase/query/id]",
-            "indices:data/read/search[phase/query/scroll]",
-            "indices:data/read/search[phase/query+fetch/scroll]",
-            "indices:data/read/search[phase/fetch/id/scroll]",
             "indices:data/read/search[phase/fetch/id]",
             "indices:data/read/search[can_match]",
             "indices:data/read/search[can_match][n]"

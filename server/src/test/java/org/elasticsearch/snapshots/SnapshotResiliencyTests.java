@@ -665,8 +665,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final int inProgressSnapshots = randomIntBetween(1, 5);
         final StepListener<Collection<CreateSnapshotResponse>> createOtherSnapshotResponseStepListener = new StepListener<>();
         final ActionListener<CreateSnapshotResponse> createSnapshotListener = new GroupedActionListener<>(
-            createOtherSnapshotResponseStepListener,
-            inProgressSnapshots
+            inProgressSnapshots,
+            createOtherSnapshotResponseStepListener
         );
 
         continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
@@ -825,7 +825,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             firstIndex.set(masterNode.clusterService.state().metadata().index(index).getIndex());
             // create a few more indices to make it more likely that the subsequent index delete operation happens before snapshot
             // finalization
-            final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(createIndicesListener, indices);
+            final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(indices, createIndicesListener);
             for (int i = 0; i < indices; ++i) {
                 client().admin().indices().create(new CreateIndexRequest("index-" + i), listener);
             }
@@ -1172,8 +1172,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<Collection<CreateSnapshotResponse>> allSnapshotsListener = new StepListener<>();
         final ActionListener<CreateSnapshotResponse> snapshotListener = new GroupedActionListener<>(
-            allSnapshotsListener,
-            snapshotNames.size()
+            snapshotNames.size(),
+            allSnapshotsListener
         );
         final AtomicBoolean doneIndexing = new AtomicBoolean(false);
         continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse -> {

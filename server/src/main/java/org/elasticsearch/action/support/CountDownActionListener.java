@@ -48,6 +48,7 @@ public final class CountDownActionListener extends ActionListener.Delegating<Voi
 
     @Override
     public void onResponse(Void element) {
+        assert countDown.isCountedDown() == false;
         if (countDown.countDown()) {
             if (failure.get() != null) {
                 super.onFailure(failure.get());
@@ -59,6 +60,7 @@ public final class CountDownActionListener extends ActionListener.Delegating<Voi
 
     @Override
     public void onFailure(Exception e) {
+        assert countDown.isCountedDown() == false;
         if (failure.compareAndSet(null, e) == false) {
             failure.accumulateAndGet(e, (current, update) -> {
                 // we have to avoid self-suppression!

@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -392,8 +391,36 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
 
         assertThat(acquiredCommits, contains(commit1, commit2, commit3));
         assertThat(deletedCommits, contains(commit0));
-        assertThat(newCommitFiles, hasItem("segments_3"));
-        assertThat(newCommitFiles, hasSize(25));
+        assertThat(
+            newCommitFiles,
+            containsInAnyOrder(
+                equalTo("_3.fdx"),
+                equalTo("_3_Lucene90_0.tip"),
+                equalTo("_3_Lucene90_0.dvm"),
+                equalTo("_3.si"),
+                equalTo("_3_0.tmd"),
+                equalTo("_3_0.tim"),
+                equalTo("_3_ES85BloomFilter_0.bfi"),
+                equalTo("_3_0.pos"),
+                equalTo("_3_ES85BloomFilter_0.bfm"),
+                equalTo("_3_0.tip"),
+                equalTo("_3_Lucene90_0.doc"),
+                equalTo("_3.nvd"),
+                equalTo("_3.nvm"),
+                equalTo("_3.fnm"),
+                equalTo("_3_0.doc"),
+                equalTo("segments_3"),
+                equalTo("_3.kdd"),
+                equalTo("_3_Lucene90_0.tmd"),
+                equalTo("_3.fdm"),
+                equalTo("_3.kdi"),
+                equalTo("_3_Lucene90_0.dvd"),
+                equalTo("_3_Lucene90_0.pos"),
+                equalTo("_3.kdm"),
+                equalTo("_3.fdt"),
+                equalTo("_3_Lucene90_0.tim")
+            )
+        );
 
         maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit2);
         assertThat("No commits to clean up (commit #2 is the safe commit)", maybeCleanUpCommits, equalTo(false));

@@ -162,7 +162,9 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 assertThat(clusterStateFromDiffs.metadata().equalsAliases(clusterState.metadata()), is(true));
 
                 // JSON Serialization test - make sure that both states produce similar JSON
-                assertNull(differenceBetweenMapsIgnoringArrayOrder(convertToMap(clusterStateFromDiffs, true), convertToMap(clusterState, true)));
+                assertNull(
+                    differenceBetweenMapsIgnoringArrayOrder(convertToMap(clusterStateFromDiffs, true), convertToMap(clusterState, true))
+                );
 
                 // Smoke test - we cannot compare bytes to bytes because some elements might get serialized in different order
                 // however, serialized size should remain the same

@@ -281,10 +281,11 @@ public class JwtRestIT extends ESRestTestCase {
      * - uses a shared-secret for client authentication
      */
     public void testAuthenticateWithHmacSignedJWTAndDelegatedAuthorization() throws Exception {
-        final String principal = randomPrincipal();
+        final String principal = System.getProperty("jwt2.service_subject");
+        final String username = getUsernameFromPrincipal(principal);
         final List<String> roles = randomRoles();
         final String randomMetadata = randomAlphaOfLengthBetween(6, 18);
-        createUser(principal, roles, Map.of("test_key", randomMetadata));
+        createUser(username, roles, Map.of("test_key", randomMetadata));
 
         try {
             final SignedJWT jwt = buildAndSignJwtForRealm2(principal);
@@ -292,7 +293,7 @@ public class JwtRestIT extends ESRestTestCase {
 
             final Map<String, Object> response = client.authenticate();
 
-            assertThat(response.get(User.Fields.USERNAME.getPreferredName()), is(principal));
+            assertThat(response.get(User.Fields.USERNAME.getPreferredName()), is(username));
             assertThat(assertMap(response, User.Fields.AUTHENTICATION_REALM), hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt2"));
             assertThat(assertList(response, User.Fields.ROLES), Matchers.containsInAnyOrder(roles.toArray(String[]::new)));
             assertThat(assertMap(response, User.Fields.METADATA), hasEntry("test_key", randomMetadata));
@@ -304,14 +305,15 @@ public class JwtRestIT extends ESRestTestCase {
             );
             assertThat(exception.getResponse(), hasStatusCode(RestStatus.FORBIDDEN));
         } finally {
-            deleteUser(principal);
+            deleteUser(username);
         }
     }
 
     public void testFailureOnInvalidHMACSignature() throws Exception {
-        final String principal = randomPrincipal();
+        final String principal = System.getProperty("jwt2.service_subject");
+        final String username = getUsernameFromPrincipal(principal);
         final List<String> roles = randomRoles();
-        createUser(principal, roles, Map.of());
+        createUser(username, roles, Map.of());
 
         try {
             final JWTClaimsSet claimsSet = buildJwtForRealm2(principal, Instant.now());
@@ -320,7 +322,7 @@ public class JwtRestIT extends ESRestTestCase {
                 // This is the correct HMAC passphrase (from build.gradle)
                 final SignedJWT jwt = signHmacJwt(claimsSet, "test-HMAC/secret passphrase-value");
                 final TestSecurityClient client = getSecurityClient(jwt, VALID_SHARED_SECRET);
-                assertThat(client.authenticate(), hasEntry(User.Fields.USERNAME.getPreferredName(), principal));
+                assertThat(client.authenticate(), hasEntry(User.Fields.USERNAME.getPreferredName(), username));
             }
             {
                 // This is not the correct HMAC passphrase
@@ -331,13 +333,14 @@ public class JwtRestIT extends ESRestTestCase {
                 assertThat(exception.getResponse(), hasStatusCode(RestStatus.UNAUTHORIZED));
             }
         } finally {
-            deleteUser(principal);
+            deleteUser(username);
         }
 
     }
 
     public void testAuthenticationFailureIfDelegatedAuthorizationFails() throws Exception {
-        final String principal = randomPrincipal();
+        final String principal = System.getProperty("jwt2.service_subject");
+        final String username = getUsernameFromPrincipal(principal);
         final SignedJWT jwt = buildAndSignJwtForRealm2(principal);
         final TestSecurityClient client = getSecurityClient(jwt, VALID_SHARED_SECRET);
 
@@ -345,19 +348,20 @@ public class JwtRestIT extends ESRestTestCase {
         final ResponseException exception = expectThrows(ResponseException.class, client::authenticate);
         assertThat(exception.getResponse(), hasStatusCode(RestStatus.UNAUTHORIZED));
 
-        createUser(principal, List.of(), Map.of());
+        createUser(username, List.of(), Map.of());
         try {
             // Now it works
-            assertThat(client.authenticate(), hasEntry(User.Fields.USERNAME.getPreferredName(), principal));
+            assertThat(client.authenticate(), hasEntry(User.Fields.USERNAME.getPreferredName(), username));
         } finally {
-            deleteUser(principal);
+            deleteUser(username);
         }
     }
 
     public void testFailureOnInvalidClientAuthentication() throws Exception {
-        final String principal = randomPrincipal();
+        final String principal = System.getProperty("jwt2.service_subject");
+        final String username = getUsernameFromPrincipal(principal);
         final List<String> roles = randomRoles();
-        createUser(principal, roles, Map.of());
+        createUser(username, roles, Map.of());
 
         try {
             final SignedJWT jwt = buildAndSignJwtForRealm2(principal);
@@ -368,7 +372,7 @@ public class JwtRestIT extends ESRestTestCase {
             assertThat(exception.getResponse(), hasStatusCode(RestStatus.UNAUTHORIZED));
 
         } finally {
-            deleteUser(principal);
+            deleteUser(username);
         }
     }
 
@@ -499,14 +503,15 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     private JWTClaimsSet buildJwtForRealm2(String principal, Instant issueTime) {
-        final String emailAddress = principal + "@" + randomAlphaOfLengthBetween(3, 6) + ".example.com";
         // The "jwt2" realm, supports 3 audiences (es01/02/03)
         final String audience = "es0" + randomIntBetween(1, 3);
-        final JWTClaimsSet claimsSet = buildJwt(
-            Map.ofEntries(Map.entry("iss", "my-issuer"), Map.entry("aud", audience), Map.entry("email", emailAddress)),
-            issueTime,
-            false
-        );
+        final Map<String, Object> data = new HashMap<>(Map.of("iss", "my-issuer", "aud", audience, "email", principal));
+        // scope (fallback audience) is ignored since aud exists
+        if (randomBoolean()) {
+            data.put("scope", randomAlphaOfLength(20));
+        }
+
+        final JWTClaimsSet claimsSet = buildJwt(data, issueTime, false);
         return claimsSet;
     }
 
@@ -645,14 +650,36 @@ public class JwtRestIT extends ESRestTestCase {
         createUser(principal, new SecureString(randomAlphaOfLength(12).toCharArray()), roles, metadata);
     }
 
-    private void createUser(String username, SecureString password, List<String> roles, Map<String, Object> metadata) throws IOException {
+    private void createUser(String principal, SecureString password, List<String> roles, Map<String, Object> metadata) throws IOException {
+        final String username;
+        if (principal.contains("@")) {
+            username = principal.substring(0, principal.indexOf("@"));
+        } else {
+            username = principal;
+        }
         final String realName = randomAlphaOfLengthBetween(6, 18);
         final User user = new User(username, roles.toArray(String[]::new), realName, null, metadata, true);
         getAdminSecurityClient().putUser(user, password);
     }
 
-    private void deleteUser(String username) throws IOException {
+    private void deleteUser(String principal) throws IOException {
+        final String username;
+        if (principal.contains("@")) {
+            username = principal.substring(0, principal.indexOf("@"));
+        } else {
+            username = principal;
+        }
         getAdminSecurityClient().deleteUser(username);
+    }
+
+    private String getUsernameFromPrincipal(String principal) {
+        final String username;
+        if (principal.contains("@")) {
+            username = principal.substring(0, principal.indexOf("@"));
+        } else {
+            username = principal;
+        }
+        return username;
     }
 
     private String createRoleMapping(List<String> roles, String rules) throws IOException {

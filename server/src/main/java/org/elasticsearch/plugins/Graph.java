@@ -79,12 +79,13 @@ class Graph<E> {
 
     private class GraphIterator implements Iterator<E> {
         private final Deque<E> nextNodes;
-        private final Set<E> seenNodes = new HashSet<>();
-        private final BiConsumer<Deque<E>, E> addNewNodes;
+        private final Set<E> seenNodes;
+        private final BiConsumer<Deque<E>, E> addNode;
 
-        private GraphIterator(Collection<E> startingNodes, BiConsumer<Deque<E>, E> addNewNodes) {
+        private GraphIterator(Collection<E> startingNodes, BiConsumer<Deque<E>, E> addNode) {
             this.nextNodes = new ArrayDeque<>(startingNodes);
-            this.addNewNodes = addNewNodes;
+            this.seenNodes = new HashSet<>(startingNodes);
+            this.addNode = addNode;
         }
 
         @Override
@@ -111,28 +112,25 @@ class Graph<E> {
         @Override
         public E next() {
             E next = nextNodes.removeFirst();
-            if (seenNodes.add(next) == false) {
-                throw new IllegalStateException("Cycle found");
+            for (E succ : successors.get(next)) {
+                if (seenNodes.add(succ)) {
+                    addNode.accept(nextNodes, succ);
+                }
             }
-            addNewNodes.accept(nextNodes, next);
             return next;
         }
     }
 
     public void checkLoops() {
         // just do an iteration, it will throw at the end if there's looping nodes
-        Iterator<E> it = new GraphIterator(startingNodes, (d, e) -> d.addAll(successors.get(e)));
+        Iterator<E> it = new GraphIterator(startingNodes, Deque::add);
         while (it.hasNext()) {
             it.next();
         }
     }
 
     public Iterator<E> breadthFirst() {
-        return new GraphIterator(startingNodes, (d, e) -> successors.get(e).forEach(d::addLast));
-    }
-
-    public Iterator<E> depthFirst() {
-        return new GraphIterator(startingNodes, (d, e) -> successors.get(e).forEach(d::addFirst));
+        return new GraphIterator(startingNodes, Deque::addLast);
     }
 
     private Stream<E> graphStream(Iterator<E> it) {
@@ -144,9 +142,5 @@ class Graph<E> {
 
     public Stream<E> streamBreadthFirst() {
         return graphStream(breadthFirst());
-    }
-
-    public Stream<E> streamDepthFirst() {
-        return graphStream(depthFirst());
     }
 }

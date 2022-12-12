@@ -12,7 +12,6 @@ import org.gradle.api.internal.tasks.testing.TestCompleteEvent
 import org.gradle.api.internal.tasks.testing.TestDescriptorInternal
 import org.gradle.api.internal.tasks.testing.TestResultProcessor
 import org.gradle.api.internal.tasks.testing.TestStartEvent
-import org.gradle.api.tasks.testing.TestFailure
 import org.gradle.api.tasks.testing.TestOutputEvent
 import spock.lang.Specification
 
@@ -76,20 +75,20 @@ class RerunTestResultProcessorTestSpec extends Specification {
 
         def testDescriptor2 = descriptor("testId2")
         def testStartEvent2 = startEvent("testId2")
-        def testFailure = Mock(TestFailure)
+        def testError2 = Mock(Throwable)
 
         when:
         processor.started(rootDescriptor, rootTestStartEvent)
         processor.started(testDescriptor1, testStartEvent1)
         processor.started(testDescriptor2, testStartEvent2)
-        processor.failure("testId2", testFailure)
+        processor.failure("testId2", testError2)
         processor.completed("rootId", rootCompleteEvent)
 
         then:
         1 * delegate.started(rootDescriptor, rootTestStartEvent)
         1 * delegate.started(testDescriptor1, testStartEvent1)
         1 * delegate.started(testDescriptor2, testStartEvent2)
-        1 * delegate.failure("testId2", testFailure)
+        1 * delegate.failure("testId2", testError2)
         0 * delegate.completed("rootId", rootCompleteEvent)
 
         when:

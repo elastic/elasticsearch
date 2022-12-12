@@ -11,8 +11,6 @@ package org.elasticsearch.rest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
-import java.io.IOException;
-
 import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
 
 public class RestResponseUtils {

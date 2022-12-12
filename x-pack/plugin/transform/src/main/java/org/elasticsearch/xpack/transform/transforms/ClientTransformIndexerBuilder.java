@@ -46,7 +46,7 @@ class ClientTransformIndexerBuilder {
         TransformCheckpoint historyCheckpoint;
         if (context.from() != null) {
             long timestampFrom = context.from().toEpochMilli();
-            historyCheckpoint = new TransformCheckpoint("history", timestampFrom - 1, -1L, Collections.emptyMap(), timestampFrom - 1);
+            historyCheckpoint = new TransformCheckpoint("history", timestampFrom, -1L, Collections.emptyMap(), timestampFrom);
         } else {
             historyCheckpoint = TransformCheckpoint.EMPTY;
         }

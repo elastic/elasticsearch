@@ -384,6 +384,10 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             if (missingBucket) {
                 return null;
             }
+            // filterByChanges has been called before collectChangesFromAggregations
+            if (lowerBound == 0 && upperBound == 0) {
+                return null;
+            }
             return new RangeQueryBuilder(sourceFieldName).gte(lowerBound).lte(upperBound).format("epoch_millis");
         }
 
@@ -484,13 +488,11 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             if (missingBucket) {
                 return null;
             }
-
-            // Once the changes have been collected, (upperBound - lowerBound) >= interval, so never 0.
-            // But if this method is called before the changes have been collected, (upperBound - lowerBound) == 0, so it's better to guard
-            // against the Division By 0 error that would occur below.
-            if (upperBound - lowerBound == 0) {
+            // filterByChanges has been called before collectChangesFromAggregations
+            if (lowerBound == 0 && upperBound == 0) {
                 return null;
             }
+            // (upperBound - lowerBound) >= interval, so never 0.
             if ((maxUpperBound - minLowerBound) / (upperBound - lowerBound) < MIN_CUT_OFF) {
                 return null;
             }

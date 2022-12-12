@@ -1363,9 +1363,10 @@ public class ApiKeyService {
             listener.onFailure(new ElasticsearchSecurityException("No api key ids provided for invalidation"));
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            final long invalidationTime = clock.instant().toEpochMilli();
             for (String apiKeyId : apiKeyIds) {
                 UpdateRequest request = client.prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
-                    .setDoc(Collections.singletonMap("api_key_invalidated", true))
+                    .setDoc(Map.of("api_key_invalidated", true, "invalidation_time", invalidationTime))
                     .request();
                 bulkRequestBuilder.add(request);
             }
@@ -1747,7 +1748,11 @@ public class ApiKeyService {
         } else {
             // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be
             // `null`. Since this method is used in audit logging, this requires some care.
-            return authentication.getSourceRealm().getName();
+            if (authentication.isFailedRunAs()) {
+                return authentication.getAuthenticatingSubject().getRealm().getName();
+            } else {
+                return authentication.getEffectiveSubject().getRealm().getName();
+            }
         }
     }
 
@@ -1790,7 +1795,11 @@ public class ApiKeyService {
         } else {
             // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be
             // `null`. Since this method is used in audit logging, this requires some care.
-            return authentication.getSourceRealm().getType();
+            if (authentication.isFailedRunAs()) {
+                return authentication.getAuthenticatingSubject().getRealm().getType();
+            } else {
+                return authentication.getEffectiveSubject().getRealm().getType();
+            }
         }
     }
 

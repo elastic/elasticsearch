@@ -53,9 +53,8 @@ public class ConsoleLoader {
     private static ClassLoader buildClassLoader(Environment env) {
         final Path libDir = env.libFile().resolve("tools").resolve("ansi-console");
 
-        try {
-            final URL[] urls = Files.list(libDir)
-                .filter(each -> each.getFileName().toString().endsWith(".jar"))
+        try (var libDirFilesStream = Files.list(libDir)) {
+            final URL[] urls = libDirFilesStream.filter(each -> each.getFileName().toString().endsWith(".jar"))
                 .map(ConsoleLoader::pathToURL)
                 .toArray(URL[]::new);
 

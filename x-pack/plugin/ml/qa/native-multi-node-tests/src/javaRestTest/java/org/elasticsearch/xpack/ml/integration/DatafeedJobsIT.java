@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
@@ -64,6 +65,7 @@ import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDataf
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDataCounts;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -827,5 +829,56 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         );
 
         assertThat(e.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
+    }
+
+    public void testStart_GivenAggregateMetricDoubleWithoutAggs() throws Exception {
+        final String index = "index-with-aggregate-metric-double";
+        String mapping = """
+            {
+              "properties": {
+                "time": {
+                  "type": "date"
+                },
+                "presum": {
+                  "type": "aggregate_metric_double",
+                  "metrics": [ "min", "max", "sum", "value_count" ],
+                  "default_metric": "max"
+                }
+              }
+            }""";
+        client().admin().indices().prepareCreate(index).setMapping(mapping).get();
+
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+
+        Detector.Builder d = new Detector.Builder("avg", "presum");
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
+        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
+
+        Job.Builder jobBuilder = new Job.Builder();
+        jobBuilder.setId("job-with-aggregate-metric-double");
+        jobBuilder.setAnalysisConfig(analysisConfig);
+        jobBuilder.setDataDescription(dataDescription);
+
+        putJob(jobBuilder);
+        openJob(jobBuilder.getId());
+        assertBusy(() -> assertEquals(getJobStats(jobBuilder.getId()).get(0).getState(), JobState.OPENED));
+
+        DatafeedConfig.Builder dfBuilder = new DatafeedConfig.Builder(jobBuilder.getId() + "-datafeed", jobBuilder.getId());
+        dfBuilder.setIndices(Collections.singletonList(index));
+
+        DatafeedConfig datafeedConfig = dfBuilder.build();
+
+        putDatafeed(datafeedConfig);
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> startDatafeed(datafeedConfig.getId(), 0L, null)
+        );
+
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            e.getMessage(),
+            containsString("field [presum] is of type [aggregate_metric_double] and cannot be used in a datafeed without aggregations")
+        );
     }
 }

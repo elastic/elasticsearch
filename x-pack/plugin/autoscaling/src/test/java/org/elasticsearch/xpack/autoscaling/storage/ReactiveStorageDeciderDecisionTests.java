@@ -52,7 +52,6 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -515,7 +514,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 allocation.routingNodes(),
                 ShardRoutingState.INITIALIZING
             );
-            initializingShards.sort(Comparator.comparing(ShardRouting::shardId).thenComparing(ShardRouting::primary, Boolean::compare));
             List<ShardRouting> shards = randomSubsetOf(Math.min(randomIntBetween(1, 100), initializingShards.size()), initializingShards);
 
             // replicas before primaries, since replicas can be reinit'ed, resulting in a new ShardRouting instance.

@@ -93,7 +93,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
     @Override
     @SuppressWarnings("unchecked")
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        String query = """
+        String query = formatted("""
             {
               "aggs": {
                 "second": {
@@ -106,7 +106,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
                 }
               }
             }
-            """.formatted(timestampField, missing ? "\"missing\": \"" + MISSING_BUCKET_KEY + "\"," : "");
+            """, timestampField, missing ? "\"missing\": \"" + MISSING_BUCKET_KEY + "\"," : "");
 
         Response searchResponse = search(
             CONTINUOUS_EVENTS_SOURCE_INDEX,

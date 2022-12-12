@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.recovery;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,13 +26,13 @@ import java.util.Map;
 /**
  * Information regarding the recovery state of indices and their associated shards.
  */
-public class RecoveryResponse extends BroadcastResponse implements ChunkedToXContent {
+public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedToXContent {
 
     private final Map<String, List<RecoveryState>> shardRecoveryStates;
 
     public RecoveryResponse(StreamInput in) throws IOException {
         super(in);
-        shardRecoveryStates = in.readMapOfLists(StreamInput::readString, RecoveryState::new);
+        shardRecoveryStates = in.readMapOfLists(StreamInput::readString, RecoveryState::readRecoveryState);
     }
 
     /**
@@ -65,7 +65,7 @@ public class RecoveryResponse extends BroadcastResponse implements ChunkedToXCon
     }
 
     @Override
-    public Iterator<ToXContent> toXContentChunked() {
+    public Iterator<ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             Iterators.single((b, p) -> b.startObject()),
             shardRecoveryStates.entrySet()

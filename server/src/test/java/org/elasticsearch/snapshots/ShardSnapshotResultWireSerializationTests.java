@@ -49,7 +49,7 @@ public class ShardSnapshotResultWireSerializationTests extends AbstractWireSeria
     }
 
     static ShardSnapshotResult randomShardSnapshotResult() {
-        return new ShardSnapshotResult(ShardGeneration.newGeneration(), new ByteSizeValue(randomNonNegativeLong()), between(0, 1000));
+        return new ShardSnapshotResult(ShardGeneration.newGeneration(), ByteSizeValue.ofBytes(randomNonNegativeLong()), between(0, 1000));
     }
 
     static ShardSnapshotResult mutateShardSnapshotResult(ShardSnapshotResult instance) {
@@ -63,7 +63,7 @@ public class ShardSnapshotResultWireSerializationTests extends AbstractWireSeria
             case 2:
                 return new ShardSnapshotResult(
                     instance.getGeneration(),
-                    randomValueOtherThan(instance.getSize(), () -> new ByteSizeValue(randomNonNegativeLong())),
+                    randomValueOtherThan(instance.getSize(), () -> ByteSizeValue.ofBytes(randomNonNegativeLong())),
                     instance.getSegmentCount()
                 );
 

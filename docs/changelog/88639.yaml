@@ -1,6 +1,0 @@
-pr: 88639
-summary: Introduce max headroom for disk watermark stages
-area: Infra/Settings
-type: enhancement
-issues:
- - 81406

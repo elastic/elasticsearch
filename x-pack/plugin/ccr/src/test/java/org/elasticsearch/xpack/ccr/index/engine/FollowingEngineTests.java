@@ -286,6 +286,8 @@ public class FollowingEngineTests extends ESTestCase {
             () -> RetentionLeases.EMPTY,
             () -> primaryTerm.get(),
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+            null,
+            System::nanoTime,
             null
         );
     }

@@ -203,7 +203,7 @@ PUT /my-index-000001
 ----
 
 You can also specify your own list of stop words. For example, the following
-request creates a custom case-sensitive `stop` filter that removes only the stop
+request creates a custom case-insensitive `stop` filter that removes only the stop
 words `and`, `is`, and `the`:
 
 [source,console]

@@ -29,7 +29,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.core.Strings.format;
@@ -48,7 +48,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     private final ReservedStateChunk stateChunk;
     private final Map<String, ReservedClusterStateHandler<?>> handlers;
     private final Collection<String> orderedHandlers;
-    private final BiConsumer<ClusterState, ErrorState> errorReporter;
+    private final Consumer<ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
     private final Collection<NonStateTransformResult> nonStateTransformResults;
 
@@ -58,7 +58,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         Collection<NonStateTransformResult> nonStateTransformResults,
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
-        BiConsumer<ClusterState, ErrorState> errorReporter,
+        Consumer<ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
     ) {
         this.namespace = namespace;
@@ -105,7 +105,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             }
         }
 
-        checkAndThrowOnError(errors, currentState, reservedStateVersion);
+        checkAndThrowOnError(errors, reservedStateVersion);
 
         // Once we have set all of the handler state from the cluster state update tasks, we add the reserved keys
         // from the non cluster state transforms.
@@ -122,7 +122,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return stateBuilder.metadata(metadataBuilder).build();
     }
 
-    private void checkAndThrowOnError(List<String> errors, ClusterState currentState, ReservedStateVersion reservedStateVersion) {
+    private void checkAndThrowOnError(List<String> errors, ReservedStateVersion reservedStateVersion) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
@@ -134,7 +134,12 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
                 ReservedStateErrorMetadata.ErrorKind.VALIDATION
             );
 
-            errorReporter.accept(currentState, errorState);
+            /*
+             * It doesn't matter this reporter needs to re-access the base state,
+             * any updates set by this task will just be discarded when the below exception is thrown,
+             * and we just need to set the error state once
+             */
+            errorReporter.accept(errorState);
 
             throw new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState);
         }

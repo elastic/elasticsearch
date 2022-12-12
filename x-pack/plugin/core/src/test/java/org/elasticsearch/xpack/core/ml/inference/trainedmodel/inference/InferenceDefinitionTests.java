@@ -197,7 +197,7 @@ public class InferenceDefinitionTests extends ESTestCase {
     }
 
     public static String getClassificationDefinition(boolean customPreprocessor) {
-        return """
+        return formatted("""
             {
                 "preprocessors": [
                     {
@@ -327,6 +327,6 @@ public class InferenceDefinitionTests extends ESTestCase {
                         ]
                     }
                 }
-            }""".formatted(customPreprocessor);
+            }""", customPreprocessor);
     }
 }

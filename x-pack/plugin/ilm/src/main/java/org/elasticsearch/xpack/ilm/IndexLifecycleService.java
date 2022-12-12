@@ -184,12 +184,12 @@ public class IndexLifecycleService
 
                     try {
                         if (OperationMode.STOPPING == currentMode) {
-                            if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
+                            if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.name())) {
                                 logger.info(
                                     "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
                                     idxMeta.getIndex().getName(),
                                     policyName,
-                                    stepKey.getName()
+                                    stepKey.name()
                                 );
                                 lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
                                 // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
@@ -197,7 +197,7 @@ public class IndexLifecycleService
                             } else {
                                 logger.info(
                                     "skipping policy execution of step [{}] for index [{}] with policy [{}]" + " because ILM is stopping",
-                                    stepKey == null ? "n/a" : stepKey.getName(),
+                                    stepKey == null ? "n/a" : stepKey.name(),
                                     idxMeta.getIndex().getName(),
                                     policyName
                                 );
@@ -393,12 +393,12 @@ public class IndexLifecycleService
 
                 try {
                     if (OperationMode.STOPPING == currentMode) {
-                        if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
+                        if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.name())) {
                             logger.info(
                                 "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
                                 idxMeta.getIndex().getName(),
                                 policyName,
-                                stepKey.getName()
+                                stepKey.name()
                             );
                             if (fromClusterStateChange) {
                                 lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
@@ -410,7 +410,7 @@ public class IndexLifecycleService
                         } else {
                             logger.info(
                                 "skipping policy execution of step [{}] for index [{}] with policy [{}] because ILM is stopping",
-                                stepKey == null ? "n/a" : stepKey.getName(),
+                                stepKey == null ? "n/a" : stepKey.name(),
                                 idxMeta.getIndex().getName(),
                                 policyName
                             );

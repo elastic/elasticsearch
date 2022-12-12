@@ -179,4 +179,14 @@ public class BasicQueryClient implements QueryClient {
             listener.onResponse(seq);
         }, listener::onFailure));
     }
+
+    @Override
+    public void multiQuery(List<SearchRequest> searches, ActionListener<MultiSearchResponse> listener) {
+        MultiSearchRequestBuilder multiSearchBuilder = client.prepareMultiSearch();
+        for (SearchRequest request : searches) {
+            request.indices(indices);
+            multiSearchBuilder.add(request);
+        }
+        search(multiSearchBuilder.request(), listener);
+    }
 }

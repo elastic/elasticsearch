@@ -64,13 +64,13 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
         var ilmMetadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
                 "No Index Lifecycle Management policies configured",
-                createDetails(explain, ilmMetadata),
+                createDetails(verbose, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -88,7 +88,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 YELLOW,
                 "Index Lifecycle Management is not running",
-                createDetails(explain, ilmMetadata),
+                createDetails(verbose, ilmMetadata),
                 impacts,
                 List.of(ILM_NOT_RUNNING)
             );
@@ -96,15 +96,15 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 GREEN,
                 "Index Lifecycle Management is running",
-                createDetails(explain, ilmMetadata),
+                createDetails(verbose, ilmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
         }
     }
 
-    private static HealthIndicatorDetails createDetails(boolean explain, IndexLifecycleMetadata metadata) {
-        if (explain) {
+    private static HealthIndicatorDetails createDetails(boolean verbose, IndexLifecycleMetadata metadata) {
+        if (verbose) {
             return new SimpleHealthIndicatorDetails(
                 Map.of("ilm_status", metadata.getOperationMode(), "policies", metadata.getPolicies().size())
             );

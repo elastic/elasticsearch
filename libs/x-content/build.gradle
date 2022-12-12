@@ -78,7 +78,7 @@ def generateProviderManifest = tasks.register("generateProviderManifest") {
   }
 }
 
-def generateProviderImpl = tasks.register("generateProviderImpl", Copy) {
+def generateProviderImpl = tasks.register("generateProviderImpl", Sync) {
   destinationDir = new File(generatedResourcesDir, "impl")
   into("IMPL-JARS/x-content") {
     from(configurations.providerImpl)

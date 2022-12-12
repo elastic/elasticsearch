@@ -21,7 +21,8 @@ import java.io.IOException;
  * This class can be used as a based class for tests of Metadata.Custom classes and other classes that support,
  * Writable serialization, XContent-based serialization and is diffable.
  */
-public abstract class SimpleDiffableSerializationTestCase<T extends Diffable<T> & ToXContent> extends AbstractSerializingTestCase<T> {
+public abstract class SimpleDiffableSerializationTestCase<T extends Diffable<T> & ToXContent> extends AbstractXContentSerializingTestCase<
+    T> {
 
     /**
      *  Introduces random changes into the test object

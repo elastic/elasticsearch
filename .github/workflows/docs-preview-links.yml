@@ -8,6 +8,8 @@ on:
 
 jobs:
   doc-preview:
+    permissions:
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6

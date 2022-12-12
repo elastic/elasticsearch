@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsActionResponseTe
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStatsTests;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -85,7 +86,8 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
-            nodeStatsList
+            nodeStatsList,
+            randomFrom(Priority.values())
         );
 
         Map<TrainedModelAssignment, Map<String, RoutingInfo>> badRoutes = new HashMap<>();
@@ -121,7 +123,8 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
-            nodeStatsList
+            nodeStatsList,
+            randomFrom(Priority.values())
         );
         var response = new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), List.of(model1), 1);
 
@@ -154,7 +157,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
 
     private static TrainedModelAssignment createAssignment(String modelId) {
         return TrainedModelAssignment.Builder.empty(
-            new StartTrainedModelDeploymentAction.TaskParams(modelId, 1024, 1, 1, 1, ByteSizeValue.ofBytes(1024))
+            new StartTrainedModelDeploymentAction.TaskParams(modelId, 1024, 1, 1, 1, ByteSizeValue.ofBytes(1024), Priority.NORMAL)
         ).build();
     }
 }

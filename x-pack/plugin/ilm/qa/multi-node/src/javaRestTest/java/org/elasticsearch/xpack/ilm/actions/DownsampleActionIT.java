@@ -199,7 +199,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         // and a template
         Request createTemplateRequest = new Request("PUT", "_template/" + index);
-        createTemplateRequest.setJsonEntity("""
+        createTemplateRequest.setJsonEntity(formatted("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -208,7 +208,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""".formatted(index, 1, policy, alias));
+            }""", index, 1, policy, alias));
         createTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createTemplateRequest);
 
@@ -249,7 +249,7 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
-        createIndexTemplateRequest.setJsonEntity(TEMPLATE.formatted(dataStream, policy));
+        createIndexTemplateRequest.setJsonEntity(formatted(TEMPLATE, dataStream, policy));
         assertOK(client().performRequest(createIndexTemplateRequest));
 
         String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());

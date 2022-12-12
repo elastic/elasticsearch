@@ -41,6 +41,11 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public final SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
+
     /**
      * Description of the document being parsed used in error messages. Not
      * called unless there is an error.

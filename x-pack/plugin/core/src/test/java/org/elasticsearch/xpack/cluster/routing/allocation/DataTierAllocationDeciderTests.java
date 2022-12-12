@@ -45,7 +45,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -187,8 +186,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     clusterState,
                     node,
                     Decision.Type.NO,
-                    String.format(
-                        Locale.ROOT,
+                    formatted(
                         "index has a preference for tiers [%s], but no nodes for any of those tiers are available in the cluster",
                         tierPreference
                     )

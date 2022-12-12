@@ -204,6 +204,9 @@
                               "type": "long"
                             }
                           }
+                        },
+                        "cfs_quota_micros": {
+                          "type": "long"
                         }
                       }
                     }
@@ -271,7 +274,7 @@
                     "out": {
                       "type": "long"
                     },
-                    "duration_in_millis":{
+                    "duration_in_millis": {
                       "type": "long"
                     },
                     "queue_push_duration_in_millis": {
@@ -301,11 +304,21 @@
                     "id": {
                       "type": "keyword"
                     },
-                    "pipeline_ephemeral_id": { "type": "keyword" },
-                    "events_in": { "type": "long" },
-                    "events_out": { "type": "long" },
-                    "duration_in_millis": { "type": "long" },
-                    "queue_push_duration_in_millis": { "type": "long" },
+                    "pipeline_ephemeral_id": {
+                      "type": "keyword"
+                    },
+                    "events_in": {
+                      "type": "long"
+                    },
+                    "events_out": {
+                      "type": "long"
+                    },
+                    "duration_in_millis": {
+                      "type": "long"
+                    },
+                    "queue_push_duration_in_millis": {
+                      "type": "long"
+                    },
                     "long_counters": {
                       "type": "nested",
                       "properties": {

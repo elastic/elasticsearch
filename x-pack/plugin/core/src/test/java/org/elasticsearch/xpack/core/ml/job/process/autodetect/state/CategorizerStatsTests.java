@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
-public class CategorizerStatsTests extends AbstractSerializingTestCase<CategorizerStats> {
+public class CategorizerStatsTests extends AbstractXContentSerializingTestCase<CategorizerStats> {
 
     public void testDefaultConstructor() {
         CategorizerStats stats = new CategorizerStats.Builder("foo").build();

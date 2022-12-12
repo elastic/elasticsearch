@@ -1,0 +1,5 @@
+pr: 92168
+summary: Make adding auth info to REST responses more robust
+area: Authorization
+type: bug
+issues: []

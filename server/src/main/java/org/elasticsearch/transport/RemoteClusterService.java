@@ -119,6 +119,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         )
     );
 
+    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_AUTHORIZATION = Setting.affixKeySetting(
+        "cluster.remote.",
+        "authorization",
+        key -> Setting.simpleString(key, v -> {}, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered)
+    );
+
     private final boolean enabled;
 
     public boolean isEnabled() {
@@ -333,7 +339,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             return;
         }
 
-        GroupedActionListener<Void> listener = new GroupedActionListener<>(future, enabledClusters.size());
+        GroupedActionListener<Void> listener = new GroupedActionListener<>(enabledClusters.size(), future);
         for (String clusterAlias : enabledClusters) {
             updateRemoteCluster(clusterAlias, settings, listener);
         }

@@ -139,9 +139,6 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
     @After
     public void cleanUp() throws IOException {
-        var fileSettingsService = internalCluster().getInstance(FileSettingsService.class, internalCluster().getMasterName());
-        Files.deleteIfExists(fileSettingsService.operatorSettingsFile());
-
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -349,7 +346,24 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
     public void testErrorSaved() throws Exception {
         ensureGreen();
 
-        var savedClusterState = setupClusterStateListenerForError(internalCluster().getMasterName());
+        // save an empty file to clear any prior state, this ensures we don't get a stale file left over by another test
+        var savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
+
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON);
+        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        final ClusterStateResponse clusterStateResponse = client().admin()
+            .cluster()
+            .state(new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get()))
+            .get();
+
+        assertNull(
+            clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
+        );
+
+        // save a bad file
+        savedClusterState = setupClusterStateListenerForError(internalCluster().getMasterName());
 
         writeJSONFile(internalCluster().getMasterName(), testErrorJSON);
         assertRoleMappingsNotSaved(savedClusterState.v1(), savedClusterState.v2());

@@ -83,6 +83,7 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -142,8 +143,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     YELLOW,
                     unavailableReplicas.size() > 1
-                        ? "This cluster has " + unavailableReplicas.size() + " unavailable replicas."
-                        : "This cluster has 1 unavailable replica.",
+                        ? "This cluster has " + unavailableReplicas.size() + " unavailable replica shards."
+                        : "This cluster has 1 unavailable replica shard.",
                     Map.of(
                         "started_primaries",
                         1,
@@ -161,7 +162,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("yellow-index")))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("yellow-index"))))
+                    )
                 )
             )
         );
@@ -179,7 +182,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     RED,
-                    "This cluster has 1 unavailable primary.",
+                    "This cluster has 1 unavailable primary shard.",
                     Map.of("unassigned_primaries", 1, "started_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -190,7 +193,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("red-index"))))
+                    )
                 )
             )
         );
@@ -205,7 +210,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     RED,
-                    "This cluster has 1 unavailable primary.",
+                    "This cluster has 1 unavailable primary shard.",
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -216,7 +221,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("red-index"))))
+                    )
                 )
             )
         );
@@ -231,7 +238,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(RED, result.status());
-        assertEquals("This cluster has 1 unavailable primary, 1 unavailable replica.", result.symptom());
+        assertEquals("This cluster has 1 unavailable primary shard, 1 unavailable replica shard.", result.symptom());
         assertEquals(1, result.impacts().size());
         assertEquals(
             result.impacts().get(0),
@@ -263,7 +270,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(RED, result.status());
-        assertEquals("This cluster has 1 unavailable primary, 2 unavailable replicas.", result.symptom());
+        assertEquals("This cluster has 1 unavailable primary shard, 2 unavailable replica shards.", result.symptom());
         assertEquals(2, result.impacts().size());
         assertEquals(
             result.impacts().get(0),
@@ -344,7 +351,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has 1 restarting replica.",
+                    "This cluster has 1 restarting replica shard.",
                     Map.of("started_primaries", 1, "restarting_replicas", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -392,7 +399,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     YELLOW,
-                    "This cluster has 1 unavailable replica.",
+                    "This cluster has 1 unavailable replica shard.",
                     Map.of("started_primaries", 1, "unassigned_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -404,7 +411,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS, List.of("restarting-index")))
+                    List.of(
+                        new Diagnosis(
+                            DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS,
+                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting-index")))
+                        )
+                    )
                 )
             )
         );
@@ -422,7 +434,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has 1 creating primary.",
+                    "This cluster has 1 creating primary shard.",
                     Map.of("creating_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -443,7 +455,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has 1 restarting primary.",
+                    "This cluster has 1 restarting primary shard.",
                     Map.of("restarting_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -469,7 +481,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     RED,
-                    "This cluster has 1 unavailable primary.",
+                    "This cluster has 1 unavailable primary shard.",
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -480,7 +492,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS, List.of("restarting-index")))
+                    List.of(
+                        new Diagnosis(
+                            DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS,
+                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting-index")))
+                        )
+                    )
                 )
             )
         );
@@ -509,7 +526,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedTruncatedResult(
                     RED,
-                    "This cluster has 1 unavailable primary.",
+                    "This cluster has 1 unavailable primary shard.",
                     List.of(
                         new HealthIndicatorImpact(
                             NAME,

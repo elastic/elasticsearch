@@ -1,6 +1,0 @@
-pr: 89754
-summary: Fix segment stats in tsdb
-area: TSDB
-type: bug
-issues:
- - 89609

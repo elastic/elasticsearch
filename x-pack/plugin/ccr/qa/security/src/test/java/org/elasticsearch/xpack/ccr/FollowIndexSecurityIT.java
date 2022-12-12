@@ -218,13 +218,13 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             try (RestClient leaderClient = buildLeaderClient(restAdminSettings())) {
                 final Request request = new Request("POST", "/" + forgetLeader + "/_ccr/forget_follower");
-                final String requestBody = """
+                final String requestBody = formatted("""
                     {
                       "follower_cluster": "follow-cluster",
                       "follower_index": "%s",
                       "follower_index_uuid": "%s",
                       "leader_remote_cluster": "leader_cluster"
-                    }""".formatted(forgetFollower, followerIndexUUID);
+                    }""", forgetFollower, followerIndexUUID);
                 request.setJsonEntity(requestBody);
                 final Response forgetFollowerResponse = leaderClient.performRequest(request);
                 assertOK(forgetFollowerResponse);
@@ -290,9 +290,9 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 for (var i = 0; i < numDocs; i++) {
                     var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                     indexRequest.addParameter("refresh", "true");
-                    indexRequest.setJsonEntity("""
+                    indexRequest.setJsonEntity(formatted("""
                         {"@timestamp": "%s","message":"abc"}
-                        """.formatted(dateFormat.format(new Date())));
+                        """, dateFormat.format(new Date())));
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));

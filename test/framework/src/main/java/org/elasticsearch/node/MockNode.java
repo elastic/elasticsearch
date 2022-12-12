@@ -103,7 +103,11 @@ public class MockNode extends Node {
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final boolean forbidPrivateIndexSettings
     ) {
-        super(environment, settings -> new MockPluginsService(settings, environment, classpathPlugins), forbidPrivateIndexSettings);
+        super(
+            environment,
+            (settings, executor) -> new MockPluginsService(settings, environment, classpathPlugins, executor),
+            forbidPrivateIndexSettings
+        );
         this.classpathPlugins = classpathPlugins;
     }
 

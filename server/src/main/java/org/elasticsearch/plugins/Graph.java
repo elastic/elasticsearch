@@ -30,22 +30,26 @@ import java.util.stream.StreamSupport;
  */
 class Graph<E> {
     // map of node to its successors
-    private final Map<E, Set<E>> nodes = new LinkedHashMap<>();
+    private final Map<E, Set<E>> successors = new LinkedHashMap<>();
+    private final Map<E, Set<E>> predecessors = new LinkedHashMap<>();
     // set of nodes with no predecessors to start iteration from
     private final Set<E> startingNodes = new LinkedHashSet<>();
 
     public boolean addNode(E node) {
-        boolean added = nodes.putIfAbsent(node, new LinkedHashSet<>()) == null;
-        if (added) {
+        boolean addedSucc = successors.putIfAbsent(node, new LinkedHashSet<>()) == null;
+        boolean addedPred = predecessors.putIfAbsent(node, new LinkedHashSet<>()) == null;
+        assert addedSucc == addedPred;
+        if (addedSucc) {
             startingNodes.add(node);
         }
-        return added;
+        return addedSucc;
     }
 
     private Set<E> add(E node) {
         Set<E> newSet = new LinkedHashSet<>();
-        Set<E> existing = nodes.putIfAbsent(node, newSet);
+        Set<E> existing = successors.putIfAbsent(node, newSet);
         if (existing == null) {
+            predecessors.put(node, new LinkedHashSet<>());
             startingNodes.add(node);
             return newSet;
         } else {
@@ -58,18 +62,19 @@ class Graph<E> {
         modified |= addNode(target);
         modified |= add(source).add(target);
         if (modified) {
+            predecessors.get(target).add(source);
             // target is no longer a starting node
             startingNodes.remove(target);
         }
         return modified;
     }
 
-    public boolean hasEdge(E source, E target) {
-        return nodes.getOrDefault(source, Set.of()).contains(target);
+    public Set<E> nodes() {
+        return Collections.unmodifiableSet(successors.keySet());
     }
 
-    public Set<E> nodes() {
-        return Collections.unmodifiableSet(nodes.keySet());
+    public Set<E> predecessors(E node) {
+        return Collections.unmodifiableSet(predecessors.getOrDefault(node, Set.of()));
     }
 
     private class GraphIterator implements Iterator<E> {
@@ -87,20 +92,19 @@ class Graph<E> {
             if (nextNodes.isEmpty()) {
                 checkLoop();
                 return false;
-            }
-            else {
+            } else {
                 return true;
             }
         }
 
         private void checkLoop() {
-            if (seenNodes.size() < nodes.size()) {
-                Set<E> loopedNodes = new HashSet<>(nodes.keySet());
+            if (seenNodes.size() < successors.size()) {
+                Set<E> loopedNodes = new HashSet<>(successors.keySet());
                 loopedNodes.removeAll(seenNodes);
                 // TODO: order these by iteration order
-                throw new IllegalStateException("Cycle found in nodes " + loopedNodes.stream()
-                    .map(Object::toString)
-                    .collect(Collectors.joining(",", "[", "]")));
+                throw new IllegalStateException(
+                    "Cycle found in nodes " + loopedNodes.stream().map(Object::toString).collect(Collectors.joining(",", "[", "]"))
+                );
             }
         }
 
@@ -117,22 +121,25 @@ class Graph<E> {
 
     public void checkLoops() {
         // just do an iteration, it will throw at the end if there's looping nodes
-        Iterator<E> it = new GraphIterator(startingNodes, (d, e) -> d.addAll(nodes.get(e)));
+        Iterator<E> it = new GraphIterator(startingNodes, (d, e) -> d.addAll(successors.get(e)));
         while (it.hasNext()) {
             it.next();
         }
     }
 
     public Iterator<E> breadthFirst() {
-        return new GraphIterator(startingNodes, (d, e) -> nodes.get(e).forEach(d::addLast));
+        return new GraphIterator(startingNodes, (d, e) -> successors.get(e).forEach(d::addLast));
     }
 
     public Iterator<E> depthFirst() {
-        return new GraphIterator(startingNodes, (d, e) -> nodes.get(e).forEach(d::addFirst));
+        return new GraphIterator(startingNodes, (d, e) -> successors.get(e).forEach(d::addFirst));
     }
 
     private Stream<E> graphStream(Iterator<E> it) {
-        return StreamSupport.stream(Spliterators.spliterator(it, nodes.size(), Spliterator.SIZED | Spliterator.DISTINCT | Spliterator.ORDERED), false);
+        return StreamSupport.stream(
+            Spliterators.spliterator(it, successors.size(), Spliterator.SIZED | Spliterator.DISTINCT | Spliterator.ORDERED),
+            false
+        );
     }
 
     public Stream<E> streamBreadthFirst() {

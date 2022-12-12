@@ -41,6 +41,14 @@ public final class ExceptionsHelper {
 
     private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
 
+    public static void throwUnchecked(Throwable t) {
+        if (t instanceof Error e) {
+            throw e;
+        } else if (t instanceof RuntimeException r) {
+            throw r;
+        }
+    }
+
     public static RuntimeException convertToRuntime(Exception e) {
         if (e instanceof RuntimeException) {
             return (RuntimeException) e;

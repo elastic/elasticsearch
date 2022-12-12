@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -312,11 +311,7 @@ public class PluginsUtils {
     }
 
     // add the given bundle to the sorted bundles, first adding dependencies
-    private static void addSortedBundle(
-        PluginBundle bundle,
-        Map<String, PluginBundle> bundles,
-        Graph<PluginBundle> dependencyGraph
-    ) {
+    private static void addSortedBundle(PluginBundle bundle, Map<String, PluginBundle> bundles, Graph<PluginBundle> dependencyGraph) {
         if (dependencyGraph.addNode(bundle) == false) {
             // already added this plugin, via a dependency
             return;

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
@@ -24,6 +25,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 public class MockPluginsService extends PluginsService {
 
@@ -39,7 +41,23 @@ public class MockPluginsService extends PluginsService {
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
     public MockPluginsService(Settings settings, Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
+        this(settings, environment, classpathPlugins, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    }
+
+    /**
+     * Constructs a new PluginService
+     *
+     * @param settings         The settings of the system
+     * @param environment      The environment for the plugin
+     * @param classpathPlugins Plugins that exist in the classpath which should be loaded
+     */
+    public MockPluginsService(
+        Settings settings,
+        Environment environment,
+        Collection<Class<? extends Plugin>> classpathPlugins,
+        Executor executor
+    ) {
+        super(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile(), executor);
 
         final Path configPath = environment.configFile();
 

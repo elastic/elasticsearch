@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.NamedThreadFactory;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Build;
@@ -231,8 +232,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
@@ -332,8 +337,8 @@ public class Node implements Closeable {
      *                                   test framework for tests that rely on being able to set private settings
      */
     protected Node(
-        final Environment initialEnvironment,
-        final Function<Settings, PluginsService> pluginServiceCtor,
+        Environment initialEnvironment,
+        BiFunction<Settings, Executor, PluginsService> pluginServiceCtor,
         boolean forbidPrivateIndexSettings
     ) {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
@@ -413,7 +418,12 @@ public class Node implements Closeable {
                 (e, apmConfig) -> logger.error("failed to delete temporary APM config file [{}], reason: [{}]", apmConfig, e.getMessage())
             );
 
-            this.pluginsService = pluginServiceCtor.apply(tmpSettings);
+            ExecutorService pluginStartup = Executors.newCachedThreadPool(new NamedThreadFactory("pluginLoad"));
+            try {
+                this.pluginsService = pluginServiceCtor.apply(tmpSettings, pluginStartup);
+            } finally {
+                pluginStartup.shutdown();
+            }
             final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
 
             /*

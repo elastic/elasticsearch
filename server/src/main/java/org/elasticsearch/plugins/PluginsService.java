@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -51,6 +52,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -58,7 +60,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -102,6 +108,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private final Settings settings;
     private final Path configPath;
+    private final Executor executor;
 
     /**
      * We keep around a list of plugins and modules
@@ -139,6 +146,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory, Executor executor) {
         this.settings = settings;
         this.configPath = configPath;
+        this.executor = executor;
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
 
@@ -295,16 +303,37 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     private Map<String, LoadedPlugin> loadBundles(Set<PluginBundle> bundles) {
-        Map<String, LoadedPlugin> loaded = new HashMap<>();
+        Map<String, LoadedPlugin> loaded = new ConcurrentHashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        Graph<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
+        Graph<PluginBundle> pluginGraph = PluginsUtils.sortBundles(bundles);
         Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
-        for (var it = sortedBundles.breadthFirst(); it.hasNext(); ) {
-            var bundle = it.next();
+
+        Map<PluginBundle, CompletableFuture<Void>> pluginLoads = new LinkedHashMap<>();
+
+        for (var it = pluginGraph.breadthFirst(); it.hasNext();) {
+            PluginBundle bundle = it.next();
             PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
-            loadBundle(bundle, loaded);
+
+            CompletableFuture<?>[] dependencies = pluginGraph.predecessors(bundle)
+                .stream()
+                .map(pluginLoads::get)
+                .toArray(CompletableFuture<?>[]::new);
+
+            CompletableFuture<Void> load = CompletableFuture.allOf(dependencies).thenRunAsync(() -> loadBundle(bundle, loaded), executor);
+            pluginLoads.put(bundle, load);
         }
 
+        // wait until all plugins loaded, check for exceptions (that will just get re-thrown upwards)
+        for (CompletableFuture<?> f : pluginLoads.values()) {
+            try {
+                f.join();
+            } catch (CompletionException e) {
+                ExceptionsHelper.throwUnchecked(e.getCause());
+                throw new AssertionError(e);    // should not be checked exception here
+            }
+        }
+
+        // TODO: move this to inner loop?
         loadExtensions(loaded.values());
         return loaded;
     }
@@ -315,11 +344,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             .flatMap(t -> t.descriptor().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.instance())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
         for (LoadedPlugin pluginTuple : plugins) {
-            if (pluginTuple.instance() instanceof ExtensiblePlugin ep) {
-                loadExtensionsForPlugin(
-                    ep,
-                    extendingPluginsByName.getOrDefault(pluginTuple.descriptor().getName(), List.of())
-                );
+            if (pluginTuple.instance()instanceof ExtensiblePlugin ep) {
+                loadExtensionsForPlugin(ep, extendingPluginsByName.getOrDefault(pluginTuple.descriptor().getName(), List.of()));
             }
         }
     }
@@ -677,8 +703,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param environment The environment for the plugins service.
      * @return A function for creating a plugins service.
      */
-    public static Function<Settings, PluginsService> getPluginsServiceCtor(Environment environment) {
-        return settings -> new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
+    public static BiFunction<Settings, Executor, PluginsService> getPluginsServiceCtor(Environment environment) {
+        return (settings, executor) -> new PluginsService(
+            settings,
+            environment.configFile(),
+            environment.modulesFile(),
+            environment.pluginsFile(),
+            executor
+        );
     }
 
     static final LayerAndLoader createPluginModuleLayer(PluginBundle bundle, ClassLoader parentLoader, List<ModuleLayer> parentLayers) {

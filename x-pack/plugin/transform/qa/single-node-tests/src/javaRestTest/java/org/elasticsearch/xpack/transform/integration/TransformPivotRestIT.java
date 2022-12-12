@@ -500,7 +500,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     }
 
     public void testContinuousPivotFrom() throws Exception {
-        String indexName = REVIEWS_INDEX_NAME;
+        String indexName = "continuous_reviews_from";
+        createReviewsIndex(indexName);
         String transformId = "continuous_pivot_from";
         String transformIndex = "pivot_reviews_continuous_from";
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
@@ -546,17 +547,32 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
-        startAndWaitForContinuousTransform(transformId, transformIndex, null, "2017-01-30", 1L);
+        final StringBuilder bulk = new StringBuilder();
+        bulk.append(formatted("""
+            {"index":{"_index":"%s"}}
+            {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
+            """, indexName, 666, 777, 7, 888, "\"2017-01-20\""));
+        bulk.append("\r\n");
+
+        final Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk.toString());
+        Map<String, Object> bulkResponse = entityAsMap(client().performRequest(bulkRequest));
+        assertThat(bulkResponse.get("errors"), equalTo(Boolean.FALSE));
+
+        startAndWaitForContinuousTransform(transformId, transformIndex, null, "2017-01-23", 1L);
         assertTrue(indexExists(transformIndex));
 
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", getAsMap(transformIndex + "/_stats")));
+
         // get and check some users
-        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 4.0);
-        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 1.0);
-        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.5);
-        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 2.0);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
 
         stopTransform(transformId, false);
-        refreshIndex(transformIndex);
+        deleteIndex(indexName);
     }
 
     public void testHistogramPivot() throws Exception {

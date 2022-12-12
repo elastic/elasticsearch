@@ -480,11 +480,17 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
         @Override
         public QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
+
             if (missingBucket) {
                 return null;
             }
 
-            // (upperBound - lowerBound) >= interval, so never 0
+            // Once the changes have been collected, (upperBound - lowerBound) >= interval, so never 0.
+            // But if this method is called before the changes have been collected, (upperBound - lowerBound) == 0, so it's better to guard
+            // against the Division By 0 error that would occur below.
+            if (upperBound - lowerBound == 0) {
+                return null;
+            }
             if ((maxUpperBound - minLowerBound) / (upperBound - lowerBound) < MIN_CUT_OFF) {
                 return null;
             }

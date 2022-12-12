@@ -79,7 +79,6 @@ import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -264,7 +263,7 @@ public class AuthorizationService {
     ) {
 
         final AuthorizationContext enclosingContext = extractAuthorizationContext(threadContext, action);
-        final ParentActionAuthorization parentAuthorization = extractParentAuthorization(threadContext);
+        final ParentActionAuthorization parentAuthorization = securityContext.getParentAuthorization();
 
         /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
          * as well, but which must not bleed across different action context (eg parent-child action contexts).
@@ -340,16 +339,6 @@ public class AuthorizationService {
 
         final IndicesAccessControl parentAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         return new AuthorizationContext(originatingAction, authorizationInfo, parentAccessControl);
-    }
-
-    @Nullable
-    private static ParentActionAuthorization extractParentAuthorization(ThreadContext threadContext) {
-        try {
-            return ParentActionAuthorization.readFromThreadContext(threadContext);
-        } catch (IOException e) {
-            logger.debug("Failed to read parent authorization from thread context. Falling back to do full authorization.", e);
-            return null;
-        }
     }
 
     private String requireAuditId(Authentication authentication, String action, TransportRequest originalRequest) {

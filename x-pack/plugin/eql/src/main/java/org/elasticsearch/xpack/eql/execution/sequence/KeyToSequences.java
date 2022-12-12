@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -172,6 +174,19 @@ public class KeyToSequences implements Accountable {
         for (int i = 0; i < stage - prevStage - 1; i++) {
             result[i] = entry.missingEventGroups[prevStage + 1 + i];
         }
+        return result;
+    }
+
+    public List<Sequence> allCompletedAt(int stage) {
+        List<Sequence> result = new LinkedList<>();
+        Iterator<SequenceEntry> entries = keyToSequences.values().iterator();
+        while (entries.hasNext()) {
+            SequenceGroup group = entries.next().groups[stage];
+            if (group != null) {
+                group.entriesIterator().forEachRemaining(x -> result.add(x));
+            }
+        }
+
         return result;
     }
 

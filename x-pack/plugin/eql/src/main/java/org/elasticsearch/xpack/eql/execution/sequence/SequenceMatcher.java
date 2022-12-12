@@ -134,11 +134,18 @@ public class SequenceMatcher {
             HitReference hit = tuple.v2();
 
             if (isFirstPositiveStage(stage)) {
+                log.trace("Matching hit {}  - track sequence", ko.ordinal);
                 Sequence seq = new Sequence(ko.key, numberOfStages, ko.ordinal, hit);
-                trackSequence(seq);
+                if (lastPositiveStage() == stage) {
+                    tryComplete(seq);
+                } else {
+                    trackSequence(seq);
+                }
             } else if (missingEvents[stage]) {
+                log.trace("Matching hit {}  - missing event", ko.ordinal);
                 addMissing(stage, ko.key, ko.ordinal, hit);
             } else {
+                log.trace("Matching hit {}  - match", ko.ordinal);
                 match(stage, ko.key, ko.ordinal, hit);
 
                 // early skip in case of reaching the limit
@@ -262,20 +269,30 @@ public class SequenceMatcher {
                 }
             }
 
-            if (firstPositiveStage() > 0 || lastPositiveStage() < completionStage) {
-                toCheckForMissing.add(sequence);
-            } else {
-                completed.add(sequence);
-            }
+            tryComplete(sequence);
             // update the bool lazily
             // only consider positive limits / negative ones imply tail which means having to go
             // through the whole page of results before selecting the last ones
             // doing a limit early returns the 'head' not 'tail'
-            headLimit = limit != null && limit.limit() > 0 && completed.size() == limit.totalLimit();
+            calculateHeadLimit();
         } else {
             stageToKeys.add(stage, key);
             keyToSequences.add(stage, sequence);
         }
+    }
+
+    public void tryComplete(Sequence sequence) {
+        for (int i = 0; i < missingEvents.length; i++) {
+            if (missingEvents[i]) {
+                toCheckForMissing.add(sequence);
+                return;
+            }
+        }
+        completed.add(sequence);
+    }
+
+    private void calculateHeadLimit() {
+        headLimit = limit != null && limit.limit() > 0 && completed.size() == limit.totalLimit();
     }
 
     int previousPositiveStage(int stage) {
@@ -285,6 +302,31 @@ public class SequenceMatcher {
             }
         }
         return -1;
+    }
+
+    public boolean limitReached() {
+        calculateHeadLimit();
+        return headLimit;
+    }
+
+    public long maxSpanInNanos() {
+        return maxSpanInNanos;
+    }
+
+    int nextPositiveStage(int stage) {
+        for (int i = stage + 1; i < missingEvents.length; i++) {
+            if (missingEvents[i] == false) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public boolean isMissingEvent(int stage) {
+        if (stage < 0 || stage >= missingEvents.length) {
+            return false;
+        }
+        return missingEvents[stage];
     }
 
     private boolean isFirstPositiveStage(int stage) {
@@ -370,6 +412,14 @@ public class SequenceMatcher {
             // keep only the tail
             keyToSequences.trimToTail(ordinal);
         }
+    }
+
+    public void addToCompleted(Sequence sequence) {
+        this.completed.add(sequence);
+    }
+
+    public Set<Sequence> toCheckForMissing() {
+        return toCheckForMissing;
     }
 
     public Stats stats() {

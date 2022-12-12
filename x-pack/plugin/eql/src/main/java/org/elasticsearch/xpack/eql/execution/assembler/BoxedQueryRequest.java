@@ -44,6 +44,7 @@ public class BoxedQueryRequest implements QueryRequest {
     public static final int MAX_TERMS = 128;
 
     private final RangeQueryBuilder timestampRange;
+    private final String timestampField;
     private final SearchSourceBuilder searchSource;
 
     private final List<String> keys;
@@ -57,6 +58,7 @@ public class BoxedQueryRequest implements QueryRequest {
         searchSource = original.searchSource();
         // setup range queries and preserve their reference to simplify the update
         timestampRange = rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");
+        timestampField = timestamp;
         keys = keyNames;
         this.optionalKeyNames = optionalKeyNames;
         RuntimeUtils.addFilter(timestampRange, searchSource);
@@ -72,6 +74,10 @@ public class BoxedQueryRequest implements QueryRequest {
         after = ordinal;
         // and leave only search_after
         searchSource.searchAfter(ordinal.toArray());
+    }
+
+    public String timestampField() {
+        return timestampField;
     }
 
     /**

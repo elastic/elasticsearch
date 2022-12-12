@@ -100,6 +100,14 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
         return missing;
     }
 
+    public Timestamp timestamp(SearchHit hit) {
+        Object ts = timestamp.extract(hit);
+        if (ts instanceof Timestamp == false) {
+            throw new EqlIllegalArgumentException("Expected timestamp as a Timestamp but got {}", ts.getClass());
+        }
+        return (Timestamp) ts;
+    }
+
     @Override
     public String toString() {
         return "[" + stage + "][" + descending + "]";

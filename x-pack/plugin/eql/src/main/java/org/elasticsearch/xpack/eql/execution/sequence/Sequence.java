@@ -116,4 +116,8 @@ public class Sequence implements Comparable<Sequence>, Accountable {
 
         return sb.toString();
     }
+
+    public Match matchAt(int stage) {
+        return matches[stage];
+    }
 }

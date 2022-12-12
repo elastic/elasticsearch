@@ -14,7 +14,7 @@ public class MillisTimestamp extends Timestamp {
     private final long timestamp;
     private Instant instant = null;
 
-    MillisTimestamp(long millis) {
+    public MillisTimestamp(long millis) {
         timestamp = millis;
     }
 

@@ -134,4 +134,8 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     }
 
     public abstract void execute();
+
+    boolean onErrorContinue() {
+        return this.sourceLookup.onErrorContinue;
+    }
 }

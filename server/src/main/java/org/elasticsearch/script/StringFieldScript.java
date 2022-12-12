@@ -91,7 +91,14 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         results.clear();
         chars = 0;
         setDocument(docId);
-        execute();
+        try {
+            execute();
+        } catch (Exception e) {
+            if (onErrorContinue() == false) {
+                throw e;
+            }
+            // else count errors here and do nothing
+        }
         return results;
     }
 

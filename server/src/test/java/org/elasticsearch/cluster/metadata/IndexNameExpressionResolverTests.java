@@ -2842,27 +2842,43 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             List.of(new Tuple<>("logs-foobar", 1)),
             List.of("my-index")
         );
-        state = ClusterState.builder(state)
+        final ClusterState finalState = ClusterState.builder(state)
             .metadata(
                 Metadata.builder(state.getMetadata())
                     .put(IndexMetadata.builder(state.getMetadata().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
                     .build()
             )
             .build();
-        DocWriteRequest<?> request = new IndexRequest("logs-foobar");
-        IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request);
-        assertThat(result.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(result.getName(), equalTo("logs-foobar"));
-
-        request = new IndexRequest("my-index");
-        result = indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request);
-        assertThat(result.getName(), equalTo("my-index"));
-        assertThat(result.getType(), equalTo(IndexAbstraction.Type.CONCRETE_INDEX));
-
-        request = new IndexRequest("my-alias");
-        result = indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request);
-        assertThat(result.getName(), equalTo("my-alias"));
-        assertThat(result.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        Function<String, List<DocWriteRequest<?>>> docWriteRequestsForName = (name) -> List.of(
+            new IndexRequest(name).opType(DocWriteRequest.OpType.INDEX),
+            new IndexRequest(name).opType(DocWriteRequest.OpType.CREATE),
+            new DeleteRequest(name),
+            new UpdateRequest(name, randomAlphaOfLength(8))
+        );
+        for (DocWriteRequest<?> request : docWriteRequestsForName.apply("logs-foobar")) {
+            if (request.opType() == DocWriteRequest.OpType.CREATE) {
+                IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request);
+                assertThat(result.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+                assertThat(result.getName(), equalTo("logs-foobar"));
+            } else {
+                IndexNotFoundException infe = expectThrows(
+                    IndexNotFoundException.class,
+                    () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request)
+                );
+                assertThat(infe.toString(), containsString("logs-foobar"));
+                assertThat(infe.getMetadataKeys().contains(IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY), is(true));
+            }
+        }
+        for (DocWriteRequest<?> request : docWriteRequestsForName.apply("my-index")) {
+            IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request);
+            assertThat(result.getName(), equalTo("my-index"));
+            assertThat(result.getType(), equalTo(IndexAbstraction.Type.CONCRETE_INDEX));
+        }
+        for (DocWriteRequest<?> request : docWriteRequestsForName.apply("my-alias")) {
+            IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request);
+            assertThat(result.getName(), equalTo("my-alias"));
+            assertThat(result.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        }
     }
 
     public void testResolveWriteIndexAbstractionNoWriteIndexForAlias() {

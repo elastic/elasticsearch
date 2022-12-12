@@ -535,4 +535,36 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         );
     }
 
+    public void testInvalidRequiredClaims() {
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String invalidRequiredClaim = randomFrom("iss", "sub", "aud", "exp", "nbf", "iat");
+        final String fullSettingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.REQUIRED_CLAIMS) + invalidRequiredClaim;
+        final Settings settings = Settings.builder().put(fullSettingKey, randomAlphaOfLength(8)).build();
+
+        final RealmConfig realmConfig = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, randomInt());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> realmConfig.getSetting(JwtRealmSettings.REQUIRED_CLAIMS)
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString("invalid required claim [" + fullSettingKey + "] cannot be one of [iss,sub,aud,exp,nbf,iat]")
+        );
+    }
+
+    public void testRequiredClaimsCannotBeEmpty() {
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String invalidRequiredClaim = randomAlphaOfLengthBetween(4, 8);
+        final String fullSettingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.REQUIRED_CLAIMS) + invalidRequiredClaim;
+        final Settings settings = Settings.builder().put(fullSettingKey, "").build();
+
+        final RealmConfig realmConfig = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, randomInt());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> realmConfig.getSetting(JwtRealmSettings.REQUIRED_CLAIMS)
+        );
+
+        assertThat(e.getMessage(), containsString("required claim [" + fullSettingKey + "] cannot be empty"));
+    }
 }

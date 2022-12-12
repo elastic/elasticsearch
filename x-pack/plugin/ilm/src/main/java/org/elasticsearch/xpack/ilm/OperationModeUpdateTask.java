@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
@@ -109,9 +110,11 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         }
 
         logger.info("updating ILM operation mode to {}", newMode);
+        IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.metadata())
+                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), newMode))
                     .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(newMode, currentSLMMode(currentState)))
             )
             .build();

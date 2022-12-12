@@ -125,7 +125,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     public AsyncSender interceptSender(AsyncSender sender) {
         return interceptForAllRequests(
             // Branching based on the feature flag is not strictly necessary here, but it makes it more obvious we are not interfering with
-            // non-feature flagged deployments
+            // non-feature-flagged deployments
             TcpTransport.isUntrustedRemoteClusterEnabled() ? interceptForRemoteAccessRequests(sender) : sender
         );
     }

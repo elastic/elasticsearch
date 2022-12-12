@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -476,8 +477,20 @@ public final class Authentication implements ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-        out.writeVInt(type.ordinal());
-        out.writeGenericMap(getAuthenticatingSubject().getMetadata());
+        final Map<String, Object> metadata = getAuthenticatingSubject().getMetadata();
+        if (out.getVersion().onOrAfter(VERSION_AUTHENTICATION_TYPE)) {
+            out.writeVInt(type.ordinal());
+            out.writeGenericMap(metadata);
+        } else {
+            assert type == AuthenticationType.REALM && metadata.isEmpty()
+                : Strings.format(
+                    "authentication with version [%s] must have authentication type %s and empty metadata, but got [%s] and [%s]",
+                    out.getVersion(),
+                    AuthenticationType.REALM,
+                    type,
+                    metadata
+                );
+        }
     }
 
     /**

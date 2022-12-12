@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action.cat;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -29,7 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.rest.action.cat.RestTable.buildDisplayHeaders;
 import static org.elasticsearch.rest.action.cat.RestTable.buildResponse;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
@@ -259,22 +259,28 @@ public class RestTableTests extends ESTestCase {
         assertEquals(Arrays.asList(1, 0, 2), rowOrder);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92181")
     public void testPlainTextChunking() throws Exception {
+        final var cells = randomArray(8, 8, String[]::new, () -> randomAlphaOfLengthBetween(1, 5));
+        final var expectedRow = String.join(" ", cells) + "\n";
+
+        // OutputStreamWriter has an 8kiB buffer so all chunks are at least that big
+        final var bufferSize = ByteSizeUnit.KB.toIntBytes(8);
+        final var rowLength = expectedRow.length();
+        final var expectedRowsPerChunk = 1 + bufferSize / rowLength; // end chunk after first row which overflows the buffer
+        final var expectedChunkSize = expectedRowsPerChunk * rowLength;
+
+        final var rowCount = between(expectedRowsPerChunk + 1, expectedRowsPerChunk * 10);
+        final var expectedChunkCount = 1 + (rowCount * rowLength - 1) / expectedChunkSize; // ceil(rowCount * rowLength / expectedChunkSize)
+        assertThat(expectedChunkCount, greaterThan(1));
+
         final var expectedBody = new StringBuilder();
-        final var rowCount = between(10000, 20000);
         for (int i = 0; i < rowCount; i++) {
             table.startRow();
-            table.addCell("foo");
-            table.addCell("foo");
-            table.addCell("foo");
-            table.addCell("foo");
-            table.addCell("foo");
-            table.addCell("foo");
-            table.addCell("foo");
-            table.addCell("foo");
+            for (final var cell : cells) {
+                table.addCell(cell);
+            }
             table.endRow();
-            expectedBody.append(TEXT_TABLE_BODY);
+            expectedBody.append(expectedRow);
         }
 
         final var request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
@@ -286,13 +292,10 @@ public class RestTableTests extends ESTestCase {
             public void sendResponse(RestResponse response) {}
         });
 
-        // OutputStreamWriter has an 8kiB buffer so all chunks are at least that big anyway
-        final var bodyChunks = getBodyChunks(response, 8192);
-        final var rowLength = TEXT_TABLE_BODY.length();
-        final var expectedChunkSize = ((8193 + rowLength) / rowLength) * rowLength; // ceil(8193/rowLength) * rowLength
-        assertThat(bodyChunks.size(), allOf(greaterThan(1), equalTo((rowCount * rowLength + expectedChunkSize) / expectedChunkSize)));
-        assertThat(bodyChunks.get(0).length(), equalTo(expectedChunkSize));
-        assertEquals(expectedBody.toString(), String.join("", bodyChunks));
+        final var bodyChunks = getBodyChunks(response, bufferSize);
+        assertEquals("chunk count", expectedChunkCount, bodyChunks.size());
+        assertEquals("first chunk size", expectedChunkSize, bodyChunks.get(0).length());
+        assertEquals("body contents", expectedBody.toString(), String.join("", bodyChunks));
     }
 
     public void testEmptyTable() throws Exception {

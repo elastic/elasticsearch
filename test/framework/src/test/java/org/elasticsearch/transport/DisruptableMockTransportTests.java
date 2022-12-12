@@ -504,7 +504,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         for (Runnable runnable : Stream.concat(
             Stream.of(reboot(node1), reboot(node2), blockTestAction),
-            Stream.of(Tuple.tuple(node1, node2), Tuple.tuple(node2, node2)).map(link -> {
+            Stream.of(Tuple.tuple(node1, node2), Tuple.tuple(node2, node1)).map(link -> {
                 final var disruption = randomFrom(linkDisruptions);
                 return new Runnable() {
                     @Override

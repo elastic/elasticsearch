@@ -554,6 +554,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
 
         assertTrue(responseHandlerReleased.get());
+        assertTrue(rebootedNodes.contains(node1) || responseHandlerCalled.get());
     }
 
     public void testBrokenLinkFailsToConnect() {

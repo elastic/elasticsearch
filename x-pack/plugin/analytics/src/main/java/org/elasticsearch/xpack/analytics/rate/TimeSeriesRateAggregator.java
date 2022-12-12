@@ -44,6 +44,7 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
     double currentStartValue = -1;
     int currentTsid = -1;
 
+    // Unused parameters are so that the constructor implements `RateAggregatorSupplier`
     protected TimeSeriesRateAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

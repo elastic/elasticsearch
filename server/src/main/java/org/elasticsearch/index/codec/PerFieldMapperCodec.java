@@ -38,8 +38,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * configured for a specific field the default postings or vector format is used.
  */
 public class PerFieldMapperCodec extends Lucene94Codec {
-    private final MapperService mapperService;
 
+    private final MapperService mapperService;
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final ES85BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
@@ -72,10 +72,19 @@ public class PerFieldMapperCodec extends Lucene94Codec {
         return super.getPostingsFormatForField(field);
     }
 
-    private boolean useBloomFilter(String field) {
-        return IdFieldMapper.NAME.equals(field)
-            && mapperService.mappingLookup().isDataStreamTimestampFieldEnabled() == false
-            && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(mapperService.getIndexSettings().getSettings());
+    boolean useBloomFilter(String field) {
+        IndexSettings indexSettings = mapperService.getIndexSettings();
+        if (mapperService.mappingLookup().isDataStreamTimestampFieldEnabled()) {
+            // In case for time series indices, they _id isn't randomly generated,
+            // but based on dimension fields and timestamp field, so during indexing
+            // version/seq_no/term needs to be looked up and having a bloom filter
+            // can speed this up significantly.
+            return indexSettings.getMode() == IndexMode.TIME_SERIES
+                && IdFieldMapper.NAME.equals(field)
+                && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
+        } else {
+            return IdFieldMapper.NAME.equals(field) && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
+        }
     }
 
     @Override

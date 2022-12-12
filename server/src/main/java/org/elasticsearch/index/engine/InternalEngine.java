@@ -331,10 +331,10 @@ public class InternalEngine extends Engine {
             var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
             return new CombinedDeletionPolicy.CommitsListener() {
                 @Override
-                public void onNewAcquiredCommit(final IndexCommit commit) {
+                public void onNewAcquiredCommit(final IndexCommit commit, final Set<String> additionalFiles) {
                     final IndexCommitRef indexCommitRef = acquireIndexCommitRef(() -> commit);
                     assert indexCommitRef.getIndexCommit() == commit;
-                    listener.onNewCommit(shardId, primaryTerm, indexCommitRef);
+                    listener.onNewCommit(shardId, primaryTerm, indexCommitRef, additionalFiles);
                 }
 
                 @Override

@@ -1,71 +1,17 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-resources'
-
-configurations {
-  signedCerts
-  rootCert
-}
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  signedCerts project(path: ':x-pack:plugin:core', configuration: 'signedCerts')
-  rootCert project(path: ':x-pack:plugin:core', configuration: 'rootCert')
+  javaRestTestImplementation project(':x-pack:qa')
 }
 
-tasks.register("copyCerts", Sync) {
-  dependsOn configurations.signedCerts
-  from(configurations.signedCerts)
-  from(configurations.rootCert)
-  into "${buildDir}/certs"
-}
-
-// randomise between sniff and proxy modes
-// TODO
-boolean proxyMode = false
-
-def fulfillingCluster = testClusters.register('fulfilling-cluster') {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.transport.ssl.enabled', 'false'
   user username: "test_user", password: "x-pack-test-password"
 }
-
-def queryingCluster = testClusters.register('querying-cluster') {
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.transport.ssl.enabled', 'false'
-  setting 'cluster.remote.connections_per_cluster', "1"
-  user username: "test_user", password: "x-pack-test-password"
-
-  if (proxyMode) {
-    setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
-    setting 'cluster.remote.my_remote_cluster.proxy_address', {
-      "\"${fulfillingCluster.get().getAllTransportPortURI().get(0)}\""
-    }
-  } else {
-    setting 'cluster.remote.my_remote_cluster.seeds', {
-      fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
-    }
-  }
-}
-
-tasks.register('fulfilling-cluster', RestIntegTestTask) {
-  useCluster fulfillingCluster
-  systemProperty 'tests.rest.suite', 'fulfilling_cluster'
-}
-
-tasks.register('querying-cluster', RestIntegTestTask) {
-  dependsOn 'fulfilling-cluster'
-  useCluster queryingCluster
-  useCluster fulfillingCluster
-  systemProperty 'tests.rest.suite', 'querying_cluster'
-}
-
-// runs the fulfilling-cluster cluster tests then the querying-cluster tests
-tasks.register("integTest") {
-  dependsOn 'querying-cluster'
-}
-
-tasks.named("check").configure { dependsOn("integTest") }

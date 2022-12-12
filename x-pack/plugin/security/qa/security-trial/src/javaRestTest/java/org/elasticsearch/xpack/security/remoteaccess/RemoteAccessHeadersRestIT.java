@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.remotecluster;
+package org.elasticsearch.xpack.security.remoteaccess;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
@@ -25,26 +25,23 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -57,7 +54,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RemoteAccessHeadersSmokeIT extends ESRestTestCase {
+public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCase {
     @BeforeClass
     public static void checkFeatureFlag() {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
@@ -91,13 +88,13 @@ public class RemoteAccessHeadersSmokeIT extends ESRestTestCase {
     private static void updateRemoteClusterSettings(Map<String, Object> settings) throws IOException {
         final Request request = new Request("PUT", "/_cluster/settings");
         request.setEntity(buildUpdateSettingsRequestBody(settings));
-        final Response response = client().performRequest(request);
+        final Response response = adminClient().performRequest(request);
         assertOK(response);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private static HttpEntity buildUpdateSettingsRequestBody(Map<String, Object> settings) throws IOException {
-        String requestBody;
+        final String requestBody;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {

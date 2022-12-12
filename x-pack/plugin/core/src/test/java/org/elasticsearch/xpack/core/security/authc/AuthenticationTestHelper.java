@@ -377,7 +377,12 @@ public class AuthenticationTestHelper {
             return build(ESTestCase.randomBoolean());
         }
 
-        public Authentication build(boolean runAsIfNotAlready) {
+        /**
+         * @param maybeRunAsIfNotAlready If the authentication is *not* run-as and the subject is a realm user, it will be transformed
+         *                               into a run-as authentication by moving the realm user to be the run-as user. The authenticating
+         *                               subject can be either a realm user or an API key (in general any subject type that can run-as).
+         */
+        public Authentication build(boolean maybeRunAsIfNotAlready) {
             if (authenticatingAuthentication != null) {
                 if (user == null) {
                     user = randomUser();
@@ -402,7 +407,7 @@ public class AuthenticationTestHelper {
                             realmRef = randomRealmRef(isRealmUnderDomain == null ? ESTestCase.randomBoolean() : isRealmUnderDomain);
                         }
                         assert false == SYNTHETIC_REALM_TYPES.contains(realmRef.getType()) : "use dedicate methods for synthetic realms";
-                        if (runAsIfNotAlready) {
+                        if (maybeRunAsIfNotAlready) {
                             authentication = builder().runAs().user(user).realmRef(realmRef).build();
                         } else {
                             authentication = Authentication.newRealmAuthentication(user, realmRef);

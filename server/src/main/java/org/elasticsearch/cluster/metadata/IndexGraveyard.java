@@ -127,7 +127,7 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.array(TOMBSTONES_FIELD.getPreferredName(), tombstones);
+        return ChunkedToXContentHelper.array(TOMBSTONES_FIELD.getPreferredName(), tombstones.iterator());
     }
 
     public static IndexGraveyard fromXContent(final XContentParser parser) throws IOException {

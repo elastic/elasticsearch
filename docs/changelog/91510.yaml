@@ -1,5 +1,0 @@
-pr: 91510
-summary: Refine bwc version checks on `EqlSearchRequest`
-area: EQL
-type: bug
-issues: []

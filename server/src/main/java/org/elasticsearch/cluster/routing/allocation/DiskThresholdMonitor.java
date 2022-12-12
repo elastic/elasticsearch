@@ -301,7 +301,7 @@ public class DiskThresholdMonitor {
             }
         }
 
-        final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 3);
+        final ActionListener<Void> listener = new GroupedActionListener<>(3, ActionListener.wrap(this::checkFinished));
 
         if (reroute) {
             logger.debug("rerouting shards: [{}]", explanation);

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
@@ -470,11 +469,7 @@ public class PublicationTransportHandler {
                 new BytesTransportRequest(bytes, destination.getVersion()),
                 task,
                 STATE_REQUEST_OPTIONS,
-                new ActionListenerResponseHandler<>(
-                    ActionListener.runAfter(listener, bytes::decRef),
-                    PublishWithJoinResponse::new,
-                    ThreadPool.Names.CLUSTER_COORDINATION
-                )
+                new CleanableResponseHandler<>(listener, PublishWithJoinResponse::new, ThreadPool.Names.CLUSTER_COORDINATION, bytes::decRef)
             );
         }
 

@@ -190,7 +190,7 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future1::actionGet);
         assertThat(e.getMessage(), containsString("missing required string claim [" + requiredClaim.v1() + "]"));
 
-        // Remove required claim from setting, the JWT now works
+        // Remove required claim from settings, the JWT now works
         requiredClaim = null;
         final PlainActionFuture<JWTClaimsSet> future2 = new PlainActionFuture<>();
         buildJwtAuthenticator().authenticate(jwtAuthenticationToken, future2);

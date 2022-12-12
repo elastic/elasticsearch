@@ -316,7 +316,7 @@ public class JwtRealmSettings {
                         Strings.format(
                             "invalid required claim [%s], cannot be one of [%s]",
                             fullName,
-                            invalidRequiredClaims.stream().collect(Collectors.joining(","))
+                            String.join(",", invalidRequiredClaims)
                         )
                     );
                 }

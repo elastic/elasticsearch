@@ -46,90 +46,6 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  */
 public final class Def {
 
-    // TODO: Once Java has a factory for those in java.lang.invoke.MethodHandles, use it:
-
-    /** Helper class for isolating MethodHandles and methods to get the length of arrays
-     * (to emulate a "arraystore" bytecode using MethodHandles).
-     * See: https://bugs.openjdk.java.net/browse/JDK-8156915
-     */
-    @SuppressWarnings("unused") // getArrayLength() methods are are actually used, javac just does not know :)
-    private static final class ArrayLengthHelper {
-        private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
-
-        private static final Map<Class<?>, MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
-            Stream.of(
-                boolean[].class,
-                byte[].class,
-                short[].class,
-                int[].class,
-                long[].class,
-                char[].class,
-                float[].class,
-                double[].class,
-                Object[].class
-            ).collect(Collectors.toMap(Function.identity(), type -> {
-                try {
-                    return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(
-                        PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(),
-                        "getArrayLength",
-                        MethodType.methodType(int.class, type)
-                    );
-                } catch (ReflectiveOperationException e) {
-                    throw new AssertionError(e);
-                }
-            }))
-        );
-
-        private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
-
-        static int getArrayLength(final boolean[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final byte[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final short[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final int[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final long[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final char[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final float[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final double[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final Object[] array) {
-            return array.length;
-        }
-
-        static MethodHandle arrayLengthGetter(Class<?> arrayType) {
-            if (arrayType.isArray() == false) {
-                throw new IllegalArgumentException("type must be an array");
-            }
-            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType))
-                ? ARRAY_TYPE_MH_MAPPING.get(arrayType)
-                : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
-        }
-
-        private ArrayLengthHelper() {}
-    }
-
     /** pointer to Map.get(Object) */
     private static final MethodHandle MAP_GET;
     /** pointer to Map.put(Object,Object) */
@@ -144,8 +60,8 @@ public final class Def {
     private static final MethodHandle MAP_INDEX_NORMALIZE;
     /** pointer to {@link Def#listIndexNormalize}. */
     private static final MethodHandle LIST_INDEX_NORMALIZE;
-    /** factory for arraylength MethodHandle (intrinsic) from Java 9 (pkg-private for tests) */
-    static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
+    /** factory for arraylength MethodHandle (intrinsic) */
+    private static final MethodHandle ARRAY_LENGTH;
 
     public static final Map<Class<?>, MethodHandle> DEF_TO_BOXED_TYPE_IMPLICIT_CAST;
 
@@ -168,23 +84,14 @@ public final class Def {
                 "listIndexNormalize",
                 MethodType.methodType(int.class, List.class, int.class)
             );
-        } catch (final ReflectiveOperationException roe) {
-            throw new AssertionError(roe);
-        }
-
-        // lookup up the factory for arraylength MethodHandle (intrinsic) from Java 9:
-        // https://bugs.openjdk.java.net/browse/JDK-8156915
-        MethodHandle arrayLengthMHFactory;
-        try {
-            arrayLengthMHFactory = methodHandlesLookup.findStatic(
+            ARRAY_LENGTH = methodHandlesLookup.findStatic(
                 MethodHandles.class,
                 "arrayLength",
                 MethodType.methodType(MethodHandle.class, Class.class)
             );
-        } catch (final ReflectiveOperationException roe) {
-            arrayLengthMHFactory = null;
+        } catch (ReflectiveOperationException roe) {
+            throw new AssertionError(roe);
         }
-        JAVA9_ARRAY_LENGTH_MH_FACTORY = arrayLengthMHFactory;
 
         Map<Class<?>, MethodHandle> defToBoxedTypeImplicitCast = new HashMap<>();
 
@@ -232,15 +139,11 @@ public final class Def {
 
     /** Returns an array length getter MethodHandle for the given array type */
     static MethodHandle arrayLengthGetter(Class<?> arrayType) {
-        if (JAVA9_ARRAY_LENGTH_MH_FACTORY != null) {
-            try {
-                return (MethodHandle) JAVA9_ARRAY_LENGTH_MH_FACTORY.invokeExact(arrayType);
-            } catch (Throwable t) {
-                rethrow(t);
-                throw new AssertionError(t);
-            }
-        } else {
-            return ArrayLengthHelper.arrayLengthGetter(arrayType);
+        try {
+            return (MethodHandle) ARRAY_LENGTH.invokeExact(arrayType);
+        } catch (Throwable t) {
+            rethrow(t);
+            throw new AssertionError(t);
         }
     }
 
@@ -840,9 +743,8 @@ public final class Def {
             if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
-            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType))
-                ? ARRAY_TYPE_MH_MAPPING.get(arrayType)
-                : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+            MethodHandle iterator = ARRAY_TYPE_MH_MAPPING.get(arrayType);
+            return iterator != null ? iterator : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
         }
 
         private ArrayIteratorHelper() {}
@@ -1616,9 +1518,8 @@ public final class Def {
             if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
-            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType))
-                ? ARRAY_TYPE_MH_MAPPING.get(arrayType)
-                : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+            MethodHandle handle = ARRAY_TYPE_MH_MAPPING.get(arrayType);
+            return handle != null ? handle : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
         }
 
         private ArrayIndexNormalizeHelper() {}

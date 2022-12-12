@@ -20,8 +20,20 @@ import java.io.IOException;
 // else we pack 2 ints per long
 public final class ForUtil {
 
-    static final int BLOCK_SIZE = 128;
-    private static final int BLOCK_SIZE_LOG2 = 7;
+    static final int DEFAULT_BLOCK_SIZE = 128;
+    private final int blockSize;
+    private final int blockSizeLog2;
+    private final long[] tmp;
+
+    public ForUtil() {
+        this(DEFAULT_BLOCK_SIZE);
+    }
+
+    public ForUtil(int blockSize) {
+        this.blockSize = blockSize;
+        this.blockSizeLog2 = (int) (Math.log(blockSize) / Math.log(2));
+        this.tmp = new long[blockSize / 2];
+    }
 
     private static long expandMask32(long mask32) {
         return mask32 | (mask32 << 32);
@@ -116,23 +128,21 @@ public final class ForUtil {
         }
     }
 
-    private final long[] tmp = new long[BLOCK_SIZE / 2];
-
     /** Encode 128 integers from {@code longs} into {@code out}. */
     void encode(long[] longs, int bitsPerValue, DataOutput out) throws IOException {
         final int nextPrimitive;
         final int numLongs;
         if (bitsPerValue <= 8) {
             nextPrimitive = 8;
-            numLongs = BLOCK_SIZE / 8;
+            numLongs = blockSize / 8;
             collapse8(longs);
         } else if (bitsPerValue <= 16) {
             nextPrimitive = 16;
-            numLongs = BLOCK_SIZE / 4;
+            numLongs = blockSize / 4;
             collapse16(longs);
         } else {
             nextPrimitive = 32;
-            numLongs = BLOCK_SIZE / 2;
+            numLongs = blockSize / 2;
             collapse32(longs);
         }
 
@@ -193,10 +203,10 @@ public final class ForUtil {
 
     /** Number of bytes required to encode 128 integers of {@code bitsPerValue} bits per value. */
     int numBytes(int bitsPerValue) {
-        return bitsPerValue << (BLOCK_SIZE_LOG2 - 3);
+        return bitsPerValue << (blockSizeLog2 - 3);
     }
 
-    private static void decodeSlow(int bitsPerValue, DataInput in, long[] tmp, long[] longs) throws IOException {
+    private static void decodeSlow(int blockSize, int bitsPerValue, DataInput in, long[] tmp, long[] longs) throws IOException {
         final int numLongs = bitsPerValue << 1;
         in.readLongs(tmp, 0, numLongs);
         final long mask = MASKS32[bitsPerValue];
@@ -210,7 +220,7 @@ public final class ForUtil {
         final long mask32RemainingBitsPerLong = MASKS32[remainingBitsPerLong];
         int tmpIdx = 0;
         int remainingBits = remainingBitsPerLong;
-        for (; longsIdx < BLOCK_SIZE / 2; ++longsIdx) {
+        for (; longsIdx < blockSize / 2; ++longsIdx) {
             int b = bitsPerValue - remainingBits;
             long l = (tmp[tmpIdx++] & MASKS32[remainingBits]) << b;
             while (b >= remainingBitsPerLong) {
@@ -399,7 +409,7 @@ public final class ForUtil {
                 expand32(longs);
                 break;
             default:
-                decodeSlow(bitsPerValue, in, tmp, longs);
+                decodeSlow(blockSize, bitsPerValue, in, tmp, longs);
                 expand32(longs);
                 break;
         }
@@ -502,7 +512,7 @@ public final class ForUtil {
                 decode24(in, tmp, longs);
                 break;
             default:
-                decodeSlow(bitsPerValue, in, tmp, longs);
+                decodeSlow(blockSize, bitsPerValue, in, tmp, longs);
                 break;
         }
     }

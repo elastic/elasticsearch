@@ -10,7 +10,13 @@ dependencies {
   javaRestTestImplementation project(":client:rest")
 }
 
-boolean explicitIdTokenType = BuildParams.random.nextBoolean()
+def random = BuildParams.random
+boolean explicitIdTokenType = random.nextBoolean()
+def serviceSubject = 'service_' + random.nextInt(1, 9) + '@app' + random.nextInt(1, 9) + '.example.com'
+
+tasks.named("javaRestTest").configure {
+  systemProperty 'jwt2.service_subject', serviceSubject
+}
 
 testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
@@ -64,13 +70,19 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.realms.native.lookup_native.order', '2'
 
   setting 'xpack.security.authc.realms.jwt.jwt2.order', '3'
-  if (explicitIdTokenType) {
-    setting 'xpack.security.authc.realms.jwt.jwt2.token_type', 'id_token'
-  }
+  setting 'xpack.security.authc.realms.jwt.jwt2.token_type', 'access_token'
+  setting 'xpack.security.authc.realms.jwt.jwt2.fallback_claims.sub', 'email'
+  setting 'xpack.security.authc.realms.jwt.jwt2.fallback_claims.aud', 'scope'
   setting 'xpack.security.authc.realms.jwt.jwt2.allowed_issuer', 'my-issuer'
+  setting 'xpack.security.authc.realms.jwt.jwt2.allowed_subjects', serviceSubject
   setting 'xpack.security.authc.realms.jwt.jwt2.allowed_audiences', 'es01,es02,es03'
   setting 'xpack.security.authc.realms.jwt.jwt2.allowed_signature_algorithms', 'HS256,HS384'
-  setting 'xpack.security.authc.realms.jwt.jwt2.claims.principal', 'email'
+  // Both email or sub works because of fallback
+  if (random.nextBoolean()) {
+    setting 'xpack.security.authc.realms.jwt.jwt2.claims.principal', 'email'
+  } else {
+    setting 'xpack.security.authc.realms.jwt.jwt2.claims.principal', 'sub'
+  }
   setting 'xpack.security.authc.realms.jwt.jwt2.claim_patterns.principal', '^(.*)@[^.]*[.]example[.]com$'
   setting 'xpack.security.authc.realms.jwt.jwt2.authorization_realms', 'lookup_native'
   setting 'xpack.security.authc.realms.jwt.jwt2.client_authentication.type', 'shared_secret'

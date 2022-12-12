@@ -905,7 +905,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irCompoundNode = stringConcatenationNode;
 
                 // must handle the StringBuilder case for java version <= 8
-                if (irLoadNode instanceof BinaryImplNode bin && WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) {
+                if (irLoadNode instanceof BinaryImplNode bin && WriterConstants.STRING_CONCAT_BOOTSTRAP_HANDLE == null) {
                     bin.getLeftNode().attachDecoration(new IRDDepth(1));
                 }
                 // handles when the operation is mathematical

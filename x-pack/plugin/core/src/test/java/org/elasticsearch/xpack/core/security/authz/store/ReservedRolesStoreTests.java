@@ -565,6 +565,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             ".apm-agent-configuration",
             ".apm-custom-link",
+            ".apm-source-map",
             ReservedRolesStore.ALERTS_LEGACY_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_BACKING_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),

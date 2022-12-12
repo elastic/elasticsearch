@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -44,8 +43,8 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
         );
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, randomAlphaOfLengthBetween(3, 8)));
-        final ElasticsearchSecurityException e = expectThrows(
-            ElasticsearchSecurityException.class,
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> validator.validate(getJwsHeader(), jwtClaimsSet)
         );
         assertThat(e.getMessage(), containsString("cannot parse date claim"));
@@ -64,8 +63,8 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
         );
 
         final JWTClaimsSet jwtClaimsSet = JWTClaimsSet.parse(Map.of());
-        final ElasticsearchSecurityException e = expectThrows(
-            ElasticsearchSecurityException.class,
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> validator.validate(getJwsHeader(), jwtClaimsSet)
         );
         assertThat(e.getMessage(), containsString("missing required date claim"));
@@ -112,8 +111,8 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
         }
 
         final Instant after = now.plusSeconds(randomLongBetween(1 + allowedSkewInSeconds, 600));
-        final ElasticsearchSecurityException e = expectThrows(
-            ElasticsearchSecurityException.class,
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> validator.validate(getJwsHeader(), JWTClaimsSet.parse(Map.of(claimName, after.getEpochSecond())))
         );
         assertThat(
@@ -145,8 +144,8 @@ public class JwtDateClaimValidatorTests extends ESTestCase {
         when(clock.instant()).thenReturn(now);
 
         final Instant before = now.minusSeconds(randomLongBetween(1 + allowedSkewInSeconds, 600));
-        final ElasticsearchSecurityException e = expectThrows(
-            ElasticsearchSecurityException.class,
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> validator.validate(getJwsHeader(), JWTClaimsSet.parse(Map.of(claimName, before.getEpochSecond())))
         );
         assertThat(

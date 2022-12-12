@@ -73,8 +73,8 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             } else {
                 expectedFileSnapshotTasks.addAndGet(filesToUpload);
                 ActionListener<Void> uploadListener = new GroupedActionListener<>(
-                    ActionListener.wrap(finishedShardSnapshots::incrementAndGet),
-                    filesToUpload
+                    filesToUpload,
+                    ActionListener.wrap(finishedShardSnapshots::incrementAndGet)
                 );
                 for (int i = 0; i < filesToUpload; i++) {
                     taskRunner.enqueueFileSnapshot(context, ShardSnapshotTaskRunnerTests::dummyFileInfo, uploadListener);

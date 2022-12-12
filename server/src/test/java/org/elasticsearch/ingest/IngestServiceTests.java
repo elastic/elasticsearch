@@ -2057,7 +2057,6 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
-
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);

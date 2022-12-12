@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.core.ssl;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
+import org.elasticsearch.common.ssl.X509Field;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.List;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
+import static org.elasticsearch.common.ssl.SslConfigurationLoader.GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -84,14 +85,11 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         Settings settings = Settings.builder()
             .putList("ssl.trust_restrictions.x509_fields", "subjectAltName.otherName.commonName", "subjectAltName.dnsName")
             .build();
-        assertThat(
-            ssl.trustRestrictionsX509Fields.get(settings),
-            is(Arrays.asList("subjectAltName.otherName.commonName", "subjectAltName.dnsName"))
-        );
+        assertThat(ssl.trustRestrictionsX509Fields.get(settings), is(Arrays.asList(X509Field.SAN_OTHERNAME_COMMONNAME, X509Field.SAN_DNS)));
 
         // implicit configuration
         settings = Settings.builder().build();
-        assertThat(ssl.trustRestrictionsX509Fields.get(settings), is(Arrays.asList("subjectAltName.otherName.commonName")));
+        assertThat(ssl.trustRestrictionsX509Fields.get(settings), is(GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS));
 
         // invalid configuration
         final Settings invalid = Settings.builder().putList("ssl.trust_restrictions.x509_fields", "foo.bar").build();
@@ -122,7 +120,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.truststorePassword.exists(settings), is(false));
         assertThat(ssl.truststorePath.get(settings).isPresent(), is(false));
         assertThat(ssl.trustRestrictionsPath.get(settings).isPresent(), is(false));
-        assertThat(ssl.trustRestrictionsX509Fields.get(settings), is(List.of("subjectAltName.otherName.commonName")));
+        assertThat(ssl.trustRestrictionsX509Fields.get(settings), is(GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS));
         assertThat(ssl.verificationMode.get(settings).isPresent(), is(false));
     }
 

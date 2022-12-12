@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -428,4 +429,110 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         );
         assertThat(e.getMessage(), containsString("Invalid value"));
     }
+
+    public void testFallbackClaimSettingsNotAllowedForIdTokenType() {
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final Settings.Builder settingsBuilder = Settings.builder();
+        if (randomBoolean()) {
+            settingsBuilder.put(
+                RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.TOKEN_TYPE),
+                JwtRealmSettings.TokenType.ID_TOKEN.value()
+            );
+        }
+        settingsBuilder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_SUB_CLAIM), randomAlphaOfLength(8))
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_AUD_CLAIM), randomAlphaOfLength(8));
+
+        final RealmConfig realmConfig = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settingsBuilder.build(), randomInt());
+
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> realmConfig.getSetting(JwtRealmSettings.FALLBACK_SUB_CLAIM)
+        );
+        assertThat(
+            e1.getMessage(),
+            containsString(
+                "fallback claim setting ["
+                    + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_SUB_CLAIM)
+                    + "] is not allowed when JWT realm ["
+                    + realmName
+                    + "] is [id_token] type"
+            )
+        );
+
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> realmConfig.getSetting(JwtRealmSettings.FALLBACK_AUD_CLAIM)
+        );
+        assertThat(
+            e2.getMessage(),
+            containsString(
+                "fallback claim setting ["
+                    + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_AUD_CLAIM)
+                    + "] is not allowed when JWT realm ["
+                    + realmName
+                    + "] is [id_token] type"
+            )
+        );
+    }
+
+    public void testFallbackSettingsForAccessTokenType() {
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String fallbackSub = randomAlphaOfLength(8);
+        final String fallbackAud = randomAlphaOfLength(8);
+        final Settings settings = Settings.builder()
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.TOKEN_TYPE), JwtRealmSettings.TokenType.ACCESS_TOKEN.value())
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_SUB_CLAIM), fallbackSub)
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_AUD_CLAIM), fallbackAud)
+            .build();
+
+        final RealmConfig realmConfig = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, randomInt());
+        assertThat(realmConfig.getSetting(JwtRealmSettings.FALLBACK_SUB_CLAIM), equalTo(fallbackSub));
+        assertThat(realmConfig.getSetting(JwtRealmSettings.FALLBACK_AUD_CLAIM), equalTo(fallbackAud));
+    }
+
+    public void testRegisteredClaimsCannotBeUsedForFallbackSettings() {
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String fallbackSub = randomValueOtherThan("sub", () -> randomFrom(JwtRealmSettings.REGISTERED_CLAIM_NAMES));
+        final String fallbackAud = randomValueOtherThan("aud", () -> randomFrom(JwtRealmSettings.REGISTERED_CLAIM_NAMES));
+        final Settings settings = Settings.builder()
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.TOKEN_TYPE), JwtRealmSettings.TokenType.ACCESS_TOKEN.value())
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_SUB_CLAIM), fallbackSub)
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_AUD_CLAIM), fallbackAud)
+            .build();
+
+        final RealmConfig realmConfig = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, randomInt());
+
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> realmConfig.getSetting(JwtRealmSettings.FALLBACK_SUB_CLAIM)
+        );
+        assertThat(
+            e1.getMessage(),
+            containsString(
+                Strings.format(
+                    "Invalid fallback claims setting [%s]. Claim [%s] cannot fallback to a registered claim [%s]",
+                    RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_SUB_CLAIM),
+                    "sub",
+                    fallbackSub
+                )
+            )
+        );
+
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> realmConfig.getSetting(JwtRealmSettings.FALLBACK_AUD_CLAIM)
+        );
+        assertThat(
+            e2.getMessage(),
+            containsString(
+                Strings.format(
+                    "Invalid fallback claims setting [%s]. Claim [%s] cannot fallback to a registered claim [%s]",
+                    RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_AUD_CLAIM),
+                    "aud",
+                    fallbackAud
+                )
+            )
+        );
+    }
+
 }

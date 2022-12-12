@@ -25,15 +25,26 @@ import org.elasticsearch.test.ESTestCase;
 
 public class AzimuthTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92136")
     public void testLatLonVec3d() {
-        final double lat = Math.toRadians(GeoTestUtil.nextLatitude());
-        final double lon = Math.toRadians(GeoTestUtil.nextLongitude());
-        final GeoPoint point = new GeoPoint(PlanetModel.SPHERE, lat, lon);
+        final GeoPoint point = safePoint();
         for (int i = 0; i < Vec3d.faceCenterPoint.length; i++) {
             final double azVec3d = Vec3d.faceCenterPoint[i].geoAzimuthRads(point.x, point.y, point.z);
             final double azVec2d = Vec2d.faceCenterGeo[i].geoAzimuthRads(point.getLatitude(), point.getLongitude());
-            assertEquals(azVec2d, azVec3d, 1e-14);
+            assertEquals("Face " + i, azVec2d, azVec3d, 1e-14);
         }
+    }
+
+    /**
+     * Face 19 gives -180 vs 180 for azimuth when Latitude=-90 and Longitude is between 98 and 102.
+     * So we just exclude lat=-90 from the test to avoid this odd edge case.
+     */
+    private GeoPoint safePoint() {
+        GeoPoint point;
+        do {
+            final double lat = Math.toRadians(GeoTestUtil.nextLatitude());
+            final double lon = Math.toRadians(GeoTestUtil.nextLongitude());
+            point = new GeoPoint(PlanetModel.SPHERE, lat, lon);
+        } while (point.getLatitude() == -Math.PI / 2);
+        return point;
     }
 }

@@ -415,7 +415,7 @@ and `query` matches.
 [discrete]
 ==== Search multiple KNN fields
 
-In addition to 'hybrid retrieval', you can search more than on KNN vector field at a time:
+In addition to 'hybrid retrieval', you can search more than one KNN vector field at a time:
 
 [source,console]
 ----
@@ -447,10 +447,11 @@ POST image-index/_search
 // TEST[continued]
 
 This search finds the global top `k = 5` vector matches for `image-vector` and the global `k = 10` for the `title-vector`.
-These top values are then combined with the matches from the `match` query, and
-finally returns the 10 top-scoring results. The multiple `knn` entries and the `query` matches are combined through a
-disjunction, as if you took a boolean 'or' between them. The top `k` vector results represent the global nearest neighbors across all index
-shards.
+These top values are then combined with the matches from the `match` query and the top-10 documents are returned.
+The multiple `knn` entries and the `query` matches are combined through a disjunction,
+as if you took a boolean 'or' between them. The top `k` vector results represent the global nearest neighbors across
+all index shards.
+
 The scoring for a doc with the above configured boosts would be:
 
 ```

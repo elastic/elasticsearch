@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -176,14 +178,17 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             .startObject("text")
             .field("type", "text")
             .endObject()
+            .startObject("number")
+            .field("type", "long")
+            .endObject()
             .endObject()
             .endObject();
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            client().prepareIndex("index").setSource("vector", randomVector(), "text", "hello world").get();
-            client().prepareIndex("index").setSource("vector_2", randomVector(), "text", "hello world").get();
-            client().prepareIndex("index").setSource("text", "goodnight world").get();
+            client().prepareIndex("index").setSource("vector", randomVector(), "text", "hello world", "number", 1).get();
+            client().prepareIndex("index").setSource("vector_2", randomVector(), "text", "hello world", "number", 2).get();
+            client().prepareIndex("index").setSource("text", "goodnight world", "number", 3).get();
         }
         client().admin().indices().prepareRefresh("index").get();
 
@@ -195,11 +200,18 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             .setQuery(QueryBuilders.matchQuery("text", "goodnight"))
             .addFetchField("*")
             .setSize(10)
+            .addAggregation(AggregationBuilders.stats("stats").field("number"))
             .get();
 
         // The total hits is k plus the number of text matches
         assertHitCount(response, 20);
         assertEquals(10, response.getHits().getHits().length);
+        InternalStats agg = response.getAggregations().get("stats");
+        assertThat(agg.getCount(), equalTo(20L));
+        assertThat(agg.getMax(), equalTo(3.0));
+        assertThat(agg.getMin(), equalTo(1.0));
+        assertThat(agg.getAvg(), equalTo(2.25));
+        assertThat(agg.getSum(), equalTo(45.0));
 
         // Because of the boost, vector_2 results should appear first
         assertNotNull(response.getHits().getAt(0).field("vector_2"));
@@ -224,6 +236,9 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             .field("index", true)
             .field("similarity", "l2_norm")
             .endObject()
+            .startObject("number")
+            .field("type", "long")
+            .endObject()
             .endObject()
             .endObject();
         createIndex("index", indexSettings, builder);
@@ -231,7 +246,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         for (int doc = 0; doc < 10; doc++) {
             // Make them have hte same vector. This will allow us to test the recall is the same but scores take into account both fields
             float[] vector = randomVector();
-            client().prepareIndex("index").setSource("vector", vector, "vector_2", vector).get();
+            client().prepareIndex("index").setSource("vector", vector, "vector_2", vector, "number", doc).get();
         }
         client().admin().indices().prepareRefresh("index").get();
 
@@ -243,11 +258,13 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             .setKnnSearch(List.of(knnSearch))
             .addFetchField("*")
             .setSize(10)
+            .addAggregation(AggregationBuilders.stats("stats").field("number"))
             .get();
         SearchResponse responseBothKnn = client().prepareSearch("index")
             .setKnnSearch(List.of(knnSearch, knnSearch2))
             .addFetchField("*")
             .setSize(10)
+            .addAggregation(AggregationBuilders.stats("stats").field("number"))
             .get();
 
         // The total hits is k matched docs
@@ -262,6 +279,13 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             assertThat(bothHit.getId(), equalTo(oneHit.getId()));
             assertThat(bothHit.getScore(), greaterThan(oneHit.getScore()));
         }
+        InternalStats oneAgg = responseOneKnn.getAggregations().get("stats");
+        InternalStats bothAgg = responseBothKnn.getAggregations().get("stats");
+        assertThat(bothAgg.getCount(), equalTo(oneAgg.getCount()));
+        assertThat(bothAgg.getAvg(), equalTo(oneAgg.getAvg()));
+        assertThat(bothAgg.getMax(), equalTo(oneAgg.getMax()));
+        assertThat(bothAgg.getSum(), equalTo(oneAgg.getSum()));
+        assertThat(bothAgg.getMin(), equalTo(oneAgg.getMin()));
     }
 
     public void testKnnFilteredAlias() throws IOException {

@@ -132,7 +132,7 @@ final class DfsQueryPhase extends SearchPhase {
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
         SearchSourceBuilder source = request.source();
-        if (source == null || source.knnSearch() == null || source.knnSearch().isEmpty()) {
+        if (source == null || source.knnSearch().isEmpty()) {
             return request;
         }
 
@@ -162,7 +162,7 @@ final class DfsQueryPhase extends SearchPhase {
         }
         KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
 
-        SearchSourceBuilder newSource = source.shallowCopy().knnSearch(null);
+        SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
         if (source.query() == null) {
             newSource.query(knnQuery);
         } else {

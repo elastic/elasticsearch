@@ -130,7 +130,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private QueryBuilder postQueryBuilder;
 
-    private List<KnnSearchBuilder> knnSearch;
+    private List<KnnSearchBuilder> knnSearch = new ArrayList<>();
 
     private int from = -1;
 
@@ -253,7 +253,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
                 knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
             } else {
-                knnSearch = in.readOptionalList(KnnSearchBuilder::new);
+                knnSearch = in.readList(KnnSearchBuilder::new);
             }
         }
     }
@@ -325,16 +325,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             if (out.getVersion().before(Version.V_8_7_0)) {
-                if (knnSearch != null && knnSearch.size() > 1) {
+                if (knnSearch.size() > 1) {
                     throw new IllegalArgumentException(
                         "Versions before 8.7.0 don't support multiple [knn] search clauses and search was sent to ["
                             + out.getVersion()
                             + "]"
                     );
                 }
-                out.writeOptionalWriteable(knnSearch == null || knnSearch.isEmpty() ? null : knnSearch.get(0));
+                out.writeOptionalWriteable(knnSearch.isEmpty() ? null : knnSearch.get(0));
             } else {
-                out.writeOptionalCollection(knnSearch);
+                out.writeCollection(knnSearch);
             }
         }
     }
@@ -378,7 +378,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * are combined with the query hits.
      */
     public SearchSourceBuilder knnSearch(List<KnnSearchBuilder> knnSearch) {
-        this.knnSearch = knnSearch;
+        this.knnSearch = Objects.requireNonNull(knnSearch);
         return this;
     }
 
@@ -1002,7 +1002,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @return true if the source only has suggest
      */
     public boolean isSuggestOnly() {
-        return suggestBuilder != null && queryBuilder == null && (knnSearch == null || knnSearch.isEmpty()) && aggregations == null;
+        return suggestBuilder != null && queryBuilder == null && knnSearch.isEmpty() && aggregations == null;
     }
 
     /**
@@ -1485,7 +1485,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(POST_FILTER_FIELD.getPreferredName(), postQueryBuilder);
         }
 
-        if (knnSearch != null && knnSearch.isEmpty() == false) {
+        if (knnSearch.isEmpty() == false) {
             builder.startArray(KNN_FIELD.getPreferredName());
             for (KnnSearchBuilder knnSearchBuilder : knnSearch) {
                 builder.startObject();

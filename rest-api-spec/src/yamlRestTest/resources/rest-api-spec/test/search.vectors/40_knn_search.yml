@@ -78,7 +78,7 @@ setup:
 "kNN multi-field search only":
   - skip:
       version: ' - 8.6.99'
-      reason: 'multi-field kNN search added to search endpoint in 8.6'
+      reason: 'multi-field kNN search added to search endpoint in 8.7'
   - do:
       search:
         index: test
@@ -124,7 +124,7 @@ setup:
 "kNN multi-field search with query":
   - skip:
       version: ' - 8.6.99'
-      reason: 'multi-field kNN search added to search endpoint in 8.6'
+      reason: 'multi-field kNN search added to search endpoint in 8.7'
   - do:
       search:
         index: test

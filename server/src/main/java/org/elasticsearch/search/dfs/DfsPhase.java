@@ -172,7 +172,7 @@ public class DfsPhase {
 
     private void executeKnnVectorQuery(SearchContext context) throws IOException {
         SearchSourceBuilder source = context.request().source();
-        if (source == null || source.knnSearch() == null || source.knnSearch().isEmpty()) {
+        if (source == null || source.knnSearch().isEmpty()) {
             return;
         }
 

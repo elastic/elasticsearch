@@ -2,7 +2,7 @@
 [[managing-watches]]
 == Managing watches
 
-{watcher} provides as set of APIs you can use to manage your watches:
+{watcher} provides a set of APIs you can use to manage your watches:
 
 * Use the <<watcher-api-put-watch,create or update watch API>> to add or update watches
 * Use the <<watcher-api-get-watch,get watch API>> to retrieve watches

@@ -14,7 +14,6 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
@@ -69,8 +68,11 @@ public class PerFieldMapperCodec extends Lucene94Codec {
     boolean useBloomFilter(String field) {
         IndexSettings indexSettings = mapperService.getIndexSettings();
         if (mapperService.mappingLookup().isDataStreamTimestampFieldEnabled()) {
-            return indexSettings.getIndexVersionCreated().onOrAfter(Version.V_8_7_0)
-                && indexSettings.getMode() == IndexMode.TIME_SERIES
+            // In case for time series indices, they _id isn't randomly generated,
+            // but based on dimension fields and timestamp field, so during indexing
+            // version/seq_no/term needs to be looked up and having a bloom filter
+            // can speed this up significantly.
+            return indexSettings.getMode() == IndexMode.TIME_SERIES
                 && IdFieldMapper.NAME.equals(field)
                 && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
         } else {

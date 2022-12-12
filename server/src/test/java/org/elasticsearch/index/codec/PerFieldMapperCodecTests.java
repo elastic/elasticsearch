@@ -9,7 +9,6 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.lucene94.Lucene94Codec;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -18,7 +17,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -27,39 +25,32 @@ import static org.hamcrest.Matchers.is;
 public class PerFieldMapperCodecTests extends ESTestCase {
 
     public void testUseBloomFilter() throws IOException {
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, randomBoolean(), false, VersionUtils.randomVersion(random()));
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, randomBoolean(), false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled() throws IOException {
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, false, Version.V_8_7_0);
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, false, false, Version.V_8_7_0);
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, true, Version.V_8_7_0);
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, true);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
         assertWarnings(
             "[index.bloom_filter_for_id_field.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
     }
 
-    public void testUseBloomFilterWithTimestampFieldEnabled_olderVersion() throws IOException {
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, false, Version.V_8_6_0);
-        assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-    }
-
-    private PerFieldMapperCodec createCodec(boolean timestampField, boolean timeSeries, boolean disableBloomFilter, Version createdVersion)
-        throws IOException {
+    private PerFieldMapperCodec createCodec(boolean timestampField, boolean timeSeries, boolean disableBloomFilter) throws IOException {
         Settings.Builder settings = Settings.builder();
-        settings.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
         if (timeSeries) {
             settings.put(IndexSettings.MODE.getKey(), "time_series");
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");

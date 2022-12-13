@@ -15,8 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.plugin.api.settings.AnalysisSettings;
 import org.elasticsearch.plugin.api.Inject;
+import org.elasticsearch.plugin.api.settings.AnalysisSettings;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 

@@ -314,7 +314,7 @@ public class JwtRealmSettings {
                 if (invalidRequiredClaims.contains(name)) {
                     throw new IllegalArgumentException(
                         Strings.format(
-                            "invalid required claim [%s], cannot be one of [%s]",
+                            "required claim [%s] cannot be one of [%s]",
                             fullName,
                             String.join(",", invalidRequiredClaims)
                         )

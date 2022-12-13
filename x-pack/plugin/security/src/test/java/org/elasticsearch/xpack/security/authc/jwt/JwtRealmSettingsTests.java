@@ -573,7 +573,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("invalid required claim [" + fullSettingKey + "] cannot be one of [iss,sub,aud,exp,nbf,iat]")
+            containsString("required claim [" + fullSettingKey + "] cannot be one of [iss,sub,aud,exp,nbf,iat]")
         );
     }
 

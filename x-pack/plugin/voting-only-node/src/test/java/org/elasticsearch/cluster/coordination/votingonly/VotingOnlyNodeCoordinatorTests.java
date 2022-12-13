@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.cluster.coordination.votingonly;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -23,7 +22,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92307")
 public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase {
 
     @Override

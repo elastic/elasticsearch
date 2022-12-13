@@ -509,6 +509,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         final PipelineTree pipelines = aggTestConfig.builder().buildPipelineTree();
         BigArrays bigArraysForReduction = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
         try {
+            // NOCOMMIT
             // TODO: Put the partial reduce step back
             /*
             if (aggTestConfig.incrementalReduce() && reduceTime.size() > 1) {

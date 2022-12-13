@@ -27,6 +27,7 @@ import java.util.Map;
 
 public class CollectedMax extends CollectedAggregator {
     private DoubleArray maxes;
+    // TODO: Should the format live on the base class?
     private DocValueFormat format;
 
     public static final String NAME = "max";
@@ -40,6 +41,7 @@ public class CollectedMax extends CollectedAggregator {
     public CollectedMax(StreamInput in) throws IOException {
         super(in);
         maxes = DoubleArray.readFrom(in);
+        this.format = in.readNamedWriteable(DocValueFormat.class);
     }
 
     @Override
@@ -62,6 +64,7 @@ public class CollectedMax extends CollectedAggregator {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         maxes.writeTo(out);
+        out.writeNamedWriteable(format);
     }
 
     @Override

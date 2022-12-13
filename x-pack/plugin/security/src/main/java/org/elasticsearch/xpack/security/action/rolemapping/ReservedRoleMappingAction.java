@@ -95,7 +95,8 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         );
     }
 
-    private void nonStateTransform(
+    // Exposed for testing purposes
+    protected void nonStateTransform(
         Collection<PutRoleMappingRequest> requests,
         TransformState prevState,
         ActionListener<NonStateTransformResult> listener

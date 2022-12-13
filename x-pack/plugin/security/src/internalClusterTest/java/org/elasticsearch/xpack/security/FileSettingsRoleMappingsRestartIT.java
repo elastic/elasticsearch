@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.integration;
+package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -17,10 +17,10 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
-import org.elasticsearch.xpack.security.authc.esnative.NativeRealmIntegTests;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class FileSettingsRoleMappingsRestartIT extends NativeRealmIntegTests {
+public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testJSONOnlyRoleMappings = """
@@ -74,7 +74,6 @@ public class FileSettingsRoleMappingsRestartIT extends NativeRealmIntegTests {
         long version = versionCounter.incrementAndGet();
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-        assertTrue(fileSettingsService.watching());
 
         Files.deleteIfExists(fileSettingsService.operatorSettingsFile());
 

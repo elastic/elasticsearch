@@ -22,8 +22,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
@@ -298,52 +296,39 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         }
     }
 
-    public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
+    public static class Response extends BaseTasksResponse implements Writeable {
 
-        private final InferenceResults results;
-        private long tookMillis;
+        private final List<InferenceResults> results;
 
-        public Response(InferenceResults result, long tookMillis) {
+        public Response(List<InferenceResults> results) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.results = Objects.requireNonNull(result);
-            this.tookMillis = tookMillis;
+            this.results = Objects.requireNonNull(results);
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            results = in.readNamedWriteable(InferenceResults.class);
-            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
-                tookMillis = in.readVLong();
-            }
-        }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            results.toXContent(builder, params);
-            builder.endObject();
-            return builder;
+            // Multiple results added in 8.7.0
+            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+                results = in.readNamedWriteableList(InferenceResults.class);
+            } else {
+                results = List.of(in.readNamedWriteable(InferenceResults.class));
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeNamedWriteable(results);
+
             if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
-                out.writeVLong(tookMillis);
+                out.writeNamedWriteableList(results);
+            } else {
+                out.writeNamedWriteable(results.get(0));
             }
         }
 
-        public InferenceResults getResults() {
+        public List<InferenceResults> getResults() {
             return results;
-        }
-
-        public long getTookMillis() {
-            return tookMillis;
-        }
-
-        public void setTookMillis(long tookMillis) {
-            this.tookMillis = tookMillis;
         }
     }
 }

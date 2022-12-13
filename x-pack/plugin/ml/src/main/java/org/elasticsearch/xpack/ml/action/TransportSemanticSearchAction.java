@@ -51,12 +51,15 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
         var parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         var originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
 
+        long startMs = System.currentTimeMillis();
         // call inference as ML_ORIGIN
         originSettingClient.execute(
             InferTrainedModelDeploymentAction.INSTANCE,
             toInferenceRequest(request, parentTask),
             ActionListener.wrap(inferenceResults -> {
-                if (inferenceResults.getResults()instanceof TextEmbeddingResults textEmbeddingResults) {
+                // Expect 1 result
+                assert inferenceResults.getResults().size() == 1;
+                if (inferenceResults.getResults().get(0)instanceof TextEmbeddingResults textEmbeddingResults) {
 
                     var searchRequestBuilder = buildSearch(client, textEmbeddingResults, request);
                     searchRequestBuilder.request().setParentTask(parentTask);
@@ -66,7 +69,7 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
                         listener.onResponse(
                             new SemanticSearchAction.Response(
                                 searchResponse.getTook(),
-                                TimeValue.timeValueMillis(inferenceResults.getTookMillis()),
+                                TimeValue.timeValueMillis(System.currentTimeMillis() - startMs),
                                 searchResponse
                             )
                         );
@@ -77,7 +80,7 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
                             "model ["
                                 + request.getModelId()
                                 + "] must be a text_embedding model; provided ["
-                                + inferenceResults.getResults().getWriteableName()
+                                + inferenceResults.getResults().get(0).getWriteableName()
                                 + "]"
                         )
                     );

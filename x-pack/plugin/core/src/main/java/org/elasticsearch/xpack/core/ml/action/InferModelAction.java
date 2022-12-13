@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUp
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -302,12 +303,12 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         }
 
         public static class Builder {
-            private List<InferenceResults> inferenceResults;
+            private List<InferenceResults> inferenceResults = new ArrayList<>();
             private String modelId;
             private boolean isLicensed;
 
-            public Builder setInferenceResults(List<InferenceResults> inferenceResults) {
-                this.inferenceResults = inferenceResults;
+            public Builder addInferenceResults(List<InferenceResults> inferenceResults) {
+                this.inferenceResults.addAll(inferenceResults);
                 return this;
             }
 

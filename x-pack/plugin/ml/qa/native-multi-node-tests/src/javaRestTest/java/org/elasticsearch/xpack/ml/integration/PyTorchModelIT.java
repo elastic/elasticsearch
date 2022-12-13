@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -419,6 +420,30 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(ex.getMessage(), containsString("Could not find trained model [missing_model]"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testInferWithMultipleDocs() throws IOException {
+        String modelId = "infer_multi_docs";
+        createPassThroughModel(modelId);
+        putVocabulary(List.of("once", "twice"), modelId);
+        putModelDefinition(modelId);
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+
+        var docsBuilder = new StringBuilder();
+        for (int i = 0; i < 12; i++) {
+            docsBuilder.append("{\"input\":\"my words\"},");
+        }
+        docsBuilder.append("{\"input\":\"my words\"}");
+
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {  "docs": [%s] }
+            """, docsBuilder.toString()));
+        Response response = client().performRequest(request);
+        var responseMap = entityAsMap(response);
+        List<Map<String, Object>> inferenceResults = (List<Map<String, Object>>) responseMap.get("inference_results");
+        assertThat(inferenceResults, hasSize(13));
+    }
+
     public void testGetPytorchModelWithDefinition() throws IOException {
         String model = "should-fail-get";
         createPassThroughModel(model);
@@ -476,7 +501,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(
             response,
             allOf(
-                containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
+                containsString("Model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
                 containsString("error"),
                 not(containsString("warning"))
             )
@@ -499,7 +524,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                   }
             """);
         Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
-        assertThat(ex.getMessage(), containsString("Trained model [not-deployed] is not deployed."));
+        assertThat(ex.getMessage(), containsString("Model [not-deployed] must be deployed to use."));
     }
 
     public void testTruncation() throws IOException {

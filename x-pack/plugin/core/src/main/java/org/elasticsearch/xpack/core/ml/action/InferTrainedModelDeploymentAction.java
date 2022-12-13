@@ -42,7 +42,10 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
     public static final InferTrainedModelDeploymentAction INSTANCE = new InferTrainedModelDeploymentAction();
 
-    // TODO Review security level
+    /**
+     * Once this action was publicly accessible and exposed through a
+     * REST API now it is only called internally.
+     */
     public static final String NAME = "cluster:monitor/xpack/ml/trained_models/deployment/infer";
 
     public InferTrainedModelDeploymentAction() {
@@ -193,10 +196,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             } else {
                 if (docs.isEmpty() && textInput == null) {
                     validationException = addValidationError("at least one document is required ", validationException);
-                }
-                if (docs.size() > 1) {
-                    // TODO support multiple docs
-                    validationException = addValidationError("multiple documents are not supported", validationException);
                 }
             }
             return validationException;

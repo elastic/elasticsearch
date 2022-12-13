@@ -196,9 +196,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                         // The PyTorch model cannot be allocated if we got here
                         listener.onFailure(
                             ExceptionsHelper.conflictStatusException(
-                                "Trained model ["
+                                "Model ["
                                     + request.getModelId()
-                                    + "] is not deployed. [pytorch] models must be deployed before they be used in _infer",
+                                    + "] must be deployed to use. Please deploy with the start trained model deployment API.",
                                 request.getModelId()
                             )
                         );

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.security.authz;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
@@ -39,15 +41,15 @@ public final class PreAuthorizationUtil {
      * on a remote node as they only access a subset of resources.
      */
     public static final Map<String, Set<String>> CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT = Map.of(
-        "indices:data/read/search",
+        SearchAction.NAME,
         Set.of(
-            "indices:data/read/search[free_context]",
-            "indices:data/read/search[phase/dfs]",
-            "indices:data/read/search[phase/query]",
-            "indices:data/read/search[phase/query/id]",
-            "indices:data/read/search[phase/fetch/id]",
-            "indices:data/read/search[can_match]",
-            "indices:data/read/search[can_match][n]"
+            SearchTransportService.FREE_CONTEXT_ACTION_NAME,
+            SearchTransportService.DFS_ACTION_NAME,
+            SearchTransportService.QUERY_ACTION_NAME,
+            SearchTransportService.QUERY_ID_ACTION_NAME,
+            SearchTransportService.FETCH_ID_ACTION_NAME,
+            SearchTransportService.QUERY_CAN_MATCH_NAME,
+            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME
         )
     );
 

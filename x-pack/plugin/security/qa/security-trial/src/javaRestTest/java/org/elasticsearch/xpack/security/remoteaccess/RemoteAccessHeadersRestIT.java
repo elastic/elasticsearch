@@ -61,6 +61,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -127,14 +128,21 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
         try (MockTransportService remoteTransport = startTransport(remoteNodeName, threadPool, capturedHeaders)) {
             final DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             final boolean useProxyMode = randomBoolean();
+            final Set<String> expectedActions = new HashSet<>();
             if (useProxyMode) {
                 updateRemoteClusterSettings(
                     Map.of("mode", "proxy", "proxy_address", remoteNode.getAddress().toString(), "authorization", clusterCredential)
                 );
             } else {
                 updateRemoteClusterSettings(Map.of("seeds", remoteNode.getAddress().toString(), "authorization", clusterCredential));
+                expectedActions.add(ClusterStateAction.NAME);
             }
             final boolean minimizeRoundtrips = randomBoolean();
+            if (minimizeRoundtrips) {
+                expectedActions.add(SearchAction.NAME);
+            } else {
+                expectedActions.add(ClusterSearchShardsAction.NAME);
+            }
             final Request searchRequest = new Request(
                 "GET",
                 "/my_remote_cluster:index-a/_search?ccs_minimize_roundtrips=" + (minimizeRoundtrips ? "true" : "false")
@@ -148,9 +156,6 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
             assertOK(client().performRequest(searchRequest));
 
             final List<CapturedActionWithHeaders> actualHeaders = List.copyOf(capturedHeaders);
-            final Set<String> expectedActions = minimizeRoundtrips
-                ? Set.of(ClusterStateAction.NAME, SearchAction.NAME)
-                : Set.of(ClusterStateAction.NAME, ClusterSearchShardsAction.NAME);
             assertThat(
                 actualHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
                 equalTo(expectedActions)

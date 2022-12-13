@@ -1,0 +1,6 @@
+pr: 92316
+summary: Remove cleanupKey from registeredClosedListeners when the cache is evicted
+area: Search
+type: enhancement
+issues:
+ - 92317

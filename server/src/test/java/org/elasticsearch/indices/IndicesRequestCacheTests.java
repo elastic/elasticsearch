@@ -361,7 +361,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // Closed shard but reader is still open
         indexShard.set(false);
         cache.clear(secondEntity);
-        //reader still open
+        // Reader still open
         assertEquals(1, secondReader.getRefCount());
         assertEquals(0, cache.numRegisteredCloseListeners());
         assertEquals(2, requestCacheStats.stats().getMissCount());

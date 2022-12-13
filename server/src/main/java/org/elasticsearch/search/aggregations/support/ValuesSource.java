@@ -249,8 +249,7 @@ public abstract class ValuesSource {
              * Get the maximum global ordinal. Requires {@link #globalOrdinalsValues}
              * so see the note about its performance.
              */
-            public long globalMaxOrd(IndexSearcher indexSearcher) throws IOException {
-                IndexReader indexReader = indexSearcher.getIndexReader();
+            public long globalMaxOrd(IndexReader indexReader) throws IOException {
                 if (indexReader.leaves().isEmpty()) {
                     return 0;
                 } else {

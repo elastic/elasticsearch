@@ -275,6 +275,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         sources[i] = new GlobalOrdinalValuesSource(
                             bigArrays,
                             fieldType,
+                            DocValues.getSortedSet(reader.leaves().get(0).reader(), fieldType.name()).getValueCount(),
                             context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
                             DocValueFormat.RAW,
                             missingBucket,

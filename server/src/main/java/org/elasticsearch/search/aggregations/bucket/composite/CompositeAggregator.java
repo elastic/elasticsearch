@@ -158,14 +158,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
     @Override
     public ScoreMode scoreMode() {
-        if (canApplyGlobalOrdinalDynamicPruningForLeadingSource()) {
+        if (queue.mayDynamicallyPrune()) {
             return super.scoreMode().needsScores() ? ScoreMode.TOP_DOCS_WITH_SCORES : ScoreMode.TOP_DOCS;
         }
         return super.scoreMode();
-    }
-
-    private boolean canApplyGlobalOrdinalDynamicPruningForLeadingSource() {
-        return sources[0] instanceof GlobalOrdinalValuesSource;
     }
 
     @Override
@@ -508,7 +504,11 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
                     @Override
                     public DocIdSetIterator competitiveIterator() throws IOException {
-                        return inner.competitiveIterator();
+                        if (queue.mayDynamicallyPrune()) {
+                            return inner.competitiveIterator();
+                        } else {
+                            return null;
+                        }
                     }
                 };
             }

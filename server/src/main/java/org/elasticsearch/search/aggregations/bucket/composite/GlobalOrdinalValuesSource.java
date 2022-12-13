@@ -44,7 +44,10 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     private static final Logger logger = LogManager.getLogger(GlobalOrdinalValuesSource.class);
 
+    public static final int MAX_TERMS_FOR_DYNAMIC_PRUNING = 128;
+
     public static final long MISSING_VALUE_FLAG = -1L;
+    private final long uniqueValueCount;
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
     private LongArray values;
     private SortedSetDocValues lookup;
@@ -60,6 +63,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     GlobalOrdinalValuesSource(
         BigArrays bigArrays,
         MappedFieldType type,
+        long uniqueValueCount,
         CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
         DocValueFormat format,
         boolean missingBucket,
@@ -68,8 +72,18 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         int reverseMul
     ) {
         super(bigArrays, format, type, missingBucket, missingOrder, size, reverseMul);
+        this.uniqueValueCount = uniqueValueCount;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+    }
+
+    /**
+     * Return the number of unique values of this source. Note that some unique
+     * values might not produce buckets if the query doesn't match documents
+     * that contain these values.
+     */
+    long getUniqueValueCount() {
+        return uniqueValueCount;
     }
 
     @Override
@@ -259,8 +273,6 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     private class CompetitiveIterator extends DocIdSetIterator {
 
-        private static final int MAX_TERMS = 128;
-
         private final LeafReaderContext context;
         private final int maxDoc;
         private final String field;
@@ -324,7 +336,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
          * included and {@code maxOrd} included.
          */
         private void update(long minOrd, long maxOrd) throws IOException {
-            final int maxTerms = Math.min(MAX_TERMS, IndexSearcher.getMaxClauseCount());
+            final int maxTerms = Math.min(MAX_TERMS_FOR_DYNAMIC_PRUNING, IndexSearcher.getMaxClauseCount());
             final long size = Math.max(0, maxOrd - minOrd + 1);
             if (size > maxTerms) {
                 if (dense == false && docsWithField == null) {

@@ -11,7 +11,6 @@ package org.elasticsearch.example.analysis;
 import org.elasticsearch.plugin.api.settings.AnalysisSettings;
 import org.elasticsearch.plugin.api.settings.BooleanSetting;
 import org.elasticsearch.plugin.api.settings.IntSetting;
-import org.elasticsearch.plugin.api.settings.ListOfStringsSetting;
 import org.elasticsearch.plugin.api.settings.LongSetting;
 import org.elasticsearch.plugin.api.settings.StringSetting;
 
@@ -27,9 +26,6 @@ public interface ExampleAnalysisSettings {
 
     @LongSetting(path = "token_filter_number", defaultValue = 0L)
     long tokenFilterNumber();
-
-    @ListOfStringsSetting(path = "tokenizer_list_of_chars")
-    List<String> tokenizerListOfChars();
 
     @BooleanSetting(path = "analyzerUseTokenListOfChars", defaultValue = true)
     boolean analyzerUseTokenListOfChars();

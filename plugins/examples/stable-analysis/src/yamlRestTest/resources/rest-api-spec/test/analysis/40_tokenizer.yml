@@ -6,10 +6,8 @@
   - do:
       indices.analyze:
         body:
-          text: x y_z
-          tokenizer:
-            type: example_tokenizer_factory
-            tokenizer_list_of_chars: ["_", " "]
+          text: x_y_z
+          tokenizer: example_tokenizer_factory
   - length: { tokens: 3 }
   - match:  { tokens.0.token: "x" }
   - match:  { tokens.1.token: "y" }
@@ -20,50 +18,9 @@
         body:
           text: x_y_z
           explain: true
-          tokenizer:
-            type: example_tokenizer_factory
-            tokenizer_list_of_chars: ["_", " "]
+          tokenizer: example_tokenizer_factory
   - match:  { detail.custom_analyzer: true }
   - length: { detail.tokenizer.tokens: 3 }
   - match:  { detail.tokenizer.tokens.0.token: "x" }
   - match:  { detail.tokenizer.tokens.1.token: "y" }
   - match:  { detail.tokenizer.tokens.2.token: "z" }
-
-
----
-"Index and search with stable plugin tokenizer":
-  - do:
-      indices.create:
-        index: test
-        body:
-          settings:
-            analysis:
-              tokenizer:
-                my_tokenizer:
-                  type: example_tokenizer_factory
-                  tokenizer_list_of_chars: ["_", " "]
-              analyzer:
-                my_analyzer:
-                  tokenizer: my_tokenizer
-          mappings:
-            properties:
-              text:
-                type: text
-                analyzer: my_analyzer
-  - do:
-      index:
-        index: test
-        id: "1"
-        body: { "text": "x_y z" }
-  - do:
-      indices.refresh: { }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          query:
-            match:
-              text: x
-  - match: { hits.total: 1 }

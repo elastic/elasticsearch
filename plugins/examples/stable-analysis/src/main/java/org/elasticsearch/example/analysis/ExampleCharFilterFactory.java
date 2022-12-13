@@ -11,7 +11,7 @@ package org.elasticsearch.example.analysis;
 import org.elasticsearch.example.analysis.lucene.ReplaceCharToNumber;
 import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
 import org.elasticsearch.plugin.api.NamedComponent;
-import org.elasticsearch.plugin.api.settings.InjectSettings;
+import org.elasticsearch.plugin.api.Inject;
 
 import java.io.Reader;
 
@@ -20,7 +20,7 @@ public class ExampleCharFilterFactory implements CharFilterFactory {
     private final String oldChar;
     private final int newNumber;
 
-    @InjectSettings
+    @Inject
     public ExampleCharFilterFactory(ExampleAnalysisSettings settings) {
         oldChar = settings.oldChar();
         newNumber = settings.newNumber();

@@ -13,7 +13,7 @@ import org.elasticsearch.example.analysis.lucene.CharTokenizer;
 import org.elasticsearch.example.analysis.lucene.ReplaceCharToNumber;
 import org.elasticsearch.example.analysis.lucene.SkipTokenFilter;
 import org.elasticsearch.plugin.api.NamedComponent;
-import org.elasticsearch.plugin.api.settings.InjectSettings;
+import org.elasticsearch.plugin.api.Inject;
 
 import java.util.List;
 
@@ -21,7 +21,7 @@ import java.util.List;
 public class ExampleAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
     private final ExampleAnalysisSettings settings;
 
-    @InjectSettings
+    @Inject
     public ExampleAnalyzerFactory(ExampleAnalysisSettings settings) {
         this.settings = settings;
     }
@@ -42,7 +42,7 @@ public class ExampleAnalyzerFactory implements org.elasticsearch.plugin.analysis
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
-            var tokenizerListOfChars = settings.tokenizerListOfChars().isEmpty() ? List.of("_") : settings.tokenizerListOfChars();
+            var tokenizerListOfChars =  List.of("_");
             var tokenizer = new CharTokenizer(tokenizerListOfChars);
 
             long tokenFilterNumber = settings.analyzerUseTokenListOfChars() ? settings.tokenFilterNumber() : -1;

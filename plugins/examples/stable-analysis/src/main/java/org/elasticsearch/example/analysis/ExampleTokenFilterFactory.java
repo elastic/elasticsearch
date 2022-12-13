@@ -13,13 +13,13 @@ import org.elasticsearch.example.analysis.lucene.AppendTokenFilter;
 import org.elasticsearch.example.analysis.lucene.SkipTokenFilter;
 import org.elasticsearch.plugin.analysis.api.AnalysisMode;
 import org.elasticsearch.plugin.api.NamedComponent;
-import org.elasticsearch.plugin.api.settings.InjectSettings;
+import org.elasticsearch.plugin.api.Inject;
 
 @NamedComponent( "example_token_filter_factory")
 public class ExampleTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
     private final long tokenFilterNumber;
 
-    @InjectSettings
+    @Inject
     public ExampleTokenFilterFactory(ExampleAnalysisSettings settings) {
         this.tokenFilterNumber = settings.tokenFilterNumber();
     }

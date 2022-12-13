@@ -16,6 +16,8 @@ with the message "totalTermFreq must be at least docFreq". If you use the
 `cross_fields` scoring type, it is recommended that you skip version 8.4.2.
 This regression was fixed in version 8.4.3.
 
+include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
+
 [[bug-8.4.2]]
 [float]
 === Bug fixes

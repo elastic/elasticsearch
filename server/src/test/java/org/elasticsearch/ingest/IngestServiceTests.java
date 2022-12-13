@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -50,11 +51,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.*;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,15 +65,7 @@ import org.mockito.invocation.InvocationOnMock;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -89,28 +78,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils.executeAndAssertSuccessful;
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.argThat;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class IngestServiceTests extends ESTestCase {
 
@@ -2029,6 +1999,120 @@ public class IngestServiceTests extends ESTestCase {
         var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
         assertThat(updatedConfig, notNullValue());
         assertThat(updatedConfig.getVersion(), equalTo(existingVersion + 1));
+    }
+
+    public void testOneInvalidPipeline() {
+        var reallyLongId = randomAlphaOfLengthBetween(513, 1024); // Any id longer than 512, should be invalid
+        var ingestService = createIngestServiceForMultiPipeline(reallyLongId);
+        var requests = List.<DocWriteRequest<?>>of(
+            spiedIndexRequest("valid-pipeline", "_none"),
+            spiedIndexRequest("_none", "valid-pipeline"),
+            spiedIndexRequest("invalid-pipeline", "_none")
+        );
+        var failureTimesCalled = new AtomicInteger(0);
+        @SuppressWarnings("unchecked")
+        BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+
+        ingestService.executeBulkRequest(requests.size(), requests, indexReq -> {}, (slot, exc) -> {
+            failureTimesCalled.incrementAndGet();
+            assertThat(slot, is(2)); // the request using the invalid-pipeline is the final one
+            assertThat(exc, instanceOf(ActionRequestValidationException.class));
+            assertEquals(
+                exc.getMessage(),
+                formatted(
+                    "Validation Failed: 1: id [%s] is too long, must be no longer than 512 bytes but was: %s;",
+                    reallyLongId,
+                    reallyLongId.length()
+                )
+            );
+        }, completionHandler, Names.WRITE);
+
+        assertEquals(failureTimesCalled.get(), 1);
+        verify((IndexRequest) requests.get(0), times(1)).validate();
+        verify((IndexRequest) requests.get(1), times(1)).validate();
+        verify((IndexRequest) requests.get(2), times(1)).validate();
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
+    public void testValidThenInvalidPipeline() {
+        var reallyLongId = randomAlphaOfLengthBetween(513, 1024); // Any id longer than 512, should be invalid
+        var ingestService = createIngestServiceForMultiPipeline(reallyLongId);
+        var failureTimesCalled = new AtomicInteger(0);
+        var indexRequest = spiedIndexRequest("valid-pipeline", "invalid-pipeline");
+        @SuppressWarnings("unchecked")
+        BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+
+        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, (slot, exc) -> {
+            failureTimesCalled.incrementAndGet();
+            assertThat(slot, is(0));
+            assertThat(exc, instanceOf(ActionRequestValidationException.class));
+            assertEquals(
+                exc.getMessage(),
+                formatted(
+                    "Validation Failed: 1: id [%s] is too long, must be no longer than 512 bytes but was: %s;",
+                    reallyLongId,
+                    reallyLongId.length()
+                )
+            );
+        }, completionHandler, Names.WRITE);
+
+        assertEquals(failureTimesCalled.get(), 1);
+        verify(indexRequest, times(1)).validate();
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
+    public void testInvalidThenValidPipeline() {
+        var ingestService = createIngestServiceForMultiPipeline(randomAlphaOfLengthBetween(513, 1024));
+        @SuppressWarnings("unchecked")
+        BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked")
+        BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+        var indexRequest = spiedIndexRequest("invalid-pipeline", "valid-pipeline");
+
+        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+
+        verify(indexRequest, times(1)).validate();
+        verify(failureHandler, never()).accept(anyInt(), any());
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
+    private static IndexRequest spiedIndexRequest(String pipeline, String finalPipeline) {
+        return spy(new IndexRequest("_index").id("_id").setPipeline(pipeline).setFinalPipeline(finalPipeline).source(Map.of()));
+    }
+
+    private IngestService createIngestServiceForMultiPipeline(String reallyLongId) {
+        var ingestService = createWithProcessors(Map.of("set", (factories, tag, description, config) -> {
+            var field = (String) config.remove("field");
+            var value = (String) config.remove("value");
+            return new WrappingProcessorImpl("set", tag, description, document -> document.setFieldValue(field, value)) {
+            };
+        }));
+        var setProcessorTemplate = """
+            {"processors": [{ "set": { "field": "_id", "value": "%s"}}]}""";
+        var setToInvalidIdPipeline = formatted(setProcessorTemplate, reallyLongId);
+        var validPipeline = formatted(setProcessorTemplate, "some-dummy-id");
+        var clusterState = createPipelineOnIngestService(
+            "invalid-pipeline",
+            ingestService,
+            setToInvalidIdPipeline,
+            ClusterState.builder(new ClusterName("_name")).build() // Empty ClusterState
+        );
+        createPipelineOnIngestService("valid-pipeline", ingestService, validPipeline, clusterState);
+        return ingestService;
+    }
+
+    private ClusterState createPipelineOnIngestService(
+        String pipelineId,
+        IngestService ingestService,
+        String setToInvalidIdPipeline,
+        ClusterState previousClusterState
+    ) {
+        var putRequest = new PutPipelineRequest(pipelineId, new BytesArray(setToInvalidIdPipeline), XContentType.JSON);
+        var finalClusterState = executePut(putRequest, previousClusterState);
+
+        ingestService.applyClusterState(new ClusterChangedEvent("", finalClusterState, previousClusterState));
+
+        return finalClusterState;
     }
 
     private static Tuple<String, Object> randomMapEntry() {

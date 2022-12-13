@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -41,6 +42,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -56,11 +58,15 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
 
 public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCase {
     @BeforeClass
@@ -109,8 +115,8 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
     public void testRemoteAccessHeadersSent() throws Exception {
         final String remoteNodeName = "remoteNode";
         final String clusterCredential = randomAlphaOfLengthBetween(42, 100);
-        final BlockingQueue<CapturedActionWithHeaders> capturedRequests = ConcurrentCollections.newBlockingQueue();
-        try (MockTransportService remoteTransport = startTransport(remoteNodeName, threadPool, capturedRequests)) {
+        final BlockingQueue<CapturedActionWithHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
+        try (MockTransportService remoteTransport = startTransport(remoteNodeName, threadPool, capturedHeaders)) {
             final DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             updateRemoteClusterSettings(Map.of("authorization", clusterCredential, "seeds", remoteNode.getAddress().toString()));
             final Request searchRequest = new Request("GET", "/my_remote_cluster:index-a/_search");
@@ -122,7 +128,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
 
             assertOK(client().performRequest(searchRequest));
 
-            final RemoteAccessAuthentication expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
+            final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
                 Authentication.newRealmAuthentication(
                     new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
                     new Authentication.RealmRef("default_native", "native", "javaRestTest-0")
@@ -149,35 +155,65 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                     )
                 )
             );
-            assertThat(
-                capturedRequests,
-                containsInAnyOrder(
-                    new CapturedActionWithHeaders(
-                        ClusterStateAction.NAME,
-                        Map.of(
-                            AuthenticationField.AUTHENTICATION_KEY,
-                            Authentication.newInternalAuthentication(SystemUser.INSTANCE, Version.CURRENT, "javaRestTest-0").encode()
-                        )
-                    ),
-                    new CapturedActionWithHeaders(
-                        ClusterStateAction.NAME,
-                        Map.of(
-                            AuthenticationField.AUTHENTICATION_KEY,
-                            Authentication.newInternalAuthentication(SystemUser.INSTANCE, Version.CURRENT, "javaRestTest-1").encode()
-                        )
-                    ),
-                    new CapturedActionWithHeaders(
-                        SearchAction.NAME,
-                        Map.of(
-                            RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
-                            expectedRemoteAccessAuthentication.encode(),
-                            SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
-                            "ApiKey " + clusterCredential
-                        )
-                    )
-                )
-            );
+            for (CapturedActionWithHeaders actual : capturedHeaders) {
+                switch (actual.action) {
+                    // the cluster state action is run by the system user, so we expect an authentication header, instead of remote access
+                    case ClusterStateAction.NAME -> {
+                        assertThat(actual.headers().keySet(), contains(AuthenticationField.AUTHENTICATION_KEY));
+                        assertThat(
+                            decodeAuthentication(actual.headers().get(AuthenticationField.AUTHENTICATION_KEY)).getEffectiveSubject()
+                                .getUser(),
+                            is(SystemUser.INSTANCE)
+                        );
+                    }
+                    case SearchAction.NAME -> {
+                        assertContainsRemoteAccessHeaders(actual.headers());
+                        assertThat(
+                            actual.headers(),
+                            hasEntry(
+                                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
+                                "ApiKey " + clusterCredential
+                            )
+                        );
+                        assertHasRemoteAccessAuthenticationHeader(actual.headers(), expectedRemoteAccessAuthentication);
+                    }
+                    default -> fail("Unexpected action [" + actual.action + "]");
+                }
+            }
         }
+    }
+
+    private void assertContainsRemoteAccessHeaders(final Map<String, String> actualHeaders) {
+        assertThat(
+            actualHeaders.keySet(),
+            contains(
+                RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
+                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+            )
+        );
+    }
+
+    private void assertHasRemoteAccessAuthenticationHeader(
+        final Map<String, String> actualHeaders,
+        final RemoteAccessAuthentication expectedRemoteAccessAuthentication
+    ) throws IOException {
+        final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
+            actualHeaders.get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
+        );
+        assertThat(
+            actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser(),
+            equalTo(expectedRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser())
+        );
+        assertThat(
+            actualRemoteAccessAuthentication.getRoleDescriptorsBytesList(),
+            equalTo(expectedRemoteAccessAuthentication.getRoleDescriptorsBytesList())
+        );
+    }
+
+    private Authentication decodeAuthentication(final String rawAuthentication) throws IOException {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, rawAuthentication);
+        return Objects.requireNonNull(new AuthenticationContextSerializer().readFromContext(threadContext));
     }
 
     private static MockTransportService startTransport(
@@ -188,9 +224,9 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
         boolean success = false;
         final Settings settings = Settings.builder().put("node.name", nodeName).build();
         final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        final MockTransportService newService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
+        final MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
         try {
-            newService.registerRequestHandler(
+            service.registerRequestHandler(
                 ClusterStateAction.NAME,
                 ThreadPool.Names.SAME,
                 ClusterStateRequest::new,
@@ -201,7 +237,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                     channel.sendResponse(new ClusterStateResponse(clusterName, ClusterState.builder(clusterName).build(), false));
                 }
             );
-            newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {
+            service.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {
                 capturedHeaders.add(
                     new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                 );
@@ -226,13 +262,13 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                     )
                 );
             });
-            newService.start();
-            newService.acceptIncomingRequests();
+            service.start();
+            service.acceptIncomingRequests();
             success = true;
-            return newService;
+            return service;
         } finally {
             if (success == false) {
-                newService.close();
+                service.close();
             }
         }
     }

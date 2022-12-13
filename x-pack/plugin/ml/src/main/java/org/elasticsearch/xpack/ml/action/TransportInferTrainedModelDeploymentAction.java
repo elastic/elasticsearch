@@ -89,41 +89,26 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     ) {
         assert actionTask instanceof CancellableTask : "task [" + actionTask + "] not cancellable";
 
+        var nlpInputs = new ArrayList<NlpInferenceInput>();
         if (request.getTextInput() != null) {
-            // There is a single piece of text to infer on
-            task.infer(
-                NlpInferenceInput.fromText(request.getTextInput()),
-                request.getUpdate(),
-                request.isSkipQueue(),
-                request.getInferenceTimeout(),
-                actionTask,
-                ActionListener.wrap(
-                    pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(List.of(pyTorchResult))),
-                    listener::onFailure
-                )
-            );
-        } else {
-            // Multiple documents to infer on.
-            // Wait for all results
-            ActionListener<Collection<InferenceResults>> collectingListener = ActionListener.wrap(
-                pyTorchResults -> { listener.onResponse(new InferTrainedModelDeploymentAction.Response(new ArrayList<>(pyTorchResults))); },
-                listener::onFailure
-            );
-
-            GroupedActionListener<InferenceResults> groupedListener = new GroupedActionListener<>(
-                collectingListener,
-                request.getDocs().size()
-            );
-            for (var doc : request.getDocs()) {
-                task.infer(
-                    NlpInferenceInput.fromDoc(doc),
-                    request.getUpdate(),
-                    request.isSkipQueue(),
-                    request.getInferenceTimeout(),
-                    actionTask,
-                    groupedListener
-                );
+            for (var text : request.getTextInput()) {
+                nlpInputs.add(NlpInferenceInput.fromText(text));
             }
+        } else {
+            for (var doc : request.getDocs()) {
+                nlpInputs.add(NlpInferenceInput.fromDoc(doc));
+            }
+        }
+
+        // Multiple documents to infer on, wait for all results
+        ActionListener<Collection<InferenceResults>> collectingListener = ActionListener.wrap(
+            pyTorchResults -> { listener.onResponse(new InferTrainedModelDeploymentAction.Response(new ArrayList<>(pyTorchResults))); },
+            listener::onFailure
+        );
+
+        GroupedActionListener<InferenceResults> groupedListener = new GroupedActionListener<>(collectingListener, nlpInputs.size());
+        for (var input : nlpInputs) {
+            task.infer(input, request.getUpdate(), request.isSkipQueue(), request.getInferenceTimeout(), actionTask, groupedListener);
         }
     }
 }

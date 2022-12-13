@@ -95,30 +95,46 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         // textInput added for uses that accept a query string
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
-        private final String textInput;
+        private final List<String> textInput;
 
-        public Request(String modelId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
-            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
-            this.docs = ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS);
-            this.update = update;
-            this.inferenceTimeout = inferenceTimeout;
-            this.textInput = null;
+        public static Request forDocs(
+            String modelId,
+            InferenceConfigUpdate update,
+            List<Map<String, Object>> docs,
+            TimeValue inferenceTimeout
+        ) {
+            return new Request(
+                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID),
+                update,
+                ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
+                null,
+                false,
+                inferenceTimeout
+            );
         }
 
-        public Request(String modelId, InferenceConfigUpdate update, String textInput, TimeValue inferenceTimeout) {
-            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
-            this.docs = List.of();
-            this.textInput = ExceptionsHelper.requireNonNull(textInput, "inference text input");
-            this.update = update;
-            this.inferenceTimeout = inferenceTimeout;
+        public static Request forTextInput(
+            String modelId,
+            InferenceConfigUpdate update,
+            List<String> textInput,
+            TimeValue inferenceTimeout
+        ) {
+            return new Request(
+                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID),
+                update,
+                List.of(),
+                ExceptionsHelper.requireNonNull(textInput, "inference text input"),
+                false,
+                inferenceTimeout
+            );
         }
-
+        
         // for tests
         Request(
             String modelId,
             InferenceConfigUpdate update,
             List<Map<String, Object>> docs,
-            String textInput,
+            List<String> textInput,
             boolean skipQueue,
             TimeValue inferenceTimeout
         ) {
@@ -140,7 +156,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 skipQueue = in.readBoolean();
             }
             if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
-                textInput = in.readOptionalString();
+                textInput = in.readOptionalStringList();
             } else {
                 textInput = null;
             }
@@ -154,7 +170,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return docs;
         }
 
-        public String getTextInput() {
+        public List<String> getTextInput() {
             return textInput;
         }
 
@@ -212,7 +228,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 out.writeBoolean(skipQueue);
             }
             if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
-                out.writeOptionalString(textInput);
+                out.writeOptionalStringCollection(textInput);
             }
         }
 
@@ -251,7 +267,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             private TimeValue timeout;
             private InferenceConfigUpdate update;
             private boolean skipQueue = false;
-            private String textInput;
+            private List<String> textInput;
 
             private Builder() {}
 
@@ -279,7 +295,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
             }
 
-            public Builder setTextInput(String textInput) {
+            public Builder setTextInput(List<String> textInput) {
                 this.textInput = textInput;
                 return this;
             }

@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.SemanticSearchAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TransportSemanticSearchAction extends HandledTransportAction<SemanticSearchAction.Request, SemanticSearchAction.Response> {
@@ -130,10 +132,10 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
     }
 
     private InferTrainedModelDeploymentAction.Request toInferenceRequest(SemanticSearchAction.Request request, TaskId parentTask) {
-        var inferenceRequest = new InferTrainedModelDeploymentAction.Request(
+        var inferenceRequest = InferTrainedModelDeploymentAction.Request.forTextInput(
             request.getModelId(),
             request.getEmbeddingConfig(),
-            request.getModelText(),
+            List.of(request.getModelText()),
             request.getInferenceTimeout()
         );
         inferenceRequest.setParentTask(parentTask);

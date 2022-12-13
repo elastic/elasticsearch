@@ -282,7 +282,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         int startPos = 0;
         for (var node : nodes) {
-            InferTrainedModelDeploymentAction.Request deploymentRequest = new InferTrainedModelDeploymentAction.Request(
+            InferTrainedModelDeploymentAction.Request deploymentRequest = InferTrainedModelDeploymentAction.Request.forDocs(
                 concreteModelId,
                 request.getUpdate(),
                 request.getObjectsToInfer().subList(startPos, startPos + node.v2()),

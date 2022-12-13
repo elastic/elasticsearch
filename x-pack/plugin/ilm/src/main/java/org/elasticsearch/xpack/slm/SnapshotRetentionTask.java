@@ -329,12 +329,12 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         final AtomicInteger deleted = new AtomicInteger(0);
         final AtomicInteger failed = new AtomicInteger(0);
         final GroupedActionListener<Void> allDeletesListener = new GroupedActionListener<>(
+            snapshotsToDelete.size(),
             ActionListener.runAfter(listener.map(v -> null), () -> {
                 TimeValue totalElapsedTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
                 logger.debug("total elapsed time for deletion of [{}] snapshots: {}", deleted, totalElapsedTime);
                 slmStats.deletionTime(totalElapsedTime);
-            }),
-            snapshotsToDelete.size()
+            })
         );
         for (Map.Entry<String, List<Tuple<SnapshotId, String>>> entry : snapshotsToDelete.entrySet()) {
             String repo = entry.getKey();
@@ -354,7 +354,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         ActionListener<Void> listener
     ) {
 
-        final ActionListener<Void> allDeletesListener = new GroupedActionListener<>(listener.map(v -> null), snapshots.size());
+        final ActionListener<Void> allDeletesListener = new GroupedActionListener<>(snapshots.size(), listener.map(v -> null));
         for (Tuple<SnapshotId, String> info : snapshots) {
             final SnapshotId snapshotId = info.v1();
             if (runningDeletions.add(snapshotId) == false) {

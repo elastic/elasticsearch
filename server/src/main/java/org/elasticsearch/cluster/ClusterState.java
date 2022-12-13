@@ -573,7 +573,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         // meta data
         if (metrics.contains(Metric.METADATA)) {
-            metadata.toXContent(builder, params);
+            ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, params);
         }
 
         // routing table

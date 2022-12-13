@@ -10,7 +10,6 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
 
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.iterable.Iterables;
 
@@ -143,11 +142,5 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         public Iterator<Object> iterator() {
             return col.iterator();
         }
-    }
-
-    @Override
-    public String stringify(Object object) {
-        CollectionUtils.ensureNoSelfReferences(object, "CustomReflectionObjectHandler stringify");
-        return super.stringify(object);
     }
 }

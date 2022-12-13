@@ -28,7 +28,7 @@ public class TransformTests extends AbstractSerializingTransformTestCase<Transfo
         return new TransformTaskParams(
             randomAlphaOfLength(10),
             randomBoolean() ? null : Version.CURRENT,
-            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()),
+            randomBoolean() ? Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L)) : null,
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean()
         );

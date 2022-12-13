@@ -117,6 +117,13 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
         assertFalse(new TransformCheckpoint("some_id", 0L, 1, Collections.emptyMap(), 0L).isEmpty());
     }
 
+    public void testTransient() {
+        assertTrue(TransformCheckpoint.EMPTY.isTransient());
+        assertTrue(new TransformCheckpoint("some_id", 0L, -1, Collections.emptyMap(), 0L).isTransient());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 0, Collections.emptyMap(), 0L).isTransient());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 1, Collections.emptyMap(), 0L).isTransient());
+    }
+
     public void testGetBehind() {
         String baseIndexName = randomAlphaOfLength(8);
         String id = randomAlphaOfLengthBetween(1, 10);

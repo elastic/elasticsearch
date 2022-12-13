@@ -249,7 +249,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return randomBoolean() ? ProvidedIdFieldMapper.Defaults.FIELD_TYPE : TsidExtractingIdFieldMapper.FIELD_TYPE;
     }
 
-    public EngineConfig copyWithNewGlobalCheckpointSupplier(EngineConfig config, LongSupplier globalCheckpointSupplier) {
+    public EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
@@ -275,36 +275,6 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener()
-        );
-    }
-
-    public EngineConfig copyWithNewRelativeTimeInNanosSupplier(EngineConfig config, LongSupplier relativeTimeInNanosSupplier) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            newCodecService(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            relativeTimeInNanosSupplier,
             config.getIndexCommitListener()
         );
     }

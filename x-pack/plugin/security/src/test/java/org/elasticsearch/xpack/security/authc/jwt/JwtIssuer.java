@@ -39,9 +39,9 @@ public class JwtIssuer implements Closeable {
     // input parameters
     final String issuerClaimValue; // claim name is hard-coded to `iss` for OIDC ID Token compatibility
     final List<String> audiencesClaimValue; // claim name is hard-coded to `aud` for OIDC ID Token compatibility
+    final String principalClaimName;
     final Map<String, User> principals; // principals with roles, for sending encoded JWTs into JWT realms for authc/authz verification
     final JwtIssuerHttpsServer httpsServer;
-    final String principalClaimName;
 
     List<String> algorithmsAll;
 

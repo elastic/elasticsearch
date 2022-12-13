@@ -187,14 +187,16 @@ class DatabaseReaderLazyLoader implements Closeable {
         InetAddress ipAddress,
         CheckedBiFunction<DatabaseReader, InetAddress, Optional<T>, Exception> responseProvider
     ) {
-        SpecialPermission.check();
-        return AccessController.doPrivileged((PrivilegedAction<T>) () -> cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
-            try {
-                return responseProvider.apply(get(), ipAddress).orElse(null);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }));
+        return cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
+            SpecialPermission.check();
+            return AccessController.doPrivileged((PrivilegedAction<T>) () -> {
+                try {
+                    return responseProvider.apply(get(), ipAddress).orElse(null);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        });
     }
 
     DatabaseReader get() throws IOException {

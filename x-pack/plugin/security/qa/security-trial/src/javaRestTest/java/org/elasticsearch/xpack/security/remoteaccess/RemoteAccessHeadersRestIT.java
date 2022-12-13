@@ -12,6 +12,10 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -56,14 +60,18 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.UUIDs.randomBase64UUID;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -114,12 +122,23 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
 
     public void testRemoteAccessHeadersSent() throws Exception {
         final String remoteNodeName = "remoteNode";
-        final String clusterCredential = randomAlphaOfLengthBetween(42, 100);
+        final String clusterCredential = randomBase64UUID(random());
         final BlockingQueue<CapturedActionWithHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
         try (MockTransportService remoteTransport = startTransport(remoteNodeName, threadPool, capturedHeaders)) {
             final DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
-            updateRemoteClusterSettings(Map.of("authorization", clusterCredential, "seeds", remoteNode.getAddress().toString()));
-            final Request searchRequest = new Request("GET", "/my_remote_cluster:index-a/_search");
+            final boolean useProxyMode = randomBoolean();
+            if (useProxyMode) {
+                updateRemoteClusterSettings(
+                    Map.of("mode", "proxy", "proxy_address", remoteNode.getAddress().toString(), "authorization", clusterCredential)
+                );
+            } else {
+                updateRemoteClusterSettings(Map.of("seeds", remoteNode.getAddress().toString(), "authorization", clusterCredential));
+            }
+            final boolean minimizeRoundtrips = randomBoolean();
+            final Request searchRequest = new Request(
+                "GET",
+                "/my_remote_cluster:index-a/_search?ccs_minimize_roundtrips=" + (minimizeRoundtrips ? "true" : "false")
+            );
             searchRequest.setOptions(
                 searchRequest.getOptions()
                     .toBuilder()
@@ -128,36 +147,18 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
 
             assertOK(client().performRequest(searchRequest));
 
-            final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
-                Authentication.newRealmAuthentication(
-                    new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
-                    new Authentication.RealmRef("default_native", "native", "javaRestTest-0")
-                ),
-                new RoleDescriptorsIntersection(
-                    List.of(
-                        Set.of(
-                            new RoleDescriptor(
-                                RBACEngine.REMOTE_USER_ROLE_NAME,
-                                null,
-                                new RoleDescriptor.IndicesPrivileges[] {
-                                    RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices("index-a")
-                                        .privileges("read", "read_cross_cluster")
-                                        .build() },
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null
-                            )
-                        )
-                    )
-                )
+            final List<CapturedActionWithHeaders> actualHeaders = List.copyOf(capturedHeaders);
+            final Set<String> expectedActions = minimizeRoundtrips
+                ? Set.of(ClusterStateAction.NAME, SearchAction.NAME)
+                : Set.of(ClusterStateAction.NAME, ClusterSearchShardsAction.NAME);
+            assertThat(
+                actualHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
+                equalTo(expectedActions)
             );
-            for (CapturedActionWithHeaders actual : capturedHeaders) {
+            for (CapturedActionWithHeaders actual : actualHeaders) {
                 switch (actual.action) {
                     // the cluster state action is run by the system user, so we expect an authentication header, instead of remote access
+                    // until we implement remote access handling for internal users
                     case ClusterStateAction.NAME -> {
                         assertThat(actual.headers().keySet(), contains(AuthenticationField.AUTHENTICATION_KEY));
                         assertThat(
@@ -166,7 +167,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                             is(SystemUser.INSTANCE)
                         );
                     }
-                    case SearchAction.NAME -> {
+                    case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
                         assertContainsRemoteAccessHeaders(actual.headers());
                         assertThat(
                             actual.headers(),
@@ -175,7 +176,37 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                                 "ApiKey " + clusterCredential
                             )
                         );
-                        assertHasRemoteAccessAuthenticationHeader(actual.headers(), expectedRemoteAccessAuthentication);
+                        assertHasRemoteAccessAuthenticationHeader(
+                            actual.headers(),
+                            new RemoteAccessAuthentication(
+                                Authentication.newRealmAuthentication(
+                                    new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
+                                    // TODO deal with node name
+                                    new Authentication.RealmRef("default_native", "native", "javaRestTest-0")
+                                ),
+                                new RoleDescriptorsIntersection(
+                                    List.of(
+                                        Set.of(
+                                            new RoleDescriptor(
+                                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                                null,
+                                                new RoleDescriptor.IndicesPrivileges[] {
+                                                    RoleDescriptor.IndicesPrivileges.builder()
+                                                        .indices("index-a")
+                                                        .privileges("read", "read_cross_cluster")
+                                                        .build() },
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        );
                     }
                     default -> fail("Unexpected action [" + actual.action + "]");
                 }
@@ -186,7 +217,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
     private void assertContainsRemoteAccessHeaders(final Map<String, String> actualHeaders) {
         assertThat(
             actualHeaders.keySet(),
-            contains(
+            containsInAnyOrder(
                 RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
                 SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
             )
@@ -235,6 +266,19 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
                     channel.sendResponse(new ClusterStateResponse(clusterName, ClusterState.builder(clusterName).build(), false));
+                }
+            );
+            service.registerRequestHandler(
+                ClusterSearchShardsAction.NAME,
+                ThreadPool.Names.SAME,
+                ClusterSearchShardsRequest::new,
+                (request, channel, task) -> {
+                    capturedHeaders.add(
+                        new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
+                    );
+                    channel.sendResponse(
+                        new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0], new DiscoveryNode[0], Collections.emptyMap())
+                    );
                 }
             );
             service.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {

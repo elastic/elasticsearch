@@ -170,8 +170,9 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
                 values.resizeCell(valueIndex + 1);
                 values.add(valueIndex++, h3);
             } else {
-                for (long child : H3.h3ToChildren(h3)) {
-                    valueIndex = setAllValuesByRecursion(values, child, precision + 1, valueIndex, valueInsideBounds);
+                final int numChildren = H3.h3ToChildrenSize(h3);
+                for (int i = 0; i < numChildren; i++) {
+                    valueIndex = setAllValuesByRecursion(values, H3.childPosToH3(h3, i), precision + 1, valueIndex, valueInsideBounds);
                 }
             }
         }

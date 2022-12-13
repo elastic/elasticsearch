@@ -12,8 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.transport.RemoteConnectionManager;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationContext;
@@ -139,7 +137,7 @@ public final class PreAuthorizationUtil {
     }
 
     public static boolean shouldRemoveParentAuthorizationFromThreadContext(
-        Transport.Connection connection,
+        Optional<String> remoteClusterAlias,
         String childAction,
         SecurityContext securityContext
     ) {
@@ -149,7 +147,7 @@ public final class PreAuthorizationUtil {
             return false;
         }
 
-        if (RemoteConnectionManager.resolveRemoteClusterAlias(connection).isPresent()) {
+        if (remoteClusterAlias.isPresent()) {
             // We never want to send the parent authorization header to remote clusters.
             return true;
         }

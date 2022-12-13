@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.security.authz.PreAuthorizationUtil;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -57,6 +59,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
     private final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver;
+    private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -68,6 +71,31 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         DestructiveOperations destructiveOperations,
         RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver
     ) {
+        this(
+            settings,
+            threadPool,
+            authcService,
+            authzService,
+            sslService,
+            securityContext,
+            destructiveOperations,
+            remoteClusterAuthorizationResolver,
+            RemoteConnectionManager::resolveRemoteClusterAlias
+        );
+    }
+
+    public SecurityServerTransportInterceptor(
+        Settings settings,
+        ThreadPool threadPool,
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        SSLService sslService,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations,
+        RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver,
+        // Inject for simplified testing
+        Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
+    ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -76,6 +104,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
         this.remoteClusterAuthorizationResolver = remoteClusterAuthorizationResolver;
+        this.remoteClusterAliasResolver = remoteClusterAliasResolver;
     }
 
     @Override
@@ -89,7 +118,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                if (PreAuthorizationUtil.shouldRemoveParentAuthorizationFromThreadContext(connection, action, securityContext)) {
+                final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
+                if (PreAuthorizationUtil.shouldRemoveParentAuthorizationFromThreadContext(remoteClusterAlias, action, securityContext)) {
                     securityContext.executeAfterRemovingParentAuthorization(original -> {
                         sendRequestInner(
                             sender,

@@ -6,11 +6,9 @@ issues:
  - 91187
 highlight:
   title: Allow more than one KNN search clause
-  body: "It makes sense to allow more than one KNN search clause per individual\n\
-    search request. It may be that different documents have separate vector\nspaces\
-    \ or that a single doc is index with more than one vector space. In\nboth of these\
-    \ scenarios, users may want to retrieve a resulting set that\ntakes into account\
-    \ all their indexed vector spaces. \n\nA prime example here would be searching\
-    \ a semantic text embedding along\nwith searching an image embedding. \n\ncloses\
+  body: "Some vector search scenarios require relevance ranking using a few kNN clauses,\n\
+  e.g. when ranking based on several fields, each with its own vector, or when a document \n\
+  includes a vector for the image and another vector for the text. The user may want to obtain\n\
+   relevance ranking based on a combination of all of these kNN clauses.\n\ncloses\
     \ https://github.com/elastic/elasticsearch/issues/91187"
   notable: true

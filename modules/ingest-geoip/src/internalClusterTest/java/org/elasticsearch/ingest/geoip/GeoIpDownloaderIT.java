@@ -297,6 +297,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     public void testGeoIpDatabasesDownloadNoGeoipProcessors() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        putPipeline();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()

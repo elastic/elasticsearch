@@ -159,6 +159,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        putPipeline();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -226,6 +227,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     public void testUpdatedTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        putPipeline();
         testGeoIpDatabasesDownload();
         long lastCheck = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").lastCheck();
         ClusterUpdateSettingsResponse settingsResponse = client().admin()

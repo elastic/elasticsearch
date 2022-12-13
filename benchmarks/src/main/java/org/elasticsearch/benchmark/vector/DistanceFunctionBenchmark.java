@@ -55,10 +55,10 @@ public class DistanceFunctionBenchmark {
     @Param({ "96" })
     private int dims;
 
-    @Param({"dot", "cosine", "l1", "l2"})
+    @Param({ "dot", "cosine", "l1", "l2" })
     private String function;
 
-    @Param({"knn", "binary"})
+    @Param({ "knn", "binary" })
     private String type;
 
     private abstract static class BenchmarkFunction {
@@ -87,11 +87,11 @@ public class DistanceFunctionBenchmark {
             float queryMagnitude = 0f;
 
             for (int i = 0; i < dims; ++i) {
-                docVector[i] = (float)(dims - i);
-                queryVector[i] = (float)i;
+                docVector[i] = (float) (dims - i);
+                queryVector[i] = (float) i;
 
-                docMagnitude += (float)(dims - i);
-                queryMagnitude += (float)i;
+                docMagnitude += (float) (dims - i);
+                queryMagnitude += (float) i;
             }
 
             docMagnitude /= dims;
@@ -121,17 +121,17 @@ public class DistanceFunctionBenchmark {
             float queryMagnitude = 0f;
 
             for (int i = 0; i < dims; ++i) {
-                docVector[i] = (float)(dims - i);
-                queryVector[i] = (float)i;
+                docVector[i] = (float) (dims - i);
+                queryVector[i] = (float) i;
 
-                docMagnitude += (float)(dims - i);
-                queryMagnitude += (float)i;
+                docMagnitude += (float) (dims - i);
+                queryMagnitude += (float) i;
             }
 
             docMagnitude /= dims;
             queryMagnitude /= dims;
 
-            ByteBuffer byteBuffer = ByteBuffer.allocate(dims*4 + 4);
+            ByteBuffer byteBuffer = ByteBuffer.allocate(dims * 4 + 4);
 
             for (int i = 0; i < dims; ++i) {
                 if (normalize) {
@@ -163,10 +163,10 @@ public class DistanceFunctionBenchmark {
             float queryMagnitude = 0f;
 
             for (int i = 0; i < dims; ++i) {
-                docVector.put((byte)(dims - i));
-                queryVector[i] = (byte)i;
+                docVector.put((byte) (dims - i));
+                queryVector[i] = (byte) i;
 
-                queryMagnitude += (float)i;
+                queryMagnitude += (float) i;
             }
 
             this.docVector = new BytesRef(docVector.array());
@@ -191,14 +191,14 @@ public class DistanceFunctionBenchmark {
             float queryMagnitude = 0f;
 
             for (int i = 0; i < dims; ++i) {
-                docVector.put((byte)(dims - i));
-                queryVector[i] = (byte)i;
+                docVector.put((byte) (dims - i));
+                queryVector[i] = (byte) i;
 
-                docMagnitude += (float)(dims - i);
-                queryMagnitude += (float)i;
+                docMagnitude += (float) (dims - i);
+                queryMagnitude += (float) i;
             }
 
-            docVector.putFloat(docMagnitude/dims);
+            docVector.putFloat(docMagnitude / dims);
             this.docVector = new BytesRef(docVector.array());
             this.queryMagnitude = queryMagnitude / dims;
 
@@ -388,26 +388,22 @@ public class DistanceFunctionBenchmark {
         switch (element) {
             case "float" -> {
                 switch (function) {
-                    case "dot" ->
-                        benchmarkFunction = switch (type) {
+                    case "dot" -> benchmarkFunction = switch (type) {
                             case "knn" -> new DotKnnFloatBenchmarkFunction(dims);
                             case "binary" -> new DotBinaryFloatBenchmarkFunction(dims);
                             default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
                         };
-                    case "cosine" ->
-                        benchmarkFunction = switch (type) {
+                    case "cosine" -> benchmarkFunction = switch (type) {
                             case "knn" -> new CosineKnnFloatBenchmarkFunction(dims);
                             case "binary" -> new CosineBinaryFloatBenchmarkFunction(dims);
                             default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
                         };
-                    case "l1" ->
-                        benchmarkFunction = switch (type) {
+                    case "l1" -> benchmarkFunction = switch (type) {
                             case "knn" -> new L1KnnFloatBenchmarkFunction(dims);
                             case "binary" -> new L1BinaryFloatBenchmarkFunction(dims);
                             default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
                         };
-                    case "l2" ->
-                        benchmarkFunction = switch (type) {
+                    case "l2" -> benchmarkFunction = switch (type) {
                             case "knn" -> new L2KnnFloatBenchmarkFunction(dims);
                             case "binary" -> new L2BinaryFloatBenchmarkFunction(dims);
                             default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
@@ -417,26 +413,22 @@ public class DistanceFunctionBenchmark {
             }
             case "byte" -> {
                 switch (function) {
-                    case "dot" ->
-                        benchmarkFunction = switch (type) {
+                    case "dot" -> benchmarkFunction = switch (type) {
                             case "knn" -> new DotKnnByteBenchmarkFunction(dims);
                             case "binary" -> new DotBinaryByteBenchmarkFunction(dims);
                             default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
                         };
-                    case "cosine" ->
-                        benchmarkFunction = switch (type) {
+                    case "cosine" -> benchmarkFunction = switch (type) {
                             case "knn" -> new CosineKnnByteBenchmarkFunction(dims);
                             case "binary" -> new CosineBinaryByteBenchmarkFunction(dims);
                             default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
                         };
-                    case "l1" ->
-                        benchmarkFunction = switch (type) {
+                    case "l1" -> benchmarkFunction = switch (type) {
                             case "knn" -> new L1KnnByteBenchmarkFunction(dims);
                             case "binary" -> new L1BinaryByteBenchmarkFunction(dims);
                             default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
                         };
-                    case "l2" ->
-                        benchmarkFunction = switch (type) {
+                    case "l2" -> benchmarkFunction = switch (type) {
                             case "knn" -> new L2KnnByteBenchmarkFunction(dims);
                             case "binary" -> new L2BinaryByteBenchmarkFunction(dims);
                             default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
@@ -445,7 +437,8 @@ public class DistanceFunctionBenchmark {
                 }
             }
             default -> throw new UnsupportedOperationException("unexpected element [" + element + "]");
-        };
+        }
+        ;
     }
 
     @Benchmark

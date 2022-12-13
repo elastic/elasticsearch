@@ -263,13 +263,10 @@ final class CountingItemSetTraverser implements Releasable {
 
     public void pruneToNextMainBranch() {
         long thisCount = getCount();
-        int thisDepth = getNumberOfItems();
 
         while (getNumberOfItems() > 1 && getCount() == thisCount) {
             topItemSetTraverser.prune();
         }
-
-        logger.trace("skipped from depth {} to depth {}", thisDepth, getNumberOfItems());
     }
 
     /**

@@ -490,12 +490,12 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                     logger.debug("adjusting min count to {}", minCount);
                 }
 
+                /**
+                 * Optimization:
+                 *
+                 * If we reached a leaf, go up the branch until the new branch has a higher count than our current leaf.
+                 */
                 if (setTraverser.atLeaf()) {
-                    /**
-                     * Optimization:
-                     *
-                     * If we reached a leaf, go up the branch until the new branch has a higher count than our current leaf.
-                     */
                     setTraverser.prune();
                     setTraverser.pruneToNextMainBranch();
                 }

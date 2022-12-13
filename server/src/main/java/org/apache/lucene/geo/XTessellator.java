@@ -365,8 +365,7 @@ public final class XTessellator {
                 && hx != p.getX()
                 && pointInEar(p.getX(), p.getY(), hy < my ? hx : qx, hy, mx, my, hy < my ? qx : hx, hy)) {
                 tan = Math.abs(hy - p.getY()) / (hx - p.getX()); // tangential
-                if ((tan < tanMin || (tan == tanMin && p.getX() > connection.getX()))
-                    && isLocallyInside(p, holeNode)) {
+                if ((tan < tanMin || (tan == tanMin && p.getX() > connection.getX())) && isLocallyInside(p, holeNode)) {
                     connection = p;
                     tanMin = tan;
                 }

@@ -216,12 +216,13 @@ public class PluginsUtils {
         Set<PluginBundle> bundles = new HashSet<>(getPluginBundles(pluginsDir));
         bundles.addAll(getModuleBundles(modulesDir));
         bundles.add(new PluginBundle(candidateInfo, candidateDir));
-        Graph<PluginBundle> sortedBundles = sortBundles(bundles);
+        Graph<PluginBundle> pluginGraph = sortBundles(bundles);
 
         // check jarhell of all plugins so we know this plugin and anything depending on it are ok together
         // TODO: optimize to skip any bundles not connected to the candidate plugin?
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        for (PluginBundle bundle : sortedBundles.nodes()) {
+        for (var it = pluginGraph.breadthFirst(); it.hasNext();) {
+            PluginBundle bundle = it.next();
             checkBundleJarHell(classpath, bundle, transitiveUrls);
         }
 

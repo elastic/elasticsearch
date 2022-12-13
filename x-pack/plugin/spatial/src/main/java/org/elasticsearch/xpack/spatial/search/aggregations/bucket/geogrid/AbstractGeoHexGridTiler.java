@@ -44,12 +44,12 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
 
     @Override
     public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
-        GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
+        final GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         assert bounds.minX() <= bounds.maxX();
         // first check if we are touching just fetch cells
         if (bounds.maxX() - bounds.minX() < 180d) {
-            long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), precision);
-            long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), precision);
+            final long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), precision);
+            final long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), precision);
             if (minH3 == maxH3) {
                 return setValuesFromPointResolution(minH3, values, geoValue);
             }

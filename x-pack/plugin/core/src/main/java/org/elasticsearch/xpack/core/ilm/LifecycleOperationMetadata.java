@@ -196,7 +196,7 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
 
         @Override
         public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+            return Version.V_8_7_0;
         }
     }
 }

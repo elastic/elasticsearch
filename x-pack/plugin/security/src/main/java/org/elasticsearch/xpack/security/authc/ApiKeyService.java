@@ -166,7 +166,8 @@ public class ApiKeyService {
     public static final Setting<TimeValue> DELETE_RETENTION_PERIOD = Setting.positiveTimeSetting(
         "xpack.security.authc.api_key.delete.retention_period",
         TimeValue.timeValueDays(7),
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Dynamic
     );
     public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString(
         "xpack.security.authc.api_key.cache.hash_algo",
@@ -230,7 +231,7 @@ public class ApiKeyService {
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
         this.settings = settings;
         this.deleteInterval = DELETE_INTERVAL.get(settings);
-        this.inactiveApiKeysRemover = new InactiveApiKeysRemover(settings, client);
+        this.inactiveApiKeysRemover = new InactiveApiKeysRemover(settings, client, clusterService);
         this.threadPool = threadPool;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);

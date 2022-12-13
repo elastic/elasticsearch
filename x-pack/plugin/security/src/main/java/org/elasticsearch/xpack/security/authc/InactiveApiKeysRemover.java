@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.core.Strings.format;
@@ -41,12 +43,17 @@ public final class InactiveApiKeysRemover extends AbstractRunnable {
     private final Client client;
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
     private final TimeValue timeout;
-    private final long retentionPeriodInMs;
+    private final AtomicLong retentionPeriodInMs;
 
-    InactiveApiKeysRemover(Settings settings, Client client) {
+    InactiveApiKeysRemover(Settings settings, Client client, ClusterService clusterService) {
         this.client = client;
         this.timeout = ApiKeyService.DELETE_TIMEOUT.get(settings);
-        this.retentionPeriodInMs = ApiKeyService.DELETE_RETENTION_PERIOD.get(settings).getMillis();
+        this.retentionPeriodInMs = new AtomicLong(ApiKeyService.DELETE_RETENTION_PERIOD.get(settings).getMillis());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                ApiKeyService.DELETE_RETENTION_PERIOD,
+                newRetentionPeriod -> this.retentionPeriodInMs.set(newRetentionPeriod.getMillis())
+            );
     }
 
     @Override
@@ -57,7 +64,7 @@ public final class InactiveApiKeysRemover extends AbstractRunnable {
             expiredDbq.getSearchRequest().source().timeout(timeout);
         }
         final Instant now = Instant.now();
-        final long cutoffTimestamp = now.minusMillis(retentionPeriodInMs).toEpochMilli();
+        final long cutoffTimestamp = now.minusMillis(retentionPeriodInMs.get()).toEpochMilli();
         expiredDbq.setQuery(
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termsQuery("doc_type", "api_key"))

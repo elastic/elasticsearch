@@ -2,4 +2,5 @@ pr: 92335
 summary: Download the geoip databases only when needed
 area: Ingest Node
 type: bug
-issues: []
+issues:
+ - 90673

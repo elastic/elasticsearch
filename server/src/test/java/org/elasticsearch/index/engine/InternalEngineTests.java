@@ -3435,7 +3435,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         engine.close();
         // we need to reuse the engine config unless the parser.mappingModified won't work
-        engine = new InternalEngine(copy(engine.config(), inSyncGlobalCheckpointSupplier));
+        engine = new InternalEngine(copyWithNewGlobalCheckpointSupplier(engine.config(), inSyncGlobalCheckpointSupplier));
         engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         engine.refresh("warm_up");
 
@@ -5337,7 +5337,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(docs - 1, engine.getProcessedLocalCheckpoint());
             assertEquals(maxSeqIDOnReplica, replicaEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(checkpointOnReplica, replicaEngine.getProcessedLocalCheckpoint());
-            recoveringEngine = new InternalEngine(copy(replicaEngine.config(), globalCheckpoint::get));
+            recoveringEngine = new InternalEngine(copyWithNewGlobalCheckpointSupplier(replicaEngine.config(), globalCheckpoint::get));
             assertEquals(numDocsOnReplica, getTranslog(recoveringEngine).stats().getUncommittedOperations());
             recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
@@ -5370,7 +5370,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         // now do it again to make sure we preserve values etc.
         try {
-            recoveringEngine = new InternalEngine(copy(replicaEngine.config(), globalCheckpoint::get));
+            recoveringEngine = new InternalEngine(copyWithNewGlobalCheckpointSupplier(replicaEngine.config(), globalCheckpoint::get));
             if (flushed) {
                 assertThat(recoveringEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
             }

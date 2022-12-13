@@ -117,13 +117,10 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        /*
         if (valuesSource == null || bucket >= maxes.size()) {
             return buildEmptyAggregation();
         }
         return new Max(name, maxes.get(bucket), formatter, metadata());
-         */
-        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -142,7 +139,12 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         boolean failed = true;
         try {
             for (int i = 0; i < ordsToCollect.length; i++) {
-                collectedMax.set(i, maxes.get(ordsToCollect[i]));
+                if (valuesSource == null || i >= maxes.size()) {
+                    // Empty Value Case
+                    collectedMax.set(i, Double.NEGATIVE_INFINITY);
+                } else {
+                    collectedMax.set(i, maxes.get(ordsToCollect[i]));
+                }
             }
             failed = false;
         } finally {

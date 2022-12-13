@@ -93,7 +93,7 @@ public class CollectedMax extends CollectedAggregator {
     }
 
     private void fill(double value) {
-        this.maxes.fill(0, maxes.size() - 1, value);
+        this.maxes.fill(0, maxes.size(), value);
     }
 
     @Override

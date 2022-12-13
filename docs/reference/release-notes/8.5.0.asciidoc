@@ -14,6 +14,8 @@ to restart nodes while in this state. Upgrade to 8.5.1 as soon as possible to
 avoid the risk of this occurring ({es-pull}91456[#91456]). If your cluster is
 affected by this issue, upgrade to 8.5.3 to repair it ({es-pull}91887[#91887]).
 
+include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
+
 [[breaking-8.5.0]]
 [float]
 === Breaking changes

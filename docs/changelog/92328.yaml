@@ -1,0 +1,5 @@
+pr: 92328
+summary: Increase the timeout for start trained model deployment
+area: Machine Learning
+type: enhancement
+issues: []

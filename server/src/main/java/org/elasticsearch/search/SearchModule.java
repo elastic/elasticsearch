@@ -89,6 +89,7 @@ import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
 import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
+import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -154,6 +155,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ScriptHeuris
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CollectedMax;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
@@ -370,7 +372,9 @@ public class SearchModule {
         registerAggregation(
             new AggregationSpec(MaxAggregationBuilder.NAME, MaxAggregationBuilder::new, MaxAggregationBuilder.PARSER).addResultReader(
                 Max::new
-            ).setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators),
+            )
+                .setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators)
+                .addCollectedAggregator(CollectedMax.NAME, CollectedMax::new),
             builder
         );
         registerAggregation(
@@ -664,6 +668,10 @@ public class SearchModule {
             String writeableName = t.getKey();
             Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
             namedWriteables.add(new NamedWriteableRegistry.Entry(InternalAggregation.class, writeableName, internalReader));
+        }
+
+        for (Map.Entry<String, Writeable.Reader<? extends CollectedAggregator>> t : spec.getCollectedAggs().entrySet()) {
+            namedWriteables.add(new NamedWriteableRegistry.Entry(CollectedAggregator.class, t.getKey(), t.getValue()));
         }
         Consumer<ValuesSourceRegistry.Builder> register = spec.getAggregatorRegistrar();
         if (register != null) {

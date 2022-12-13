@@ -29,6 +29,8 @@ public class CollectedMax extends CollectedAggregator {
     private DoubleArray maxes;
     private DocValueFormat format;
 
+    public static final String NAME = "max";
+
     protected CollectedMax(String name, Map<String, Object> metadata, BigArrays bigArrays, long size, DocValueFormat format) {
         super(name, metadata, bigArrays);
         maxes = bigArrays().newDoubleArray(size, false);

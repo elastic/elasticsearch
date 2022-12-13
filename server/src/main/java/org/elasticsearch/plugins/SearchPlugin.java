@@ -25,6 +25,7 @@ import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
@@ -276,6 +277,7 @@ public interface SearchPlugin {
      */
     class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, ContextParser<String, ? extends AggregationBuilder>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
+        private final Map<String, Writeable.Reader<? extends CollectedAggregator>> collectedAggs = new TreeMap<>();
         private Consumer<ValuesSourceRegistry.Builder> aggregatorRegistrar;
 
         /**
@@ -356,11 +358,21 @@ public interface SearchPlugin {
             return this;
         }
 
+        // NOCOMMIT - this should ultimately replace addResultReader
+        public AggregationSpec addCollectedAggregator(String writeableName, Writeable.Reader<? extends CollectedAggregator> collectedAgg) {
+            collectedAggs.put(writeableName, collectedAgg);
+            return this;
+        }
+
         /**
          * Get the readers that must be registered for this aggregation's results.
          */
         public Map<String, Writeable.Reader<? extends InternalAggregation>> getResultReaders() {
             return resultReaders;
+        }
+
+        public Map<String, Writeable.Reader<? extends CollectedAggregator>> getCollectedAggs() {
+            return collectedAggs;
         }
 
         /**

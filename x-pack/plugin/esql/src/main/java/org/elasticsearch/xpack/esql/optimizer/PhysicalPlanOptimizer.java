@@ -192,7 +192,7 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(LimitExec limitExec) {
-            if (limitExec.mode() == LimitExec.Mode.SINGLE) {
+            if (limitExec.child().singleNode() == false && limitExec.mode() == LimitExec.Mode.SINGLE) {
                 return new LimitExec(
                     limitExec.source(),
                     new LimitExec(limitExec.source(), limitExec.child(), limitExec.limit(), LimitExec.Mode.PARTIAL),

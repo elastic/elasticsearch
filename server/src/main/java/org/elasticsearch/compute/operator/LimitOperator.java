@@ -9,7 +9,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.FilteredBlock;
 import org.elasticsearch.compute.data.Page;
 
 public class LimitOperator implements Operator {
@@ -56,7 +55,11 @@ public class LimitOperator implements Operator {
 
     @Override
     public void finish() {
-        this.state = State.FINISHING;
+        if (lastInput == null) {
+            this.state = State.FINISHED;
+        } else {
+            this.state = State.FINISHING;
+        }
     }
 
     @Override
@@ -84,7 +87,7 @@ public class LimitOperator implements Operator {
             }
             Block[] blocks = new Block[lastInput.getBlockCount()];
             for (int b = 0; b < blocks.length; b++) {
-                blocks[b] = new FilteredBlock(lastInput.getBlock(b), filter);
+                blocks[b] = lastInput.getBlock(b).filter(filter);
             }
             result = new Page(blocks);
             limit = 0;

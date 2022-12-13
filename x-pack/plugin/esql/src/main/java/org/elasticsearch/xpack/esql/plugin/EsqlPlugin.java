@@ -39,12 +39,19 @@ import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
+
+    public static final Setting<Integer> QUERY_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
+        "esql.query.result_truncation_max_size",
+        10000,
+        1,
+        1000000,
+        Setting.Property.NodeScope
+    );
 
     @Override
     public Collection<Object> createComponents(
@@ -62,10 +69,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Tracer tracer,
         AllocationDeciders allocationDeciders
     ) {
-        return createComponents(client, environment.settings(), clusterService);
+        return createComponents(client, clusterService);
     }
 
-    private Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService) {
+    private Collection<Object> createComponents(Client client, ClusterService clusterService) {
         return Arrays.asList(
             new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), DefaultDataTypeRegistry.INSTANCE, Set::of))
         );
@@ -78,7 +85,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.emptyList();
+        return List.of(QUERY_RESULT_TRUNCATION_MAX_SIZE);
     }
 
     @Override

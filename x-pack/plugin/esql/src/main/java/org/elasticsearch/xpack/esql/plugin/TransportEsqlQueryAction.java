@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.search.SearchService;
@@ -38,9 +39,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final PlanExecutor planExecutor;
     private final ComputeService computeService;
     private final ClusterService clusterService;
+    private final Settings settings;
 
     @Inject
     public TransportEsqlQueryAction(
+        Settings settings,
         TransportService transportService,
         ActionFilters actionFilters,
         PlanExecutor planExecutor,
@@ -53,6 +56,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
         this.computeService = new ComputeService(searchService, indexNameExpressionResolver, clusterService, threadPool);
+        this.settings = settings;
     }
 
     @Override
@@ -62,7 +66,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             // TODO: plug-in security
             null,
             clusterService.getClusterName().value(),
-            request.pragmas()
+            request.pragmas(),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings)
         );
         planExecutor.newSession(configuration).execute(request, wrap(r -> {
             computeService.runCompute(r, configuration, listener.map(pages -> {

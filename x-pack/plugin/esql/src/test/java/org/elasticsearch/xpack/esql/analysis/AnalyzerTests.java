@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -25,14 +24,13 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -41,14 +39,14 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 public class AnalyzerTests extends ESTestCase {
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
         Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
         var plan = analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false));
-        var project = as(plan, Project.class);
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
 
         assertEquals(new EsRelation(EMPTY, idx, false), project.child());
     }
@@ -69,7 +67,8 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, "cluster", "idx"), null, false));
-        var project = as(plan, Project.class);
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
 
         assertEquals(new EsRelation(EMPTY, idx, false), project.child());
     }
@@ -86,7 +85,8 @@ public class AnalyzerTests extends ESTestCase {
             )
         );
 
-        var project = as(plan, Project.class);
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
         var eval = as(project.child(), Eval.class);
         assertEquals(1, eval.fields().size());
         assertEquals(new Alias(EMPTY, "e", new FieldAttribute(EMPTY, "emp_no", idx.mapping().get("emp_no"))), eval.fields().get(0));
@@ -115,7 +115,8 @@ public class AnalyzerTests extends ESTestCase {
             )
         );
 
-        var project = as(plan, Project.class);
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
         var eval = as(project.child(), Eval.class);
 
         assertEquals(1, eval.fields().size());
@@ -147,7 +148,8 @@ public class AnalyzerTests extends ESTestCase {
             )
         );
 
-        var project = as(plan, Project.class);
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
         var eval = as(project.child(), Eval.class);
         assertEquals(1, eval.fields().size());
         assertEquals(new Alias(EMPTY, "e", new ReferenceAttribute(EMPTY, "emp_no", DataTypes.INTEGER)), eval.fields().get(0));
@@ -299,7 +301,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testExcludeUnsupportedFieldExplicit() {
         verifyUnsupported("""
             from test
-            | project unsupported
+            | project -unsupported
             """, "Cannot use field [unsupported] with unsupported type");
     }
 
@@ -328,12 +330,13 @@ public class AnalyzerTests extends ESTestCase {
             """, "d", "last_name");
     }
 
-    public void testExplicitProject() {
+    public void testExplicitProjectAndLimit() {
         var plan = analyze("""
             from test
             """);
-        var project = as(plan, Project.class);
-        var relation = as(project.child(), EsRelation.class);
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        as(project.child(), EsRelation.class);
     }
 
     private void verifyUnsupported(String query, String errorMessage) {
@@ -343,15 +346,13 @@ public class AnalyzerTests extends ESTestCase {
 
     private void assertProjection(String query, String... names) {
         var plan = analyze(query);
-
-        var project = as(plan, Project.class);
-        assertThat(plan, not(instanceOf(ProjectReorderRenameRemove.class)));
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
         assertThat(Expressions.names(project.projections()), contains(names));
     }
 
     private Analyzer newAnalyzer(IndexResolution indexResolution) {
-        Configuration configuration = new Configuration(ZoneOffset.UTC, null, null);
-        return new Analyzer(indexResolution, new EsqlFunctionRegistry(), new Verifier(), configuration);
+        return new Analyzer(indexResolution, new EsqlFunctionRegistry(), new Verifier(), EsqlTestUtils.TEST_CFG);
     }
 
     private IndexResolution loadMapping(String resource, String indexName) {

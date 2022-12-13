@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.plan.logical.LocalRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EmptyExecutable;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -29,7 +30,13 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public final class EsqlTestUtils {
 
-    public static final EsqlConfiguration TEST_CFG = new EsqlConfiguration(DateUtils.UTC, null, null, Settings.EMPTY);
+    public static final EsqlConfiguration TEST_CFG = new EsqlConfiguration(
+        DateUtils.UTC,
+        null,
+        null,
+        Settings.EMPTY,
+        EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
+    );
 
     private EsqlTestUtils() {}
 

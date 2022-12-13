@@ -71,7 +71,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             // prune/elimination
             new PruneFilters(),
             new PruneLiteralsInOrderBy(),
-            new CombineLimits(),
+            new PushDownAndCombineLimits(),
             new PushDownAndCombineFilters()
         );
 
@@ -165,7 +165,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class CombineLimits extends OptimizerRules.OptimizerRule<Limit> {
+    static class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule<Limit> {
 
         @Override
         protected LogicalPlan rule(Limit limit) {
@@ -174,6 +174,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 var l1 = (int) limitSource.fold();
                 var l2 = (int) childLimit.limit().fold();
                 return new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child());
+            } else if (limit.child()instanceof UnaryPlan unary) {
+                if (unary instanceof Project || unary instanceof Eval) {
+                    return unary.replaceChild(limit.replaceChild(unary.child()));
+                }
             }
             return limit;
         }

@@ -93,7 +93,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("last_name"));
-        var relation = as(project.child(), EsRelation.class);
+        var limit = as(project.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
     }
 
     public void testCombineProjectionWithFilterInBetween() {
@@ -143,7 +144,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit);
         assertEquals(
             new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
-            new LogicalPlanOptimizer.CombineLimits().rule(anotherLimit)
+            new LogicalPlanOptimizer.PushDownAndCombineLimits().rule(anotherLimit)
         );
     }
 
@@ -226,7 +227,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | stats x = count(1) by emp_no
             | where x + 2 > 9
             | where emp_no < 3""");
-        var filter = as(plan, Filter.class);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
 
         assertTrue(filter.condition() instanceof GreaterThan);
         var gt = (GreaterThan) filter.condition();
@@ -257,7 +259,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | stats x = count(1) by emp_no
             | where emp_no < 3 or x > 9""");
-        var filter = as(plan, Filter.class);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
 
         assertTrue(filter.condition() instanceof Or);
         var or = (Or) filter.condition();
@@ -274,7 +277,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | stats x = count(1) by emp_no
             | where (emp_no < 3 or x > 9) and emp_no > 0""");
-        var filter = as(plan, Filter.class);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
 
         assertTrue(filter.condition() instanceof Or);
         var or = (Or) filter.condition();
@@ -301,7 +305,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | where x + 2 < 9
             | where emp_no < 3""");
         var project = as(plan, Project.class);
-        var filter = as(project.child(), Filter.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
 
         assertTrue(filter.condition() instanceof LessThan);
         var lt = (LessThan) filter.condition();
@@ -336,15 +341,50 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | limit 3
             | where emp_no < 3 or languages > 9""");
         var project = as(plan, Project.class);
-        var filter = as(project.child(), Filter.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
 
         assertTrue(filter.condition() instanceof Or);
         var or = (Or) filter.condition();
         assertTrue(or.left() instanceof LessThan);
         assertTrue(or.right() instanceof GreaterThan);
 
-        var limit = as(filter.child(), Limit.class);
-        assertTrue(limit.child() instanceof EsRelation);
+        var limit2 = as(filter.child(), Limit.class);
+        assertTrue(limit2.child() instanceof EsRelation);
+    }
+
+    public void testPushDownLimitPastEval() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval x = emp_no + 100
+            | limit 10""");
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        as(eval.child(), Limit.class);
+    }
+
+    public void testPushDownLimitPastProject() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | project a = emp_no
+            | limit 10""");
+
+        var project = as(plan, Project.class);
+        as(project.child(), Limit.class);
+    }
+
+    public void testDontPushDownLimitPastFilter() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | limit 100
+            | where emp_no > 10
+            | limit 10""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.child(), Limit.class);
     }
 
     public void testBasicNullFolding() {

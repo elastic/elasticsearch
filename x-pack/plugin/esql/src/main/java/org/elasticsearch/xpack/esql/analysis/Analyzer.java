@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
@@ -27,12 +29,13 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
@@ -55,9 +58,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     private final Verifier verifier;
 
     private final FunctionRegistry functionRegistry;
-    private final Configuration configuration;
+    private final EsqlConfiguration configuration;
 
-    public Analyzer(IndexResolution indexResolution, FunctionRegistry functionRegistry, Verifier verifier, Configuration configuration) {
+    public Analyzer(
+        IndexResolution indexResolution,
+        FunctionRegistry functionRegistry,
+        Verifier verifier,
+        EsqlConfiguration configuration
+    ) {
         assert indexResolution != null;
         this.indexResolution = indexResolution;
         this.functionRegistry = functionRegistry;
@@ -80,7 +88,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         var resolution = new Batch("Resolution", new ResolveTable(), new ResolveRefs(), new ResolveFunctions());
-        var finish = new Batch("Finish Analysis", Limiter.ONCE, new AddMissingProjection());
+        var finish = new Batch("Finish Analysis", Limiter.ONCE, new AddMissingProjection(), new AddImplicitLimit());
         return List.of(resolution, finish);
     }
 
@@ -366,6 +374,22 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             return plan;
+        }
+    }
+
+    private class AddImplicitLimit extends Rule<LogicalPlan, LogicalPlan> {
+        @Override
+        public LogicalPlan apply(LogicalPlan logicalPlan) {
+            return new Limit(
+                Source.EMPTY,
+                new Literal(Source.EMPTY, configuration.resultTruncationMaxSize(), DataTypes.INTEGER),
+                logicalPlan
+            );
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan logicalPlan) {
+            return logicalPlan;
         }
     }
 }

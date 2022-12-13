@@ -15,13 +15,19 @@ import java.time.ZoneId;
 public class EsqlConfiguration extends Configuration {
     private final Settings pragmas;
 
-    public EsqlConfiguration(ZoneId zi, String username, String clusterName, Settings pragmas) {
+    private final int resultTruncationMaxSize;
+
+    public EsqlConfiguration(ZoneId zi, String username, String clusterName, Settings pragmas, int resultTruncationMaxSize) {
         super(zi, username, clusterName);
         this.pragmas = pragmas;
+        this.resultTruncationMaxSize = resultTruncationMaxSize;
     }
 
     public Settings pragmas() {
         return pragmas;
     }
 
+    public int resultTruncationMaxSize() {
+        return resultTruncationMaxSize;
+    }
 }

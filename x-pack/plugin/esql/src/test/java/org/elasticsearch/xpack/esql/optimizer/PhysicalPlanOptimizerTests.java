@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -81,10 +80,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var node = as(optimized, UnaryExec.class);
-        var project = as(node.child(), ProjectExec.class);
+        var project = as(optimized, ProjectExec.class);
         var restExtract = as(project.child(), FieldExtractExec.class);
-        var filter = as(restExtract.child(), FilterExec.class);
+        var limit = as(restExtract.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var limit2 = as(exchange.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
 
         assertEquals(
@@ -102,11 +103,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var exchange = as(optimized, ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
+        var project = as(optimized, ProjectExec.class);
         var restExtract = as(project.child(), FieldExtractExec.class);
         var eval = as(restExtract.child(), EvalExec.class);
-        var filter = as(eval.child(), FilterExec.class);
+        var limit = as(eval.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var limit2 = as(exchange.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
 
         assertEquals(
@@ -127,7 +130,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var aggregate = as(optimized, AggregateExec.class);
+        var limit = as(optimized, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
         var exchange = as(aggregate.child(), ExchangeExec.class);
         aggregate = as(exchange.child(), AggregateExec.class);
         var eval = as(aggregate.child(), EvalExec.class);
@@ -151,7 +155,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var aggregate = as(optimized, AggregateExec.class);
+        var limit = as(optimized, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
         var exchange = as(aggregate.child(), ExchangeExec.class);
         aggregate = as(exchange.child(), AggregateExec.class);
 
@@ -180,7 +185,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var aggregateFinal = as(optimized, AggregateExec.class);
+        var limit = as(optimized, LimitExec.class);
+        var aggregateFinal = as(limit.child(), AggregateExec.class);
         var aggregatePartial = as(aggregateFinal.child(), AggregateExec.class);
 
         var extract = as(aggregatePartial.child(), FieldExtractExec.class);
@@ -212,8 +218,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var exchange = as(optimized, ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
+        var project = as(optimized, ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             Expressions.names(extract.attributesToExtract()),
@@ -235,8 +240,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var exchange = as(optimized, ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
+        var project = as(optimized, ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             Expressions.names(extract.attributesToExtract()),
@@ -257,7 +261,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var node = as(optimized, AggregateExec.class);
+        var limit = as(optimized, LimitExec.class);
+        var node = as(limit.child(), AggregateExec.class);
         var exchange = as(node.child(), ExchangeExec.class);
         var aggregate = as(exchange.child(), AggregateExec.class);
 
@@ -272,7 +277,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var node = as(optimized, AggregateExec.class);
+        var limit = as(optimized, LimitExec.class);
+        var node = as(limit.child(), AggregateExec.class);
         var exchange = as(node.child(), ExchangeExec.class);
         var aggregate = as(exchange.child(), AggregateExec.class);
 
@@ -288,10 +294,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var exchange = as(optimized, ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
+        var project = as(optimized, ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var source = as(fieldExtract.child(), EsQueryExec.class);
+        var limit = as(fieldExtract.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var limit2 = as(exchange.child(), LimitExec.class);
+        var source = as(limit2.child(), EsQueryExec.class);
 
         QueryBuilder query = source.query();
         assertTrue(query instanceof BoolQueryBuilder);
@@ -317,10 +325,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var exchange = as(optimized, ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
+        var project = as(optimized, ProjectExec.class);
         var extractRest = as(project.child(), FieldExtractExec.class);
-        var filter = as(extractRest.child(), FilterExec.class);
+        var limit = as(extractRest.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var limit2 = as(exchange.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
         var source = as(extract.child(), EsQueryExec.class);
 
@@ -339,10 +349,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var exchange = as(optimized, ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
+        var project = as(optimized, ProjectExec.class);
         var extractRest = as(project.child(), FieldExtractExec.class);
-        var filter = as(extractRest.child(), FilterExec.class);
+        var limit = as(extractRest.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var limit2 = as(exchange.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
         var source = as(extract.child(), EsQueryExec.class);
 
@@ -358,10 +370,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var exchange = as(optimized, ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
+        var project = as(optimized, ProjectExec.class);
         var extractRest = as(project.child(), FieldExtractExec.class);
-        var filter = as(extractRest.child(), FilterExec.class);
+        var limit = as(extractRest.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var limit2 = as(exchange.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
         var source = as(extract.child(), EsQueryExec.class);
 
@@ -379,10 +393,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         plan = plan.transformUp(EsQueryExec.class, node -> new EsQueryExec(node.source(), node.index(), userFilter));
 
         var optimized = fieldExtractorRule(plan);
-        var exchange = as(optimized, ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
+        var project = as(optimized, ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var source = as(fieldExtract.child(), EsQueryExec.class);
+        var limit = as(fieldExtract.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var limit2 = as(exchange.child(), LimitExec.class);
+        var source = as(limit2.child(), EsQueryExec.class);
 
         QueryBuilder query = source.query();
         assertTrue(query instanceof BoolQueryBuilder);
@@ -407,10 +423,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var exchange = as(optimized, ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
+        var project = as(optimized, ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var source = as(fieldExtract.child(), EsQueryExec.class);
+        var limit = as(fieldExtract.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var limit2 = as(exchange.child(), LimitExec.class);
+        var source = as(limit2.child(), EsQueryExec.class);
 
         QueryBuilder query = source.query();
         assertTrue(query instanceof BoolQueryBuilder);
@@ -436,10 +454,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = fieldExtractorRule(plan);
-        var exchange = as(optimized, ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
+        var project = as(optimized, ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var source = as(fieldExtract.child(), EsQueryExec.class);
+        var limit = as(fieldExtract.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var limit2 = as(exchange.child(), LimitExec.class);
+        var source = as(limit2.child(), EsQueryExec.class);
 
         QueryBuilder query = source.query();
         assertTrue(query instanceof BoolQueryBuilder);

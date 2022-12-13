@@ -571,10 +571,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             () -> realmConfig.getSetting(JwtRealmSettings.REQUIRED_CLAIMS)
         );
 
-        assertThat(
-            e.getMessage(),
-            containsString("required claim [" + fullSettingKey + "] cannot be one of [iss,sub,aud,exp,nbf,iat]")
-        );
+        assertThat(e.getMessage(), containsString("required claim [" + fullSettingKey + "] cannot be one of [iss,sub,aud,exp,nbf,iat]"));
     }
 
     public void testRequiredClaimsCannotBeEmpty() {

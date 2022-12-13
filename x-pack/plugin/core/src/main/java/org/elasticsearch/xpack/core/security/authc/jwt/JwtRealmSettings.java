@@ -313,11 +313,7 @@ public class JwtRealmSettings {
                 final String fullName = key + "." + name;
                 if (invalidRequiredClaims.contains(name)) {
                     throw new IllegalArgumentException(
-                        Strings.format(
-                            "required claim [%s] cannot be one of [%s]",
-                            fullName,
-                            String.join(",", invalidRequiredClaims)
-                        )
+                        Strings.format("required claim [%s] cannot be one of [%s]", fullName, String.join(",", invalidRequiredClaims))
                     );
                 }
                 final List<String> values = settings.getAsList(name);

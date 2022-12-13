@@ -93,13 +93,13 @@ public class H3CartesianUtilTests extends ESTestCase {
             GeoShapeValues.GeoShapeValue geoValue = GeoTestUtils.geoShapeValue(new org.elasticsearch.geometry.Point(0, 0));
             assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_DISJOINT));
             geoValue = GeoTestUtils.geoShapeValue(new org.elasticsearch.geometry.Point(180, 0));
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
             geoValue = GeoTestUtils.geoShapeValue(new org.elasticsearch.geometry.Point(-180, 0));
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
             geoValue = GeoTestUtils.geoShapeValue(new org.elasticsearch.geometry.Point(179, 0));
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
             geoValue = GeoTestUtils.geoShapeValue(new org.elasticsearch.geometry.Point(-179, 0));
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
         }
         // lines
         {
@@ -108,13 +108,13 @@ public class H3CartesianUtilTests extends ESTestCase {
             );
             assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_DISJOINT));
             geoValue = GeoTestUtils.geoShapeValue(new org.elasticsearch.geometry.Line(new double[] { 180, 180 }, new double[] { -1, 1 }));
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
             geoValue = GeoTestUtils.geoShapeValue(new org.elasticsearch.geometry.Line(new double[] { -180, -180 }, new double[] { -1, 1 }));
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
             geoValue = GeoTestUtils.geoShapeValue(new org.elasticsearch.geometry.Line(new double[] { 179, 179 }, new double[] { -1, 1 }));
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
             geoValue = GeoTestUtils.geoShapeValue(new org.elasticsearch.geometry.Line(new double[] { -179, -179 }, new double[] { -1, 1 }));
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
             geoValue = GeoTestUtils.geoShapeValue(new org.elasticsearch.geometry.Line(new double[] { -179, 179 }, new double[] { -1, 1 }));
             assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
         }
@@ -127,24 +127,23 @@ public class H3CartesianUtilTests extends ESTestCase {
             geoValue = GeoTestUtils.geoShapeValue(
                 new org.elasticsearch.geometry.Polygon(new LinearRing(new double[] { 180, 180, 179, 180 }, new double[] { -1, 1, 1, -1 }))
             );
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
             geoValue = GeoTestUtils.geoShapeValue(
                 new org.elasticsearch.geometry.Polygon(
                     new LinearRing(new double[] { -180, -180, -179, -180 }, new double[] { -1, 1, 1, -1 })
                 )
             );
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
             geoValue = GeoTestUtils.geoShapeValue(
                 new org.elasticsearch.geometry.Polygon(new LinearRing(new double[] { 179, 179, 179.5, 179 }, new double[] { -1, 1, 1, -1 }))
             );
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
             geoValue = GeoTestUtils.geoShapeValue(
                 new org.elasticsearch.geometry.Polygon(
                     new LinearRing(new double[] { -179, -179, -179.5, -179 }, new double[] { -1, 1, 1, -1 })
                 )
             );
-            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CROSSES));
+            assertThat(geoValue.relate(component2D), Matchers.equalTo(GeoRelation.QUERY_CONTAINS));
             geoValue = GeoTestUtils.geoShapeValue(
                 new org.elasticsearch.geometry.Polygon(
                     new LinearRing(new double[] { -179, 179, -178, -179 }, new double[] { -1, 1, 1, -1 })

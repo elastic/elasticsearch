@@ -48,7 +48,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
                 from = in.readOptionalInstant();
             } else {
                 from = null;
@@ -67,7 +67,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
                 out.writeOptionalInstant(from);
             }
         }

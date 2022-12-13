@@ -112,7 +112,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         PersistentTasksCustomMetadata.PersistentTask<GeoIpTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
-        return new GeoIpDownloader(
+        GeoIpDownloader downloader = new GeoIpDownloader(
             client,
             httpClient,
             clusterService,
@@ -125,6 +125,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             parentTaskId,
             headers
         );
+        clusterService.addListener(downloader);
+        return downloader;
     }
 
     @Override

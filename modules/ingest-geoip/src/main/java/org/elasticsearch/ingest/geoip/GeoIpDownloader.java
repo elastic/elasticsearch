@@ -18,6 +18,9 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -30,6 +33,9 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -55,7 +61,7 @@ import java.util.Objects;
  * Downloads are verified against MD5 checksum provided by the server
  * Current state of all stored databases is stored in cluster state in persistent task state
  */
-public class GeoIpDownloader extends AllocatedPersistentTask {
+public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
@@ -94,6 +100,12 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     private volatile TimeValue pollInterval;
     private volatile Scheduler.ScheduledCancellable scheduled;
     private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
+    /*
+     * This variable tells us whether we have at least one pipeline with a geoip processor. If there are no geoip processors then we do
+     * not download geoip databases. Access is not protected because it is set in the constructor and then only ever read and updated
+     * on the cluster state update thread.
+     */
+    private volatile boolean atLeastOneGeoipProcessor;
 
     GeoIpDownloader(
         Client client,
@@ -113,6 +125,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        atLeastOneGeoipProcessor = atLeastOneGeoipProcessor(clusterService.state());
         endpoint = ENDPOINT_SETTING.get(settings);
         pollInterval = POLL_INTERVAL_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
@@ -138,13 +151,16 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
                 throw blockException;
             }
         }
-
-        logger.debug("updating geoip databases");
-        List<Map<String, Object>> response = fetchDatabasesOverview();
-        for (Map<String, Object> res : response) {
-            if (res.get("name").toString().endsWith(".tgz")) {
-                processDatabase(res);
+        if (atLeastOneGeoipProcessor) {
+            logger.debug("updating geoip databases");
+            List<Map<String, Object>> response = fetchDatabasesOverview();
+            for (Map<String, Object> res : response) {
+                if (res.get("name").toString().endsWith(".tgz")) {
+                    processDatabase(res);
+                }
             }
+        } else {
+            logger.debug("Not updating geoip databases because no geoip processors are in use");
         }
     }
 
@@ -188,6 +204,19 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             stats = stats.failedDownload();
             logger.error((Supplier<?>) () -> "error downloading geoip database [" + name + "]", e);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean atLeastOneGeoipProcessor(ClusterState clusterState) {
+        List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(clusterState);
+        return pipelineDefinitions.stream().anyMatch(pipelineDefinition -> {
+            Map<String, Object> pipelineMap = pipelineDefinition.getConfigAsMap();
+            List<Map<String, Object>> processors = (List<Map<String, Object>>) pipelineMap.get("processors");
+            if (processors != null) {
+                return processors.stream().anyMatch(processor -> processor.containsKey("geoip"));
+            }
+            return false;
+        });
     }
 
     // visible for testing
@@ -267,6 +296,10 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     void runDownloader() {
+        runDownloader(true);
+    }
+
+    void runDownloader(boolean scheduleNext) {
         if (isCancelled() || isCompleted()) {
             return;
         }
@@ -281,7 +314,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         } catch (Exception e) {
             logger.error("exception during geoip databases cleanup", e);
         }
-        scheduleNextRun(pollInterval);
+        if (scheduleNext) {
+            scheduleNextRun(pollInterval);
+        }
     }
 
     private void cleanDatabases() {
@@ -319,6 +354,21 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     private void scheduleNextRun(TimeValue time) {
         if (threadPool.scheduler().isShutdown() == false) {
             scheduled = threadPool.schedule(this::runDownloader, time, ThreadPool.Names.GENERIC);
+        }
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        boolean previouslyAtLeastOneGeoipProcessor = atLeastOneGeoipProcessor;
+        if (event.metadataChanged()) {
+            IngestMetadata newIngestMetadata = event.state().getMetadata().custom(IngestMetadata.TYPE);
+            IngestMetadata oldIngestMetadata = event.previousState().getMetadata().custom(IngestMetadata.TYPE);
+            if (newIngestMetadata != oldIngestMetadata) {
+                atLeastOneGeoipProcessor = atLeastOneGeoipProcessor(event.state());
+                if (atLeastOneGeoipProcessor && previouslyAtLeastOneGeoipProcessor == false) {
+                    threadPool.schedule(() -> runDownloader(false), TimeValue.ZERO, ThreadPool.Names.GENERIC);
+                }
+            }
         }
     }
 }

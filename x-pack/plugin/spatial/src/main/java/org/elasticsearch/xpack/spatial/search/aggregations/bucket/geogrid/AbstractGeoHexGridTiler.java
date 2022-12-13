@@ -134,22 +134,24 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
             // When we're at higher tree levels, we want to test against slightly larger cells, to be sure to cover all child cells.
             final GeoRelation relation = relateTile(geoValue, h3);
             if (relation != GeoRelation.QUERY_DISJOINT) {
-                final long[] children = H3.h3ToChildren(h3);
                 int i = 0;
                 if (relation == GeoRelation.QUERY_INSIDE) {
                     // H3 cells do not fully contain the children. The only one we know we fully contain
                     // is the center child which is always at position 0.
-                    valueIndex = setAllValuesByRecursion(values, children[0], precision + 1, valueIndex, valueInsideBounds(geoValue));
-                    i++;
+                    final long centerChild = H3.childPosToH3(h3, i++);
+                    valueIndex = setAllValuesByRecursion(values, centerChild, precision + 1, valueIndex, valueInsideBounds(geoValue));
                 }
-                for (; i < children.length; i++) {
-                    valueIndex = setValuesByRecursion(values, geoValue, children[i], precision + 1, valueIndex);
+                final int numChildren = H3.h3ToChildrenSize(h3);
+                for (; i < numChildren; i++) {
+                    valueIndex = setValuesByRecursion(values, geoValue, H3.childPosToH3(h3, i), precision + 1, valueIndex);
                 }
                 // H3 cells do intersects with other cells that are not part of the children cells. If the parent cell of those
                 // cells is disjoint, they will not be visited, therefore visit them here.
-                for (long child : H3.h3ToNoChildrenIntersecting(h3)) {
-                    if (relateTile(geoValue, H3.h3ToParent(child)) == GeoRelation.QUERY_DISJOINT) {
-                        valueIndex = setValuesByRecursion(values, geoValue, child, precision + 1, valueIndex);
+                final int numNoChildren = H3.h3ToNotIntersectingChildrenSize(h3);
+                for (int j = 0; j < numNoChildren; j++) {
+                    final long noChild = H3.noChildIntersectingPosToH3(h3, j);
+                    if (relateTile(geoValue, H3.h3ToParent(noChild)) == GeoRelation.QUERY_DISJOINT) {
+                        valueIndex = setValuesByRecursion(values, geoValue, noChild, precision + 1, valueIndex);
                     }
                 }
 

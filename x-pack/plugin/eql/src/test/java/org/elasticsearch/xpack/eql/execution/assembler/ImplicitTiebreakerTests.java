@@ -102,14 +102,14 @@ public class ImplicitTiebreakerTests extends ESTestCase {
 
     public void testImplicitTiebreakerBeingSet() {
         QueryClient client = new TestQueryClient();
-        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
+        List<SequenceCriterion> criteria = new ArrayList<>(stages);
         boolean descending = randomBoolean();
         boolean criteriaDescending = descending;
 
         for (int i = 0; i < stages; i++) {
             final int j = i;
             criteria.add(
-                new Criterion<BoxedQueryRequest>(
+                new SequenceCriterion(
                     i,
                     new BoxedQueryRequest(
                         () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),

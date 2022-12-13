@@ -162,6 +162,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             return;
         }
         GroupedActionListener<DeprecationChecker.CheckResult> groupedActionListener = new GroupedActionListener<>(
+            enabledCheckers.size(),
             ActionListener.wrap(
                 checkResults -> listener.onResponse(
                     checkResults.stream()
@@ -170,8 +171,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                         )
                 ),
                 listener::onFailure
-            ),
-            enabledCheckers.size()
+            )
         );
         for (DeprecationChecker checker : checkers) {
             checker.check(components, groupedActionListener);

@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugin.api.settings.BooleanSetting;
 import org.elasticsearch.plugin.api.settings.IntSetting;
-import org.elasticsearch.plugin.api.settings.ListOfStringsSetting;
+import org.elasticsearch.plugin.api.settings.ListSetting;
 import org.elasticsearch.plugin.api.settings.LongSetting;
 import org.elasticsearch.plugin.api.settings.StringSetting;
 
@@ -58,7 +58,7 @@ public class SettingsInvocationHandler implements InvocationHandler {
             return getValue(Boolean::valueOf, setting.path(), setting.defaultValue());
         } else if (annotation instanceof StringSetting setting) {
             return getValue(String::valueOf, setting.path(), setting.defaultValue());
-        } else if (annotation instanceof ListOfStringsSetting setting) {
+        } else if (annotation instanceof ListSetting setting) {
             return settings.getAsList(setting.path(), Collections.emptyList());
         } else {
             throw new IllegalArgumentException("Unrecognised annotation " + annotation);

@@ -10,13 +10,11 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.security.support.StringMatcher;
+import org.elasticsearch.core.Nullable;
 
-import java.text.ParseException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Validates a string claim against a list of allowed values. The validation is successful
@@ -26,62 +24,65 @@ import java.util.List;
  * values.
  * Whether a claim's value can be an array of strings is customised with the {@link #singleValuedClaim}
  * field, which enforces the claim's value to be a single string if it is configured to {@code true}.
+ *
+ * NOTE the allowed values can be null which means skipping the actual value check, i.e. the validator
+ * succeeds as long as there is a (non-null) value.
  */
 public class JwtStringClaimValidator implements JwtFieldValidator {
 
+    public static JwtStringClaimValidator ALLOW_ALL_SUBJECTS = new JwtStringClaimValidator("sub", null, true);
+
     private final String claimName;
+    @Nullable
+    private final Map<String, String> fallbackClaimNames;
+    @Nullable
     private final List<String> allowedClaimValues;
     // Whether the claim should be a single string
     private final boolean singleValuedClaim;
-    private final StringMatcher claimValueMatcher;
 
     public JwtStringClaimValidator(String claimName, List<String> allowedClaimValues, boolean singleValuedClaim) {
+        this(claimName, null, allowedClaimValues, singleValuedClaim);
+    }
+
+    public JwtStringClaimValidator(
+        String claimName,
+        Map<String, String> fallbackClaimNames,
+        List<String> allowedClaimValues,
+        boolean singleValuedClaim
+    ) {
         this.claimName = claimName;
+        this.fallbackClaimNames = fallbackClaimNames;
         this.allowedClaimValues = allowedClaimValues;
         this.singleValuedClaim = singleValuedClaim;
-        this.claimValueMatcher = StringMatcher.of(allowedClaimValues);
     }
 
     @Override
     public void validate(JWSHeader jwsHeader, JWTClaimsSet jwtClaimsSet) {
-        final List<String> claimValues;
-        try {
-            claimValues = getStringClaimValues(jwtClaimsSet);
-        } catch (ParseException e) {
-            throw new ElasticsearchSecurityException("cannot parse string claim [" + claimName + "]", RestStatus.BAD_REQUEST, e);
-        }
+        final FallbackableClaim fallbackableClaim = new FallbackableClaim(claimName, fallbackClaimNames, jwtClaimsSet);
+        final List<String> claimValues = getStringClaimValues(fallbackableClaim);
         if (claimValues == null) {
-            throw new ElasticsearchSecurityException("missing required string claim [" + claimName + "]", RestStatus.BAD_REQUEST);
+            throw new IllegalArgumentException("missing required string claim [" + fallbackableClaim + "]");
         }
 
-        if (false == claimValues.stream().anyMatch(claimValueMatcher)) {
-            throw new ElasticsearchSecurityException(
+        if (allowedClaimValues != null && false == claimValues.stream().anyMatch(allowedClaimValues::contains)) {
+            throw new IllegalArgumentException(
                 "string claim ["
-                    + claimName
+                    + fallbackableClaim
                     + "] has value ["
                     + Strings.collectionToCommaDelimitedString(claimValues)
                     + "] which does not match allowed claim values ["
                     + Strings.collectionToCommaDelimitedString(allowedClaimValues)
-                    + "]",
-                RestStatus.BAD_REQUEST
+                    + "]"
             );
         }
     }
 
-    private List<String> getStringClaimValues(JWTClaimsSet claimsSet) throws ParseException {
-        // TODO: fallback claims
-        final String actualClaimName = claimName;
-
+    private List<String> getStringClaimValues(FallbackableClaim fallbackableClaim) {
         if (singleValuedClaim) {
-            final String claimValue = claimsSet.getStringClaim(actualClaimName);
+            final String claimValue = fallbackableClaim.getStringClaimValue();
             return claimValue != null ? List.of(claimValue) : null;
         } else {
-            final Object claimValue = claimsSet.getClaim(actualClaimName);
-            if (claimValue instanceof String) {
-                return List.of((String) claimValue);
-            } else {
-                return claimsSet.getStringListClaim(actualClaimName);
-            }
+            return fallbackableClaim.getStringListClaimValue();
         }
     }
 }

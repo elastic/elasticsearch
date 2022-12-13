@@ -11,6 +11,7 @@ package org.elasticsearch.test;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -24,14 +25,22 @@ public abstract class AbstractChunkedSerializingTestCase<T extends ChunkedToXCon
     protected AbstractXContentTestCase.XContentTester<T> createXContentTester() {
         return chunkedXContentTester(
             this::createParser,
-            xContentType -> createTestInstance(),
+            this::createXContextTestInstance,
             getToXContentParams(),
-            this::doParseInstance
+            this::doParseInstance,
+            isFragment()
         );
     }
 
     @Override
     protected ToXContent asXContent(T instance) {
+        if (isFragment()) {
+            return (ToXContentObject) ((builder, params) -> {
+                builder.startObject();
+                ChunkedToXContent.wrapAsXContentObject(instance).toXContent(builder, params);
+                return builder.endObject();
+            });
+        }
         return ChunkedToXContent.wrapAsXContentObject(instance);
     }
 
@@ -44,4 +53,8 @@ public abstract class AbstractChunkedSerializingTestCase<T extends ChunkedToXCon
      * Parses to a new instance using the provided {@link XContentParser}
      */
     protected abstract T doParseInstance(XContentParser parser) throws IOException;
+
+    protected boolean isFragment() {
+        return false;
+    }
 }

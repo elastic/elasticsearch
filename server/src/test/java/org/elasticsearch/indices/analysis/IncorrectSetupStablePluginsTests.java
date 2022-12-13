@@ -16,9 +16,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.indices.analysis.lucene.ReplaceCharToNumber;
+import org.elasticsearch.plugin.api.Inject;
 import org.elasticsearch.plugin.api.NamedComponent;
 import org.elasticsearch.plugin.api.settings.AnalysisSettings;
-import org.elasticsearch.plugin.api.settings.InjectSettings;
 import org.elasticsearch.plugins.scanners.NameToPluginInfo;
 import org.elasticsearch.plugins.scanners.NamedComponentReader;
 import org.elasticsearch.plugins.scanners.PluginInfo;
@@ -49,7 +49,7 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
 
     @NamedComponent("incorrectlyAnnotatedSettings")
     public static class IncorrectlyAnnotatedSettingsCharFilter extends AbstractCharFilterFactory {
-        @InjectSettings
+        @Inject
         public IncorrectlyAnnotatedSettingsCharFilter(IncorrectlyAnnotatedSettings settings) {}
     }
 

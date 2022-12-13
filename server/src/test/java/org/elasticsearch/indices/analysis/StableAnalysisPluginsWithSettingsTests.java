@@ -23,12 +23,12 @@ import org.elasticsearch.indices.analysis.lucene.ReplaceCharToNumber;
 import org.elasticsearch.indices.analysis.lucene.SkipTokenFilter;
 import org.elasticsearch.indices.analysis.lucene.TestTokenizer;
 import org.elasticsearch.plugin.analysis.api.AnalysisMode;
+import org.elasticsearch.plugin.api.Inject;
 import org.elasticsearch.plugin.api.NamedComponent;
 import org.elasticsearch.plugin.api.settings.AnalysisSettings;
 import org.elasticsearch.plugin.api.settings.BooleanSetting;
-import org.elasticsearch.plugin.api.settings.InjectSettings;
 import org.elasticsearch.plugin.api.settings.IntSetting;
-import org.elasticsearch.plugin.api.settings.ListOfStringsSetting;
+import org.elasticsearch.plugin.api.settings.ListSetting;
 import org.elasticsearch.plugin.api.settings.LongSetting;
 import org.elasticsearch.plugin.api.settings.StringSetting;
 import org.elasticsearch.plugins.scanners.NameToPluginInfo;
@@ -41,7 +41,6 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -186,8 +185,8 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
         @LongSetting(path = "token_filter_number", defaultValue = 0L)
         long tokenFilterNumber();
 
-        @ListOfStringsSetting(path = "tokenizer_list_of_chars")
-        List<String> tokenizerListOfChars();
+        @ListSetting(path = "tokenizer_list_of_chars")
+        java.util.List<String> tokenizerListOfChars();
 
         @BooleanSetting(path = "analyzerUseTokenListOfChars", defaultValue = false)
         boolean analyzerUseTokenListOfChars();
@@ -198,7 +197,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
         private final TestAnalysisSettings settings;
 
-        @InjectSettings
+        @Inject
         public TestAnalyzerFactory(TestAnalysisSettings settings) {
             this.settings = settings;
         }
@@ -234,7 +233,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
         private final String oldChar;
         private final int newNumber;
 
-        @InjectSettings
+        @Inject
         public TestCharFilterFactory(TestAnalysisSettings settings) {
             oldChar = settings.oldChar();
             newNumber = settings.newNumber();
@@ -257,7 +256,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
         private final long tokenFilterNumber;
 
-        @InjectSettings
+        @Inject
         public TestTokenFilterFactory(TestAnalysisSettings settings) {
             this.tokenFilterNumber = settings.tokenFilterNumber();
         }
@@ -281,9 +280,9 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
     @NamedComponent("stableTokenizerFactory")
     public static class TestTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
-        private final List<String> tokenizerListOfChars;
+        private final java.util.List<String> tokenizerListOfChars;
 
-        @InjectSettings
+        @Inject
         public TestTokenizerFactory(TestAnalysisSettings settings) {
             this.tokenizerListOfChars = settings.tokenizerListOfChars();
         }

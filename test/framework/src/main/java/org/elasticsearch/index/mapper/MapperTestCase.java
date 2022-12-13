@@ -388,8 +388,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMinimalWarnings();
     }
 
-    // TODO make this final once we remove FieldMapperTestCase2
-    public void testMinimalToMaximal() throws IOException {
+    public final void testMinimalToMaximal() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();
         createMapperService(fieldMapping(this::minimalMapping)).documentMapper().mapping().toXContent(orig, INCLUDE_DEFAULTS);
         orig.endObject();
@@ -1094,7 +1093,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     LeafStoredFieldLoader storedLeaf = storedFieldLoader.getLoader(leaf, docIds);
                     for (int docId : docIds) {
                         storedLeaf.advanceTo(docId);
-                        assertThat("doc " + docId, sourceLoaderLeaf.source(storedLeaf, docId).utf8ToString(), equalTo(expected[i++]));
+                        String source = sourceLoaderLeaf.source(storedLeaf, docId).internalSourceRef().utf8ToString();
+                        assertThat("doc " + docId, source, equalTo(expected[i++]));
                     }
                 }
             }

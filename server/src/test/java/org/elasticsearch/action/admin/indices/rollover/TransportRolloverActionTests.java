@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -353,7 +354,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockThreadPool,
             mockCreateIndexService,
             mdIndexAliasesService,
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            WriteLoadForecaster.DEFAULT
         );
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mockTransportService,

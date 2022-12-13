@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.tasks.TaskId;
@@ -20,6 +23,7 @@ import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
+import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
@@ -125,5 +129,18 @@ public final class EqlTestUtils {
             sortValueFormats[i] = DocValueFormat.RAW;
         }
         return new SearchSortValues(values, sortValueFormats);
+    }
+
+    public static BreakerSettings circuitBreakerSettings(Settings settings) {
+        return BreakerSettings.updateFromSettings(
+            new BreakerSettings(
+                EqlPlugin.CIRCUIT_BREAKER_NAME,
+                EqlPlugin.CIRCUIT_BREAKER_LIMIT,
+                EqlPlugin.CIRCUIT_BREAKER_OVERHEAD,
+                CircuitBreaker.Type.MEMORY,
+                CircuitBreaker.Durability.TRANSIENT
+            ),
+            settings
+        );
     }
 }

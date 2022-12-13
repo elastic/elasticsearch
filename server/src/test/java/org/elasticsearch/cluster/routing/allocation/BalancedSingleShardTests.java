@@ -221,7 +221,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         allocator.allocate(routingAllocation);
         ShardRouting shardToRebalance = null;
         for (RoutingNode routingNode : routingAllocation.routingNodes()) {
-            List<ShardRouting> relocatingShards = routingNode.shardsWithState(ShardRoutingState.RELOCATING);
+            List<ShardRouting> relocatingShards = routingNode.shardsWithState(ShardRoutingState.RELOCATING).toList();
             if (relocatingShards.size() > 0) {
                 shardToRebalance = randomFrom(relocatingShards);
                 break;
@@ -276,7 +276,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             if (node.numberOfShardsWithState(ShardRoutingState.STARTED) == 2) {
                 nodesWithTwoShards.add(node.nodeId());
                 if (shardToRebalance == null) {
-                    shardToRebalance = node.shardsWithState(ShardRoutingState.STARTED).get(0);
+                    shardToRebalance = node.shardsWithState(ShardRoutingState.STARTED).findFirst().get();
                 }
             } else {
                 assertEquals(3, node.numberOfShardsWithState(ShardRoutingState.STARTED));
@@ -298,6 +298,10 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
                 assertTrue(nodesWithTwoShards.contains(result.getNode().getId()));
             }
         }
+
+        assertCriticalWarnings("""
+            ignoring value [0.01] for [cluster.routing.allocation.balance.threshold] since it is smaller than 1.0; setting \
+            [cluster.routing.allocation.balance.threshold] to a value smaller than 1.0 will be forbidden in a future release""");
     }
 
     private MoveDecision executeRebalanceFor(

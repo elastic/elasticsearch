@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.util.Collections;
 import static org.elasticsearch.cluster.metadata.DesiredNodesSerializationTests.mutateDesiredNodes;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 
-public class DesiredNodesMetadataSerializationTests extends SimpleDiffableSerializationTestCase<Metadata.Custom> {
+public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
     @Override
     protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
         if (randomBoolean()) {
@@ -64,5 +64,10 @@ public class DesiredNodesMetadataSerializationTests extends SimpleDiffableSerial
 
     private DesiredNodesMetadata mutate(DesiredNodesMetadata base) {
         return new DesiredNodesMetadata(mutateDesiredNodes(base.getLatestDesiredNodes()));
+    }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
     }
 }

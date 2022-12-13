@@ -28,12 +28,12 @@ public abstract class EqlSpecTestCase extends BaseEqlSpecTestCase {
     }
 
     // constructor for "local" rest tests
-    public EqlSpecTestCase(String query, String name, long[] eventIds, String[] joinKeys) {
-        this(TEST_INDEX, query, name, eventIds, joinKeys);
+    public EqlSpecTestCase(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
+        this(TEST_INDEX, query, name, eventIds, joinKeys, size);
     }
 
     // constructor for multi-cluster tests
-    public EqlSpecTestCase(String index, String query, String name, long[] eventIds, String[] joinKeys) {
-        super(index, query, name, eventIds, joinKeys);
+    public EqlSpecTestCase(String index, String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
+        super(index, query, name, eventIds, joinKeys, size);
     }
 }

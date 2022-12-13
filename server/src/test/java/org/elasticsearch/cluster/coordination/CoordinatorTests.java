@@ -44,11 +44,13 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -117,7 +119,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89860")
     public void testDoesNotElectNonMasterNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
             cluster.runRandomly();
@@ -567,7 +568,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90158")
     public void testUnhealthyLeaderIsReplaced() {
         final AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(HEALTHY, "healthy-info"));
         final int initialClusterSize = between(1, 3);
@@ -1180,10 +1180,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                builder.endObject();
-                return builder;
+            public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+                return Collections.emptyIterator();
             }
 
             @Override
@@ -1636,6 +1634,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         reason = "test includes assertions about JoinHelper logging",
         value = "org.elasticsearch.cluster.coordination.JoinHelper:INFO"
     )
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91837")
     public void testCannotJoinClusterWithDifferentUUID() throws IllegalAccessException {
         try (Cluster cluster1 = new Cluster(randomIntBetween(1, 3))) {
             cluster1.runRandomly();
@@ -1979,8 +1978,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Collections.emptyIterator();
         }
 
     }

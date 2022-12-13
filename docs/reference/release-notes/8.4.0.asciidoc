@@ -8,14 +8,14 @@ Also see <<breaking-changes-8.4,Breaking changes in 8.4>>.
 === Known issues
 
 // tag::ml-pre-7-datafeeds-known-issue[]
-* {ml-cap} {dfeeds} cannot be listed if any are untouched since version 6.x
+* {ml-cap} {dfeeds} cannot be listed if any are not modified since version 6.x
 +
 If you have a {dfeed} that was created in version 5.x or 6.x and has not
-been updated since 7.0 it is not possible to list {dfeeds} in versions
-8.4 and 8.5. This issue means that {anomaly-jobs} cannot be managed using
-{kib}. This problem is fixed in version 8.6.
+been updated since 7.0, it is not possible to list {dfeeds} in 
+8.4 and 8.5. This means that {anomaly-jobs} cannot be managed using
+{kib}. This issue is fixed in 8.6.
 +
-If you upgrade to version 8.4 or 8.5 with such a {dfeed} you will need to
+If you upgrade to 8.4 or 8.5 with such a {dfeed}, you need to
 work around the problem by updating each {dfeed}'s authorization information
 using https://support.elastic.dev/knowledge/view/b5a879db[these steps].
 // end::ml-pre-7-datafeeds-known-issue[]

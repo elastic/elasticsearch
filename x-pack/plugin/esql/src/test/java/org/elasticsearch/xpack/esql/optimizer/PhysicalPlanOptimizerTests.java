@@ -227,7 +227,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/403")
     public void testExtractorMultiEvalWithSameName() {
         var plan = physicalPlan("""
             from test

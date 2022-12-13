@@ -8,8 +8,6 @@
 
 Stops a trained model deployment.
 
-beta::[]
-
 [[stop-trained-model-deployment-request]]
 == {api-request-title}
 

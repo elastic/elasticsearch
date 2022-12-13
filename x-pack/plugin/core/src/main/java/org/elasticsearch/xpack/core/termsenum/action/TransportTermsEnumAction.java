@@ -715,20 +715,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
         for (ShardId shardId : request.shardIds().toArray(new ShardId[0])) {
-            if (canAccess(shardId, request, frozenLicenseState, threadContext) == false) {
-                listener.onResponse(
-                    new NodeTermsEnumResponse(
-                        request.nodeId(),
-                        Collections.emptyList(),
-                        "cannot execute [_terms_enum] request on index ["
-                            + shardId.getIndexName()
-                            + "] due to "
-                            + "DLS/FLS security restrictions.",
-                        false
-                    )
-                );
-            }
-            if (canMatchShard(shardId, request) == false) {
+            if (canAccess(shardId, request, frozenLicenseState, threadContext) == false || canMatchShard(shardId, request) == false) {
                 // Permission denied or can't match, remove shardID from request
                 request.remove(shardId);
             }

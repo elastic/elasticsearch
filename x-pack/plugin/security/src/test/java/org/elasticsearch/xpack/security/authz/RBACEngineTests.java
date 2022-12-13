@@ -18,7 +18,6 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -1792,17 +1791,18 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(actual, equalTo(RoleDescriptorsIntersection.EMPTY));
     }
 
-    public void testChildSearchActionIsAuthorizedWithParentAuthorization() {
+    public void testChildSearchActionAuthorizationIsSkipped() {
         final String[] indices = { "test-index" };
         final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
 
-        final String action = SearchTransportService.QUERY_ACTION_NAME;
+        final String action = randomFrom(PreAuthorizationUtil.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
         final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
 
         authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
             @Override
             public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
                 assertTrue(indexAuthorizationResult.isGranted());
+                // Child authorization should be skipped since we passed parent authorization.
                 Mockito.verify(role, never()).checkIndicesAction(action);
                 Mockito.verify(role, never()).authorize(eq(action), any(), any(), any());
             }
@@ -1814,16 +1814,18 @@ public class RBACEngineTests extends ESTestCase {
         });
     }
 
-    public void testChildSearchActionIsAuthorizedWithoutParentAuthorization() {
+    public void testChildSearchActionIsAuthorizedWithoutSkipping() {
         final String[] indices = { "test-index" };
         final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
 
-        final String action = SearchTransportService.QUERY_ACTION_NAME;
+        final String action = randomFrom(PreAuthorizationUtil.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
         final ParentActionAuthorization parentAuthorization = null;
+
         authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
             @Override
             public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
                 assertTrue(indexAuthorizationResult.isGranted());
+                // Child action should have been authorized normally since we did not pass parent authorization
                 Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any());
             }
 
@@ -1834,12 +1836,47 @@ public class RBACEngineTests extends ESTestCase {
         });
     }
 
-    public void testRandomSearchActionIsAuthorizedWithoutUsingParentAuthorization() {
+    public void testChildSearchActionAuthorizationIsNotSkippedWhenRoleHasDLS() {
+        final String[] indices = { "test-index" };
+        final BytesArray query = new BytesArray("""
+            {"term":{"foo":bar}}""");
+        final Role role = Mockito.spy(
+            Role.builder(RESTRICTED_INDICES, "test-role")
+                .add(
+                    new FieldPermissions(new FieldPermissionsDefinition(new String[] { "foo" }, new String[0])),
+                    Set.of(query),
+                    IndexPrivilege.READ,
+                    randomBoolean(),
+                    indices
+                )
+                .build()
+        );
+
+        final String action = randomFrom(PreAuthorizationUtil.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
+        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
+
+        authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
+            @Override
+            public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
+                assertTrue(indexAuthorizationResult.isGranted());
+                // Child action authorization should not be skipped, even though the parent authorization was present
+                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        });
+    }
+
+    public void testRandomChildSearchActionAuthorizionIsNotSkipped() {
         final String[] indices = { "test-index" };
         final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
 
         final String action = SearchAction.NAME + "[" + randomAlphaOfLength(3) + "]";
         final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
+
         authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
             @Override
             public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {

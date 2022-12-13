@@ -1,0 +1,66 @@
+---
+setup:
+  - skip:
+      version: " - 8.5.99"
+      reason: "API added in in 8.6.0"
+
+---
+"Test get desired balance for multiple shards and replicas":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { stats.computation_submitted: 0 }
+  - gte: { stats.computation_executed: 0 }
+  - gte: { stats.computation_converged: 0 }
+  - gte: { stats.computation_iterations: 0 }
+  - gte: { stats.computation_converged_index: 0 }
+  - gte: { stats.computation_time_in_millis: 0 }
+  - gte: { stats.reconciliation_time_in_millis: 0 }
+
+  # Can't match node ids and desired node status for replicas since we don't know
+  # whether the test is run on a single or multi-node cluster. Also can't match the status
+  # because we can't control the ordering of replicas and primaries in the output
+
+  - match: { routing_table.test.0.current.0.state: STARTED }
+  - match: { routing_table.test.0.current.0.shard_id: 0 }
+  - match: { routing_table.test.0.current.0.index: test }
+  - is_false: 'routing_table.test.0.current.0.relocating_node'
+  - is_false: 'routing_table.test.0.current.0.relocating_node_is_desired'
+  - match: { routing_table.test.0.current.1.state: STARTED }
+  - match: { routing_table.test.0.current.1.shard_id: 0 }
+  - match: { routing_table.test.0.current.1.index: test }
+  - is_false: 'routing_table.test.0.current.1.relocating_node'
+  - is_false: 'routing_table.test.0.current.1.relocating_node_is_desired'
+  - match: { routing_table.test.0.desired.total: 2 }
+  - gte: { routing_table.test.0.desired.unassigned: 0 }
+  - gte: { routing_table.test.0.desired.ignored: 0 }
+  - is_true: 'routing_table.test.0.desired.node_ids'
+
+  - match: { routing_table.test.1.current.0.state: STARTED }
+  - match: { routing_table.test.1.current.0.shard_id: 1 }
+  - match: { routing_table.test.1.current.0.index: test }
+  - is_false: 'routing_table.test.1.current.0.relocating_node'
+  - is_false: 'routing_table.test.1.current.0.relocating_node_is_desired'
+  - match: { routing_table.test.1.current.1.state: STARTED }
+  - match: { routing_table.test.1.current.1.shard_id: 1 }
+  - match: { routing_table.test.1.current.1.index: test }
+  - is_false: 'routing_table.test.1.current.1.relocating_node'
+  - is_false: 'routing_table.test.1.current.1.relocating_node_is_desired'
+  - match: { routing_table.test.1.desired.total: 2 }
+  - gte: { routing_table.test.1.desired.unassigned: 0 }
+  - gte: { routing_table.test.1.desired.ignored: 0 }
+  - is_true: 'routing_table.test.1.desired.node_ids'
+

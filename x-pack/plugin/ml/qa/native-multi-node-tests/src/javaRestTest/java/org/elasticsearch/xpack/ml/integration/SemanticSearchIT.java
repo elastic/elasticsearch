@@ -226,7 +226,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
             request.setJsonEntity(String.format(Locale.ROOT, """
                 {
                   "model_id": "%s",
-                  "query_string": "my words",
+                  "model_text": "my words",
                   "knn": {
                       "field": "embedding",
                       "k": 3,
@@ -251,7 +251,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
             request.setJsonEntity(String.format(Locale.ROOT, """
                 {
                   "model_id": "%s",
-                  "query_string": "my words",
+                  "model_text": "my words",
                   "knn": {
                       "field": "embedding",
                       "k": 3,

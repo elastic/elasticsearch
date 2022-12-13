@@ -10,6 +10,8 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -20,6 +22,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
@@ -32,6 +35,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -43,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.Random;
 import java.util.Set;
 
@@ -63,6 +68,19 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             assert shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
                 : "Expecting a recovery source of type [SNAPSHOT] but got [" + shardRouting.recoverySource().getType() + ']';
             throw new UnsupportedOperationException();
+        }
+    };
+
+    public static final WriteLoadForecaster TEST_WRITE_LOAD_FORECASTER = new WriteLoadForecaster() {
+        @Override
+        public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+            throw new AssertionError("Not required for testing");
+        }
+
+        @Override
+        @SuppressForbidden(reason = "tests do not need a license to access the write load")
+        public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
+            return indexMetadata.getForecastedWriteLoad();
         }
     };
 
@@ -98,7 +116,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
-        return new DesiredBalanceShardsAllocator(new BalancedShardsAllocator(settings), queue.getThreadPool(), null, null) {
+        return new DesiredBalanceShardsAllocator(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new BalancedShardsAllocator(settings),
+            queue.getThreadPool(),
+            null,
+            null
+        ) {
             private RoutingAllocation lastAllocation;
 
             @Override
@@ -258,7 +283,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterState clusterState,
         RoutingNode routingNode
     ) {
-        return startShardsAndReroute(allocationService, clusterState, routingNode.shardsWithState(INITIALIZING));
+        return startShardsAndReroute(allocationService, clusterState, routingNode.shardsWithState(INITIALIZING).toList());
     }
 
     /**

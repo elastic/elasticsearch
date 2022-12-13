@@ -503,7 +503,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 retentionLeaseSyncer,
                 breakerService,
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-                relativeTimeSupplier
+                relativeTimeSupplier,
+                null
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
@@ -1051,7 +1052,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     null,
                     snapshotStatus,
                     Version.CURRENT,
-                    Collections.emptyMap(),
                     randomMillisUpToYear9999(),
                     future
                 )

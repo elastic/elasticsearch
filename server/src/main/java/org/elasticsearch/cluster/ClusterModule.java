@@ -25,10 +25,10 @@ import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
-import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
@@ -122,7 +122,7 @@ public class ClusterModule extends AbstractModule {
         SnapshotsInfoService snapshotsInfoService,
         ThreadPool threadPool,
         SystemIndices systemIndices,
-        Supplier<RerouteService> rerouteServiceSupplier
+        WriteLoadForecaster writeLoadForecaster
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
@@ -133,7 +133,8 @@ public class ClusterModule extends AbstractModule {
             threadPool,
             clusterPlugins,
             clusterService,
-            this::reconcile
+            this::reconcile,
+            writeLoadForecaster
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
@@ -344,14 +345,17 @@ public class ClusterModule extends AbstractModule {
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
         ClusterService clusterService,
-        DesiredBalanceReconcilerAction reconciler
+        DesiredBalanceReconcilerAction reconciler,
+        WriteLoadForecaster writeLoadForecaster
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
-        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings));
+        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings, writeLoadForecaster));
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
-                new BalancedShardsAllocator(settings, clusterSettings),
+                settings,
+                clusterSettings,
+                new BalancedShardsAllocator(settings, clusterSettings, writeLoadForecaster),
                 threadPool,
                 clusterService,
                 reconciler

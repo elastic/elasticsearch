@@ -249,7 +249,7 @@ public class MetadataIndexStateService {
                                     if (shardsAcknowledged == false) {
                                         logger.debug(
                                             () -> format(
-                                                "[{}] indices closed, but the operation timed out while "
+                                                "[%s] indices closed, but the operation timed out while "
                                                     + "waiting for enough shards to be started.",
                                                 Arrays.toString(waitForIndices)
                                             )
@@ -916,7 +916,7 @@ public class MetadataIndexStateService {
                         if (shardsAcknowledged == false) {
                             logger.debug(
                                 () -> format(
-                                    "[{}] indices opened, but the operation timed out while waiting for enough shards to be started.",
+                                    "[%s] indices opened, but the operation timed out while waiting for enough shards to be started.",
                                     Arrays.toString(indexNames)
                                 )
                             );

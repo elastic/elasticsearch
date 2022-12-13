@@ -484,10 +484,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
         final Executor executor = prewarmExecutor();
 
-        final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(ActionListener.wrap(voids -> {
-            recoveryState.setPreWarmComplete();
-            listener.onResponse(null);
-        }, listener::onFailure), snapshot().totalFileCount());
+        final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(
+            snapshot().totalFileCount(),
+            ActionListener.wrap(voids -> {
+                recoveryState.setPreWarmComplete();
+                listener.onResponse(null);
+            }, listener::onFailure)
+        );
 
         for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
             boolean hashEqualsContents = file.metadata().hashEqualsContents();
@@ -517,7 +520,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     IOUtils.closeWhileHandlingException(input);
                 });
 
-                final GroupedActionListener<Void> partsListener = new GroupedActionListener<>(fileCompletionListener, numberOfParts);
+                final GroupedActionListener<Void> partsListener = new GroupedActionListener<>(numberOfParts, fileCompletionListener);
                 submitted = true;
                 for (int p = 0; p < numberOfParts; p++) {
                     final int part = p;

@@ -116,8 +116,8 @@ public class SystemIndexManager implements ClusterStateListener {
                 // Use a GroupedActionListener so that we only release the lock once all upgrade attempts have succeeded or failed.
                 // The failures are logged in upgradeIndexMetadata(), so we don't actually care about them here.
                 ActionListener<AcknowledgedResponse> listener = new GroupedActionListener<>(
-                    ActionListener.wrap(() -> isUpgradeInProgress.set(false)),
-                    descriptors.size()
+                    descriptors.size(),
+                    ActionListener.wrap(() -> isUpgradeInProgress.set(false))
                 );
 
                 descriptors.forEach(descriptor -> upgradeIndexMetadata(descriptor, listener));

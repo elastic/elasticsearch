@@ -694,24 +694,35 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .indices(".ml-annotations*", ".ml-notifications*")
                     .privileges("read", "write")
                     .build(),
+
                 // APM agent configuration - system index defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".apm-agent-configuration")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
+
                 // APM custom link index creation - system index defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".apm-custom-link")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
+
+                // APM source map index creation - system index defined in KibanaPlugin
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".apm-source-map")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+
                 // APM telemetry queries APM indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("apm-*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm.*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-apm.*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm.*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm-*").privileges("read", "read_cross_cluster").build(),
+
                 // Data telemetry reads mappings, metadata and stats of indices
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry

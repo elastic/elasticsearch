@@ -17,10 +17,9 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.util.ArrayList;
+import java.lang.invoke.StringConcatFactory;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -163,51 +162,29 @@ public final class WriterConstants {
         false
     );
 
-    /** dynamic invokedynamic bootstrap for indy string concats (Java 9+) */
-    public static final Handle INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
-    static {
-        Handle bs;
-        try {
-            final Class<?> factory = Class.forName("java.lang.invoke.StringConcatFactory");
-            final String methodName = "makeConcat";
-            final MethodType type = MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class);
-            // ensure it is there:
-            MethodHandles.publicLookup().findStatic(factory, methodName, type);
-            bs = new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(factory), methodName, type.toMethodDescriptorString(), false);
-        } catch (ReflectiveOperationException e) {
-            // not Java 9 - we set it null, so MethodWriter uses StringBuilder:
-            bs = null;
-        }
-        INDY_STRING_CONCAT_BOOTSTRAP_HANDLE = bs;
-    }
+    public static final MethodType MAKE_CONCAT_TYPE = MethodType.methodType(
+        CallSite.class,
+        MethodHandles.Lookup.class,
+        String.class,
+        MethodType.class
+    );
+    public static final Handle STRING_CONCAT_BOOTSTRAP_HANDLE = new Handle(
+        Opcodes.H_INVOKESTATIC,
+        Type.getInternalName(StringConcatFactory.class),
+        "makeConcat",
+        MAKE_CONCAT_TYPE.toMethodDescriptorString(),
+        false
+    );
 
-    public static final int MAX_INDY_STRING_CONCAT_ARGS = 200;
+    public static final int MAX_STRING_CONCAT_ARGS = 200;
 
     public static final Type STRING_TYPE = Type.getType(String.class);
-    public static final Type STRINGBUILDER_TYPE = Type.getType(StringBuilder.class);
-
-    public static final Method STRINGBUILDER_CONSTRUCTOR = getAsmMethod(void.class, CTOR_METHOD_NAME);
-    public static final Method STRINGBUILDER_APPEND_BOOLEAN = getAsmMethod(StringBuilder.class, "append", boolean.class);
-    public static final Method STRINGBUILDER_APPEND_CHAR = getAsmMethod(StringBuilder.class, "append", char.class);
-    public static final Method STRINGBUILDER_APPEND_INT = getAsmMethod(StringBuilder.class, "append", int.class);
-    public static final Method STRINGBUILDER_APPEND_LONG = getAsmMethod(StringBuilder.class, "append", long.class);
-    public static final Method STRINGBUILDER_APPEND_FLOAT = getAsmMethod(StringBuilder.class, "append", float.class);
-    public static final Method STRINGBUILDER_APPEND_DOUBLE = getAsmMethod(StringBuilder.class, "append", double.class);
-    public static final Method STRINGBUILDER_APPEND_STRING = getAsmMethod(StringBuilder.class, "append", String.class);
-    public static final Method STRINGBUILDER_APPEND_OBJECT = getAsmMethod(StringBuilder.class, "append", Object.class);
-    public static final Method STRINGBUILDER_TOSTRING = getAsmMethod(String.class, "toString");
 
     public static final Type OBJECTS_TYPE = Type.getType(Objects.class);
     public static final Method EQUALS = getAsmMethod(boolean.class, "equals", Object.class, Object.class);
 
     public static final Type COLLECTION_TYPE = Type.getType(Collection.class);
     public static final Method COLLECTION_SIZE = getAsmMethod(int.class, "size");
-
-    public static final Type LIST_TYPE = Type.getType(List.class);
-    public static final Method LIST_ADD = getAsmMethod(boolean.class, "add", Object.class);
-
-    public static final Type ARRAY_LIST_TYPE = Type.getType(ArrayList.class);
-    public static final Method ARRAY_LIST_CTOR_WITH_SIZE = getAsmMethod(void.class, CTOR_METHOD_NAME, int.class);
 
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

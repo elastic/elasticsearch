@@ -1,5 +1,5 @@
 # Additional nouns
-c++
+c#
 C샤프
 세종
 세종시 세종 시

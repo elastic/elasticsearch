@@ -358,40 +358,20 @@ public final class XTessellator {
         final double my = connection.getY();
         double tanMin = Double.POSITIVE_INFINITY;
         double tan;
-        p = connection.next;
-        {
-            while (p != stop) {
-                if (hx >= p.getX()
-                    && p.getX() >= mx
-                    && hx != p.getX()
-                    && pointInEar(p.getX(), p.getY(), hy < my ? hx : qx, hy, mx, my, hy < my ? qx : hx, hy)) {
-                    tan = Math.abs(hy - p.getY()) / (hx - p.getX()); // tangential
-                    if (isVertexEquals(p, connection) && isLocallyInside(p, holeNode)) {
-                        // make sure we are not crossing the polygon. This might happen when several holes have a bridge to the same polygon
-                        // vertex
-                        // and this vertex has different vertex.
-                        boolean crosses = GeoUtils.lineCrossesLine(
-                            p.getX(),
-                            p.getY(),
-                            holeNode.getX(),
-                            holeNode.getY(),
-                            connection.next.getX(),
-                            connection.next.getY(),
-                            connection.previous.getX(),
-                            connection.previous.getY()
-                        );
-                        if (crosses == false) {
-                            connection = p;
-                            tanMin = tan;
-                        }
-                    } else if ((tan < tanMin || (tan == tanMin && p.getX() > connection.getX())) && isLocallyInside(p, holeNode)) {
-                        connection = p;
-                        tanMin = tan;
-                    }
+        p = connection;
+        do {
+            if (hx >= p.getX()
+                && p.getX() >= mx
+                && hx != p.getX()
+                && pointInEar(p.getX(), p.getY(), hy < my ? hx : qx, hy, mx, my, hy < my ? qx : hx, hy)) {
+                tan = Math.abs(hy - p.getY()) / (hx - p.getX()); // tangential
+                if ((tan < tanMin || (tan == tanMin && p.getX() > connection.getX())) && isLocallyInside(p, holeNode)) {
+                    connection = p;
+                    tanMin = tan;
                 }
-                p = p.next;
             }
-        }
+            p = p.next;
+        } while (p != stop);
         return connection;
     }
 

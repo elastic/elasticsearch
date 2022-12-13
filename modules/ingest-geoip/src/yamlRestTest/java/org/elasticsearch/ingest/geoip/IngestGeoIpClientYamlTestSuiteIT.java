@@ -11,11 +11,17 @@ package org.elasticsearch.ingest.geoip;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -36,6 +42,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
 
     @Before
     public void waitForDatabases() throws Exception {
+        putGeoipPipeline();
         assertBusy(() -> {
             Request request = new Request("GET", "/_ingest/geoip/stats");
             Map<String, Object> response = entityAsMap(client().performRequest(request));
@@ -51,6 +58,39 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
                 .collect(Collectors.toList());
             assertThat(databases, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb"));
         });
+    }
+
+    /**
+     * This creates a pipeline with a geoip processor so that the GeoipDownloader will download its databases.
+     * @throws IOException
+     */
+    private void putGeoipPipeline() throws IOException {
+        final BytesReference bytes;
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            {
+                builder.startArray("processors");
+                {
+                    builder.startObject();
+                    {
+                        builder.startObject("geoip");
+                        {
+                            builder.field("field", "ip");
+                            builder.field("target_field", "ip-city");
+                            builder.field("database_file", "GeoLite2-City.mmdb");
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+            bytes = BytesReference.bytes(builder);
+        }
+        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/pipeline-with-geoip");
+        putPipelineRequest.setEntity(new ByteArrayEntity(bytes.array(), ContentType.APPLICATION_JSON));
+        client().performRequest(putPipelineRequest);
     }
 
 }

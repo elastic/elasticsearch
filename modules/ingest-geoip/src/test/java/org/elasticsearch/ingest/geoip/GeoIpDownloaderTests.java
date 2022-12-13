@@ -459,6 +459,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
         };
         geoIpDownloader.updateDatabases();
+        assertTrue(it.hasNext());
+        geoIpDownloader.atLeastOneGeoipProcessor = true;
+        geoIpDownloader.updateDatabases();
         assertFalse(it.hasNext());
     }
 

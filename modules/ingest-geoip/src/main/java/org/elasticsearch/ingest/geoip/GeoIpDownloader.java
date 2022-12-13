@@ -102,9 +102,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
     /*
      * This variable tells us whether we have at least one pipeline with a geoip processor. If there are no geoip processors then we do
      * not download geoip databases. Access is not protected because it is set in the constructor and then only ever updated on the cluster
-     * state update thread (it is also read on the generic thread).
+     * state update thread (it is also read on the generic thread). Non-private for unit testing.
      */
-    private volatile boolean atLeastOneGeoipProcessor;
+    volatile boolean atLeastOneGeoipProcessor;
 
     GeoIpDownloader(
         Client client,

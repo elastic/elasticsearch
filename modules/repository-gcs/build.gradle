@@ -26,9 +26,9 @@ esplugin {
 }
 
 dependencies {
-  api 'com.google.cloud:google-cloud-storage:1.118.1'
-  api 'com.google.cloud:google-cloud-core:2.0.2'
-  api 'com.google.cloud:google-cloud-core-http:2.0.2'
+  api 'com.google.cloud:google-cloud-storage:2.8.1'
+  api 'com.google.cloud:google-cloud-core:2.8.28'
+  api 'com.google.cloud:google-cloud-core-http:2.8.28'
   runtimeOnly 'com.google.guava:guava:30.1.1-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   api "commons-logging:commons-logging:${versions.commonslogging}"

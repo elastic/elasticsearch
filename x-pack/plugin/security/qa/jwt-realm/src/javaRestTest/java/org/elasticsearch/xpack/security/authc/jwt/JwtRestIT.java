@@ -505,13 +505,16 @@ public class JwtRestIT extends ESRestTestCase {
     private JWTClaimsSet buildJwtForRealm2(String principal, Instant issueTime) {
         // The "jwt2" realm, supports 3 audiences (es01/02/03)
         final String audience = "es0" + randomIntBetween(1, 3);
-        final Map<String, Object> data = new HashMap<>(Map.of("iss", "my-issuer", "aud", audience, "email", principal));
-        // scope (fallback audience) is ignored since aud exists
+        final Map<String, Object> data = new HashMap<>(Map.of("iss", "my-issuer", "email", principal));
         if (randomBoolean()) {
+            data.put("aud", audience);
+            // scope (fallback audience) is ignored since aud exists
             data.put("scope", randomAlphaOfLength(20));
+        } else {
+            data.put("scope", audience);
         }
 
-        final JWTClaimsSet claimsSet = buildJwt(data, issueTime, false);
+        final JWTClaimsSet claimsSet = buildJwt(data, issueTime, false, false);
         return claimsSet;
     }
 
@@ -571,16 +574,18 @@ public class JwtRestIT extends ESRestTestCase {
 
     // JWT construction
     private JWTClaimsSet buildJwt(Map<String, Object> claims, Instant issueTime) {
-        return buildJwt(claims, issueTime, true);
+        return buildJwt(claims, issueTime, true, true);
     }
 
-    private JWTClaimsSet buildJwt(Map<String, Object> claims, Instant issueTime, boolean includeSub) {
+    private JWTClaimsSet buildJwt(Map<String, Object> claims, Instant issueTime, boolean includeSub, boolean includeAud) {
         final JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder();
         builder.issuer(randomAlphaOfLengthBetween(4, 24));
         if (includeSub) {
             builder.subject(randomAlphaOfLengthBetween(4, 24));
         }
-        builder.audience(randomList(1, 6, () -> randomAlphaOfLengthBetween(4, 12)));
+        if (includeAud) {
+            builder.audience(randomList(1, 6, () -> randomAlphaOfLengthBetween(4, 12)));
+        }
         if (randomBoolean()) {
             builder.jwtID(UUIDs.randomBase64UUID(random()));
         }

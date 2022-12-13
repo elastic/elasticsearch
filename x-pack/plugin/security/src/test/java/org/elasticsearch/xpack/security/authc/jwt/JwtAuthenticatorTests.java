@@ -14,7 +14,6 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -61,7 +60,8 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
             Base64URL.encode("signature")
         );
         final JwtAuthenticationToken jwtAuthenticationToken = mock(JwtAuthenticationToken.class);
-        when(jwtAuthenticationToken.getEndUserSignedJwt()).thenReturn(new SecureString(signedJWT.serialize().toCharArray()));
+        when(jwtAuthenticationToken.getSignedJWT()).thenReturn(signedJWT);
+        when(jwtAuthenticationToken.getJWTClaimsSet()).thenReturn(signedJWT.getJWTClaimsSet());
 
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         jwtAuthenticator.authenticate(jwtAuthenticationToken, future);
@@ -78,7 +78,8 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
             Base64URL.encode("signature")
         );
         final JwtAuthenticationToken jwtAuthenticationToken = mock(JwtAuthenticationToken.class);
-        when(jwtAuthenticationToken.getEndUserSignedJwt()).thenReturn(new SecureString(signedJWT.serialize().toCharArray()));
+        when(jwtAuthenticationToken.getSignedJWT()).thenReturn(signedJWT);
+        when(jwtAuthenticationToken.getJWTClaimsSet()).thenReturn(signedJWT.getJWTClaimsSet());
 
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         jwtAuthenticator.authenticate(jwtAuthenticationToken, future);

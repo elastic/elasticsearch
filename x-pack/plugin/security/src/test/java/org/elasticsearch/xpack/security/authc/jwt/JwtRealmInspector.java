@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
 
@@ -47,6 +48,10 @@ class JwtRealmInspector {
 
     public static boolean shouldPopulateUserMetadata(JwtRealm realm) {
         return realm.getConfig().getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
+    }
+
+    public static String getSubjectClaimName(JwtRealm realm) {
+        return ESTestCase.randomFrom("sub", realm.getJwtAuthenticator().getFallbackClaimNames().getOrDefault("sub", "sub"));
     }
 
     public static String getPrincipalClaimName(JwtRealm realm) {

@@ -65,6 +65,7 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
         }
 
         if (allowedClaimValues != null && false == claimValues.stream().anyMatch(allowedClaimValues::contains)) {
+            System.out.println("claimsSet: " + jwtClaimsSet.getClaims());
             throw new IllegalArgumentException(
                 "string claim ["
                     + fallbackableClaim

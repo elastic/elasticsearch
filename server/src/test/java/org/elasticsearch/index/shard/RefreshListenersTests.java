@@ -153,6 +153,7 @@ public class RefreshListenersTests extends ESTestCase {
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
             System::nanoTime,
+            null,
             null
         );
         engine = new InternalEngine(config);

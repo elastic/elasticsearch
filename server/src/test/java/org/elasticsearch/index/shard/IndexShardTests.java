@@ -4520,7 +4520,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
-                config.getIndexCommitListener()
+                config.getIndexCommitListener(),
+                config.getRecoveryState()
             );
             return new InternalEngine(configWithWarmer);
         });

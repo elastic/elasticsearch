@@ -14,7 +14,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -48,10 +47,10 @@ public class RestInferTrainedModelAction extends BaseRestHandler {
         }
         InferModelAction.Request.Builder request = InferModelAction.Request.parseRequest(modelId, restRequest.contentParser());
 
-        if (restRequest.hasParam(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName())) {
+        if (restRequest.hasParam(InferModelAction.Request.TIMEOUT.getPreferredName())) {
             TimeValue inferTimeout = restRequest.paramAsTime(
-                InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
-                InferTrainedModelDeploymentAction.Request.DEFAULT_TIMEOUT
+                InferModelAction.Request.TIMEOUT.getPreferredName(),
+                InferModelAction.Request.DEFAULT_TIMEOUT
             );
             request.setInferenceTimeout(inferTimeout);
         }

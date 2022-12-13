@@ -11,15 +11,24 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Nullable;
+
+import java.util.BitSet;
 
 /**
  * Block implementation that stores an array of {@link org.apache.lucene.util.BytesRef}.
  */
 public final class BytesRefArrayBlock extends Block {
+
+    private static final BytesRef NULL_VALUE = new BytesRef();
     private final BytesRefArray bytes;
 
     public BytesRefArrayBlock(int positionCount, BytesRefArray bytes) {
-        super(positionCount);
+        this(positionCount, bytes, null);
+    }
+
+    public BytesRefArrayBlock(int positionCount, BytesRefArray bytes, @Nullable BitSet nullsMask) {
+        super(positionCount, nullsMask);
         assert bytes.size() == positionCount : bytes.size() + " != " + positionCount;
         this.bytes = bytes;
     }
@@ -47,9 +56,12 @@ public final class BytesRefArrayBlock extends Block {
         private final int positionCount;
         private final BytesRefArray bytes;
 
+        private final BitSet nullsMask;
+
         public Builder(int positionCount) {
             this.positionCount = positionCount;
             this.bytes = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
+            this.nullsMask = new BitSet(positionCount);
         }
 
         /**
@@ -62,11 +74,25 @@ public final class BytesRefArrayBlock extends Block {
             bytes.append(value);
         }
 
+        public void appendNull() {
+            // Retrieve the size of the BytesRefArray so that we infer the current position
+            // Then use the position to set the bit in the nullsMask
+            int position = (int) bytes.size();
+            nullsMask.set(position);
+            append(NULL_VALUE);
+        }
+
         public BytesRefArrayBlock build() {
             if (bytes.size() != positionCount) {
                 throw new IllegalStateException("Incomplete block; expected " + positionCount + " values; got " + bytes.size());
             }
-            return new BytesRefArrayBlock(positionCount, bytes);
+            // If nullsMask has no bit set, we pass null as the nulls mask, so that mayHaveNull() returns false
+            return new BytesRefArrayBlock(positionCount, bytes, nullsMask.cardinality() > 0 ? nullsMask : null);
+        }
+
+        // Method provided for testing only
+        protected BytesRefArray getBytes() {
+            return bytes;
         }
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.BitSet;
 
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
@@ -88,6 +89,7 @@ public abstract class BlockDocValuesReader {
         public Block readValues(Block docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             final long[] values = new long[positionCount];
+            final BitSet nullsMask = new BitSet(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
@@ -95,13 +97,16 @@ public abstract class BlockDocValuesReader {
                 if (lastDoc >= doc) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
-                if (numericDocValues.advanceExact(doc) == false) {
-                    throw new IllegalStateException("sparse fields not supported for now, could not read doc [" + doc + "]");
+                if (numericDocValues.advanceExact(doc)) {
+                    values[i] = numericDocValues.longValue();
+                } else {
+                    nullsMask.set(i);
+                    values[i] = 0L;
                 }
-                values[i] = numericDocValues.longValue();
                 lastDoc = doc;
             }
-            return new LongArrayBlock(values, positionCount);
+            // If nullsMask has no bit set, we pass null as the nulls mask, so that mayHaveNull() returns false
+            return new LongArrayBlock(values, positionCount, nullsMask.cardinality() > 0 ? nullsMask : null);
         }
 
         @Override
@@ -122,6 +127,7 @@ public abstract class BlockDocValuesReader {
         public Block readValues(Block docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             final double[] values = new double[positionCount];
+            final BitSet nullsMask = new BitSet(positionCount);
             int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
@@ -129,14 +135,17 @@ public abstract class BlockDocValuesReader {
                 if (lastDoc >= doc) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
-                if (numericDocValues.advanceExact(doc) == false) {
-                    throw new IllegalStateException("sparse fields not supported for now, could not read doc [" + doc + "]");
+                if (numericDocValues.advanceExact(doc)) {
+                    values[i] = numericDocValues.doubleValue();
+                } else {
+                    nullsMask.set(i);
+                    values[i] = 0.0d;
                 }
-                values[i] = numericDocValues.doubleValue();
                 lastDoc = doc;
                 this.docID = doc;
             }
-            return new DoubleArrayBlock(values, positionCount);
+            // If nullsMask has no bit set, we pass null as the nulls mask, so that mayHaveNull() returns false
+            return new DoubleArrayBlock(values, positionCount, nullsMask.cardinality() > 0 ? nullsMask : null);
         }
 
         @Override
@@ -164,13 +173,17 @@ public abstract class BlockDocValuesReader {
                 if (lastDoc >= doc) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
-                if (binaryDV.advanceExact(doc) == false) {
-                    throw new IllegalStateException("sparse fields not supported for now, could not read doc [" + doc + "]");
+                if (binaryDV.advanceExact(doc)) {
+                    int dvCount = binaryDV.docValueCount();
+                    if (dvCount != 1) {
+                        throw new IllegalStateException(
+                            "multi-values not supported for now, could not read doc [" + doc + "] with [" + dvCount + "] values"
+                        );
+                    }
+                    builder.append(binaryDV.nextValue());
+                } else {
+                    builder.appendNull();
                 }
-                if (binaryDV.docValueCount() != 1) {
-                    throw new IllegalStateException("multi-values not supported for now, could not read doc [" + doc + "]");
-                }
-                builder.append(binaryDV.nextValue());
                 lastDoc = doc;
                 this.docID = doc;
             }

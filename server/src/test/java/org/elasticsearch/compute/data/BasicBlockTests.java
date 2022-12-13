@@ -166,6 +166,15 @@ public class BasicBlockTests extends ESTestCase {
             expectThrows(UOE, () -> block.getLong(pos));
             expectThrows(UOE, () -> block.getDouble(pos));
         }
+
+        assertNullValues(
+            positionCount,
+            nulls -> new BytesRefArrayBlock(positionCount, builder.getBytes(), nulls),
+            (randomNonNullPosition, b) -> assertThat(
+                values[randomNonNullPosition],
+                is(b.getBytesRef(randomNonNullPosition, new BytesRef()))
+            )
+        );
     }
 
     public void testBytesRefBlockBuilder() {
@@ -191,6 +200,47 @@ public class BasicBlockTests extends ESTestCase {
         }
         BytesRefArrayBlock block = builder.build();
         assertThat(block.getPositionCount(), equalTo(positionCount));
+    }
+
+    public void testBytesRefBlockBuilderWithNulls() {
+        int positionCount = randomIntBetween(0, 16 * 1024);
+        BytesRefArrayBlock.Builder builder = BytesRefArrayBlock.builder(positionCount);
+        BytesRef[] values = new BytesRef[positionCount];
+        for (int i = 0; i < positionCount; i++) {
+            if (randomBoolean()) {
+                // Add random sparseness
+                builder.appendNull();
+                values[i] = null;
+            } else {
+                BytesRef bytesRef = new BytesRef(randomByteArrayOfLength(between(1, 20)));
+                if (bytesRef.length > 0 && randomBoolean()) {
+                    bytesRef.offset = randomIntBetween(0, bytesRef.length - 1);
+                    bytesRef.length = randomIntBetween(0, bytesRef.length - bytesRef.offset);
+                }
+                values[i] = bytesRef;
+                if (randomBoolean()) {
+                    bytesRef = BytesRef.deepCopyOf(bytesRef);
+                }
+                builder.append(bytesRef);
+            }
+        }
+        BytesRefArrayBlock block = builder.build();
+        assertThat(positionCount, is(block.getPositionCount()));
+        BytesRef bytes = new BytesRef();
+        for (int i = 0; i < positionCount; i++) {
+            int pos = randomIntBetween(0, positionCount - 1);
+            bytes = block.getBytesRef(pos, bytes);
+            if (values[pos] == null) {
+                assertThat(block.isNull(pos), equalTo(true));
+                assertThat(bytes, equalTo(new BytesRef()));
+            } else {
+                assertThat(bytes, equalTo(values[pos]));
+                assertThat(block.getObject(pos), equalTo(values[pos]));
+            }
+            expectThrows(UOE, () -> block.getInt(pos));
+            expectThrows(UOE, () -> block.getLong(pos));
+            expectThrows(UOE, () -> block.getDouble(pos));
+        }
     }
 
     public void testConstantBytesRefBlock() {

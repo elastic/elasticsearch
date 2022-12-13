@@ -143,7 +143,7 @@ public class CircuitBreakerTests extends ESTestCase {
             booleanArrayOf(stages, false),
             CIRCUIT_BREAKER
         );
-        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
+        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher, Collections.emptyList());
         window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
 
         CIRCUIT_BREAKER.startBreaking();
@@ -222,7 +222,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 booleanArrayOf(sequenceFiltersCount, false),
                 eqlCircuitBreaker
             );
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
+            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
             window.execute(wrap(p -> {}, ex -> {}));
 
             assertTrue(esClient.searchRequestsRemainingCount() == 0); // ensure all the search requests have been asked for
@@ -259,7 +259,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 booleanArrayOf(sequenceFiltersCount, false),
                 eqlCircuitBreaker
             );
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
+            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
             window.execute(wrap(p -> fail(), ex -> assertTrue(ex instanceof CircuitBreakingException)));
         }
     }

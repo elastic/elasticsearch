@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.eql.session.EmptyPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
@@ -56,6 +58,7 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.addFilter;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
@@ -105,6 +108,7 @@ public class TumblingWindow implements Executable {
     private final int windowSize;
 
     private final boolean hasKeys;
+    private final List<List<Attribute>> listOfKeys;
 
     // flag used for DESC sequences to indicate whether
     // the window needs to restart (since the DESC query still has results)
@@ -126,7 +130,13 @@ public class TumblingWindow implements Executable {
         }
     }
 
-    public TumblingWindow(QueryClient client, List<SequenceCriterion> criteria, SequenceCriterion until, SequenceMatcher matcher) {
+    public TumblingWindow(
+        QueryClient client,
+        List<SequenceCriterion> criteria,
+        SequenceCriterion until,
+        SequenceMatcher matcher,
+        List<List<Attribute>> listOfKeys
+    ) {
         this.client = client;
 
         this.until = until;
@@ -138,6 +148,7 @@ public class TumblingWindow implements Executable {
         this.windowSize = baseRequest.queryRequest().searchSource().size();
         this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
+        this.listOfKeys = listOfKeys;
     }
 
     @Override
@@ -257,7 +268,7 @@ public class TumblingWindow implements Executable {
                 }
             }
             if (discarded == false) {
-                int lastStage = criteria.size() - 1;// TODO double-check
+                int lastStage = criteria.size() - 1;
                 if ((firstTrailing == null && lastLeading == null)
                     || (lastLeading == null && matcher.isMissingEvent(0))
                     || (firstTrailing == null && matcher.isMissingEvent(lastStage))
@@ -307,11 +318,7 @@ public class TumblingWindow implements Executable {
                         range.gte(sequence.matchAt(matcher.previousPositiveStage(i)).ordinal().timestamp());
                         builder.sort(r.timestampField(), SortOrder.ASC);
                     }
-                    for (SequenceCriterion c : criteria) {
-                        if (c.missing() == false) {
-                            addKeyFilter(sequence, builder);
-                        }
-                    }
+                    addKeyFilter(i, sequence, builder);
                     RuntimeUtils.addFilter(range, builder);
                     result.add(RuntimeUtils.prepareRequest(builder.size(1).trackTotalHits(false), false, Strings.EMPTY_ARRAY));
                 } else {
@@ -322,13 +329,19 @@ public class TumblingWindow implements Executable {
         return result;
     }
 
-    private void addKeyFilter(Sequence sequence, SearchSourceBuilder builder) {
-        // TODO
+    private void addKeyFilter(int stage, Sequence sequence, SearchSourceBuilder builder) {
+        List<Attribute> keys = listOfKeys.get(stage);
+        if (keys.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < keys.size(); i++) {
+            Attribute k = keys.get(i);
+            addFilter(new TermQueryBuilder(k.qualifiedName(), sequence.key().asList().get(i)), builder);
+        }
     }
 
     private boolean trailing(int i) {
         return matcher.nextPositiveStage(i - 1) < 0;
-
     }
 
     /*
@@ -698,7 +711,7 @@ public class TumblingWindow implements Executable {
                 until.queryRequest().from(from).nextAfter(from);
             }
             // reset all sub queries
-            for (int i = nextPositiveStage(matcher.firstPositiveStage()); i < maxStages; i++) { // TODO double-check!
+            for (int i = nextPositiveStage(matcher.firstPositiveStage()); i < maxStages; i++) {
                 BoxedQueryRequest subRequest = criteria.get(i).queryRequest();
                 subRequest.from(null);
             }

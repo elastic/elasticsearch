@@ -175,3 +175,164 @@ query = '''
    -[ test4 where tag == "none"]
 '''
 expected_event_ids  = [13, 14, 16, 17]
+
+
+[[queries]]
+name = "multipleMissing7"
+query = '''
+  sequence with maxspan=1s
+   -[ test4 where tag == "none"]
+    [ test4 where tag == "A" ]
+    [ test4 where tag == "B" ]
+    [ test4 where tag == "C" ]
+   -[ test4 where tag == "M2"]
+    [ test4 where tag == "D" ]
+'''
+expected_event_ids  = [13, 14, 16, 17]
+
+
+[[queries]]
+name = "withByKey1"
+query = '''
+  sequence by k1 with maxspan=1s
+    [ test5 where tag == "normal" ]
+    [ test5 where tag == "normal" ]
+   -[ test5 where tag == "missing" ]
+    [ test5 where tag == "normal" ]
+'''
+expected_event_ids  = [2, 4, 5, 4, 5, 6]
+join_keys = ["foo", "foo"]
+
+
+[[queries]]
+name = "withByKey2"
+query = '''
+  sequence with maxspan=1s
+    [ test5 where tag == "normal" ] by k1
+    [ test5 where tag == "normal" ] by k1
+   -[ test5 where tag == "missing" ] by k1
+    [ test5 where tag == "normal" ] by k1
+'''
+expected_event_ids  = [2, 4, 5, 4, 5, 6]
+join_keys = ["foo", "foo"]
+
+
+[[queries]]
+name = "withByKey3"
+query = '''
+  sequence with maxspan=1s
+    [ test5 where tag == "normal" ] by k1
+    [ test5 where tag == "normal" ] by k1
+   -[ test5 where tag == "missing" ] by k2
+    [ test5 where tag == "normal" ] by k1
+'''
+expected_event_ids  = [2, 4, 5, 4, 5, 6, 5, 6, 8, 9, 10, 12]
+join_keys = ["foo", "foo", "foo", "baz"]
+
+
+[[queries]]
+name = "withByKey4"
+query = '''
+  sequence by k2 with maxspan=1s
+    [ test5 where tag == "normal" ]
+    [ test5 where tag == "normal" ]
+   -[ test5 where tag == "missing" ]
+    [ test5 where tag == "normal" ]
+'''
+expected_event_ids  = [2, 4, 5, 4, 5, 6, 5, 6, 8, 9, 10, 12]
+join_keys = ["foo", "foo", "foo", "baz"]
+
+
+
+[[queries]]
+name = "withByKey5"
+query = '''
+  sequence by k1 with maxspan=1s
+    [ test5 where tag == "normal" ] by k2
+    [ test5 where tag == "normal" ] by k2
+   -[ test5 where tag == "missing" ] by k2
+    [ test5 where tag == "normal" ] by k2
+'''
+expected_event_ids  = [2, 4, 5, 4, 5, 6, 5, 6, 8, 9, 10, 12]
+join_keys = ["foo", "foo", "foo", "foo", "foo", "foo", "baz", "baz"]
+
+
+
+[[queries]]
+name = "withByKey6"
+query = '''
+  sequence by k1 with maxspan=1s
+    [ test5 where tag == "normal" ] by k2
+    [ test5 where tag == "normal" ] by k2
+   -[ test5 where tag == "missing" and `sequence` > 10 ] by k2
+    [ test5 where tag == "normal" ] by k2
+'''
+expected_event_ids  = [1, 2, 4, 2, 4, 5, 4, 5, 6, 5, 6, 8, 9, 10, 12]
+join_keys = ["foo", "foo", "foo", "foo", "foo", "foo", "foo", "foo", "baz", "baz"]
+
+
+[[queries]]
+name = "withByKey_tail"
+query = '''
+  sequence by k1 with maxspan=1s
+    [ test5 where tag == "normal" ] by k2
+    [ test5 where tag == "normal" ] by k2
+   -[ test5 where tag == "missing" and `sequence` > 10 ] by k2
+    [ test5 where tag == "normal" ] by k2
+  | tail 2
+'''
+expected_event_ids  = [5, 6, 8, 9, 10, 12]
+join_keys = ["foo", "foo", "baz", "baz"]
+
+
+[[queries]]
+name = "withByKey_head"
+query = '''
+  sequence by k1 with maxspan=1s
+    [ test5 where tag == "normal" ] by k2
+    [ test5 where tag == "normal" ] by k2
+   -[ test5 where tag == "missing" ] by k2
+    [ test5 where tag == "normal" ] by k2
+  | head 2
+'''
+expected_event_ids  = [2, 4, 5, 4, 5, 6]
+join_keys = ["foo", "foo", "foo", "foo"]
+
+
+[[queries]]
+name = "withByKey_tail_head"
+query = '''
+  sequence by k1 with maxspan=1s
+    [ test5 where tag == "normal" ] by k2
+    [ test5 where tag == "normal" ] by k2
+   -[ test5 where tag == "missing" and `sequence` > 10 ] by k2
+    [ test5 where tag == "normal" ] by k2
+  | tail 2 | head 1
+'''
+expected_event_ids  = [5, 6, 8]
+join_keys = ["foo", "foo"]
+
+
+[[queries]]
+name = "withByKey_runs"
+query = '''
+  sequence by k1 with maxspan=1s
+    [ test5 where tag == "normal" ] by k2 with runs=2
+   -[ test5 where tag == "missing" ] by k2
+    [ test5 where tag == "normal" ] by k2
+'''
+expected_event_ids  = [2, 4, 5, 4, 5, 6, 5, 6, 8, 9, 10, 12]
+join_keys = ["foo", "foo", "foo", "foo", "foo", "foo", "baz", "baz"]
+
+
+[[queries]]
+name = "withByKey_runsOnMissing"
+query = '''
+  sequence by k1 with maxspan=1s
+    [ test5 where tag == "normal" ] by k2 with runs=2
+   -[ test5 where tag == "missing" ] by k2 with runs=2
+    [ test5 where tag == "normal" ] by k2
+'''
+expected_event_ids  = [2, 4, 5, 4, 5, 6, 5, 6, 8, 9, 10, 12]
+join_keys = ["foo", "foo", "foo", "foo", "foo", "foo", "baz", "baz"]
+

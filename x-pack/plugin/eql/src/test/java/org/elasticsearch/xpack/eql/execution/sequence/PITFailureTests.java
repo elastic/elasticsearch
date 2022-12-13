@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -128,7 +129,7 @@ public class PITFailureTests extends ESTestCase {
             );
 
             SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, booleanArrayOf(1, false), cb);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
+            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
             window.execute(
                 wrap(
                     p -> { fail("Search succeeded despite PIT failure"); },

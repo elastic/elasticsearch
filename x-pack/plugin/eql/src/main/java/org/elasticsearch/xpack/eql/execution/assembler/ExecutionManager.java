@@ -158,7 +158,8 @@ public class ExecutionManager {
             new PITAwareQueryClient(session),
             criteria.subList(0, completionStage),
             criteria.get(completionStage),
-            matcher
+            matcher,
+            listOfKeys
         );
 
         return w;

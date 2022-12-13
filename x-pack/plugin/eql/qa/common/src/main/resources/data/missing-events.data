@@ -131,7 +131,7 @@
    "sequence": 6
   },
 
- // test4
+ //// test4
   {
    "@timestamp": "1",
    "event_type": "test4",
@@ -257,6 +257,118 @@
    "transID": 1,
    "tag": "M4",
    "sequence": 18
-  }
+  },
 
+   //// test5
+ {
+  "@timestamp": "2022-01-01T00:00:00.000Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "normal",
+  "k1": "foo",
+  "k2": "foo",
+  "other": 1,
+  "sequence": 1
+ },
+ {
+  "@timestamp": "2022-01-01T00:00:00.001Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "normal",
+  "k1": "foo",
+  "k2": "foo",
+  "sequence": 2
+ },
+ {
+  "@timestamp": "2022-01-01T00:00:00.003Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "missing",
+  "k1": "foo",
+  "k2": "foo",
+  "sequence": 3
+ },
+ {
+  "@timestamp": "2022-01-01T00:00:00.004Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "normal",
+  "k1": "foo",
+  "k2": "foo",
+  "sequence": 4
+ },
+ {
+  "@timestamp": "2022-01-01T00:00:00.005Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "normal",
+  "k1": "foo",
+  "k2": "foo",
+  "other": 1,
+  "sequence": 5
+ },
+ {
+  "@timestamp": "2022-01-01T00:00:00.006Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "normal",
+  "k1": "foo",
+  "k2": "foo",
+  "sequence": 6
+ },
+ {
+  "@timestamp": "2022-01-01T00:00:00.007Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "missing",
+  "k1": "foo",
+  "k2": "bar",
+  "sequence": 7
+ },
+ {
+  "@timestamp": "2022-01-01T00:00:00.008Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "normal",
+  "k1": "foo",
+  "k2": "foo",
+  "sequence": 8
+ },
+ {
+  "@timestamp": "2022-01-01T00:00:00.009Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "normal",
+  "k1": "baz",
+  "k2": "baz",
+  "other": 1,
+  "sequence": 9
+ },
+ {
+  "@timestamp": "2022-01-01T00:00:00.010Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "normal",
+  "k1": "baz",
+  "k2": "baz",
+  "sequence": 10
+ },
+ {
+  "@timestamp": "2022-01-01T00:00:00.011Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "missing",
+  "k1": "baz",
+  "k2": "foo",
+  "sequence": 11
+ },
+ {
+  "@timestamp": "2022-01-01T00:00:00.012Z",
+  "event_type": "test5",
+  "transID": 1,
+  "tag": "normal",
+  "k1": "baz",
+  "k2": "baz",
+  "sequence": 12
+ }
 ]

@@ -9,6 +9,12 @@
     "tag": {
       "type": "keyword"
     },
+    "k1": {
+      "type": "keyword"
+    },
+    "k2": {
+      "type": "keyword"
+    },
     "sequence": {
       "type": "long"
     },

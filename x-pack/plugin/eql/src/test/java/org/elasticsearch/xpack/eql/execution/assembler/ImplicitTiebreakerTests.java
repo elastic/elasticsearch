@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -140,7 +141,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             booleanArrayOf(stages, false),
             NOOP_CIRCUIT_BREAKER
         );
-        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
+        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher, Collections.emptyList());
         window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
     }
 }

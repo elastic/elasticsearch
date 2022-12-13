@@ -266,7 +266,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 roleDescriptorsIntersection
                             );
                             remoteAccessAuthentication.writeToContext(threadContext);
-                            sender.sendRequest(connection, action, request, options, handler);
+                            sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                         }
                     }, e -> contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
                 );

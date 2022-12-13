@@ -1952,10 +1952,9 @@ public class InternalEngine extends Engine {
                 // newly created commit points to a different translog generation (can free translog),
                 // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
                 boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
-                boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (hasUncommittedChanges
                     || force
-                    || shouldPeriodicallyFlush
+                    || shouldPeriodicallyFlush()
                     || getProcessedLocalCheckpoint() > Long.parseLong(
                         lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
                     )) {

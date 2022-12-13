@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -32,6 +33,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -472,6 +474,34 @@ public class AuthenticationTests extends ESTestCase {
             authentication1,
             m -> assertThat(m, hasEntry("token", Map.of("name", tokenName, "type", tokenType)))
         );
+    }
+
+    public void testBwcWithStoredAuthenticationHeaders() throws IOException {
+        // Version 6.6.1
+        final String headerV6 = "p/HxAgANZWxhc3RpYy1hZG1pbgEJc3VwZXJ1c2VyCgAAAAEABG5vZGUFZmlsZTEEZmlsZQA=";
+        final Authentication authenticationV6 = AuthenticationContextSerializer.decode(headerV6);
+        assertThat(authenticationV6.getEffectiveSubject().getVersion(), equalTo(Version.fromString("6.6.1")));
+        assertThat(authenticationV6.getEffectiveSubject().getUser(), equalTo(new User("elastic-admin", "superuser")));
+        assertThat(authenticationV6.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
+        assertThat(authenticationV6.isRunAs(), is(false));
+        assertThat(authenticationV6.encode(), equalTo(headerV6));
+
+        // Rewrite for a different version
+        final Version nodeVersion = VersionUtils.randomIndexCompatibleVersion(random());
+        final Authentication rewrittenAuthentication = authenticationV6.maybeRewriteForOlderVersion(nodeVersion);
+        assertThat(rewrittenAuthentication.getEffectiveSubject().getVersion(), equalTo(nodeVersion));
+        assertThat(rewrittenAuthentication.getEffectiveSubject().getUser(), equalTo(authenticationV6.getEffectiveSubject().getUser()));
+        assertThat(rewrittenAuthentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
+        assertThat(rewrittenAuthentication.isRunAs(), is(false));
+
+        // Version 7.2.1
+        final String headerV7 = "p72sAwANZWxhc3RpYy1hZG1pbgENX2VzX3Rlc3Rfcm9vdAoAAAABAARub2RlBWZpbGUxBGZpbGUAAAoA";
+        final Authentication authenticationV7 = AuthenticationContextSerializer.decode(headerV7);
+        assertThat(authenticationV7.getEffectiveSubject().getVersion(), equalTo(Version.fromString("7.2.1")));
+        assertThat(authenticationV7.getEffectiveSubject().getUser(), equalTo(new User("elastic-admin", "_es_test_root")));
+        assertThat(authenticationV7.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
+        assertThat(authenticationV7.isRunAs(), is(false));
+        assertThat(authenticationV7.encode(), equalTo(headerV7));
     }
 
     private void runWithAuthenticationToXContent(Authentication authentication, Consumer<Map<String, Object>> consumer) throws IOException {

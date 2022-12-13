@@ -87,8 +87,12 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class,
-            NonGeoProcessorsPlugin.class);
+        return Arrays.asList(
+            ReindexPlugin.class,
+            IngestGeoIpPlugin.class,
+            GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class,
+            NonGeoProcessorsPlugin.class
+        );
     }
 
     @Override
@@ -691,8 +695,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             Map<String, Processor.Factory> procMap = new HashMap<>();
             procMap.put("test", (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
                 @Override
-                public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-                }
+                public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {}
 
                 @Override
                 public String getType() {

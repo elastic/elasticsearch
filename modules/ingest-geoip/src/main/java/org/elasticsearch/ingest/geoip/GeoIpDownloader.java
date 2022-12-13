@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
@@ -102,8 +101,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
     private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
     /*
      * This variable tells us whether we have at least one pipeline with a geoip processor. If there are no geoip processors then we do
-     * not download geoip databases. Access is not protected because it is set in the constructor and then only ever read and updated
-     * on the cluster state update thread.
+     * not download geoip databases. Access is not protected because it is set in the constructor and then only ever updated on the cluster
+     * state update thread (it is also read on the generic thread).
      */
     private volatile boolean atLeastOneGeoipProcessor;
 
@@ -125,7 +124,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        atLeastOneGeoipProcessor = atLeastOneGeoipProcessor(clusterService.state());
+        atLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(clusterService.state());
         endpoint = ENDPOINT_SETTING.get(settings);
         pollInterval = POLL_INTERVAL_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
@@ -143,6 +142,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         var clusterState = clusterService.state();
         var geoipIndex = clusterState.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
+            logger.trace("The {} index is not null", GeoIpDownloader.DATABASES_INDEX);
             if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
                 throw new ElasticsearchException("not all primary shards of [" + DATABASES_INDEX + "] index are active");
             }
@@ -152,7 +152,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
             }
         }
         if (atLeastOneGeoipProcessor) {
-            logger.debug("updating geoip databases");
+            logger.trace("Updating geoip databases");
             List<Map<String, Object>> response = fetchDatabasesOverview();
             for (Map<String, Object> res : response) {
                 if (res.get("name").toString().endsWith(".tgz")) {
@@ -160,7 +160,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
                 }
             }
         } else {
-            logger.debug("Not updating geoip databases because no geoip processors are in use");
+            logger.trace("Not updating geoip databases because no geoip processors exist in the cluster");
         }
     }
 
@@ -207,7 +207,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
     }
 
     @SuppressWarnings("unchecked")
-    private boolean atLeastOneGeoipProcessor(ClusterState clusterState) {
+    private boolean hasAtLeastOneGeoipProcessor(ClusterState clusterState) {
         List<PipelineConfiguration> pipelineDefinitions = IngestService.getPipelines(clusterState);
         return pipelineDefinitions.stream().anyMatch(pipelineDefinition -> {
             Map<String, Object> pipelineMap = pipelineDefinition.getConfigAsMap();
@@ -359,16 +359,31 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        boolean previouslyAtLeastOneGeoipProcessor = atLeastOneGeoipProcessor;
+        if (isCancelled() || isCompleted()) {
+            return;
+        }
         if (event.metadataChanged()) {
-            IngestMetadata newIngestMetadata = event.state().getMetadata().custom(IngestMetadata.TYPE);
-            IngestMetadata oldIngestMetadata = event.previousState().getMetadata().custom(IngestMetadata.TYPE);
-            if (newIngestMetadata != oldIngestMetadata) {
-                atLeastOneGeoipProcessor = atLeastOneGeoipProcessor(event.state());
-                if (atLeastOneGeoipProcessor && previouslyAtLeastOneGeoipProcessor == false) {
-                    threadPool.schedule(() -> runDownloader(false), TimeValue.ZERO, ThreadPool.Names.GENERIC);
-                }
-            }
+            /*
+             * In this block, we are trying to figure out if someone has newly added a geoip processor to a new or existing pipeline when
+             * there had previously been no geoip processor in the cluster. If so then we want to schedule runDownloader() to run. This
+             * is complicated by the fact that we can only run runDownloader() if the .geoip index is "ready" -- meaning either it
+             * doesn't exist or all its primary shards have been allocated. It is potentially not ready if (for example) we have recently
+             * cancelled another GeoipDownloader task. The cluster state update with information about the .geoip index's shards being
+             * allocated can come after the cluster state update with information about updated pipelines. So this method checks for both.
+             * Since we only trigger the downloader when a geoip processor has been added, we only set atLeastOneGeoipProcessor to true if
+             * both conditions have been met.
+             */
+            var geoipIndex = event.state().getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+            boolean geoipIndexReady = geoipIndex == null
+                || event.state().routingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive();
+            boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
+            if (geoipIndexReady && newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
+                atLeastOneGeoipProcessor = true;
+                logger.trace("Scheduling runDownloader because a geoip processor has been added");
+                threadPool.schedule(() -> runDownloader(false), TimeValue.ZERO, ThreadPool.Names.GENERIC);
+            } else if (newAtLeastOneGeoipProcessor == false) {
+                atLeastOneGeoipProcessor = false;
+            } // else there is now at least one geoip processor but the geoip index isn't ready yet, so we'll deal with it next time
         }
     }
 }

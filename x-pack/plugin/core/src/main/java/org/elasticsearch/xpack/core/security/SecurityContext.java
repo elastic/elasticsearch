@@ -213,7 +213,8 @@ public class SecurityContext {
         final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             existingRequestHeaders.forEach((k, v) -> {
-                if (AuthorizationEngine.ParentActionAuthorization.THREAD_CONTEXT_KEY.equals(k) == false) {
+                if (AuthorizationEngine.ParentActionAuthorization.THREAD_CONTEXT_KEY.equals(k) == false
+                    && threadContext.getHeader(k) == null) {
                     threadContext.putHeader(k, v);
                 }
             });

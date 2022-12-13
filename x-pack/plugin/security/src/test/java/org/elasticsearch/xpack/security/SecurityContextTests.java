@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -41,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityContextTests extends ESTestCase {
 
@@ -248,5 +250,30 @@ public class SecurityContextTests extends ESTestCase {
                     );
                 });
         }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
+    }
+
+    public void testExecuteAfterRemovingParentAuthorization() {
+        final Map<String, String> requestHeaders = Map.ofEntries(
+            Map.entry(AuthenticationField.PRIVILEGE_CATEGORY_KEY, randomAlphaOfLengthBetween(3, 10)),
+            Map.entry(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry(Task.X_OPAQUE_ID_HTTP_HEADER, randomAlphaOfLength(10)),
+            Map.entry(Task.TRACE_ID, randomAlphaOfLength(20))
+        );
+        threadContext.putHeader(requestHeaders);
+
+        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization("indices:data/read/search");
+        securityContext.setParentAuthorization(parentAuthorization);
+
+        securityContext.executeAfterRemovingParentAuthorization(original -> {
+            // parent authorization header should be removed within execute method
+            assertThat(securityContext.getParentAuthorization(), nullValue());
+            // other request headers should be preserved
+            requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
+        });
+
+        // and restored after execution
+        assertThat(securityContext.getParentAuthorization(), equalTo(parentAuthorization));
+        // other request headers should still be preserved
+        requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
     }
 }

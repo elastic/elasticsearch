@@ -47,12 +47,9 @@ public final class CountDownActionListener extends ActionListener.Delegating<Voi
     }
 
     private boolean countDown() {
-        return countDown.updateAndGet(current -> {
-            if (current <= 0) {
-                throw new IllegalStateException("over-decrementing of count down, listener invoked too many times");
-            }
-            return current - 1;
-        }) == 0;
+        final var result = countDown.getAndUpdate(current -> Math.max(0, current - 1));
+        assert result > 0;
+        return result == 1;
     }
 
     @Override

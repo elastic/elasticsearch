@@ -118,7 +118,7 @@ public class CountDownActionListenerTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> new CountDownActionListener(1, (Runnable) null));
 
         final int overage = randomIntBetween(1, 10);
-        AtomicInteger exceptionsThrown = new AtomicInteger();
+        AtomicInteger assertionsTriggered = new AtomicInteger();
         final int groupSize = randomIntBetween(10, 1000);
         AtomicInteger count = new AtomicInteger();
         CountDownActionListener listener = new CountDownActionListener(groupSize, result);
@@ -140,8 +140,8 @@ public class CountDownActionListenerTests extends ESTestCase {
                         } else {
                             listener.onResponse(null);
                         }
-                    } catch (IllegalStateException e) {
-                        exceptionsThrown.incrementAndGet();
+                    } catch (AssertionError e) {
+                        assertionsTriggered.incrementAndGet();
                     }
                 }
             });
@@ -151,7 +151,7 @@ public class CountDownActionListenerTests extends ESTestCase {
             t.join();
         }
         assertTrue(called.get());
-        assertEquals(overage, exceptionsThrown.get());
+        assertEquals(overage, assertionsTriggered.get());
     }
 
     public void testConcurrentFailures() throws InterruptedException {

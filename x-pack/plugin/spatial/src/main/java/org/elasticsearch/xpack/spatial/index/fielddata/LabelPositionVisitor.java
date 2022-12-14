@@ -67,12 +67,6 @@ public class LabelPositionVisitor extends TriangleTreeVisitor.TriangleTreeDecode
     }
 
     @Override
-    public boolean push(int minX, int minY, int maxX, int maxY) {
-        // Always start the traversal
-        return labelPosition == null;
-    }
-
-    @Override
     boolean pushDecoded(double minX, double minY, double maxX, double maxY) {
         return labelPosition == null;
     }

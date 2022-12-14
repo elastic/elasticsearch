@@ -47,12 +47,12 @@ public interface TriangleTreeVisitor {
 
         private final CoordinateEncoder encoder;
 
-        TriangleTreeDecodedVisitor(CoordinateEncoder encoder) {
+        protected TriangleTreeDecodedVisitor(CoordinateEncoder encoder) {
             this.encoder = encoder;
         }
 
         @Override
-        public void visitPoint(int x, int y) {
+        public final void visitPoint(int x, int y) {
             visitDecodedPoint(encoder.decodeX(x), encoder.decodeY(y));
         }
 
@@ -62,7 +62,7 @@ public interface TriangleTreeVisitor {
         abstract void visitDecodedPoint(double x, double y);
 
         @Override
-        public void visitLine(int aX, int aY, int bX, int bY, byte metadata) {
+        public final void visitLine(int aX, int aY, int bX, int bY, byte metadata) {
             visitDecodedLine(encoder.decodeX(aX), encoder.decodeY(aY), encoder.decodeX(bX), encoder.decodeY(bY), metadata);
         }
 
@@ -72,7 +72,7 @@ public interface TriangleTreeVisitor {
         abstract void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata);
 
         @Override
-        public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
+        public final void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
             visitDecodedTriangle(
                 encoder.decodeX(aX),
                 encoder.decodeY(aY),
@@ -90,7 +90,7 @@ public interface TriangleTreeVisitor {
         abstract void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata);
 
         @Override
-        public boolean pushX(int minX) {
+        public final boolean pushX(int minX) {
             return pushDecodedX(encoder.decodeX(minX));
         }
 
@@ -100,7 +100,7 @@ public interface TriangleTreeVisitor {
         abstract boolean pushDecodedX(double minX);
 
         @Override
-        public boolean pushY(int minY) {
+        public final boolean pushY(int minY) {
             return pushDecodedY(encoder.decodeY(minY));
         }
 
@@ -110,7 +110,7 @@ public interface TriangleTreeVisitor {
         abstract boolean pushDecodedY(double minX);
 
         @Override
-        public boolean push(int maxX, int maxY) {
+        public final boolean push(int maxX, int maxY) {
             return pushDecoded(encoder.decodeX(maxX), encoder.decodeY(maxY));
         }
 
@@ -120,7 +120,7 @@ public interface TriangleTreeVisitor {
         abstract boolean pushDecoded(double maxX, double maxY);
 
         @Override
-        public boolean push(int minX, int minY, int maxX, int maxY) {
+        public final boolean push(int minX, int minY, int maxX, int maxY) {
             return pushDecoded(encoder.decodeX(minX), encoder.decodeY(minY), encoder.decodeX(maxX), encoder.decodeY(maxY));
         }
 

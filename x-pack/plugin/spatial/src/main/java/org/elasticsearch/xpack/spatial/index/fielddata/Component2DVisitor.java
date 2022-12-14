@@ -238,26 +238,26 @@ public abstract class Component2DVisitor extends TriangleTreeVisitor.TriangleTre
         }
 
         @Override
-        public boolean pushX(int minX) {
+        public boolean pushDecodedX(double minX) {
             // if any part of the tree is skipped, then the doc value is not within the shape,
             // stop traversing the tree
-            within = super.pushX(minX);
+            within = super.pushDecodedX(minX);
             return within;
         }
 
         @Override
-        public boolean pushY(int minY) {
+        public boolean pushDecodedY(double minY) {
             // if any part of the tree is skipped, then the doc value is not within the shape,
             // stop traversing the tree
-            within = super.pushY(minY);
+            within = super.pushDecodedY(minY);
             return within;
         }
 
         @Override
-        public boolean push(int maxX, int maxY) {
+        public boolean pushDecoded(double maxX, double maxY) {
             // if any part of the tree is skipped, then the doc value is not within the shape,
             // stop traversing the tree
-            within = super.push(maxX, maxY);
+            within = super.pushDecoded(maxX, maxY);
             return within;
         }
 

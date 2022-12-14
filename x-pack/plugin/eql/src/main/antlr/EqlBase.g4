@@ -37,12 +37,8 @@ sequence
       (UNTIL until=sequenceTerm)?
     ;
 
-sampleParams
-    : WITH (MAX_SAMPLES_PER_KEY ASGN number)
-    ;
-
 sample
-    : SAMPLE (by=joinKeys sampleParams? | sampleParams disallowed=joinKeys?)?
+    : SAMPLE (by=joinKeys)?
       joinTerm+
     ;
 
@@ -178,7 +174,6 @@ JOIN: 'join';
 LIKE: 'like';
 LIKE_INSENSITIVE: 'like~';
 MAXSPAN: 'maxspan';
-MAX_SAMPLES_PER_KEY: 'max_samples_per_key';
 NOT: 'not';
 NULL: 'null';
 OF: 'of';

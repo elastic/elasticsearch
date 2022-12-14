@@ -388,38 +388,6 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public Number visitSampleParams(EqlBaseParser.SampleParamsContext ctx) {
-        if (ctx == null) {
-            return 1L;
-        }
-        NumberContext numberCtx = ctx.number();
-        if (numberCtx instanceof IntegerLiteralContext) {
-            Number number = (Number) visitIntegerLiteral((IntegerLiteralContext) numberCtx).fold();
-            long value = number.longValue();
-
-            if (value <= 0) {
-                throw new ParsingException(source(numberCtx), "A positive max_matches_per_key value is required; found [{}]", value);
-            }
-            if (value > Integer.MAX_VALUE - MAX_SAMPLE_QUERIES) {
-                throw new ParsingException(
-                    source(numberCtx),
-                    "max_matches_per_key exceeds maximum value; found [{}], max [{}]",
-                    value,
-                    Integer.MAX_VALUE - MAX_SAMPLE_QUERIES
-                );
-            }
-            return value;
-
-        } else {
-            throw new ParsingException(
-                source(numberCtx),
-                "Decimal max_matches_per_key [{}] not supported; please use an positive integer",
-                text(numberCtx)
-            );
-        }
-    }
-
-    @Override
     public Object visitSample(SampleContext ctx) {
         Source source = source(ctx);
 

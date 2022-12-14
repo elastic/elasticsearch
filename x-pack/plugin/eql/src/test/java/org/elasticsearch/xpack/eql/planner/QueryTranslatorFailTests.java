@@ -292,11 +292,11 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
     public void testSamplesWithIncorrectOptions() {
         assertThat(
             errorParsing("sample by pid with maxspan=1h [any where true] [any where true]"),
-            startsWith("1:20: mismatched input 'maxspan' expecting 'max_samples_per_key'")
+            startsWith("1:15: mismatched input 'with' expecting '['")
         );
         assertThat(
             errorParsing("sample with maxspan=1h [any where true] by pid [any where true] by pid"),
-            startsWith("1:13: mismatched input 'maxspan' expecting 'max_samples_per_key'")
+            startsWith("1:8: mismatched input 'with' expecting {'by', '['}")
         );
         assertThat(
             errorParsing("sample by pid [any where true] [any where true] until [process where event.type == \"termination\"]"),
@@ -307,10 +307,6 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
             startsWith("1:32: mismatched input 'with' expecting {")
         );
         assertThat(errorParsing("sample [any where true] with repeat=123"), startsWith("1:25: mismatched input 'with' expecting {"));
-        assertThat(
-            errorParsing("sample by pid with max_samples_per_key [any where true] [any where true]"),
-            startsWith("1:40: mismatched input '[' expecting '='")
-        );
     }
 
     public void testSampleWithDuplicateKeys() {

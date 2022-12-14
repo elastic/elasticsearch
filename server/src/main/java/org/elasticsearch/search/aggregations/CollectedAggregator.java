@@ -130,7 +130,7 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
         PipelineAggregator.PipelineTree pipelines
     );
 
-    public abstract InternalAggregation[] convertToLegacy(int[] bucketOrdinal);
+    public abstract InternalAggregation convertToLegacy(long bucketOrdinal);
 
     @Override
     public boolean equals(Object o) {

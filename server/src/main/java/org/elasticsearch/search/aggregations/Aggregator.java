@@ -149,21 +149,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Build the results of this aggregation.
      * @return a single {@link CollectedAggregator} object for the aggregation
      */
-    public CollectedAggregator buildTopLevelCollectedAggregator() {
-        if (canUseCollectedAggregator()) {
-            assert parent() == null;
-            return buildCollectedAggregator(new long[]{0});
-        }
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Build the results of this aggregation.
-     * @param ordsToCollect the ordinals of the buckets that we want to
-     *        collect from this aggregation
-     * @return a single {@link CollectedAggregator} object for the aggregation
-     */
-    public CollectedAggregator buildCollectedAggregator(long[] ordsToCollect) {
+    public CollectedAggregator buildCollectedAggregator() {
         throw new UnsupportedOperationException();
     }
 

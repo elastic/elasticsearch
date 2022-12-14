@@ -35,6 +35,7 @@ public class CollectedMax extends CollectedAggregator {
     protected CollectedMax(String name, Map<String, Object> metadata, BigArrays bigArrays, long size, DocValueFormat format) {
         super(name, metadata, bigArrays);
         maxes = bigArrays().newDoubleArray(size, false);
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         this.format = format;
     }
 
@@ -112,12 +113,11 @@ public class CollectedMax extends CollectedAggregator {
     }
 
     @Override
-    public InternalAggregation[] convertToLegacy(int[] bucketOrdinal) {
-        Max[] legacyMaxes = new Max[bucketOrdinal.length];
-        for (int ord = 0; ord < bucketOrdinal.length; ord++) {
-            legacyMaxes[ord] = new Max(name, maxes.get(bucketOrdinal[ord]), format, metadata);
+    public InternalAggregation convertToLegacy(long bucketOrdinal) {
+        if (bucketOrdinal >= maxes.size()) {
+            return Max.createEmptyMax(name, format, metadata);
         }
-        return legacyMaxes;
+        return new Max(name, maxes.get(bucketOrdinal), format, metadata);
     }
 
     public double get(long bucketOrd) {
@@ -136,5 +136,20 @@ public class CollectedMax extends CollectedAggregator {
 
     public long size() {
         return maxes.size();
+    }
+
+    /**
+     * Ensures the backing data storage has capacity of at least newSize.  This potenitally resizes the BigArray, which in turn may trigger
+     * the circuit breaker.
+     *
+     * @param newSize
+     */
+    public void ensureCapacity(long newSize) {
+
+        if (newSize >= maxes.size()) {
+            long from = maxes.size();
+            maxes = bigArrays().grow(maxes, newSize + 1);
+            maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+        }
     }
 }

@@ -11,7 +11,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -40,17 +39,19 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     final String pointField;
     final Function<byte[], Number> pointConverter;
 
-    DoubleArray maxes;
+    // Flag to indicate if we are responsible for closing our collected aggregator.  Gets set to false when we hand it back to the
+    // framework.
+    private boolean shouldClose;
+
+    CollectedMax maxes;
 
     MaxAggregator(String name, ValuesSourceConfig config, AggregationContext context, Aggregator parent, Map<String, Object> metadata)
         throws IOException {
         super(name, context, parent, metadata);
-        // TODO stop expecting nulls here
+        // TODO stop expecting nulls here - that looks like making the factory do something sensible in createUnmapped
         this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
-        if (valuesSource != null) {
-            maxes = context.bigArrays().newDoubleArray(1, false);
-            maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-        }
+        maxes = new CollectedMax(name, metadata, bigArraysForResults(), 1, config.format());
+        // TODO: Do we still need to store the format here?
         this.formatter = config.format();
         this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
@@ -58,6 +59,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         } else {
             pointField = null;
         }
+        shouldClose = true;
     }
 
     @Override
@@ -91,11 +93,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= maxes.size()) {
-                    long from = maxes.size();
-                    maxes = bigArrays().grow(maxes, bucket + 1);
-                    maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
-                }
+                maxes.ensureCapacity(bucket);
                 if (values.advanceExact(doc)) {
                     final double value = values.doubleValue();
                     double max = maxes.get(bucket);
@@ -117,10 +115,14 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
+        return maxes.convertToLegacy(bucket);
+        /*
         if (valuesSource == null || bucket >= maxes.size()) {
             return buildEmptyAggregation();
         }
         return new Max(name, maxes.get(bucket), formatter, metadata());
+
+         */
     }
 
     @Override
@@ -134,30 +136,16 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public CollectedAggregator buildCollectedAggregator(long[] ordsToCollect) {
-        CollectedMax collectedMax = new CollectedMax(name, metadata(), bigArraysForResults(), ordsToCollect.length, formatter);
-        boolean failed = true;
-        try {
-            for (int i = 0; i < ordsToCollect.length; i++) {
-                if (valuesSource == null || i >= maxes.size()) {
-                    // Empty Value Case
-                    collectedMax.set(i, Double.NEGATIVE_INFINITY);
-                } else {
-                    collectedMax.set(i, maxes.get(ordsToCollect[i]));
-                }
-            }
-            failed = false;
-        } finally {
-            if (failed) {
-                collectedMax.close();
-            }
-        }
-        return collectedMax;
+    public CollectedAggregator buildCollectedAggregator() {
+        shouldClose = false;
+        return maxes;
     }
 
     @Override
     public void doClose() {
-        Releasables.close(maxes);
+        if (shouldClose) {
+            Releasables.close(maxes);
+        }
     }
 
     /**

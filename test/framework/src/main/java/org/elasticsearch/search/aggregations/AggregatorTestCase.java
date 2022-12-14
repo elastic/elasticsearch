@@ -558,7 +558,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
 
             // Convet to legacy format and return
-            InternalAggregation internalAgg = reduced.convertToLegacy(new int[] {0})[0];
+            InternalAggregation internalAgg = reduced.convertToLegacy(0);
             doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             assertRoundTrip(internalAgg);
             if (aggTestConfig.builder() instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
@@ -612,7 +612,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     }
                     a.postCollection();
                     assertEquals(aggTestConfig.shouldBeCached(), context.isCacheable());
-                    aggs.add(a.buildTopLevelCollectedAggregator());
+                    aggs.add(a.buildCollectedAggregator());
                 } finally {
                     Releasables.close(context);
                 }
@@ -637,7 +637,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)).asCollector());
                 }
                 root.postCollection();
-                aggs.add(root.buildTopLevelCollectedAggregator());
+                aggs.add(root.buildCollectedAggregator());
             } finally {
                 Releasables.close(context);
             }

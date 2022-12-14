@@ -12,14 +12,22 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.example.analysis.lucene.CharTokenizer;
 import org.elasticsearch.plugin.analysis.api.TokenizerFactory;
 import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.plugin.api.Inject;
 
 import java.util.List;
 
 @NamedComponent("example_tokenizer_factory")
 public class ExampleTokenizerFactory implements TokenizerFactory {
+    private final List<String> tokenizerListOfChars;
+
+    @Inject
+    public ExampleTokenizerFactory(ExampleAnalysisSettings settings) {
+        this.tokenizerListOfChars = settings.tokenizerListOfChars();
+    }
+
     @Override
     public Tokenizer create() {
-        return new CharTokenizer(List.of("_"));//TODO to be updated once list settings are implemented
+        return new CharTokenizer(tokenizerListOfChars);
     }
 }
 

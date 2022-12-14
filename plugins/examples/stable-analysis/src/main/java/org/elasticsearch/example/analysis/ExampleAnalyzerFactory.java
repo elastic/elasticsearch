@@ -41,7 +41,7 @@ public class ExampleAnalyzerFactory implements org.elasticsearch.plugin.analysis
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
-            var tokenizerListOfChars =  List.of("_");
+            var tokenizerListOfChars = settings.tokenizerListOfChars().isEmpty() ? List.of("_") : settings.tokenizerListOfChars();
             var tokenizer = new CharTokenizer(tokenizerListOfChars);
 
             long tokenFilterNumber = settings.analyzerUseTokenListOfChars() ? settings.tokenFilterNumber() : -1;

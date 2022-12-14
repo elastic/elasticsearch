@@ -13,6 +13,7 @@ import org.elasticsearch.plugin.api.settings.BooleanSetting;
 import org.elasticsearch.plugin.api.settings.IntSetting;
 import org.elasticsearch.plugin.api.settings.LongSetting;
 import org.elasticsearch.plugin.api.settings.StringSetting;
+import org.elasticsearch.plugin.api.settings.ListSetting;
 
 import java.util.List;
 
@@ -29,4 +30,7 @@ public interface ExampleAnalysisSettings {
 
     @BooleanSetting(path = "analyzerUseTokenListOfChars", defaultValue = true)
     boolean analyzerUseTokenListOfChars();
+
+    @ListSetting(path = "tokenizer_list_of_chars")
+    List<String> tokenizerListOfChars();
 }

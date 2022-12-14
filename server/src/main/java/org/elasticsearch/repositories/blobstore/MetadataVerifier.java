@@ -199,7 +199,7 @@ class MetadataVerifier implements Releasable {
             final var name = indicesEntry.getKey();
             final var indexId = indicesEntry.getValue();
             if (name.equals(indexId.getName()) == false) {
-                addFailure("index name [%s] has mismatched name in [%s]", name, indexId);
+                addFailure("index name [%s] has mismatched name in %s", name, indexId);
             }
         }
 
@@ -242,7 +242,7 @@ class MetadataVerifier implements Releasable {
 
         private void verifyIndexSnapshot(RefCounted indexSnapshotRefs, SnapshotId snapshotId) {
             if (expectedSnapshots.contains(snapshotId) == false) {
-                addFailure("index [%s] has mismatched snapshot [%s]", indexId, snapshotId);
+                addFailure("index %s has mismatched snapshot [%s]", indexId, snapshotId);
             }
 
             final var indexMetaBlobId = repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, indexId);
@@ -291,7 +291,7 @@ class MetadataVerifier implements Releasable {
                 addFailure(
                     new RepositoryVerificationException(
                         repositoryName,
-                        format("failed to load shard %s/%d snapshot for %s", indexId, shardId, snapshotId),
+                        format("failed to load shard %s[%d] snapshot for [%s]", indexId, shardId, snapshotId),
                         e
                     )
                 );
@@ -306,7 +306,7 @@ class MetadataVerifier implements Releasable {
                 addFailure(
                     new RepositoryVerificationException(
                         repositoryName,
-                        format("failed to load index %s metadata for %s from blob [%s]", indexId, snapshotId, indexMetaBlobId),
+                        format("failed to load index %s metadata for [%s] from blob [%s]", indexId, snapshotId, indexMetaBlobId),
                         e
                     )
                 );
@@ -317,7 +317,7 @@ class MetadataVerifier implements Releasable {
         private BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(int shardId) {
             final var shardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
             if (shardGen == null) {
-                addFailure("unknown shard generation for %s/%d", indexId, shardId);
+                addFailure("unknown shard generation for %s[%d]", indexId, shardId);
                 return null;
             }
             try {
@@ -340,7 +340,7 @@ class MetadataVerifier implements Releasable {
 
             if (shardSnapshot.snapshot().equals(snapshotId.getName()) == false) {
                 addFailure(
-                    "snapshot [%s] for shard [%s/%d] has mismatched name [%s]",
+                    "snapshot [%s] for shard %s[%d] has mismatched name [%s]",
                     snapshotId,
                     indexId,
                     shardId,
@@ -364,7 +364,7 @@ class MetadataVerifier implements Releasable {
                 }
 
                 if (foundSnapshot == false) {
-                    addFailure("snapshot [%s] for shard [%s/%d] has no entry in the shard-level summary", snapshotId, indexId, shardId);
+                    addFailure("snapshot [%s] for shard %s[%d] has no entry in the shard-level summary", snapshotId, indexId, shardId);
                 }
             }
         }
@@ -383,7 +383,7 @@ class MetadataVerifier implements Releasable {
                 final var snapshotFile = snapshotFiles.get(summaryFile.physicalName());
                 if (snapshotFile == null) {
                     addFailure(
-                        "snapshot [%s] for shard [%s/%d] has no entry for file [%s] found in summary",
+                        "snapshot [%s] for shard %s[%d] has no entry for file [%s] found in summary",
                         snapshotId,
                         indexId,
                         shardId,
@@ -391,7 +391,7 @@ class MetadataVerifier implements Releasable {
                     );
                 } else if (summaryFile.isSame(snapshotFile) == false) {
                     addFailure(
-                        "snapshot [%s] for shard [%s/%d] has a mismatched entry for file [%s]",
+                        "snapshot [%s] for shard %s[%d] has a mismatched entry for file [%s]",
                         snapshotId,
                         indexId,
                         shardId,
@@ -406,7 +406,7 @@ class MetadataVerifier implements Releasable {
             for (final var snapshotFile : shardSnapshot.indexFiles()) {
                 if (summaryFiles.get(snapshotFile.physicalName()) == null) {
                     addFailure(
-                        "snapshot [%s] for shard [%s/%d] has no entry in the shard-level summary for file [%s]",
+                        "snapshot [%s] for shard %s[%d] has no entry in the shard-level summary for file [%s]",
                         snapshotId,
                         indexId,
                         shardId,
@@ -435,7 +435,7 @@ class MetadataVerifier implements Releasable {
                 final var actualLength = ByteSizeValue.ofBytes(fileInfo.metadata().hash().length);
                 if (fileLength.getBytes() != actualLength.getBytes()) {
                     addFailure(
-                        "snapshot [%s] for shard [%s/%d] has virtual blob [%s] for [%s] with length [%s] instead of [%s]",
+                        "snapshot [%s] for shard %s[%d] has virtual blob [%s] for [%s] with length [%s] instead of [%s]",
                         snapshot,
                         indexId,
                         shardId,
@@ -452,7 +452,7 @@ class MetadataVerifier implements Releasable {
                     final var partLength = ByteSizeValue.ofBytes(fileInfo.partBytes(part));
                     if (blobInfo == null) {
                         addFailure(
-                            "snapshot [%s] for shard [%s/%d] has missing blob [%s] for [%s] part [%d/%d]; "
+                            "snapshot [%s] for shard %s[%d] has missing blob [%s] for [%s] part [%d/%d]; "
                                 + "file length [%s], part length [%s]",
                             snapshot,
                             indexId,
@@ -467,7 +467,7 @@ class MetadataVerifier implements Releasable {
 
                     } else if (blobInfo.length() != partLength.getBytes()) {
                         addFailure(
-                            "snapshot [%s] for shard [%s/%d] has blob [%s] for [%s] part [%d/%d] with length [%s] instead of [%s]; "
+                            "snapshot [%s] for shard %s[%d] has blob [%s] for [%s] part [%d/%d] with length [%s] instead of [%s]; "
                                 + "file length [%s]",
                             snapshot,
                             indexId,

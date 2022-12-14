@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.FilterCollector;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
@@ -104,6 +102,10 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
             return false;
         }
         if (sources[0] instanceof GlobalOrdinalValuesSource firstSource) {
+            if (firstSource.mayDynamicallyPrune() == false) {
+                return false;
+            }
+
             long approximateTotalNumberOfBuckets = firstSource.getUniqueValueCount();
             if (sources.length > 1) {
                 // When there are multiple sources, it's hard to guess how many

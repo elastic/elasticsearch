@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.logging.LogManager;
@@ -84,6 +85,16 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
      */
     long getUniqueValueCount() {
         return uniqueValueCount;
+    }
+
+    /**
+     * Return whether the source can be used for dynamic pruning.
+     */
+    boolean mayDynamicallyPrune() {
+        // If missing bucket is requested we have no way to tell lucene to efficiently match
+        // buckets in a range AND missing values.
+        // If the field type is IP, we cannot compare them as keywords.
+        return missingBucket == false && fieldType instanceof IpFieldMapper.IpFieldType == false;
     }
 
     @Override

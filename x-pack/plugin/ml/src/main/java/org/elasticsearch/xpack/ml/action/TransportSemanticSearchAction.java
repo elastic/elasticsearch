@@ -22,9 +22,10 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.SemanticSearchAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 
 import java.util.List;
 
@@ -56,12 +57,12 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
         long startMs = System.currentTimeMillis();
         // call inference as ML_ORIGIN
         originSettingClient.execute(
-            InferTrainedModelDeploymentAction.INSTANCE,
+            InferModelAction.INSTANCE,
             toInferenceRequest(request, parentTask),
             ActionListener.wrap(inferenceResults -> {
                 // Expect 1 result
-                assert inferenceResults.getResults().size() == 1;
-                if (inferenceResults.getResults().get(0)instanceof TextEmbeddingResults textEmbeddingResults) {
+                assert inferenceResults.getInferenceResults().size() == 1;
+                if (inferenceResults.getInferenceResults().get(0)instanceof TextEmbeddingResults textEmbeddingResults) {
 
                     var searchRequestBuilder = buildSearch(client, textEmbeddingResults, request);
                     searchRequestBuilder.request().setParentTask(parentTask);
@@ -82,7 +83,7 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
                             "model ["
                                 + request.getModelId()
                                 + "] must be a text_embedding model; provided ["
-                                + inferenceResults.getResults().get(0).getWriteableName()
+                                + inferenceResults.getInferenceResults().get(0).getWriteableName()
                                 + "]"
                         )
                     );
@@ -131,13 +132,14 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
         return searchBuilder;
     }
 
-    private InferTrainedModelDeploymentAction.Request toInferenceRequest(SemanticSearchAction.Request request, TaskId parentTask) {
-        var inferenceRequest = InferTrainedModelDeploymentAction.Request.forTextInput(
-            request.getModelId(),
-            request.getEmbeddingConfig(),
-            List.of(request.getModelText()),
-            request.getInferenceTimeout()
-        );
+    private InferModelAction.Request toInferenceRequest(SemanticSearchAction.Request request, TaskId parentTask) {
+
+        var configUpdate = request.getEmbeddingConfig();
+        if (configUpdate == null) {
+            configUpdate = TextEmbeddingConfigUpdate.EMPTY_INSTANCE;
+        }
+        var inferenceRequest = InferModelAction.Request.forTextInput(request.getModelId(), configUpdate, List.of(request.getModelText()));
+        inferenceRequest.setInferenceTimeout(request.getInferenceTimeout());
         inferenceRequest.setParentTask(parentTask);
         return inferenceRequest;
     }

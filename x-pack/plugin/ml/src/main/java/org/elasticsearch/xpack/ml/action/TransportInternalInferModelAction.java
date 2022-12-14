@@ -232,7 +232,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         // Get a list of nodes to send the requests to and the number of
         // documents for each node.
-        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.getObjectsToInfer().size());
+        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.numberOfDocuments());
         if (nodes.isEmpty()) {
             logger.trace(() -> format("[%s] model not allocated to any node [%s]", assignment.getModelId()));
             listener.onFailure(
@@ -241,8 +241,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             return;
         }
 
-        assert nodes.stream().mapToInt(Tuple::v2).sum() == request.getObjectsToInfer().size()
-            : "mismatch; sum of node requests does not match total";
+        assert nodes.stream().mapToInt(Tuple::v2).sum() == request.numberOfDocuments()
+            : "mismatch; sum of node requests does not match number of documents in request";
 
         AtomicInteger count = new AtomicInteger();
         AtomicArray<List<InferenceResults>> results = new AtomicArray<>(nodes.size());
@@ -282,12 +282,23 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         int startPos = 0;
         for (var node : nodes) {
-            InferTrainedModelDeploymentAction.Request deploymentRequest = InferTrainedModelDeploymentAction.Request.forDocs(
-                concreteModelId,
-                request.getUpdate(),
-                request.getObjectsToInfer().subList(startPos, startPos + node.v2()),
-                request.getTimeout()
-            );
+
+            InferTrainedModelDeploymentAction.Request deploymentRequest;
+            if (request.getTextInput() == null) {
+                deploymentRequest = InferTrainedModelDeploymentAction.Request.forDocs(
+                    concreteModelId,
+                    request.getUpdate(),
+                    request.getObjectsToInfer().subList(startPos, startPos + node.v2()),
+                    request.getInferenceTimeout()
+                );
+            } else {
+                deploymentRequest = InferTrainedModelDeploymentAction.Request.forTextInput(
+                    concreteModelId,
+                    request.getUpdate(),
+                    request.getTextInput().subList(startPos, startPos + node.v2()),
+                    request.getInferenceTimeout()
+                );
+            }
             deploymentRequest.setNodes(node.v1());
             deploymentRequest.setParentTask(parentTaskId);
 

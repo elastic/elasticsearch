@@ -43,8 +43,12 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
     public static final InferTrainedModelDeploymentAction INSTANCE = new InferTrainedModelDeploymentAction();
 
     /**
-     * Once this action was publicly accessible and exposed through a
-     * REST API now it is only called internally.
+     * Do not call this action directly, use InferModelAction instead
+     * which will perform various checks and set the node the request
+     * should execute on.
+     *
+     * The action is poorly named as once it was publicly accessible
+     * and exposed through a REST API now it _must_ only called internally.
      */
     public static final String NAME = "cluster:monitor/xpack/ml/trained_models/deployment/infer";
 
@@ -128,7 +132,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 inferenceTimeout
             );
         }
-        
+
         // for tests
         Request(
             String modelId,

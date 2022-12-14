@@ -27,7 +27,6 @@ public class ExampleAnalyzerFactory implements org.elasticsearch.plugin.analysis
     }
 
     @Override
-    //TODO guide lucene
     public Analyzer create() {
         return new CustomAnalyzer(settings);
     }

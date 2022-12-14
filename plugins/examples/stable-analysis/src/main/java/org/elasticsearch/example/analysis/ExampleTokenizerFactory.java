@@ -19,7 +19,7 @@ import java.util.List;
 public class ExampleTokenizerFactory implements TokenizerFactory {
     @Override
     public Tokenizer create() {
-        return new CharTokenizer(List.of("_"));
+        return new CharTokenizer(List.of("_"));//TODO to be updated once list settings are implemented
     }
 }
 

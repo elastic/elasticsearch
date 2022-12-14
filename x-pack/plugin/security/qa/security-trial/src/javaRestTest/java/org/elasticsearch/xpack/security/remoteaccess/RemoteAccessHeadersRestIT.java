@@ -111,6 +111,11 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                   "names": ["index-a"],
                   "privileges": ["read", "read_cross_cluster"],
                   "clusters": ["my_remote_cluster*"]
+                },
+                {
+                  "names": ["index-b"],
+                  "privileges": ["read", "read_cross_cluster"],
+                  "clusters": ["my_remote_cluster_b"]
                 }
               ]
             }""");
@@ -158,83 +163,34 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
             final Response response = client().performRequest(searchRequest);
             assertOK(response);
 
-            final Set<String> expectedActions = new HashSet<>();
-            if (false == useProxyMode) {
-                expectedActions.add(ClusterStateAction.NAME);
-            }
-            if (minimizeRoundtrips) {
-                expectedActions.add(SearchAction.NAME);
-            } else {
-                expectedActions.add(ClusterSearchShardsAction.NAME);
-            }
             final List<CapturedActionWithHeaders> actualHeaders = List.copyOf(capturedHeaders);
-            assertThat(
-                actualHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
-                equalTo(expectedActions)
-            );
-            for (CapturedActionWithHeaders actual : actualHeaders) {
-                switch (actual.action) {
-                    // the cluster state action is run by the system user, so we expect an authentication header, instead of remote access
-                    // until we implement remote access handling for internal users
-                    case ClusterStateAction.NAME -> {
-                        assertThat(actual.headers().keySet(), containsInAnyOrder(AuthenticationField.AUTHENTICATION_KEY));
-                        assertThat(
-                            decodeAuthentication(actual.headers().get(AuthenticationField.AUTHENTICATION_KEY)).getEffectiveSubject()
-                                .getUser(),
-                            is(SystemUser.INSTANCE)
-                        );
-                    }
-                    case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
-                        assertContainsRemoteAccessHeaders(actual.headers());
-                        assertThat(
-                            actual.headers(),
-                            hasKey(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY)
-                        );
-                        assertThat(
-                            decode(actual.headers().get(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY)),
-                            equalTo("ApiKey " + clusterCredential)
-                        );
-                        final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
-                            actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
-                        );
-                        final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
-                            Authentication.newRealmAuthentication(
-                                new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
-                                new Authentication.RealmRef(
-                                    "default_native",
-                                    "native",
-                                    // Since we are running on a multi-node cluster the actual node name may be different between runs
-                                    // so just copy the one from the actual result
-                                    actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
-                                )
-                            ),
-                            new RoleDescriptorsIntersection(
-                                List.of(
-                                    Set.of(
-                                        new RoleDescriptor(
-                                            RBACEngine.REMOTE_USER_ROLE_NAME,
-                                            null,
-                                            new RoleDescriptor.IndicesPrivileges[] {
-                                                RoleDescriptor.IndicesPrivileges.builder()
-                                                    .indices("index-a")
-                                                    .privileges("read", "read_cross_cluster")
-                                                    .build() },
-                                            null,
-                                            null,
-                                            null,
-                                            null,
-                                            null,
-                                            null
-                                        )
-                                    )
-                                )
+            assertExpectedHeadersForCluster(
+                actualHeaders,
+                clusterCredential,
+                useProxyMode,
+                minimizeRoundtrips,
+                new RoleDescriptorsIntersection(
+                    List.of(
+                        Set.of(
+                            new RoleDescriptor(
+                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
                             )
-                        );
-                        assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
-                    }
-                    default -> fail("Unexpected action [" + actual.action + "]");
-                }
-            }
+                        )
+                    )
+                )
+            );
         }
     }
 
@@ -250,11 +206,11 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
             MockTransportService remoteTransportA = startTransport("remote_node_a", threadPool, capturedHeadersByCluster.get(CLUSTER_A));
             MockTransportService remoteTransportB = startTransport("remote_node_b", threadPool, capturedHeadersByCluster.get(CLUSTER_B))
         ) {
-            final var clusterCredentialA = clusterCredentials.get(CLUSTER_A);
+            final String clusterCredentialA = clusterCredentials.get(CLUSTER_A);
             final boolean useProxyModeA = randomBoolean();
             setupClusterSettings(CLUSTER_A, clusterCredentialA, remoteTransportA.getLocalDiscoNode(), useProxyModeA);
 
-            final var clusterCredentialB = clusterCredentials.get(CLUSTER_B);
+            final String clusterCredentialB = clusterCredentials.get(CLUSTER_B);
             final boolean useProxyModeB = randomBoolean();
             setupClusterSettings(CLUSTER_B, clusterCredentialB, remoteTransportB.getLocalDiscoNode(), useProxyModeB);
 
@@ -263,7 +219,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                 "GET",
                 String.format(
                     Locale.ROOT,
-                    "/%s:index-a,%s:index-a/_search?ccs_minimize_roundtrips=%s",
+                    "/%s:index-a,%s:index-*/_search?ccs_minimize_roundtrips=%s",
                     CLUSTER_A,
                     CLUSTER_B,
                     minimizeRoundtrips
@@ -278,83 +234,64 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
             final Response response = client().performRequest(searchRequest);
             assertOK(response);
 
-            final Set<String> expectedActions = new HashSet<>();
-            if (minimizeRoundtrips) {
-                expectedActions.add(SearchAction.NAME);
-            } else {
-                expectedActions.add(ClusterSearchShardsAction.NAME);
-            }
-            if (false == useProxyModeA) {
-                expectedActions.add(ClusterStateAction.NAME);
-            }
-            final List<CapturedActionWithHeaders> actualHeaders = List.copyOf(capturedHeadersByCluster.get(CLUSTER_A));
-            assertThat(
-                actualHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
-                equalTo(expectedActions)
-            );
-            for (CapturedActionWithHeaders actual : actualHeaders) {
-                switch (actual.action) {
-                    // the cluster state action is run by the system user, so we expect an authentication header, instead of remote access
-                    // until we implement remote access handling for internal users
-                    case ClusterStateAction.NAME -> {
-                        assertThat(actual.headers().keySet(), containsInAnyOrder(AuthenticationField.AUTHENTICATION_KEY));
-                        assertThat(
-                            decodeAuthentication(actual.headers().get(AuthenticationField.AUTHENTICATION_KEY)).getEffectiveSubject()
-                                .getUser(),
-                            is(SystemUser.INSTANCE)
-                        );
-                    }
-                    case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
-                        assertContainsRemoteAccessHeaders(actual.headers());
-                        assertThat(
-                            actual.headers(),
-                            hasKey(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY)
-                        );
-                        assertThat(
-                            decode(actual.headers().get(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY)),
-                            equalTo("ApiKey " + clusterCredentialA)
-                        );
-                        final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
-                            actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
-                        );
-                        final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
-                            Authentication.newRealmAuthentication(
-                                new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
-                                new Authentication.RealmRef(
-                                    "default_native",
-                                    "native",
-                                    // Since we are running on a multi-node cluster the actual node name may be different between runs
-                                    // so just copy the one from the actual result
-                                    actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
-                                )
-                            ),
-                            new RoleDescriptorsIntersection(
-                                List.of(
-                                    Set.of(
-                                        new RoleDescriptor(
-                                            RBACEngine.REMOTE_USER_ROLE_NAME,
-                                            null,
-                                            new RoleDescriptor.IndicesPrivileges[] {
-                                                RoleDescriptor.IndicesPrivileges.builder()
-                                                    .indices("index-a")
-                                                    .privileges("read", "read_cross_cluster")
-                                                    .build() },
-                                            null,
-                                            null,
-                                            null,
-                                            null,
-                                            null,
-                                            null
-                                        )
-                                    )
-                                )
+            assertExpectedHeadersForCluster(
+                List.copyOf(capturedHeadersByCluster.get(CLUSTER_A)),
+                clusterCredentialA,
+                useProxyModeA,
+                minimizeRoundtrips,
+                new RoleDescriptorsIntersection(
+                    List.of(
+                        Set.of(
+                            new RoleDescriptor(
+                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
                             )
-                        );
-                        assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
-                    }
-                    default -> fail("Unexpected action [" + actual.action + "]");
-                }
-            }
+                        )
+                    )
+                )
+            );
+            assertExpectedHeadersForCluster(
+                List.copyOf(capturedHeadersByCluster.get(CLUSTER_B)),
+                clusterCredentialB,
+                useProxyModeB,
+                minimizeRoundtrips,
+                new RoleDescriptorsIntersection(
+                    List.of(
+                        Set.of(
+                            new RoleDescriptor(
+                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build(),
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-b")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                )
+            );
         }
     }
 
@@ -374,6 +311,67 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                 clusterAlias,
                 Map.of("seeds", remoteNode.getAddress().toString(), "authorization", clusterCredential)
             );
+        }
+    }
+
+    private void assertExpectedHeadersForCluster(
+        final List<CapturedActionWithHeaders> actualHeaders,
+        final String clusterCredential,
+        boolean useProxyMode,
+        boolean minimizeRoundtrips,
+        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
+    ) throws IOException {
+        final Set<String> expectedActions = new HashSet<>();
+        if (minimizeRoundtrips) {
+            expectedActions.add(SearchAction.NAME);
+        } else {
+            expectedActions.add(ClusterSearchShardsAction.NAME);
+        }
+        if (false == useProxyMode) {
+            expectedActions.add(ClusterStateAction.NAME);
+        }
+        assertThat(
+            actualHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
+            equalTo(expectedActions)
+        );
+        for (CapturedActionWithHeaders actual : actualHeaders) {
+            switch (actual.action) {
+                // the cluster state action is run by the system user, so we expect an authentication header, instead of remote access
+                // until we implement remote access handling for internal users
+                case ClusterStateAction.NAME -> {
+                    assertThat(actual.headers().keySet(), containsInAnyOrder(AuthenticationField.AUTHENTICATION_KEY));
+                    assertThat(
+                        decodeAuthentication(actual.headers().get(AuthenticationField.AUTHENTICATION_KEY)).getEffectiveSubject().getUser(),
+                        is(SystemUser.INSTANCE)
+                    );
+                }
+                case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
+                    assertContainsRemoteAccessHeaders(actual.headers());
+                    assertThat(actual.headers(), hasKey(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY));
+                    assertThat(
+                        decode(actual.headers().get(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY)),
+                        equalTo("ApiKey " + clusterCredential)
+                    );
+                    final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
+                        actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
+                    );
+                    final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
+                        Authentication.newRealmAuthentication(
+                            new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
+                            new Authentication.RealmRef(
+                                "default_native",
+                                "native",
+                                // Since we are running on a multi-node cluster the actual node name may be different between runs
+                                // so just copy the one from the actual result
+                                actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
+                            )
+                        ),
+                        expectedRoleDescriptorsIntersection
+                    );
+                    assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
+                }
+                default -> fail("Unexpected action [" + actual.action + "]");
+            }
         }
     }
 

@@ -92,14 +92,17 @@ public final class RetentionLease implements ToXContentObject, Writeable {
         if (timestamp < 0) {
             throw new IllegalArgumentException("retention lease timestamp [" + timestamp + "] out of range");
         }
-        Objects.requireNonNull(source);
         if (source.isEmpty()) {
             throw new IllegalArgumentException("retention lease source can not be empty");
         }
         this.id = id;
         this.retainingSequenceNumber = retainingSequenceNumber;
         this.timestamp = timestamp;
-        this.source = source;
+        this.source = switch (source) {
+            case "ccr" -> "ccr";
+            case ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE -> ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE;
+            default -> source;
+        };
     }
 
     /**
@@ -109,10 +112,7 @@ public final class RetentionLease implements ToXContentObject, Writeable {
      * @throws IOException if an I/O exception occurs reading from the stream
      */
     public RetentionLease(final StreamInput in) throws IOException {
-        id = in.readString();
-        retainingSequenceNumber = in.readZLong();
-        timestamp = in.readVLong();
-        source = in.readString();
+        this(in.readString(), in.readZLong(), in.readVLong(), in.readString());
     }
 
     /**

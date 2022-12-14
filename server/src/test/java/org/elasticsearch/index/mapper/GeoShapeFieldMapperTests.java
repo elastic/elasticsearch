@@ -59,6 +59,11 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsExactQuery() {
+        return false;   // TODO can we support this?
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         return "POINT (14.0 15.0)";
     }

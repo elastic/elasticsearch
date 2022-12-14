@@ -70,6 +70,11 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsExactQuery() {
+        return false;
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         throw new AssumptionViolatedException("not supported");
     }

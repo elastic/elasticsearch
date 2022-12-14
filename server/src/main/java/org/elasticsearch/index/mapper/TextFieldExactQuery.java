@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
@@ -26,30 +25,39 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 
 import java.io.IOException;
-import java.util.function.Function;
+import java.io.UncheckedIOException;
+import java.util.Objects;
 
-class TextFieldExactQuery extends Query {
+/**
+ * Find documents with text fields that exactly match the input
+ */
+public class TextFieldExactQuery extends Query {
 
-    private final String field;
-    private final BytesRef value;
+    private final String value;
     private final Query conjunction;
-    private final Function<LeafReaderContext, LeafFieldData> fieldData;
+    private final IndexFieldData<?> fieldData;
 
-    TextFieldExactQuery(MappedFieldType fieldType, Function<LeafReaderContext, LeafFieldData> fieldData, String input) throws IOException {
-        this.field = fieldType.name();
-        this.value = new BytesRef(input);
+    public TextFieldExactQuery(MappedFieldType fieldType, IndexFieldData<?> fieldData, String input) {
+        String field = fieldType.name();
+        this.value = input;
         this.fieldData = fieldData;
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
         TokenStream ts = fieldType.getTextSearchInfo().searchAnalyzer().tokenStream(field, input);
         CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
-        ts.reset();
-        while (ts.incrementToken()) {
-            bq.add(new TermQuery(new Term(field, termAtt.toString())), BooleanClause.Occur.MUST);
+        try {
+            ts.reset();
+            while (ts.incrementToken()) {
+                bq.add(new TermQuery(new Term(field, termAtt.toString())), BooleanClause.Occur.MUST);
+            }
+            ts.end();
+            ts.close();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
         this.conjunction = bq.build();
     }
@@ -65,18 +73,14 @@ class TextFieldExactQuery extends Query {
                     return null;
                 }
                 DocIdSetIterator approx = conjScorer.iterator();
-                LeafFieldData fd = fieldData.apply(context);
-                SortedBinaryDocValues dv = fd.getBytesValues();
+                LeafFieldData fd = fieldData.load(context);
+                DocValuesScriptFieldFactory dv = fd.getScriptFieldFactory(fieldData.getFieldName());
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approx) {
                     @Override
                     public boolean matches() throws IOException {
-                        if (dv.advanceExact(approximation.docID()) == false) {
-                            return false;
-                        }
-                        int values = dv.docValueCount();
-                        for (int i = 0; i < values; i++) {
-                            BytesRef v = dv.nextValue();
-                            if (v.equals(value)) {
+                        dv.setNextDocId(approximation.docID());
+                        for (Object o : dv.toScriptDocValues()) {
+                            if (Objects.equals(o, value)) {
                                 return true;
                             }
                         }
@@ -93,14 +97,14 @@ class TextFieldExactQuery extends Query {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                return false;
+                return false;   // don't cache queries that could do a table scan
             }
         };
     }
 
     @Override
     public String toString(String field) {
-        return field + ":exact(" + value.utf8ToString() + ")";
+        return field + ":exact(" + value + ")";
     }
 
     @Override
@@ -110,11 +114,15 @@ class TextFieldExactQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        return false;
+        if (sameClassAs(obj) == false) {
+            return false;
+        }
+        TextFieldExactQuery other = (TextFieldExactQuery) obj;
+        return Objects.equals(this.value, other.value) && Objects.equals(this.fieldData, other.fieldData);
     }
 
     @Override
     public int hashCode() {
-        return 0;
+        return Objects.hash(this.value, this.fieldData);
     }
 }

@@ -68,6 +68,12 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         return stringEncode(1.3, 1.2);
     }
 
+    @Override
+    protected boolean supportsExactQuery() {
+        // TODO can we support this?
+        return false;
+    }
+
     public final void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -24,12 +25,15 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
@@ -73,6 +77,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsIgnoreMalformed() {
         return false;
+    }
+
+    @Override
+    protected List<Object> exactQueryValues(MappedFieldType fieldType, Source source, LeafReaderContext ctx, SearchExecutionContext sec)
+        throws IOException {
+        return List.of("value");
     }
 
     public void testDefaults() throws Exception {

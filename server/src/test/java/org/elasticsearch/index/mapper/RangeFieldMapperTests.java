@@ -36,6 +36,11 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean supportsExactQuery() {
+        return false;   // TODO we can probably implement this?
+    }
+
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

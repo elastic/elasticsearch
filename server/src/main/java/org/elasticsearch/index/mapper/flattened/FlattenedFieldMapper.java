@@ -245,6 +245,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support exact queries");
+        }
+
+        @Override
         public Query rangeQuery(
             Object lowerTerm,
             Object upperTerm,

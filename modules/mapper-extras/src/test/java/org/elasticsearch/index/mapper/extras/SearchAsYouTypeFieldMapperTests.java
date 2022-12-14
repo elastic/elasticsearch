@@ -121,6 +121,11 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsExactQuery() {
+        return false;   // TODO: support this? Needs fielddata script access
+    }
+
+    @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new MapperExtrasPlugin());
     }

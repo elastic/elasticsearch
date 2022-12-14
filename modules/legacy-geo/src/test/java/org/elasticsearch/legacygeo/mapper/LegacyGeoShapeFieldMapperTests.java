@@ -70,6 +70,11 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsExactQuery() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
         checker.registerConflictCheck("strategy", fieldMapping(this::minimalMapping), fieldMapping(b -> {

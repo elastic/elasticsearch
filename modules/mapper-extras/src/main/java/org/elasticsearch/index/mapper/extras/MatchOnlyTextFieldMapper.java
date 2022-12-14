@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
+import org.elasticsearch.index.mapper.TextFieldExactQuery;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -244,6 +245,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             // Disable scoring
             return new ConstantScoreQuery(super.termQuery(value, context));
+        }
+
+        @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            return new TextFieldExactQuery(this, context.getForField(this, FielddataOperation.SCRIPT), value.toString());
         }
 
         @Override

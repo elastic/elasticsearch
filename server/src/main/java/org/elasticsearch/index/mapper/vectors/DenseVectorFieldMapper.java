@@ -540,6 +540,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
+        @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support exact queries");
+        }
+
         public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands, Query filter) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(

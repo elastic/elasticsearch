@@ -1,0 +1,70 @@
+setup:
+  - skip:
+      version: " - 8.7.0"
+      reason: exact query introduced in 8.7
+
+  - do:
+      indices.create:
+        index: exact_query_test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              keyword:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "exact_query_test", "_id" : "1" } }'
+          - '{ "text" : "here is some text", "keyword" : ["foo", "bar"] }'
+          - '{ "index" : { "_index" : "exact_query_test", "_id" : "2" } }'
+          - '{ "text" : "here is some different text", "keyword" : ["foo", "baz"] }'
+          - '{ "index" : { "_index" : "exact_query_test", "_id" : "3" } }'
+          - '{ "text" : "there is some text", "keyword" : "bar" }'
+          - '{ "index" : { "_index" : "exact_query_test", "_id" : "4" } }'
+          - '{ "text" : "here is some text", "keyword" : ["foo", "bar"] }'
+          - '{ "index" : { "_index" : "exact_query_test", "_id" : "5" } }'
+          - '{ "text" : "text", "keyword" : "foo" }'
+          - '{ "index" : { "_index" : "exact_query_test", "_id" : "6" } }'
+          - '{ "text" : "here", "keyword" : ["foo", "bar"] }'
+          - '{ "index" : { "_index" : "exact_query_test", "_id" : "7" } }'
+          - '{ "text" : "there is some text", "keyword" : ["foo", "bar"] }'
+          - '{ "index" : { "_index" : "exact_query_test", "_id" : "8" } }'
+          - '{ "text" : "here is some text", "keyword" : ["baz", "bar"] }'
+
+---
+"test exact query on text fields":
+  - do:
+      search:
+        index: exact_query_test
+        body:
+          query:
+            exact:
+              text: "here is some text"
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        index: exact_query_test
+        body:
+          query:
+            exact:
+              text: "here"
+
+  - match: { hits.total: 1 }
+
+---
+"test exact query on keyword fields":
+  - do:
+      search:
+        index: exact_query_test
+        body:
+          query:
+            exact:
+              keyword: baz
+
+  - match: { hits.total: 2 }

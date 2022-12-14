@@ -366,6 +366,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support exact queries");
+        }
+
+        @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
             throws IOException {
             checkForPositions();

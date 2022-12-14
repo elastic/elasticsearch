@@ -247,6 +247,11 @@ public class HistogramFieldMapper extends FieldMapper {
                 "[" + CONTENT_TYPE + "] field do not support searching, " + "use dedicated aggregations instead: [" + name() + "]"
             );
         }
+
+        @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support exact queries");
+        }
     }
 
     @Override

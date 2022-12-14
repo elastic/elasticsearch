@@ -145,6 +145,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsExactQuery() {
+        return false;
+    }
+
+    @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(DenseVectorFieldType.class));
         assertEquals(fieldType.isIndexed(), indexed);

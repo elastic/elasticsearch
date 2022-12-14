@@ -91,6 +91,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support exact queries");
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             throw new IllegalArgumentException("[rank_features] fields do not support [exists] queries");
         }

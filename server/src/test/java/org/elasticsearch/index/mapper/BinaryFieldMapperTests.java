@@ -45,6 +45,11 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
     }
 
+    @Override
+    protected boolean supportsExactQuery() {
+        return false;
+    }
+
     public void testExistsQueryDocValuesEnabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

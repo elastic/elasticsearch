@@ -129,6 +129,11 @@ public class BinaryFieldMapper extends FieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Binary fields do not support searching");
         }
+
+        @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support exact queries");
+        }
     }
 
     private final boolean stored;

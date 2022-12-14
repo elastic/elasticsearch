@@ -1,0 +1,45 @@
+[[query-dsl-exact-query]]
+=== Exact query
+++++
+<titleabbrev>Exact</titleabbrev>
+++++
+
+Returns documents that contain an exact value for a field.
+
+For most field types, this behaves the same as a <<query-dsl-term-query, term query>>.  For
+analyzed fields such as <<text-field-type, text>> however, it will only return documents where
+the query value exactly matches the entire content of the field.
+
+[[exact-query-ex-request]]
+==== Example request
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "exact": {
+      "text": "this is some text"
+    }
+  }
+}
+----
+
+This will return documents that have precisely `this is some text` in their `text` field,
+but it will not return documents with values of `some text`, `this is some text again`, or
+`This is some Text`.
+
+[[exact-query-top-level-params]]
+==== Top-level parameters for `exact`
+`field`::
+(Required, string) Name of the field you wish to search.
++
+
+[[exact-query-notes]]
+==== Notes
+
+[[exact-query-notes-multivalued]]
+===== Multi-valued fields
+
+If a document has multiple values for a field, then `exact` will return if it matches
+any one of those values.

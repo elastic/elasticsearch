@@ -43,6 +43,11 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsExactQuery() {
+        return false;   // TODO could we support this?
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         return "POINT (14.0 15.0)";
     }

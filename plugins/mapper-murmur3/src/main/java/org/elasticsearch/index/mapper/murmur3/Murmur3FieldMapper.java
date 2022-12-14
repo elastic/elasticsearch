@@ -102,6 +102,11 @@ public class Murmur3FieldMapper extends FieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Murmur3 fields are not searchable: [" + name() + "]");
         }
+
+        @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support exact queries");
+        }
     }
 
     protected Murmur3FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {

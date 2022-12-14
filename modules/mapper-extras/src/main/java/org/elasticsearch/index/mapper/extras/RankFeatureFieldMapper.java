@@ -110,6 +110,11 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support exact queries");
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[rank_feature] fields do not support sorting, scripting or aggregating");
         }

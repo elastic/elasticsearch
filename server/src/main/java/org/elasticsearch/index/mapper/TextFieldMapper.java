@@ -950,6 +950,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            return new TextFieldExactQuery(this, context.getForField(this, FielddataOperation.SCRIPT), value.toString());
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
             if (operation == FielddataOperation.SEARCH) {

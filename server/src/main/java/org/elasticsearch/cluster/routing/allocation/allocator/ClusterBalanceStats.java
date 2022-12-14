@@ -101,6 +101,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
     public record MetricStats(double total, double min, double max, double average, double stdDev) implements Writeable, ToXContentObject {
 
         private static MetricStats createFrom(List<NodeStats> nodes, ToDoubleFunction<NodeStats> metricExtractor) {
+            assert nodes.isEmpty() == false;
             var summary = nodes.stream().collect(summarizingDouble(metricExtractor));
             var stdDev = MovingFunctions.stdDev(nodes.stream().mapToDouble(metricExtractor).toArray(), summary.getAverage());
             return new MetricStats(summary.getSum(), summary.getMin(), summary.getMax(), summary.getAverage(), stdDev);

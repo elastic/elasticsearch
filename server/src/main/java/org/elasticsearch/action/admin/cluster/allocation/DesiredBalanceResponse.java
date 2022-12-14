@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
+
 public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContent {
 
     private static final Version CLUSTER_BALANCE_STATS_VERSION = Version.V_8_7_0;
@@ -76,27 +78,26 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
-            Iterators.single((builder, p) -> builder.startObject()),
-            Iterators.single((builder, p) -> builder.field("stats", stats)),
-            Iterators.single((builder, p) -> builder.field("cluster_balance_stats", clusterBalanceStats)),
+            singleChunk(
+                (builder, p) -> builder.startObject(),
+                (builder, p) -> builder.field("stats", stats),
+                (builder, p) -> builder.field("cluster_balance_stats", clusterBalanceStats),
+                (builder, p) -> builder.startObject("routing_table")
+            ),
             routingTableToXContentChunked(),
-            Iterators.single((builder, p) -> builder.endObject())
+            singleChunk((builder, p) -> builder.endObject(), (builder, p) -> builder.endObject())
         );
     }
 
     private Iterator<ToXContent> routingTableToXContentChunked() {
-        return Iterators.concat(
-            Iterators.single(((builder, p) -> builder.startObject("routing_table"))),
-            routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, p) -> {
-                builder.startObject(indexEntry.getKey());
-                for (Map.Entry<Integer, DesiredShards> shardEntry : indexEntry.getValue().entrySet()) {
-                    builder.field(String.valueOf(shardEntry.getKey()));
-                    shardEntry.getValue().toXContent(builder, p);
-                }
-                return builder.endObject();
-            }).iterator(),
-            Iterators.single(((builder, p) -> builder.endObject()))
-        );
+        return routingTable.entrySet().stream().map(indexEntry -> (ToXContent) (builder, p) -> {
+            builder.startObject(indexEntry.getKey());
+            for (Map.Entry<Integer, DesiredShards> shardEntry : indexEntry.getValue().entrySet()) {
+                builder.field(String.valueOf(shardEntry.getKey()));
+                shardEntry.getValue().toXContent(builder, p);
+            }
+            return builder.endObject();
+        }).iterator();
     }
 
     public DesiredBalanceStats getStats() {

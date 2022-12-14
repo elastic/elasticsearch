@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -325,12 +326,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         // wait until all plugins loaded, check for exceptions (that will just get re-thrown upwards)
         for (CompletableFuture<?> f : pluginLoads.values()) {
-            try {
-                f.join();
-            } catch (CompletionException e) {
-                ExceptionsHelper.throwUnchecked(e.getCause());
-                throw new AssertionError(e);    // should not be checked exception here
-            }
+            FutureUtils.get(f);
         }
 
         // TODO: move this to inner loop?

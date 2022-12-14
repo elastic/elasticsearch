@@ -190,7 +190,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         }
     }
 
-    @AwaitsFix(bugUrl = "Temporarily disabled")
     public void testWriteBlobWithRetries() throws Exception {
         final int maxRetries = randomIntBetween(2, 10);
         final CountDown countDown = new CountDown(maxRetries);
@@ -258,7 +257,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         assertThat(exception.getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
     }
 
-    @AwaitsFix(bugUrl = "Temporarily disabled")
     public void testWriteLargeBlob() throws IOException {
         // See {@link BaseWriteChannel#DEFAULT_CHUNK_SIZE}
         final int defaultChunkSize = 60 * 256 * 1024;

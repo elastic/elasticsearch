@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -186,8 +185,6 @@ class APMJvmOptions {
             if (settingNames.contains("tracing.apm." + key)) {
                 try (SecureString token = secrets.getString("tracing.apm." + key)) {
                     propertiesMap.put(key, token.toString());
-                } catch (GeneralSecurityException gse) {
-                    throw new IllegalArgumentException("Error accessing secrets", gse);
                 }
             }
         }

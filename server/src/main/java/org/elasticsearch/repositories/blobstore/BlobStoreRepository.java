@@ -3574,7 +3574,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     try (var metadataVerifier = new MetadataVerifier(this, request, repositoryData, isCancelledSupplier, l2)) {
                         metadataVerifier.run();
                     }
-                }), () -> getRepositoryData(repositoryData.getGenId())));
+                }), () -> readOnly ? repositoryData : getRepositoryData(repositoryData.getGenId())));
         }));
     }
 

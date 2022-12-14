@@ -102,11 +102,9 @@ public final class PreAuthorizationUtils {
             return;
         }
 
-        final Optional<ParentActionAuthorization> existingParentAuthorization = Optional.ofNullable(
-            securityContext.getParentAuthorization()
-        );
-        if (existingParentAuthorization.isPresent()) {
-            if (existingParentAuthorization.get().action().equals(parentAction)) {
+        final ParentActionAuthorization existingParentAuthorization = securityContext.getParentAuthorization();
+        if (existingParentAuthorization != null) {
+            if (existingParentAuthorization.action().equals(parentAction)) {
                 // Single request can fan-out a child action to multiple nodes in the cluster, e.g. node1 and node2.
                 // Sending a child action to node1 would have already put parent authorization in the thread context.
                 // To avoid attempting to pre-authorize the same parent action twice we simply return here
@@ -117,7 +115,7 @@ public final class PreAuthorizationUtils {
             } else {
                 throw new AssertionError(
                     "found parent authorization for action ["
-                        + existingParentAuthorization.get().action()
+                        + existingParentAuthorization.action()
                         + "] while attempting to set authorization for new parent action ["
                         + parentAction
                         + "]"

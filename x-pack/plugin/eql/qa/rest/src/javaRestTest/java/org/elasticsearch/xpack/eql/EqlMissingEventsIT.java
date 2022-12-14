@@ -17,8 +17,4 @@ public class EqlMissingEventsIT extends EqlMissingEventsSpecTestCase {
         super(query, name, eventIds, joinKeys, size);
     }
 
-    @Override
-    protected int requestFetchSize() {
-        return 5;
-    }
 }

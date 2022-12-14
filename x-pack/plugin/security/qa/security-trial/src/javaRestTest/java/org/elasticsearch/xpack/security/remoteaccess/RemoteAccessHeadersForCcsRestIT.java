@@ -122,8 +122,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             }""");
         assertOK(adminClient().performRequest(putRoleRequest));
 
-        createIndex(adminClient(), "index-a", null, null, null);
-        final var indexDocRequest = new Request("POST", "/index-a/_doc");
+        final var indexDocRequest = new Request("POST", "/index-a/_doc?refresh=true");
         indexDocRequest.setJsonEntity("{\"foo\": \"bar\"}");
         assertOK(adminClient().performRequest(indexDocRequest));
     }

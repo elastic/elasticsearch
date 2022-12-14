@@ -15,6 +15,7 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
+import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
@@ -48,7 +49,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         channel = new EmbeddedChannel();
         header.set(null);
         listener.set(null);
-        BiConsumer<Object, ActionListener<Void>> validator = (o, validationCompleteListener) -> {
+        BiConsumer<HttpMessage, ActionListener<Void>> validator = (o, validationCompleteListener) -> {
             header.set(o);
             listener.set(validationCompleteListener);
         };

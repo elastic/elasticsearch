@@ -22,6 +22,7 @@ import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
@@ -145,7 +146,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final RecvByteBufAllocator recvByteBufAllocator;
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
-    private final BiConsumer<Object, ActionListener<Void>> headerValidator = null;
+    private final BiConsumer<HttpMessage, ActionListener<Void>> headerValidator = null;
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
@@ -338,14 +339,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final HttpHandlingSettings handlingSettings;
         private final TLSConfig tlsConfig;
         private final BiPredicate<String, InetSocketAddress> acceptChannelPredicate;
-        private final BiConsumer<Object, ActionListener<Void>> headerValidator;
+        private final BiConsumer<HttpMessage, ActionListener<Void>> headerValidator;
 
         protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final HttpHandlingSettings handlingSettings,
             final TLSConfig tlsConfig,
             @Nullable final BiPredicate<String, InetSocketAddress> acceptChannelPredicate,
-            @Nullable final BiConsumer<Object, ActionListener<Void>> headerValidator
+            @Nullable final BiConsumer<HttpMessage, ActionListener<Void>> headerValidator
         ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;

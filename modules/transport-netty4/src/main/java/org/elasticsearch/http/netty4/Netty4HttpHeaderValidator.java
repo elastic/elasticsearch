@@ -27,11 +27,11 @@ import java.util.function.BiConsumer;
 
 public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
-    private final BiConsumer<Object, ActionListener<Void>> validator;
+    private final BiConsumer<HttpMessage, ActionListener<Void>> validator;
     private ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
     private STATE state = STATE.WAITING_TO_START;
 
-    public Netty4HttpHeaderValidator(BiConsumer<Object, ActionListener<Void>> validator) {
+    public Netty4HttpHeaderValidator(BiConsumer<HttpMessage, ActionListener<Void>> validator) {
         this.validator = validator;
     }
 

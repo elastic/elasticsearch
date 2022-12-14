@@ -463,7 +463,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } else {
                     final Thread executingThread = Thread.currentThread();
                     filterListener = new AbstractFilterListener(receiveMessage) {
-
                         @Override
                         public void onResponse(Void unused) {
                             if (executingThread == Thread.currentThread()) {

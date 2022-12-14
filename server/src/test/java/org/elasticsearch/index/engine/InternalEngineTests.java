@@ -3590,7 +3590,8 @@ public class InternalEngineTests extends EngineTestCase {
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
             config.getRelativeTimeInNanosSupplier(),
-            null
+            null,
+            false
         );
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
@@ -7260,7 +7261,8 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getSnapshotCommitSupplier(),
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
-                config.getIndexCommitListener()
+                config.getIndexCommitListener(),
+                config.isRecoveringAsPrimary()
             );
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());

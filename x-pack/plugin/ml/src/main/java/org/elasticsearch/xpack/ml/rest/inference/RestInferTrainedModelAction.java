@@ -15,7 +15,6 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -53,9 +52,6 @@ public class RestInferTrainedModelAction extends BaseRestHandler {
                 InferModelAction.Request.DEFAULT_TIMEOUT
             );
             request.setInferenceTimeout(inferTimeout);
-        }
-        if (request.getUpdate() == null) {
-            request.setUpdate(new EmptyConfigUpdate());
         }
 
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(

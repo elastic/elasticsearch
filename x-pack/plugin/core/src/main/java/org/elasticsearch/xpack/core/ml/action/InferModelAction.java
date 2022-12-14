@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -231,7 +232,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             private String modelId;
             private List<Map<String, Object>> docs;
             private TimeValue timeout;
-            private InferenceConfigUpdate update;
+            private InferenceConfigUpdate update = new EmptyConfigUpdate();
 
             private Builder() {}
 

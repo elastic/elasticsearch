@@ -59,7 +59,7 @@ public interface TriangleTreeVisitor {
         /**
          * Equivalent to {@link #visitPoint(int, int)} but coordinates are decoded.
          */
-        abstract void visitDecodedPoint(double x, double y);
+        protected abstract void visitDecodedPoint(double x, double y);
 
         @Override
         public final void visitLine(int aX, int aY, int bX, int bY, byte metadata) {
@@ -69,7 +69,7 @@ public interface TriangleTreeVisitor {
         /**
          * Equivalent to {@link #visitLine(int, int, int, int, byte)} but coordinates are decoded.
          */
-        abstract void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata);
+        protected abstract void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata);
 
         @Override
         public final void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
@@ -87,7 +87,7 @@ public interface TriangleTreeVisitor {
         /**
          * Equivalent to {@link #visitTriangle(int, int, int, int, int, int, byte)} but coordinates are decoded.
          */
-        abstract void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata);
+        protected abstract void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata);
 
         @Override
         public final boolean pushX(int minX) {
@@ -97,7 +97,7 @@ public interface TriangleTreeVisitor {
         /**
          * Equivalent to {@link #pushX(int)}  but coordinates are decoded.
          */
-        abstract boolean pushDecodedX(double minX);
+        protected abstract boolean pushDecodedX(double minX);
 
         @Override
         public final boolean pushY(int minY) {
@@ -107,7 +107,7 @@ public interface TriangleTreeVisitor {
         /**
          * Equivalent to {@link #pushY(int)}  but coordinates are decoded.
          */
-        abstract boolean pushDecodedY(double minX);
+        protected abstract boolean pushDecodedY(double minX);
 
         @Override
         public final boolean push(int maxX, int maxY) {
@@ -117,7 +117,7 @@ public interface TriangleTreeVisitor {
         /**
          * Equivalent to {@link #push(int, int)} but coordinates are decoded.
          */
-        abstract boolean pushDecoded(double maxX, double maxY);
+        protected abstract boolean pushDecoded(double maxX, double maxY);
 
         @Override
         public final boolean push(int minX, int minY, int maxX, int maxY) {
@@ -127,6 +127,6 @@ public interface TriangleTreeVisitor {
         /**
          * Equivalent to {@link #push(int, int, int, int)} but coordinates are decoded.
          */
-        abstract boolean pushDecoded(double minX, double minY, double maxX, double maxY);
+        protected abstract boolean pushDecoded(double minX, double minY, double maxX, double maxY);
     }
 }

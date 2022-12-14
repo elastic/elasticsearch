@@ -122,7 +122,7 @@ public final class PreAuthorizationUtils {
         }
     }
 
-    private static boolean isChildActionWhitelistedForParent(final String parent, final String child) {
+    private static boolean shouldPreAuthorizeChildActionOfParent(final String parent, final String child) {
         final Set<String> children = CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(parent);
         return children != null && (parent.equals(child) || children.contains(child));
     }
@@ -143,7 +143,7 @@ public final class PreAuthorizationUtils {
             return true;
         }
 
-        if (isChildActionWhitelistedForParent(parentAuthorization.action(), childAction) == false) {
+        if (shouldPreAuthorizeChildActionOfParent(parentAuthorization.action(), childAction) == false) {
             // We want to remove the parent authorization header if the child action is not one of the white listed.
             return true;
         }
@@ -167,7 +167,7 @@ public final class PreAuthorizationUtils {
 
         final String parentAction = parentAuthorization.action();
         final String childAction = childRequestInfo.getAction();
-        if (isChildActionWhitelistedForParent(parentAction, childAction) == false) {
+        if (shouldPreAuthorizeChildActionOfParent(parentAction, childAction) == false) {
             // We only pre-authorize explicitly allowed child actions.
             return false;
         }

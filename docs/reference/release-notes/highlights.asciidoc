@@ -1,8 +1,6 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
-coming::[{minor-version}]
-
 Here are the highlights of what's new and improved in {es} {minor-version}!
 ifeval::[\{release-state}\"!=\"unreleased\"]
 For detailed information about this release, see the <<es-release-notes>> and
@@ -129,5 +127,15 @@ of log events that tend to co-occur and may give a more informative explanation
 for the possible causes of a spike in the logs.
 
 {es-pull}83055[#83055]
+
+[discrete]
+[[more-efficient-snapshots]]
+=== More efficient snapshots
+
+The overhead of the snapshot operation has been reduced significantly. Snapshots
+now run in a more efficient order and require much less network traffic than
+before.
+
+{es-pull}89619[#89619]
 
 // end::notable-highlights[]

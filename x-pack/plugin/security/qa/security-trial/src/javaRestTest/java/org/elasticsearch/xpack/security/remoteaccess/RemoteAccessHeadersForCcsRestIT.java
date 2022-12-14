@@ -37,6 +37,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -79,7 +80,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
-public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCase {
+public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestTestCase {
     @BeforeClass
     public static void checkFeatureFlag() {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
@@ -96,7 +97,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
     @Before
     public void setup() throws IOException {
         createUser(REMOTE_SEARCH_USER, PASSWORD, List.of(REMOTE_SEARCH_ROLE));
-        createIndex(adminClient(), "index-a", null, null, null);
+
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
@@ -120,6 +121,11 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
               ]
             }""");
         assertOK(adminClient().performRequest(putRoleRequest));
+
+        createIndex(adminClient(), "index-a", null, null, null);
+        final var indexDocRequest = new Request("POST", "/index-a/_doc");
+        indexDocRequest.setJsonEntity("{\"foo\": \"bar\"}");
+        assertOK(adminClient().performRequest(indexDocRequest));
     }
 
     @After
@@ -136,9 +142,9 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
     }
 
     public void testRemoteAccessHeadersSentSingleRemote() throws Exception {
-        final String clusterCredential = randomBase64UUID(random());
         final BlockingQueue<CapturedActionWithHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
-        try (MockTransportService remoteTransport = startTransport("remote_node_a", threadPool, capturedHeaders)) {
+        try (MockTransportService remoteTransport = startTransport("remoteNodeA", threadPool, capturedHeaders)) {
+            final String clusterCredential = randomBase64UUID(random());
             final DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             final boolean useProxyMode = randomBoolean();
             setupClusterSettings(CLUSTER_A, clusterCredential, remoteNode, useProxyMode);
@@ -162,8 +168,9 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
 
             final Response response = client().performRequest(searchRequest);
             assertOK(response);
+            assertThat(ObjectPath.createFromResponse(response).evaluate("hits.total.value"), equalTo(alsoSearchLocally ? 1 : 0));
 
-            assertExpectedActionsAndHeadersForCluster(
+            expectActionsAndHeadersForCluster(
                 List.copyOf(capturedHeaders),
                 useProxyMode,
                 minimizeRoundtrips,
@@ -193,8 +200,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
         }
     }
 
-    public void testRemoteAccessHeadersSentMultipleRemote() throws Exception {
-        final Map<String, String> clusterCredentials = Map.of(CLUSTER_A, randomBase64UUID(random()), CLUSTER_B, randomBase64UUID(random()));
+    public void testRemoteAccessHeadersSentMultipleRemotes() throws Exception {
         final Map<String, BlockingQueue<CapturedActionWithHeaders>> capturedHeadersByCluster = Map.of(
             CLUSTER_A,
             ConcurrentCollections.newBlockingQueue(),
@@ -202,14 +208,14 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
             ConcurrentCollections.newBlockingQueue()
         );
         try (
-            MockTransportService remoteTransportA = startTransport("remote_node_a", threadPool, capturedHeadersByCluster.get(CLUSTER_A));
-            MockTransportService remoteTransportB = startTransport("remote_node_b", threadPool, capturedHeadersByCluster.get(CLUSTER_B))
+            MockTransportService remoteTransportA = startTransport("remoteNodeA", threadPool, capturedHeadersByCluster.get(CLUSTER_A));
+            MockTransportService remoteTransportB = startTransport("remoteNodeB", threadPool, capturedHeadersByCluster.get(CLUSTER_B))
         ) {
-            final String clusterCredentialA = clusterCredentials.get(CLUSTER_A);
+            final String clusterCredentialA = randomBase64UUID(random());
             final boolean useProxyModeA = randomBoolean();
             setupClusterSettings(CLUSTER_A, clusterCredentialA, remoteTransportA.getLocalDiscoNode(), useProxyModeA);
 
-            final String clusterCredentialB = clusterCredentials.get(CLUSTER_B);
+            final String clusterCredentialB = randomBase64UUID(random());
             final boolean useProxyModeB = randomBoolean();
             setupClusterSettings(CLUSTER_B, clusterCredentialB, remoteTransportB.getLocalDiscoNode(), useProxyModeB);
 
@@ -232,8 +238,9 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
 
             final Response response = client().performRequest(searchRequest);
             assertOK(response);
+            assertThat(ObjectPath.createFromResponse(response).evaluate("hits.total.value"), equalTo(0));
 
-            assertExpectedActionsAndHeadersForCluster(
+            expectActionsAndHeadersForCluster(
                 List.copyOf(capturedHeadersByCluster.get(CLUSTER_A)),
                 useProxyModeA,
                 minimizeRoundtrips,
@@ -260,7 +267,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                     )
                 )
             );
-            assertExpectedActionsAndHeadersForCluster(
+            expectActionsAndHeadersForCluster(
                 List.copyOf(capturedHeadersByCluster.get(CLUSTER_B)),
                 useProxyModeB,
                 minimizeRoundtrips,
@@ -313,7 +320,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
         }
     }
 
-    private void assertExpectedActionsAndHeadersForCluster(
+    private void expectActionsAndHeadersForCluster(
         final List<CapturedActionWithHeaders> actualActionsWithHeaders,
         boolean useProxyMode,
         boolean minimizeRoundtrips,

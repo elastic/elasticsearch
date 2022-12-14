@@ -65,6 +65,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -97,6 +98,12 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
+              "indices": [
+                {
+                  "names": ["index-a"],
+                  "privileges": ["read"]
+                }
+              ],
               "remote_indices": [
                 {
                   "names": ["index-a"],
@@ -135,10 +142,16 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
             } else {
                 updateRemoteClusterSettings(Map.of("seeds", remoteNode.getAddress().toString(), "authorization", clusterCredential));
             }
+            final boolean alsoSearchLocally = randomBoolean();
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
                 "GET",
-                "/my_remote_cluster:index-a/_search?ccs_minimize_roundtrips=" + minimizeRoundtrips
+                String.format(
+                    Locale.ROOT,
+                    "/%smy_remote_cluster:index-a/_search?ccs_minimize_roundtrips=%s",
+                    alsoSearchLocally ? "index-a," : "",
+                    minimizeRoundtrips
+                )
             );
             searchRequest.setOptions(
                 searchRequest.getOptions()
@@ -146,7 +159,8 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                     .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
             );
 
-            assertOK(client().performRequest(searchRequest));
+            final Response response = client().performRequest(searchRequest);
+            assertOK(response);
 
             final Set<String> expectedActions = new HashSet<>();
             if (false == useProxyMode) {

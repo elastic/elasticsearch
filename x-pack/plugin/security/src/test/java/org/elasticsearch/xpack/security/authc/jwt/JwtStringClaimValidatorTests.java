@@ -103,7 +103,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
             // fallback claim is ignored
             validJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, incomingClaimValue, fallbackClaimName, List.of(42)));
         } else {
-            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), allowedClaimValues, randomBoolean());
+            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), allowedClaimValues, singleValuedClaim);
             validJwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, incomingClaimValue));
         }
 

@@ -101,7 +101,11 @@ public abstract class IpFieldScript extends AbstractFieldScript {
     public final void runForDoc(int docId) {
         count = 0;
         setDocument(docId);
-        execute();
+        try {
+            execute();
+        } catch (RuntimeException e) {
+            exceptionHandler.handleError(e, fieldName);
+        }
     }
 
     public final void runForDoc(int docId, Consumer<InetAddress> consumer) {

@@ -184,7 +184,10 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
      * Create a script leaf factory.
      */
     protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        searchLookup.source().onErrorContinue = onErrorContinue;
+        if (onErrorContinue) {
+            // activate error tolerance for this field in the error handler
+            searchLookup.getExceptionHandler().continueOnErrorForField(name());
+        }
         return factory.apply(searchLookup);
     }
 

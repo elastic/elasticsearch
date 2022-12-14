@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -113,6 +114,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final Map<String, MappedFieldType> runtimeMappings;
     private Predicate<String> allowedFields;
+
+    private final RuntimeExceptionHandler runtimeExceptionHandler = new RuntimeExceptionHandler();
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -500,7 +503,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
                     fieldType,
                     new FieldDataContext(fullyQualifiedIndex.getName(), searchLookup, this::sourcePath, fielddataOperation)
                 ),
-                sourceProvider
+                sourceProvider,
+                runtimeExceptionHandler
             );
         }
         return this.lookup;
@@ -728,5 +732,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public NestedDocuments getNestedDocuments() {
         return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer, indexVersionCreated());
+    }
+
+    public RuntimeExceptionHandler getRuntimeExceptionHandler() {
+        return this.runtimeExceptionHandler;
     }
 }

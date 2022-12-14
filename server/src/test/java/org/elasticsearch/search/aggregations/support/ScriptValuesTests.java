@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
@@ -37,15 +38,19 @@ public class ScriptValuesTests extends ESTestCase {
         int index;
 
         FakeAggregationScript(Object[][] values) {
-            super(Collections.emptyMap(), new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider()) {
+            super(
+                Collections.emptyMap(),
+                new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider(), new RuntimeExceptionHandler()) {
 
-                @Override
-                public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
-                    LeafSearchLookup leafSearchLookup = mock(LeafSearchLookup.class);
-                    when(leafSearchLookup.asMap()).thenReturn(Collections.emptyMap());
-                    return leafSearchLookup;
-                }
-            }, null);
+                    @Override
+                    public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
+                        LeafSearchLookup leafSearchLookup = mock(LeafSearchLookup.class);
+                        when(leafSearchLookup.asMap()).thenReturn(Collections.emptyMap());
+                        return leafSearchLookup;
+                    }
+                },
+                null
+            );
             this.values = values;
             index = -1;
         }

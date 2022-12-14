@@ -32,7 +32,11 @@ public abstract class AbstractLongFieldScript extends AbstractFieldScript {
     public final void runForDoc(int docId) {
         count = 0;
         setDocument(docId);
-        execute();
+        try {
+            execute();
+        } catch (RuntimeException e) {
+            exceptionHandler.handleError(e, fieldName);
+        }
     }
 
     /**

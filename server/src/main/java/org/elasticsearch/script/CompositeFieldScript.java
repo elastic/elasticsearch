@@ -57,7 +57,11 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
     public final Map<String, List<Object>> runForDoc(int doc) {
         setDocument(doc);
         fieldValues.clear();
-        execute();
+        try {
+            execute();
+        } catch (RuntimeException e) {
+            exceptionHandler.handleError(e, fieldName);
+        }
         return fieldValues;
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -69,10 +70,10 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     protected final String fieldName;
     protected final SourceLookup sourceLookup;
     private final Map<String, Object> params;
+    protected final RuntimeExceptionHandler exceptionHandler;
 
     public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(new DocValuesDocReader(searchLookup, ctx));
-
         this.fieldName = fieldName;
         Map<String, Object> docAsMap = docAsMap();
         this.sourceLookup = (SourceLookup) docAsMap.get("_source");
@@ -80,6 +81,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         params.put("_source", sourceLookup);
         params.put("_fields", docAsMap.get("_fields"));
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
+        this.exceptionHandler = searchLookup.getExceptionHandler();
     }
 
     /**
@@ -135,7 +137,4 @@ public abstract class AbstractFieldScript extends DocBasedScript {
 
     public abstract void execute();
 
-    boolean onErrorContinue() {
-        return this.sourceLookup.onErrorContinue;
-    }
 }

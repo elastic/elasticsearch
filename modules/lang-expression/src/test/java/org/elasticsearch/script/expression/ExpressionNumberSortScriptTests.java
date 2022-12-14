@@ -13,6 +13,7 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScriptException;
@@ -54,7 +55,8 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         lookup = new SearchLookup(
             field -> field.equals("field") ? fieldType : null,
             (ignored, _lookup, fdt) -> fieldData,
-            new SourceLookup.ReaderSourceProvider()
+            new SourceLookup.ReaderSourceProvider(),
+            new RuntimeExceptionHandler()
         );
     }
 

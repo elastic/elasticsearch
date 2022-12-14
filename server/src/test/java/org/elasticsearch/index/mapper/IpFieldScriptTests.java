@@ -66,7 +66,12 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
                 IpFieldScript script = new IpFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    new SearchLookup(
+                        field -> null,
+                        (ft, lookup, fdt) -> null,
+                        new SourceLookup.ReaderSourceProvider(),
+                        new RuntimeExceptionHandler()
+                    ),
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -101,7 +106,12 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
                 IpFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
+                    new SearchLookup(
+                        field -> null,
+                        (ft, lookup, fdt) -> null,
+                        new SourceLookup.ReaderSourceProvider(),
+                        new RuntimeExceptionHandler()
+                    )
                 );
                 IpFieldScript ipFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<InetAddress> results = new ArrayList<>();

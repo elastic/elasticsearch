@@ -12,6 +12,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -53,7 +54,8 @@ public class ExpressionFieldScriptTests extends ESTestCase {
         lookup = new SearchLookup(
             field -> field.equals("field") ? fieldType : null,
             (ignored, _lookup, fdt) -> fieldData,
-            new SourceLookup.ReaderSourceProvider()
+            new SourceLookup.ReaderSourceProvider(),
+            new RuntimeExceptionHandler()
         );
     }
 

@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
@@ -127,7 +128,8 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                     (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
                         new FieldDataContext("test", lookupSupplier, searchExecutionContext::sourcePath, fdo)
                     ).build(null, null),
-                    new SourceLookup.ReaderSourceProvider()
+                    new SourceLookup.ReaderSourceProvider(),
+                    new RuntimeExceptionHandler()
                 );
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IndexSearcher searcher = newSearcher(reader);

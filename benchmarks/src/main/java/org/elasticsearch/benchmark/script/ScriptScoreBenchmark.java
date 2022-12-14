@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.PluginsService;
@@ -90,7 +91,8 @@ public class ScriptScoreBenchmark {
     private final SearchLookup lookup = new SearchLookup(
         fieldTypes::get,
         (mft, lookup, fdo) -> mft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(fieldDataCache, breakerService),
-        new SourceLookup.ReaderSourceProvider()
+        new SourceLookup.ReaderSourceProvider(),
+        new RuntimeExceptionHandler()
     );
 
     @Param({ "expression", "metal", "painless_cast", "painless_def" })

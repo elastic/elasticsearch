@@ -60,7 +60,12 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
                 GeoPointFieldScript script = new GeoPointFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
+                    new SearchLookup(
+                        field -> null,
+                        (ft, lookup, fdt) -> null,
+                        new SourceLookup.ReaderSourceProvider(),
+                        new RuntimeExceptionHandler()
+                    ),
                     reader.leaves().get(0)
                 ) {
                     @Override

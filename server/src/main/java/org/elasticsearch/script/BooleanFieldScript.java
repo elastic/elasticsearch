@@ -82,7 +82,11 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         trues = 0;
         falses = 0;
         setDocument(docId);
-        execute();
+        try {
+            execute();
+        } catch (RuntimeException e) {
+            exceptionHandler.handleError(e, fieldName);
+        }
     }
 
     public final void runForDoc(int docId, Consumer<Boolean> consumer) {

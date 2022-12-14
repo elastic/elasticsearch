@@ -511,10 +511,10 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Returns all transient headers.
+     * Returns unmodifiable copy of all transient headers.
      */
     public Map<String, Object> getTransientHeaders() {
-        return threadLocal.get().transientHeaders;
+        return Collections.unmodifiableMap(threadLocal.get().transientHeaders);
     }
 
     /**

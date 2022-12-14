@@ -85,6 +85,8 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
     }
 
+    private static final String CLUSTER_A = "my_remote_cluster_a";
+    private static final String CLUSTER_B = "my_remote_cluster_b";
     private static final String REMOTE_SEARCH_USER = "remote_search_user";
     private static final SecureString PASSWORD = new SecureString("super-secret-password".toCharArray());
     private static final String REMOTE_SEARCH_ROLE = "remote_search";
@@ -108,7 +110,7 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                 {
                   "names": ["index-a"],
                   "privileges": ["read", "read_cross_cluster"],
-                  "clusters": ["my_remote_cluster"]
+                  "clusters": ["my_remote_cluster*"]
                 }
               ]
             }""");
@@ -128,28 +130,22 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testRemoteAccessHeadersSent() throws Exception {
-        final String remoteNodeName = "remoteNode";
+    public void testRemoteAccessHeadersSentSingleRemote() throws Exception {
         final String clusterCredential = randomBase64UUID(random());
         final BlockingQueue<CapturedActionWithHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
-        try (MockTransportService remoteTransport = startTransport(remoteNodeName, threadPool, capturedHeaders)) {
+        try (MockTransportService remoteTransport = startTransport("remote_node_a", threadPool, capturedHeaders)) {
             final DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             final boolean useProxyMode = randomBoolean();
-            if (useProxyMode) {
-                updateRemoteClusterSettings(
-                    Map.of("mode", "proxy", "proxy_address", remoteNode.getAddress().toString(), "authorization", clusterCredential)
-                );
-            } else {
-                updateRemoteClusterSettings(Map.of("seeds", remoteNode.getAddress().toString(), "authorization", clusterCredential));
-            }
+            setupClusterSettings(CLUSTER_A, clusterCredential, remoteNode, useProxyMode);
             final boolean alsoSearchLocally = randomBoolean();
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
                 "GET",
                 String.format(
                     Locale.ROOT,
-                    "/%smy_remote_cluster:index-a/_search?ccs_minimize_roundtrips=%s",
+                    "/%s%s:index-a/_search?ccs_minimize_roundtrips=%s",
                     alsoSearchLocally ? "index-a," : "",
+                    CLUSTER_A,
                     minimizeRoundtrips
                 )
             );
@@ -239,6 +235,145 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                     default -> fail("Unexpected action [" + actual.action + "]");
                 }
             }
+        }
+    }
+
+    public void testRemoteAccessHeadersSentMultipleRemote() throws Exception {
+        final Map<String, String> clusterCredentials = Map.of(CLUSTER_A, randomBase64UUID(random()), CLUSTER_B, randomBase64UUID(random()));
+        final Map<String, BlockingQueue<CapturedActionWithHeaders>> capturedHeadersByCluster = Map.of(
+            CLUSTER_A,
+            ConcurrentCollections.newBlockingQueue(),
+            CLUSTER_B,
+            ConcurrentCollections.newBlockingQueue()
+        );
+        try (
+            MockTransportService remoteTransportA = startTransport("remote_node_a", threadPool, capturedHeadersByCluster.get(CLUSTER_A));
+            MockTransportService remoteTransportB = startTransport("remote_node_b", threadPool, capturedHeadersByCluster.get(CLUSTER_B))
+        ) {
+            final var clusterCredentialA = clusterCredentials.get(CLUSTER_A);
+            final boolean useProxyModeA = randomBoolean();
+            setupClusterSettings(CLUSTER_A, clusterCredentialA, remoteTransportA.getLocalDiscoNode(), useProxyModeA);
+
+            final var clusterCredentialB = clusterCredentials.get(CLUSTER_B);
+            final boolean useProxyModeB = randomBoolean();
+            setupClusterSettings(CLUSTER_B, clusterCredentialB, remoteTransportB.getLocalDiscoNode(), useProxyModeB);
+
+            final boolean minimizeRoundtrips = randomBoolean();
+            final Request searchRequest = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/%s:index-a,%s:index-a/_search?ccs_minimize_roundtrips=%s",
+                    CLUSTER_A,
+                    CLUSTER_B,
+                    minimizeRoundtrips
+                )
+            );
+            searchRequest.setOptions(
+                searchRequest.getOptions()
+                    .toBuilder()
+                    .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
+            );
+
+            final Response response = client().performRequest(searchRequest);
+            assertOK(response);
+
+            final Set<String> expectedActions = new HashSet<>();
+            if (minimizeRoundtrips) {
+                expectedActions.add(SearchAction.NAME);
+            } else {
+                expectedActions.add(ClusterSearchShardsAction.NAME);
+            }
+            if (false == useProxyModeA) {
+                expectedActions.add(ClusterStateAction.NAME);
+            }
+            final List<CapturedActionWithHeaders> actualHeaders = List.copyOf(capturedHeadersByCluster.get(CLUSTER_A));
+            assertThat(
+                actualHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
+                equalTo(expectedActions)
+            );
+            for (CapturedActionWithHeaders actual : actualHeaders) {
+                switch (actual.action) {
+                    // the cluster state action is run by the system user, so we expect an authentication header, instead of remote access
+                    // until we implement remote access handling for internal users
+                    case ClusterStateAction.NAME -> {
+                        assertThat(actual.headers().keySet(), containsInAnyOrder(AuthenticationField.AUTHENTICATION_KEY));
+                        assertThat(
+                            decodeAuthentication(actual.headers().get(AuthenticationField.AUTHENTICATION_KEY)).getEffectiveSubject()
+                                .getUser(),
+                            is(SystemUser.INSTANCE)
+                        );
+                    }
+                    case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
+                        assertContainsRemoteAccessHeaders(actual.headers());
+                        assertThat(
+                            actual.headers(),
+                            hasKey(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY)
+                        );
+                        assertThat(
+                            decode(actual.headers().get(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY)),
+                            equalTo("ApiKey " + clusterCredentialA)
+                        );
+                        final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
+                            actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
+                        );
+                        final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
+                            Authentication.newRealmAuthentication(
+                                new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
+                                new Authentication.RealmRef(
+                                    "default_native",
+                                    "native",
+                                    // Since we are running on a multi-node cluster the actual node name may be different between runs
+                                    // so just copy the one from the actual result
+                                    actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
+                                )
+                            ),
+                            new RoleDescriptorsIntersection(
+                                List.of(
+                                    Set.of(
+                                        new RoleDescriptor(
+                                            RBACEngine.REMOTE_USER_ROLE_NAME,
+                                            null,
+                                            new RoleDescriptor.IndicesPrivileges[] {
+                                                RoleDescriptor.IndicesPrivileges.builder()
+                                                    .indices("index-a")
+                                                    .privileges("read", "read_cross_cluster")
+                                                    .build() },
+                                            null,
+                                            null,
+                                            null,
+                                            null,
+                                            null,
+                                            null
+                                        )
+                                    )
+                                )
+                            )
+                        );
+                        assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
+                    }
+                    default -> fail("Unexpected action [" + actual.action + "]");
+                }
+            }
+        }
+    }
+
+    private void setupClusterSettings(
+        final String clusterAlias,
+        final String clusterCredential,
+        final DiscoveryNode remoteNode,
+        boolean useProxyMode
+    ) throws IOException {
+        if (useProxyMode) {
+            updateRemoteClusterSettings(
+                clusterAlias,
+                Map.of("mode", "proxy", "proxy_address", remoteNode.getAddress().toString(), "authorization", clusterCredential)
+            );
+        } else {
+            updateRemoteClusterSettings(
+                clusterAlias,
+                Map.of("seeds", remoteNode.getAddress().toString(), "authorization", clusterCredential)
+            );
         }
     }
 
@@ -334,22 +469,23 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
 
     private record CapturedActionWithHeaders(String action, Map<String, String> headers) {}
 
-    private static void updateRemoteClusterSettings(final Map<String, Object> settings) throws IOException {
+    private static void updateRemoteClusterSettings(final String clusterAlias, final Map<String, Object> settings) throws IOException {
         final Request request = new Request("PUT", "/_cluster/settings");
-        request.setEntity(buildUpdateSettingsRequestBody(settings));
+        request.setEntity(buildUpdateSettingsRequestBody(clusterAlias, settings));
         final Response response = adminClient().performRequest(request);
         assertOK(response);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    private static HttpEntity buildUpdateSettingsRequestBody(final Map<String, Object> settings) throws IOException {
+    private static HttpEntity buildUpdateSettingsRequestBody(final String clusterAlias, final Map<String, Object> settings)
+        throws IOException {
         final String requestBody;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {
                 builder.startObject("persistent");
                 {
-                    builder.startObject("cluster.remote.my_remote_cluster");
+                    builder.startObject("cluster.remote." + clusterAlias);
                     {
                         for (Map.Entry<String, Object> entry : settings.entrySet()) {
                             builder.field(entry.getKey(), entry.getValue());

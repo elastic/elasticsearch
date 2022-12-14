@@ -154,7 +154,7 @@ public class RefreshListenersTests extends ESTestCase {
             null,
             System::nanoTime,
             null,
-            null
+            false
         );
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);

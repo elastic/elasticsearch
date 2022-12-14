@@ -2915,7 +2915,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         // Recovery state should be propagated to the engine
-        assertEquals(shard.recoveryState(), shard.getEngine().config().getRecoveryState());
+        assertTrue(shard.getEngine().config().isRecoveringAsPrimary());
         closeShards(shard);
     }
 
@@ -4523,7 +4523,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
-                config.getRecoveryState()
+                config.isRecoveringAsPrimary()
             );
             return new InternalEngine(configWithWarmer);
         });

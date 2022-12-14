@@ -30,7 +30,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -129,8 +128,7 @@ public final class EngineConfig {
     @Nullable
     private final Engine.IndexCommitListener indexCommitListener;
 
-    @Nullable
-    private final RecoveryState recoveryState;
+    private final boolean recoveringAsPrimary;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
@@ -161,7 +159,7 @@ public final class EngineConfig {
         Comparator<LeafReader> leafSorter,
         LongSupplier relativeTimeInNanosSupplier,
         Engine.IndexCommitListener indexCommitListener,
-        RecoveryState recoveryState
+        boolean recoveringAsPrimary
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -203,7 +201,7 @@ public final class EngineConfig {
         this.leafSorter = leafSorter;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.recoveryState = recoveryState;
+        this.recoveringAsPrimary = recoveringAsPrimary;
     }
 
     /**
@@ -412,8 +410,7 @@ public final class EngineConfig {
         return indexCommitListener;
     }
 
-    @Nullable
-    public RecoveryState getRecoveryState() {
-        return recoveryState;
+    public boolean isRecoveringAsPrimary() {
+        return recoveringAsPrimary;
     }
 }

@@ -3275,7 +3275,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
             relativeTimeInNanosSupplier,
             indexCommitListener,
-            recoveryState
+            recoveryState != null && recoveryState.getPrimary()
         );
     }
 

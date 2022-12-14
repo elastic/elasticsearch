@@ -1628,7 +1628,7 @@ public abstract class EngineTestCase extends ESTestCase {
         throw new IllegalStateException("Can not extract lazy bits from given index reader [" + reader + "]");
     }
 
-    static CodecService newCodecService() {
+    protected static CodecService newCodecService() {
         return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
     }
 }

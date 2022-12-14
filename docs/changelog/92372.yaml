@@ -1,5 +1,21 @@
 pr: 92372
 summary: Speed up ingest geoip processors
 area: Ingest Node
-type: feature
+type: bug
 issues: []
+highlight:
+  title: Speed up ingest geoip processors
+  body: "Previously, we were running the relatively expensive\n`SpecialPermission.check()`\
+    \ / `AccessController.doPrivileged(...)` pair \non every call to the cache, whether\
+    \ it was a cache hit or a cache miss.\nInverting that code in my second commit\
+    \ made the expensive parts only\nrun where absolutely needed (on cache misses).\n\
+    \nHowever, going still further, it turns out that in version 2.15.0 of the\ngeoip\
+    \ library it stopped interacting with jackson-databind in a way that\nrequired\
+    \ us to have special permissions to begin with -- so we can drop\nthe additional\
+    \ permissions from our policy file and we no longer need\nthe `SpecialPermission.check()`\
+    \ / `AccessController.doPrivileged(...)`\npair for cache misses, either.\n\nIn\
+    \ one of our nightly benchmarks, this speeds up `geoip` processors by\n~50%, but\
+    \ AFAICT those benchmarks use a less-cacheable random\ndistribution of ip addresses\
+    \ -- I would expect the performance bump for\nreal world use of the geoip processor\
+    \ to be even better than that."
+  notable: true

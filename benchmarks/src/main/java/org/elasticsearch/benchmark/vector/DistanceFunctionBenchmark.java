@@ -30,6 +30,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * Various benchmarks for the distance functions
@@ -69,7 +70,7 @@ public class DistanceFunctionBenchmark {
             this.dims = dims;
         }
 
-        abstract void execute();
+        abstract void execute(Consumer<Object> consumer);
     }
 
     private abstract static class KnnFloatBenchmarkFunction extends BenchmarkFunction {
@@ -211,7 +212,8 @@ public class DistanceFunctionBenchmark {
             super(dims, false);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new KnnDenseVector(docVector).dotProduct(queryVector);
         }
     }
@@ -222,7 +224,8 @@ public class DistanceFunctionBenchmark {
             super(dims);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new ByteKnnDenseVector(docVector).dotProduct(queryVector);
         }
     }
@@ -233,7 +236,8 @@ public class DistanceFunctionBenchmark {
             super(dims, false);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new BinaryDenseVector(docVector, dims, Version.CURRENT).dotProduct(queryVector);
         }
     }
@@ -244,7 +248,8 @@ public class DistanceFunctionBenchmark {
             super(dims);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new ByteBinaryDenseVector(docVector, dims).dotProduct(queryVector);
         }
     }
@@ -255,7 +260,8 @@ public class DistanceFunctionBenchmark {
             super(dims, true);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new KnnDenseVector(docVector).cosineSimilarity(queryVector, false);
         }
     }
@@ -266,7 +272,8 @@ public class DistanceFunctionBenchmark {
             super(dims);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new ByteKnnDenseVector(docVector).cosineSimilarity(queryVector, queryMagnitude);
         }
     }
@@ -277,7 +284,8 @@ public class DistanceFunctionBenchmark {
             super(dims, true);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new BinaryDenseVector(docVector, dims, Version.CURRENT).cosineSimilarity(queryVector, false);
         }
     }
@@ -288,7 +296,8 @@ public class DistanceFunctionBenchmark {
             super(dims);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new ByteBinaryDenseVector(docVector, dims).cosineSimilarity(queryVector, queryMagnitude);
         }
     }
@@ -299,7 +308,8 @@ public class DistanceFunctionBenchmark {
             super(dims, false);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new KnnDenseVector(docVector).l1Norm(queryVector);
         }
     }
@@ -310,7 +320,8 @@ public class DistanceFunctionBenchmark {
             super(dims);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new ByteKnnDenseVector(docVector).l1Norm(queryVector);
         }
     }
@@ -321,7 +332,8 @@ public class DistanceFunctionBenchmark {
             super(dims, true);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new BinaryDenseVector(docVector, dims, Version.CURRENT).l1Norm(queryVector);
         }
     }
@@ -332,7 +344,8 @@ public class DistanceFunctionBenchmark {
             super(dims);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new ByteBinaryDenseVector(docVector, dims).l1Norm(queryVector);
         }
     }
@@ -343,7 +356,8 @@ public class DistanceFunctionBenchmark {
             super(dims, false);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new KnnDenseVector(docVector).l2Norm(queryVector);
         }
     }
@@ -354,7 +368,8 @@ public class DistanceFunctionBenchmark {
             super(dims);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new ByteKnnDenseVector(docVector).l2Norm(queryVector);
         }
     }
@@ -365,7 +380,8 @@ public class DistanceFunctionBenchmark {
             super(dims, true);
         }
 
-        public void execute() {
+        @Override
+        public void execute(Consumer<Object> consumer) {
             new BinaryDenseVector(docVector, dims, Version.CURRENT).l1Norm(queryVector);
         }
     }
@@ -376,8 +392,9 @@ public class DistanceFunctionBenchmark {
             super(dims);
         }
 
-        public void execute() {
-            new ByteBinaryDenseVector(docVector, dims).l2Norm(queryVector);
+        @Override
+        public void execute(Consumer<Object> consumer) {
+            consumer.accept(new ByteBinaryDenseVector(docVector, dims).l2Norm(queryVector));
         }
     }
 
@@ -444,7 +461,7 @@ public class DistanceFunctionBenchmark {
     @Benchmark
     public void benchmark() throws IOException {
         for (int i = 0; i < 25000; ++i) {
-            benchmarkFunction.execute();
+            benchmarkFunction.execute(Object::toString);
         }
     }
 }

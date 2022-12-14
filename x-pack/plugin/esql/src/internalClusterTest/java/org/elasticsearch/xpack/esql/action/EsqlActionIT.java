@@ -364,18 +364,16 @@ public class EsqlActionIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/396")
     public void testEvalWhere() {
         EsqlQueryResponse results = run("from test | eval x = count / 2 | where x > 20");
         logger.info(results);
-        Assert.assertEquals(20, results.values().size());
+        Assert.assertEquals(30, results.values().size());
         int countIndex = results.columns().indexOf(new ColumnInfo("x", "long"));
         for (List<Object> values : results.values()) {
             assertThat((Long) values.get(countIndex), greaterThan(20L));
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/396")
     public void testStatsWhere() {
         EsqlQueryResponse results = run("from test | stats x = avg(count) | where x > 100");
         logger.info(results);

@@ -605,7 +605,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false,
             in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
-            in.readMap(StreamInput::readString, DataStreamAlias::new)
+            in.getVersion().onOrAfter(Version.V_8_7_0) ? in.readMap(StreamInput::readString, DataStreamAlias::new) : null
         );
     }
 
@@ -634,7 +634,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
-        out.writeMap(dataStreamAliases, StreamOutput::writeString, (o, dsa) -> dsa.writeTo(o));
+        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            out.writeMap(dataStreamAliases, StreamOutput::writeString, (o, dsa) -> dsa.writeTo(o));
+        }
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");

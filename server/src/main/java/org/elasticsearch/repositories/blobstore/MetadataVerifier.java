@@ -90,8 +90,8 @@ class MetadataVerifier implements Releasable {
 
         this.threadPoolPermits = new Semaphore(Math.max(1, verifyRequest.getThreadpoolConcurrency()));
         this.snapshotProgressLogger = new ProgressLogger("snapshots", repositoryData.getSnapshotIds().size(), 100);
-        this.indexProgressLogger = new ProgressLogger("indices", repositoryData.getIndices().size(), 100);
-        this.indexSnapshotProgressLogger = new ProgressLogger("index snapshots", repositoryData.getIndexSnapshotCount(), 10000);
+        this.indexProgressLogger = new ProgressLogger("indices", repositoryData.getIndices().size(), 20);
+        this.indexSnapshotProgressLogger = new ProgressLogger("index snapshots", repositoryData.getIndexSnapshotCount(), 1000);
     }
 
     @Override
@@ -646,10 +646,9 @@ class MetadataVerifier implements Releasable {
 
         void maybeLogProgress() {
             final var count = currentCount.incrementAndGet();
-            if (count % logFrequency == 0) {
+            if (count == expectedMax || count % logFrequency == 0) {
                 logger.info("[{}] processed [{}] of [{}] {}", repositoryName, count, expectedMax, type);
             }
         }
-
     }
 }

@@ -1795,7 +1795,7 @@ public class RBACEngineTests extends ESTestCase {
         final String[] indices = { "test-index" };
         final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
 
-        final String action = randomFrom(PreAuthorizationUtil.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
+        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
         final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
 
         authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
@@ -1818,7 +1818,7 @@ public class RBACEngineTests extends ESTestCase {
         final String[] indices = { "test-index" };
         final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
 
-        final String action = randomFrom(PreAuthorizationUtil.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
+        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
         final ParentActionAuthorization parentAuthorization = null;
 
         authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
@@ -1852,7 +1852,7 @@ public class RBACEngineTests extends ESTestCase {
                 .build()
         );
 
-        final String action = randomFrom(PreAuthorizationUtil.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
+        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
         final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
 
         authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {

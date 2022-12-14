@@ -27,9 +27,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-public final class PreAuthorizationUtil {
+public final class PreAuthorizationUtils {
 
-    private static final Logger logger = LogManager.getLogger(PreAuthorizationUtil.class);
+    private static final Logger logger = LogManager.getLogger(PreAuthorizationUtils.class);
 
     /**
      * This map holds parent-child action relationships for which we can optimize authorization
@@ -205,5 +205,9 @@ public final class PreAuthorizationUtil {
             logger.debug("pre-authorizing child action [" + childAction + "] of parent action [" + parentAction + "]");
         }
         return true;
+    }
+
+    private PreAuthorizationUtils() {
+        throw new IllegalAccessError();
     }
 }

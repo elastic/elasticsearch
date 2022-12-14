@@ -357,7 +357,7 @@ public class RBACEngine implements AuthorizationEngine {
             }
         } else if (isChildActionAuthorizedByParentOnLocalNode(requestInfo, authorizationInfo)) {
             listener.onResponse(new IndexAuthorizationResult(requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl()));
-        } else if (PreAuthorizationUtil.shouldPreAuthorizeChildByParentAction(requestInfo, authorizationInfo)) {
+        } else if (PreAuthorizationUtils.shouldPreAuthorizeChildByParentAction(requestInfo, authorizationInfo)) {
             // We only pre-authorize child actions if DLS/FLS is not configured,
             // hence we can allow here access for all requested indices.
             listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.allowAll()));

@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
-import org.elasticsearch.xpack.security.authz.PreAuthorizationUtil;
+import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 
 import java.util.Collections;
 import java.util.Map;
@@ -119,7 +119,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportResponseHandler<T> handler
             ) {
                 final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
-                if (PreAuthorizationUtil.shouldRemoveParentAuthorizationFromThreadContext(remoteClusterAlias, action, securityContext)) {
+                if (PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext(remoteClusterAlias, action, securityContext)) {
                     securityContext.executeAfterRemovingParentAuthorization(original -> {
                         sendRequestInner(
                             sender,

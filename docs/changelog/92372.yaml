@@ -1,0 +1,5 @@
+pr: 92372
+summary: Speed up ingest geoip processors
+area: Ingest Node
+type: feature
+issues: []

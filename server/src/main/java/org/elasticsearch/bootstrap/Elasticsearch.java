@@ -143,14 +143,14 @@ class Elasticsearch {
      */
     private static void initPhase2(Bootstrap bootstrap) throws IOException {
         final ServerArgs args = bootstrap.args();
-        final SecureSettings keystore;
+        final SecureSettings secrets;
         try {
-            keystore = SecureSettingsUtilities.bootstrap(args.nodeSettings(), args.configDir(), args.credentials());
+            secrets = SecureSettingsUtilities.bootstrap(args.nodeSettings(), args.configDir(), args.credentials());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        bootstrap.setSecureSettings(keystore);
-        Environment nodeEnv = createEnvironment(args.configDir(), args.nodeSettings(), keystore);
+        bootstrap.setSecureSettings(secrets);
+        Environment nodeEnv = createEnvironment(args.configDir(), args.nodeSettings(), secrets);
         bootstrap.setEnvironment(nodeEnv);
 
         initPidFile(args.pidFile());

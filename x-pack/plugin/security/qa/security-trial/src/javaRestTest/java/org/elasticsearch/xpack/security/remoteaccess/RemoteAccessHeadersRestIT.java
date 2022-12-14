@@ -163,12 +163,11 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
             final Response response = client().performRequest(searchRequest);
             assertOK(response);
 
-            final List<CapturedActionWithHeaders> actualHeaders = List.copyOf(capturedHeaders);
-            assertExpectedHeadersForCluster(
-                actualHeaders,
-                clusterCredential,
+            assertExpectedActionsAndHeadersForCluster(
+                List.copyOf(capturedHeaders),
                 useProxyMode,
                 minimizeRoundtrips,
+                clusterCredential,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -234,11 +233,11 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
             final Response response = client().performRequest(searchRequest);
             assertOK(response);
 
-            assertExpectedHeadersForCluster(
+            assertExpectedActionsAndHeadersForCluster(
                 List.copyOf(capturedHeadersByCluster.get(CLUSTER_A)),
-                clusterCredentialA,
                 useProxyModeA,
                 minimizeRoundtrips,
+                clusterCredentialA,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -261,11 +260,11 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                     )
                 )
             );
-            assertExpectedHeadersForCluster(
+            assertExpectedActionsAndHeadersForCluster(
                 List.copyOf(capturedHeadersByCluster.get(CLUSTER_B)),
-                clusterCredentialB,
                 useProxyModeB,
                 minimizeRoundtrips,
+                clusterCredentialB,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -314,11 +313,11 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
         }
     }
 
-    private void assertExpectedHeadersForCluster(
-        final List<CapturedActionWithHeaders> actualHeaders,
-        final String clusterCredential,
+    private void assertExpectedActionsAndHeadersForCluster(
+        final List<CapturedActionWithHeaders> actualActionsWithHeaders,
         boolean useProxyMode,
         boolean minimizeRoundtrips,
+        final String clusterCredential,
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
     ) throws IOException {
         final Set<String> expectedActions = new HashSet<>();
@@ -331,10 +330,10 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
             expectedActions.add(ClusterStateAction.NAME);
         }
         assertThat(
-            actualHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
+            actualActionsWithHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
             equalTo(expectedActions)
         );
-        for (CapturedActionWithHeaders actual : actualHeaders) {
+        for (CapturedActionWithHeaders actual : actualActionsWithHeaders) {
             switch (actual.action) {
                 // the cluster state action is run by the system user, so we expect an authentication header, instead of remote access
                 // until we implement remote access handling for internal users

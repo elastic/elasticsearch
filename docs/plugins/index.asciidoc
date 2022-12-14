@@ -54,4 +54,6 @@ include::integrations.asciidoc[]
 
 include::authors.asciidoc[]
 
+include::stable-plugins.asciidoc[]
+
 include::redirects.asciidoc[]

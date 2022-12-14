@@ -1,0 +1,56 @@
+[stable-plugins]
+== Stable Plugin API
+
+The Elasticsearch Stable Plugin API is a defined API that will be guaranteed
+backwards-compatible over minor versions of Elasticsearch. This allows
+developers to write Elasticsearch plugins that do not need recompiled, repackaged,
+and re-released for each new minor or bugfix version of Elasticsearch.
+
+The simplest plugins to manage are those written with the stable plugin API,
+which restricts dependencies to a small, stable API that will be
+forward-compatible with new minor versions of Elasticsearch. In other words,
+once you have a working stable artifact, you can re-use it when you upgrade
+Elasticsearch to a new bugfix or minor version.
+
+Stable plugins APIs include:
+
+* Stable analysis API
+
+We also have an old-style plugin API that exposes the entire internal
+Elasticsearch server API to the plugin code. This internal API is very
+powerful, but it also can be modified at any time, so old-style plugins must be
+recompiled and, if necessary, updated for every release of Elasticsearch.
+
+[discrete]
+== Managing Stable Plugins
+
+A stable plugin is installed and managed just like an old-style plugin, using
+the es-plugin tool. The difference is that the same plugin zip may be
+installed on future versions of Elasticsearch, as opposed to the old-style
+behavior, where a plugin is “pinned” to a specific version of Elasticsearch.
+
+[discrete]
+== Creating Stable Plugins
+
+The key to implementing stable plugins is the `@NamedComponent` annotation. Many
+of Elasticsearch’s components have names that are used in configurations. For
+example, the keyword analyzer is referenced in configuration with the name
+“keyword.” Once your plugin is installed in your cluster, your named components
+may be referenced by name in these configurations as well.
+
+A stable plugin has a similar packaging format to the old-style plugins, in
+that it is a zip file containing jars and a few metadata files. The differences
+are:
+
+* The plugin descriptor file is named `stable-plugin-descriptor.properties`
+    rather than `plugin-descriptor.properties`.
+* Different plugin descriptor properties: the “classname” property (which
+    old-style plugins used to indicate the plugin’s “main” class) is
+    not allowed.
+
+[discrete]
+== Example Plugin
+
+TODO
+
+

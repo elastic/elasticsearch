@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.rest.inference;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
@@ -15,6 +16,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -73,7 +75,15 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             InferModelAction.EXTERNAL_INSTANCE,
             request.build(),
-            new RestToXContentListener<>(channel)
+            // This API is deprecated but refactoring makes it simpler to call
+            // the new replacement API and swap in the old response.
+            ActionListener.wrap(response -> {
+                InferTrainedModelDeploymentAction.Response oldResponse = new InferTrainedModelDeploymentAction.Response(
+                    response.getInferenceResults()
+                );
+                new RestToXContentListener<>(channel).onResponse(oldResponse);
+            }, e -> new RestToXContentListener<>(channel).onFailure(e))
+
         );
     }
 }

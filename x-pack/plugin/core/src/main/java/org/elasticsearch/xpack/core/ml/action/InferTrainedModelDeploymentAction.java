@@ -22,6 +22,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
@@ -315,7 +317,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         }
     }
 
-    public static class Response extends BaseTasksResponse implements Writeable {
+    public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
         private final List<InferenceResults> results;
 
@@ -348,6 +350,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         public List<InferenceResults> getResults() {
             return results;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            results.get(0).toXContent(builder, params);
+            builder.endObject();
+            return builder;
         }
     }
 }

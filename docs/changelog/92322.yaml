@@ -1,5 +1,5 @@
 pr: 92322
-summary: Frequent items extension pruning
+summary: implement extension pruning in frequent items to improve runtime
 area: Machine Learning
 type: enhancement
 issues: []

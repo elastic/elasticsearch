@@ -614,4 +614,14 @@ public class KeyStoreWrapper implements SecureSettings {
             }
         }
     }
+
+    @Override
+    public boolean requiresCredentials() {
+        return hasPassword();
+    }
+
+    @Override
+    public String name() {
+        return "keystore";
+    }
 }

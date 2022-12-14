@@ -211,6 +211,11 @@ public abstract class NotificationService<Account> {
         return new SecureSettings() {
 
             @Override
+            public String name() {
+                return "NotificationService secure settings";
+            }
+
+            @Override
             public boolean isLoaded() {
                 return true;
             }

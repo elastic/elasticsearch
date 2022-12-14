@@ -25,18 +25,13 @@ import java.nio.file.Path;
  * @param daemonize {@code true} if Elasticsearch should run as a daemon process, or {@code false} otherwise
  * @param quiet {@code false} if Elasticsearch should print log output to the console, {@code true} otherwise
  * @param pidFile absolute path to a file Elasticsearch should write its process id to, or {@code null} if no pid file should be written
- * @param keystorePassword the password for the Elasticsearch keystore
+ * @param credentials the password for the Elasticsearch keystore
  * @param nodeSettings the node settings read from {@code elasticsearch.yml}, the cli and the process environment
  * @param configDir the directory where {@code elasticsearch.yml} and other config exists
  */
-public record ServerArgs(
-    boolean daemonize,
-    boolean quiet,
-    Path pidFile,
-    SecureString keystorePassword,
-    Settings nodeSettings,
-    Path configDir
-) implements Writeable {
+public record ServerArgs(boolean daemonize, boolean quiet, Path pidFile, SecureString credentials, Settings nodeSettings, Path configDir)
+    implements
+        Writeable {
 
     /**
      * Arguments for running Elasticsearch.
@@ -44,7 +39,7 @@ public record ServerArgs(
      * @param daemonize {@code true} if Elasticsearch should run as a daemon process, or {@code false} otherwise
      * @param quiet {@code false} if Elasticsearch should print log output to the console, {@code true} otherwise
      * @param pidFile absolute path to a file Elasticsearch should write its process id to, or {@code null} if no pid file should be written
-     * @param keystorePassword the password for the Elasticsearch keystore
+     * @param credentials the password for the Elasticsearch keystore
      * @param nodeSettings the node settings read from {@code elasticsearch.yml}, the cli and the process environment
      * @param configDir the directory where {@code elasticsearch.yml} and other config exists
      */
@@ -81,7 +76,7 @@ public record ServerArgs(
         out.writeBoolean(daemonize);
         out.writeBoolean(quiet);
         out.writeOptionalString(pidFile == null ? null : pidFile.toString());
-        out.writeSecureString(keystorePassword);
+        out.writeSecureString(credentials);
         nodeSettings.writeTo(out);
         out.writeString(configDir.toString());
     }

@@ -274,6 +274,11 @@ public class NotificationServiceTests extends ESTestCase {
 
             @Override
             public void close() throws IOException {}
+
+            @Override
+            public String name() {
+                return "NotificationServiceTests secure settings";
+            }
         };
     }
 }

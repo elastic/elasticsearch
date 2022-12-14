@@ -52,6 +52,11 @@ public class StatelessSecureSettings implements SecureSettings {
     }
 
     @Override
+    public String name() {
+        return "stateless settings";
+    }
+
+    @Override
     public boolean isLoaded() {
         return true;
     }

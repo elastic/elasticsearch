@@ -278,7 +278,7 @@ public class ServerCliTests extends CommandTestCase {
             }
         }
         String expectedPassword = password == null ? "" : password;
-        argsValidator = args -> assertThat(args.keystorePassword().toString(), equalTo(expectedPassword));
+        argsValidator = args -> assertThat(args.credentials().toString(), equalTo(expectedPassword));
         autoConfigCallback = (t, options, env, processInfo) -> {
             char[] gotPassword = t.readSecret("");
             assertThat(gotPassword, equalTo(expectedPassword.toCharArray()));

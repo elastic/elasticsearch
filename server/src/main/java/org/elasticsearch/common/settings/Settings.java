@@ -1521,6 +1521,11 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         public void close() throws IOException {
             delegate.close();
         }
+
+        @Override
+        public String name() {
+            return delegate.name();
+        }
     }
 
     @Override

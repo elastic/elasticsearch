@@ -21,8 +21,8 @@ import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureSettingsUtilities;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.IOUtils;
@@ -145,7 +145,7 @@ class Elasticsearch {
         final ServerArgs args = bootstrap.args();
         final SecureSettings keystore;
         try {
-            keystore = KeyStoreWrapper.bootstrap(args.configDir(), args::keystorePassword);
+            keystore = SecureSettingsUtilities.bootstrap(args.nodeSettings(), args.configDir(), args.credentials());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

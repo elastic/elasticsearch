@@ -113,4 +113,9 @@ public class MockSecureSettings implements SecureSettings {
         ensureOpen();
         return new MockSecureSettings(this);
     }
+
+    @Override
+    public String name() {
+        return "mock secure settings";
+    }
 }

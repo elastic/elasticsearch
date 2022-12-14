@@ -19,8 +19,15 @@ import java.util.Set;
  */
 public interface SecureSettings extends Closeable {
 
-    /** Returns true iff the settings are loaded and retrievable. */
+    String name();
+
+    /** Returns true if the settings are loaded and retrievable. */
     boolean isLoaded();
+
+    /** Returns true if the settings require credentials to be opened */
+    default boolean requiresCredentials() {
+        return false;
+    }
 
     /** Returns the names of all secure settings available. */
     Set<String> getSettingNames();

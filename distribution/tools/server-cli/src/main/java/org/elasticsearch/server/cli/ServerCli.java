@@ -22,9 +22,10 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureSettingsUtilities;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
@@ -76,20 +77,18 @@ class ServerCli extends EnvironmentAwareCommand {
 
         validateConfig(options, env);
 
-        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile())) {
+        try (SecureSettings secrets = SecureSettingsUtilities.load(env.settings(), env.configFile())) {
             // setup security
-            final SecureString keystorePassword = getKeystorePassword(keystore, terminal);
-            env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
+            final SecureString credentials = readOptionalSecureSettingsCredentials(secrets, terminal);
+            env = autoConfigureSecurity(terminal, options, processInfo, env, credentials);
 
-            if (keystore != null) {
-                keystore.decrypt(keystorePassword.getChars());
-            }
+            SecureSettingsUtilities.openWithCredentials(secrets, credentials);
 
             // install/remove plugins from elasticsearch-plugins.yml
             syncPlugins(terminal, env, processInfo);
 
-            ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
-            this.server = startServer(terminal, processInfo, args, keystore);
+            ServerArgs args = createArgs(options, env, credentials, processInfo);
+            this.server = startServer(terminal, processInfo, args, secrets);
         }
 
         if (options.has(daemonizeOption)) {
@@ -128,9 +127,9 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private static SecureString getKeystorePassword(KeyStoreWrapper keystore, Terminal terminal) {
-        if (keystore != null && keystore.hasPassword()) {
-            return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
+    private static SecureString readOptionalSecureSettingsCredentials(SecureSettings secrets, Terminal terminal) {
+        if (secrets != null && secrets.requiresCredentials()) {
+            return new SecureString(terminal.readSecret(Strings.format("Enter password for the elasticsearch %s : ", secrets.name())));
         } else {
             return new SecureString(new char[0]);
         }

@@ -184,7 +184,7 @@ public class ServerProcess {
             // so the pump thread can complete, writing out the actual error. All we get here is the failure to write to
             // the process pipe, which isn't helpful to print.
         }
-        args.keystorePassword().close();
+        args.credentials().close();
     }
 
     private void sendShutdownMarker() {

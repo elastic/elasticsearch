@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -45,7 +44,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -67,6 +65,8 @@ import org.junit.After;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -627,19 +627,41 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 } catch (IOException e) {
                     fail("no exceptions expected but got " + e);
                 }
+                handler.handleResponse(null);
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
         final Tuple<String, TransportRequest> actionAndReq = randomWhitelistedActionAndRequest();
-        sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, null);
+        sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
+            @Override
+            public void handleResponse(TransportResponse response) {
+                // Headers should get restored before handle response is called
+                assertThat(securityContext.getAuthentication(), equalTo(authentication));
+                assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
+                assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                fail("no exceptions expected but got " + exp);
+            }
+
+            @Override
+            public TransportResponse read(StreamInput in) {
+                return null;
+            }
+        });
         // Call listener to complete flow
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
             randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
         );
         listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
         assertTrue(calledWrappedSender.get());
-        assertThat(sentCredential.get(), equalTo("ApiKey " + remoteClusterCredential));
+        assertThat(
+            sentCredential.get(),
+            equalTo(Base64.getEncoder().encodeToString(("ApiKey " + remoteClusterCredential).getBytes(StandardCharsets.UTF_8)))
+        );
         assertThat(
             sentRemoteAccessAuthentication.get(),
             equalTo(new RemoteAccessAuthentication(authentication, expectedRoleDescriptorsIntersection))
@@ -655,33 +677,35 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
     }
 
-    public void testSendWithUserIfRemoteAccessConditionsNotMet() throws Exception {
+    public void testSendWithUserIfRemoteAccessHeadersConditionNotMet() throws Exception {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
+        boolean noCredential = randomBoolean();
         final boolean notRemoteConnection = randomBoolean();
-        final boolean noCredential = randomBoolean();
         final boolean nonWhitelistedRequest = randomBoolean();
-        final boolean unsupportedUserType = randomBoolean();
-        final boolean internalUser = randomBoolean();
-        final boolean reservedRoles = randomBoolean();
+        final boolean unsupportedAuthentication = randomBoolean();
+        // Ensure at least one condition fails
+        if (false == (notRemoteConnection || noCredential || nonWhitelistedRequest || unsupportedAuthentication)) {
+            noCredential = true;
+        }
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
         when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(
             noCredential ? null : randomAlphaOfLengthBetween(10, 42)
         );
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(
+        final AuthenticationTestHelper.AuthenticationTestBuilder builder = AuthenticationTestHelper.builder();
+        final Authentication authentication;
+        if (unsupportedAuthentication) {
+            authentication = randomFrom(builder.apiKey().build(), builder.serviceAccount().build(), builder.internal().build());
+        } else {
+            authentication = builder.user(
                 new User(
                     randomAlphaOfLengthBetween(3, 10),
-                    randomArray(
-                        0,
-                        4,
-                        String[]::new,
-                        () -> randomValueOtherThanMany(ReservedRolesStore::isReserved, () -> randomAlphaOfLengthBetween(1, 20))
-                    )
+                    randomBoolean()
+                        ? randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 20))
+                        : randomNonEmptySubsetOf(ReservedRolesStore.names()).toArray(String[]::new)
                 )
-            )
-            .realm()
-            .build();
+            ).realm().build();
+        }
         authentication.writeToContext(threadContext);
         final Tuple<String, TransportRequest> actionAndReq = nonWhitelistedRequest
             ? new Tuple<>(ClusterStateAction.NAME, mock(ClusterStatsRequest.class))
@@ -729,7 +753,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, null);
         assertTrue(calledWrappedSender.get());
         assertThat(sentAuthentication.get(), equalTo(authentication));
-        verify(remoteClusterAuthorizationResolver, times(1)).resolveAuthorization(eq(remoteClusterAlias));
         verify(authzService, never()).retrieveRemoteAccessRoleDescriptorsIntersection(any(), any(), anyActionListener());
         assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
@@ -905,14 +928,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     fail("handle exception called more than once");
                 }
                 actualException.set(exp);
+                assertThat(securityContext.getAuthentication(), equalTo(authentication));
                 assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
                 assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
-                assertThat(securityContext.getAuthentication(), equalTo(authentication));
             }
 
             @Override
             public TransportResponse read(StreamInput in) {
-                fail("should not receive a response");
                 return null;
             }
         });

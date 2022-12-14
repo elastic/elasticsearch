@@ -50,12 +50,13 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -237,6 +238,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportResponseHandler<T> handler
             ) {
                 logger.debug("Sending request with remote access headers for [{}] action", action);
+
                 if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     handler.handleException(
                         new TransportException(
@@ -250,22 +252,19 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
+
                 final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
+
                 final ThreadContext threadContext = securityContext.getThreadContext();
-                final Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
-                final var contextRestoreHandler = new ContextRestoreResponseHandler<>(contextSupplier, handler);
+                final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
                 authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
                     remoteClusterAlias.get(),
                     authentication.getEffectiveSubject(),
                     ActionListener.wrap(roleDescriptorsIntersection -> {
                         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                             writeCredentialForClusterToContext(remoteClusterAlias.get(), threadContext);
-                            final RemoteAccessAuthentication remoteAccessAuthentication = new RemoteAccessAuthentication(
-                                authentication,
-                                roleDescriptorsIntersection
-                            );
-                            remoteAccessAuthentication.writeToContext(threadContext);
+                            new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection).writeToContext(threadContext);
                             sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                         }
                     }, e -> contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
@@ -289,12 +288,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         "remote cluster credential unavailable for target cluster [" + remoteClusterAlias + "]"
                     );
                 }
-                threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, withApiKeyPrefix(clusterCredential));
+                threadContext.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, encodedWithApiKeyPrefix(clusterCredential));
             }
 
-            private String withApiKeyPrefix(final String clusterCredential) {
-                // TODO base64 encode?
-                return "ApiKey " + clusterCredential;
+            private String encodedWithApiKeyPrefix(final String clusterCredential) {
+                return Base64.getEncoder().encodeToString(("ApiKey " + clusterCredential).getBytes(StandardCharsets.UTF_8));
             }
         };
     }

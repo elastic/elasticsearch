@@ -60,6 +60,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -73,7 +75,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.UUIDs.randomBase64UUID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCase {
@@ -108,7 +110,6 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
 
     @After
     public void cleanup() throws IOException {
-        // TODO combine with teardown?
         deleteUser(REMOTE_SEARCH_USER);
         deleteRole(REMOTE_SEARCH_ROLE);
         deleteIndex(adminClient(), "index-a");
@@ -177,10 +178,11 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                         assertContainsRemoteAccessHeaders(actual.headers());
                         assertThat(
                             actual.headers(),
-                            hasEntry(
-                                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
-                                "ApiKey " + clusterCredential
-                            )
+                            hasKey(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY)
+                        );
+                        assertThat(
+                            decode(actual.headers().get(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY)),
+                            equalTo("ApiKey " + clusterCredential)
                         );
                         final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
                             actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
@@ -224,22 +226,6 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                 }
             }
         }
-    }
-
-    private void assertContainsRemoteAccessHeaders(final Map<String, String> actualHeaders) {
-        assertThat(
-            actualHeaders.keySet(),
-            containsInAnyOrder(
-                RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
-                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
-            )
-        );
-    }
-
-    private Authentication decodeAuthentication(final String rawAuthentication) throws IOException {
-        final var threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, rawAuthentication);
-        return Objects.requireNonNull(new AuthenticationContextSerializer().readFromContext(threadContext));
     }
 
     private static MockTransportService startTransport(
@@ -310,6 +296,26 @@ public class RemoteAccessHeadersRestIT extends SecurityOnTrialLicenseRestTestCas
                 service.close();
             }
         }
+    }
+
+    private String decode(final String src) {
+        return new String(Base64.getDecoder().decode(src), StandardCharsets.UTF_8);
+    }
+
+    private void assertContainsRemoteAccessHeaders(final Map<String, String> actualHeaders) {
+        assertThat(
+            actualHeaders.keySet(),
+            containsInAnyOrder(
+                RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
+                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY
+            )
+        );
+    }
+
+    private Authentication decodeAuthentication(final String rawAuthentication) throws IOException {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, rawAuthentication);
+        return Objects.requireNonNull(new AuthenticationContextSerializer().readFromContext(threadContext));
     }
 
     private record CapturedActionWithHeaders(String action, Map<String, String> headers) {}

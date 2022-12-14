@@ -87,17 +87,19 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .withType(StandaloneRestIntegTestTask.class)
             .configureEach(t -> t.finalizedBy(project.getTasks().withType(FixtureStop.class)));
 
-        project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(t ->
-        // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
-        project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
-            if (GradleUtils.isModuleProject(project.getPath())) {
-                var bundle = project.getTasks().withType(Sync.class).named(EXPLODED_BUNDLE_PLUGIN_TASK_NAME);
-                t.getClusters().forEach(c -> c.module(bundle));
-            } else {
-                var bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
-                t.getClusters().forEach(c -> c.plugin(bundle));
-            }
-        }));
+        project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(t -> {
+            t.setMaxParallelForks(1);
+            // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
+            project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
+                if (GradleUtils.isModuleProject(project.getPath())) {
+                    var bundle = project.getTasks().withType(Sync.class).named(EXPLODED_BUNDLE_PLUGIN_TASK_NAME);
+                    t.getClusters().forEach(c -> c.module(bundle));
+                } else {
+                    var bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
+                    t.getClusters().forEach(c -> c.plugin(bundle));
+                }
+            });
+        });
     }
 
     private String systemProperty(String propName) {

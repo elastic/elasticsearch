@@ -7,19 +7,15 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
-import java.io.InputStream;
 import java.util.Locale;
 import java.util.stream.StreamSupport;
 
@@ -154,26 +150,5 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             Loggers.removeAppender(listenerLogger, mockLogAppender);
             mockLogAppender.stop();
         }
-    }
-
-    public void testObjectStoreServiceCanCreateBlob() throws Exception {
-        startMasterAndIndexNode();
-        var objectStoreService = internalCluster().getAnyMasterNodeInstance(ObjectStoreService.class);
-        BlobStoreRepository repository = objectStoreService.getObjectStore();
-
-        logger.info("--> About to write test blob");
-        BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath().add("subpath"));
-        BytesArray whatToWrite = new BytesArray(randomByteArrayOfLength(randomIntBetween(100, 1000)));
-        blobContainer.writeBlob("test.txt", whatToWrite, true);
-        logger.info("--> Wrote blob");
-
-        assertEquals(1, blobContainer.listBlobs().size());
-        try (InputStream is = blobContainer.readBlob("test.txt")) {
-            assertArrayEquals(whatToWrite.array(), is.readAllBytes());
-        }
-
-        logger.info("--> Deleting");
-        blobContainer.delete();
-        assertEquals(0, blobContainer.listBlobs().size());
     }
 }

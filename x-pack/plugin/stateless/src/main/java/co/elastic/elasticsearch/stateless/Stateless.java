@@ -120,7 +120,7 @@ public class Stateless extends Plugin {
         final ObjectStoreService service = getObjectStoreService();
         return new Engine.IndexCommitListener() {
             @Override
-            public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef) {
+            public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef, Set<String> additionalFiles) {
                 service.onCommitCreation(new StatelessCommitRef(shardId, indexCommitRef));
             }
 

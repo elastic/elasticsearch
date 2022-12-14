@@ -54,8 +54,14 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
         @Override
         protected Engine.IndexCommitListener createIndexCommitListener() {
             return new Engine.IndexCommitListener() {
+
                 @Override
-                public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef) {
+                public void onNewCommit(
+                    ShardId shardId,
+                    long primaryTerm,
+                    Engine.IndexCommitRef indexCommitRef,
+                    Set<String> additionalFiles
+                ) {
                     synchronized (mutex) {
                         Map<Long, Engine.IndexCommitRef> commits = retainedCommits.computeIfAbsent(shardId, s -> new HashMap<>());
                         var previous = commits.put(indexCommitRef.getIndexCommit().getGeneration(), indexCommitRef);

@@ -80,6 +80,11 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
     }
 
     @Override
+    public void close() {
+        values.close();
+    }
+
+    @Override
     public AggregatorStateSerializer<DoubleArrayState> serializer() {
         return serializer;
     }

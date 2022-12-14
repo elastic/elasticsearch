@@ -13,11 +13,10 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-
-import java.util.function.BiFunction;
+import org.elasticsearch.core.Releasable;
 
 @Experimental
-public interface GroupingAggregatorFunction {
+public interface GroupingAggregatorFunction extends Releasable {
 
     void addRawInput(Block groupIdBlock, Page page);
 
@@ -27,16 +26,15 @@ public interface GroupingAggregatorFunction {
 
     Block evaluateFinal();
 
-    abstract class GroupingAggregatorFunctionFactory
-        implements
-            BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction>,
-            Describable {
+    abstract class GroupingAggregatorFunctionFactory implements Describable {
 
         private final String name;
 
         GroupingAggregatorFunctionFactory(String name) {
             this.name = name;
         }
+
+        public abstract GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel);
 
         @Override
         public String describe() {
@@ -46,19 +44,18 @@ public interface GroupingAggregatorFunction {
 
     GroupingAggregatorFunctionFactory avg = new GroupingAggregatorFunctionFactory("avg") {
         @Override
-        public GroupingAggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
-            // TODO real BigArrays
+        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
-                return GroupingAvgAggregator.createIntermediate(BigArrays.NON_RECYCLING_INSTANCE);
+                return GroupingAvgAggregator.createIntermediate(bigArrays);
             } else {
-                return GroupingAvgAggregator.create(BigArrays.NON_RECYCLING_INSTANCE, inputChannel);
+                return GroupingAvgAggregator.create(bigArrays, inputChannel);
             }
         }
     };
 
     GroupingAggregatorFunctionFactory count = new GroupingAggregatorFunctionFactory("count") {
         @Override
-        public GroupingAggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
                 return GroupingCountAggregator.createIntermediate();
             } else {
@@ -69,7 +66,7 @@ public interface GroupingAggregatorFunction {
 
     GroupingAggregatorFunctionFactory min = new GroupingAggregatorFunctionFactory("min") {
         @Override
-        public GroupingAggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
                 return GroupingMinAggregator.createIntermediate();
             } else {
@@ -80,7 +77,7 @@ public interface GroupingAggregatorFunction {
 
     GroupingAggregatorFunctionFactory max = new GroupingAggregatorFunctionFactory("max") {
         @Override
-        public GroupingAggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
                 return GroupingMaxAggregator.createIntermediate();
             } else {
@@ -91,7 +88,7 @@ public interface GroupingAggregatorFunction {
 
     GroupingAggregatorFunctionFactory sum = new GroupingAggregatorFunctionFactory("sum") {
         @Override
-        public GroupingAggregatorFunction apply(AggregatorMode mode, Integer inputChannel) {
+        public GroupingAggregatorFunction build(BigArrays bigArrays, AggregatorMode mode, int inputChannel) {
             if (mode.isInputPartial()) {
                 return GroupingSumAggregator.createIntermediate();
             } else {

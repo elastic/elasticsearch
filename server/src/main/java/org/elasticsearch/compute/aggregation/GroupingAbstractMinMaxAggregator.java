@@ -80,6 +80,11 @@ abstract class GroupingAbstractMinMaxAggregator implements GroupingAggregatorFun
     }
 
     @Override
+    public void close() {
+        state.close();
+    }
+
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");

@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.AggregatorStateBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.lang.invoke.MethodHandles;
@@ -25,7 +24,7 @@ import java.nio.ByteOrder;
 import java.util.Objects;
 
 @Experimental
-final class GroupingAvgAggregator implements GroupingAggregatorFunction, Releasable {
+final class GroupingAvgAggregator implements GroupingAggregatorFunction {
 
     private final GroupingAvgState state;
     private final int channel;
@@ -97,7 +96,7 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction, Releasa
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("channel=").append(channel);
+        sb.append("channel=").append(channel).append("]");
         return sb.toString();
     }
 
@@ -120,9 +119,9 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction, Releasa
 
         GroupingAvgState(BigArrays bigArrays) {
             this.bigArrays = bigArrays;
-            this.values = bigArrays.newDoubleArray(1);
             boolean success = false;
             try {
+                this.values = bigArrays.newDoubleArray(1);
                 this.deltas = bigArrays.newDoubleArray(1);
                 this.counts = bigArrays.newLongArray(1);
                 success = true;

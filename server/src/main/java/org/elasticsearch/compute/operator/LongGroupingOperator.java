@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Group operator that adds grouping information to pages
@@ -37,7 +38,13 @@ public class LongGroupingOperator implements Operator {
         Page l = lastPage;
         lastPage = null;
         if (finished) {
+            /*
+             * eagerly return our memory to the pool so it can be reused
+             * and clear our reference to it so when we are "closed" we
+             * don't try to free it again
+             */
             longHash.close();
+            longHash = null;
         }
         return l;
     }
@@ -74,6 +81,6 @@ public class LongGroupingOperator implements Operator {
 
     @Override
     public void close() {
-        longHash.close();
+        Releasables.close(longHash);
     }
 }

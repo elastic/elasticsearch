@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.search.SearchService;
@@ -50,12 +51,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         IndexNameExpressionResolver indexNameExpressionResolver,
         SearchService searchService,
         ClusterService clusterService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        BigArrays bigArrays
     ) {
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new);
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
-        this.computeService = new ComputeService(searchService, indexNameExpressionResolver, clusterService, threadPool);
+        this.computeService = new ComputeService(searchService, indexNameExpressionResolver, clusterService, threadPool, bigArrays);
         this.settings = settings;
     }
 

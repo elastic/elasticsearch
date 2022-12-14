@@ -113,6 +113,9 @@ class LongAvgAggregator implements AggregatorFunction {
         }
 
         @Override
+        public void close() {}
+
+        @Override
         public AggregatorStateSerializer<AvgState> serializer() {
             return serializer;
         }

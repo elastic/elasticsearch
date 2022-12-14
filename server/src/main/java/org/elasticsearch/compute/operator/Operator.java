@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Operator is low-level building block that consumes, transforms and produces data.
@@ -24,8 +25,7 @@ import org.elasticsearch.compute.data.Page;
  * {@link org.elasticsearch.compute}
  */
 @Experimental
-public interface Operator {
-
+public interface Operator extends Releasable {
     /**
      * whether the given operator can accept more input pages
      */
@@ -57,6 +57,7 @@ public interface Operator {
      * notifies the operator that it won't be used anymore (i.e. none of the other methods called),
      * and its resources can be cleaned up
      */
+    @Override
     void close();
 
     /**
@@ -81,7 +82,6 @@ public interface Operator {
      * A factory for creating intermediate operators.
      */
     interface OperatorFactory extends Describable {
-
         /** Creates a new intermediate operator. */
         Operator get();
     }

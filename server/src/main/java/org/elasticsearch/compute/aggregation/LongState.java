@@ -45,6 +45,9 @@ final class LongState implements AggregatorState<LongState> {
     }
 
     @Override
+    public void close() {}
+
+    @Override
     public AggregatorStateSerializer<LongState> serializer() {
         return serializer;
     }

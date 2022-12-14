@@ -63,7 +63,6 @@ public class ValuesSourceReaderOperator implements Operator {
         int shardChannel,
         String field
     ) implements OperatorFactory {
-
         @Override
         public Operator get() {
             return new ValuesSourceReaderOperator(

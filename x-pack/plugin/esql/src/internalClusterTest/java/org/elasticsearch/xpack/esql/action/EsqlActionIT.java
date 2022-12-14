@@ -608,11 +608,11 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.values(), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
     }
 
-    private EsqlQueryResponse run(String esqlCommands) {
+    static EsqlQueryResponse run(String esqlCommands) {
         return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(randomPragmas()).get();
     }
 
-    private EsqlQueryResponse run(String esqlCommands, Settings pragmas) {
+    static EsqlQueryResponse run(String esqlCommands, Settings pragmas) {
         return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(pragmas).get();
     }
 

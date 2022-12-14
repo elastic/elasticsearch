@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
 
 /**
@@ -35,8 +36,7 @@ public abstract class SourceOperator implements Operator {
     /**
      * A factory for creating source operators.
      */
-    public interface SourceOperatorFactory extends OperatorFactory {
-
+    public interface SourceOperatorFactory extends Describable {
         /** Creates a new source operator. */
         SourceOperator get();
     }

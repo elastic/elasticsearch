@@ -17,9 +17,4 @@ public interface AggregatorState<T extends AggregatorState<T>> extends Releasabl
     long getEstimatedSize();
 
     AggregatorStateSerializer<T> serializer();
-
-    @Override
-    default void close() {
-        // do nothing
-    }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
@@ -33,7 +34,7 @@ import java.util.stream.Collectors;
  * {@link org.elasticsearch.compute}
  */
 @Experimental
-public class Driver implements Runnable {
+public class Driver implements Runnable, Releasable {
 
     private final List<Operator> activeOperators;
     private final Releasable releasable;
@@ -59,7 +60,7 @@ public class Driver implements Runnable {
      * blocked.
      */
     @Override
-    public void run() {
+    public void run() {   // TODO this is dangerous because it doesn't close the Driver.
         while (run(TimeValue.MAX_VALUE, Integer.MAX_VALUE) != Operator.NOT_BLOCKED)
             ;
     }
@@ -97,6 +98,11 @@ public class Driver implements Runnable {
      */
     public boolean isFinished() {
         return activeOperators.isEmpty();
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(activeOperators);
     }
 
     private ListenableActionFuture<Void> runSingleLoopIteration() {
@@ -150,6 +156,7 @@ public class Driver implements Runnable {
     }
 
     public static void runToCompletion(Executor executor, List<Driver> drivers) {
+        // TODO maybe this and run should be move to test code. That would make it a bit easier to reason about what they are "for"
         start(executor, drivers).actionGet();
     }
 

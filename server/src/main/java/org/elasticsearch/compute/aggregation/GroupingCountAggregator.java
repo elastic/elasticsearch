@@ -98,4 +98,9 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
         sb.append("]");
         return sb.toString();
     }
+
+    @Override
+    public void close() {
+        state.close();
+    }
 }

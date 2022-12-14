@@ -13,13 +13,13 @@ import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
@@ -44,18 +44,13 @@ public class HashAggregationOperator implements Operator {
 
     public record HashAggregationOperatorFactory(
         int groupByChannel,
-        List<GroupingAggregatorFactory> aggregators,
+        List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
         Supplier<BlockHash> blockHash,
-        AggregatorMode mode
+        AggregatorMode mode // TODO remove me?
     ) implements OperatorFactory {
-
         @Override
         public Operator get() {
-            return new HashAggregationOperator(
-                groupByChannel,
-                aggregators.stream().map(GroupingAggregatorFactory::get).toList(),
-                blockHash.get()
-            );
+            return new HashAggregationOperator(groupByChannel, aggregators, blockHash);
         }
 
         @Override
@@ -68,13 +63,27 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    public HashAggregationOperator(int groupByChannel, List<GroupingAggregator> aggregators, BlockHash blockHash) {
-        Objects.requireNonNull(aggregators);
-        // checkNonEmpty(aggregators);
+    public HashAggregationOperator(
+        int groupByChannel,
+        List<GroupingAggregator.GroupingAggregatorFactory> aggregators,
+        Supplier<BlockHash> blockHash
+    ) {
         this.groupByChannel = groupByChannel;
-        this.aggregators = aggregators;
-        this.blockHash = blockHash;
         state = NEEDS_INPUT;
+
+        this.aggregators = new ArrayList<>(aggregators.size());
+        boolean success = false;
+        try {
+            for (GroupingAggregator.GroupingAggregatorFactory a : aggregators) {
+                this.aggregators.add(a.get());
+            }
+            this.blockHash = blockHash.get();
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
@@ -137,7 +146,7 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public void close() {
-        blockHash.close();
+        Releasables.close(blockHash, () -> Releasables.close(aggregators));
     }
 
     private static void checkState(boolean condition, String msg) {

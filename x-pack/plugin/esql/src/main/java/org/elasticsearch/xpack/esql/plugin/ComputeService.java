@@ -11,9 +11,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
@@ -47,17 +49,20 @@ public class ComputeService {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    private final BigArrays bigArrays;
 
     public ComputeService(
         SearchService searchService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        BigArrays bigArrays
     ) {
         this.searchService = searchService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        this.bigArrays = bigArrays.withCircuitBreaking();
     }
 
     private void acquireSearchContexts(PhysicalPlan physicalPlan, ActionListener<List<SearchContext>> listener) {
@@ -124,35 +129,39 @@ public class ComputeService {
     public void runCompute(PhysicalPlan physicalPlan, EsqlConfiguration configuration, ActionListener<List<Page>> listener) {
         acquireSearchContexts(physicalPlan, ActionListener.wrap(searchContexts -> {
             boolean success = false;
+            List<Driver> drivers = new ArrayList<>();
+            CheckedRunnable<RuntimeException> release = () -> Releasables.close(
+                () -> Releasables.close(searchContexts),
+                () -> Releasables.close(drivers)
+            );
             try {
-                LocalExecutionPlanner planner = new LocalExecutionPlanner(configuration, searchContexts);
+                LocalExecutionPlanner planner = new LocalExecutionPlanner(bigArrays, configuration, searchContexts);
                 final List<Page> results = Collections.synchronizedList(new ArrayList<>());
                 LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
                     new OutputExec(physicalPlan, (l, p) -> { results.add(p); })
                 );
                 LOGGER.info("Local execution plan:\n{}", localExecutionPlan.describe());
-                List<Driver> drivers = localExecutionPlan.createDrivers();
+                localExecutionPlan.createDrivers(drivers);
                 if (drivers.isEmpty()) {
                     throw new IllegalStateException("no drivers created");
                 }
                 LOGGER.info("using {} drivers", drivers.size());
-                Driver.start(threadPool.executor(ThreadPool.Names.SEARCH), drivers).addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        Releasables.close(searchContexts);
-                        listener.onResponse(new ArrayList<>(results));
-                    }
+                Driver.start(threadPool.executor(ThreadPool.Names.SEARCH), drivers)
+                    .addListener(ActionListener.runBefore(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            listener.onResponse(new ArrayList<>(results));
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        Releasables.close(searchContexts);
-                        listener.onFailure(e);
-                    }
-                });
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }, release));
                 success = true;
             } finally {
                 if (success == false) {
-                    Releasables.close(searchContexts);
+                    release.run();
                 }
             }
         }, listener::onFailure));

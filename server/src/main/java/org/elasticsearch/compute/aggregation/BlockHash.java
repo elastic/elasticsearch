@@ -9,13 +9,18 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefArrayBlock;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.core.Releasable;
+
+import java.io.IOException;
 
 /**
  * A specialized hash table implementation maps values of a {@link Block} to ids (in longs).
@@ -74,6 +79,8 @@ public abstract class BlockHash implements Releasable {
             for (int i = 0; i < size; i++) {
                 keys[i] = longHash.get(i);
             }
+
+            // TODO call something like takeKeyOwnership to claim the keys array directly
             return new LongArrayBlock(keys, keys.length);
         }
 
@@ -100,7 +107,19 @@ public abstract class BlockHash implements Releasable {
         @Override
         public Block getKeys() {
             final int size = Math.toIntExact(bytesRefHash.size());
-            return new BytesRefArrayBlock(size, bytesRefHash.getBytesRefs());
+            /*
+             * Create an un-owned copy of the data so we can close our BytesRefHash
+             * without and still read from the block.
+             */
+            // TODO replace with takeBytesRefsOwnership ?!
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                bytesRefHash.getBytesRefs().writeTo(out);
+                try (StreamInput in = out.bytes().streamInput()) {
+                    return new BytesRefArrayBlock(size, new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE));
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
         }
 
         @Override

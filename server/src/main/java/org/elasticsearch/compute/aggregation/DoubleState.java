@@ -45,6 +45,9 @@ final class DoubleState implements AggregatorState<DoubleState> {
     }
 
     @Override
+    public void close() {}
+
+    @Override
     public AggregatorStateSerializer<DoubleState> serializer() {
         return serializer;
     }

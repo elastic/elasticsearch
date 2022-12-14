@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
 
 /**
@@ -26,8 +27,7 @@ public abstract class SinkOperator implements Operator {
     /**
      * A factory for creating sink operators.
      */
-    public interface SinkOperatorFactory extends OperatorFactory {
-
+    public interface SinkOperatorFactory extends Describable {
         /** Creates a new sink operator. */
         SinkOperator get();
     }

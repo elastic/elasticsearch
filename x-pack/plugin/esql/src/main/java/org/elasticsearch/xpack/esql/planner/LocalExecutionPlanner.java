@@ -19,9 +19,8 @@ import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.Aggregator.AggregatorFactory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.BlockHash;
-import org.elasticsearch.compute.aggregation.GroupingAggregator.GroupingAggregatorFactory;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.GroupingAggregatorFunctionFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -45,6 +44,7 @@ import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -96,7 +96,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -110,7 +109,6 @@ import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperator
 @Experimental
 public class LocalExecutionPlanner {
 
-    private final List<SearchContext> searchContexts;
     private static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
         "task_concurrency",
         ThreadPool.searchThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
@@ -122,15 +120,18 @@ public class LocalExecutionPlanner {
         DataPartitioning.SEGMENT
     );
 
+    private final BigArrays bigArrays;
     public final int taskConcurrency;
     private final int bufferMaxPages;
     private final DataPartitioning dataPartitioning;
+    private final List<SearchContext> searchContexts;
 
-    public LocalExecutionPlanner(EsqlConfiguration configuration, List<SearchContext> searchContexts) {
-        this.searchContexts = searchContexts;
+    public LocalExecutionPlanner(BigArrays bigArrays, EsqlConfiguration configuration, List<SearchContext> searchContexts) {
+        this.bigArrays = bigArrays;
         taskConcurrency = TASK_CONCURRENCY.get(configuration.pragmas());
         bufferMaxPages = BUFFER_MAX_PAGES.get(configuration.pragmas());
         dataPartitioning = DATA_PARTITIONING.get(configuration.pragmas());
+        this.searchContexts = searchContexts;
     }
 
     /**
@@ -141,7 +142,7 @@ public class LocalExecutionPlanner {
 
         PhysicalOperation physicalOperation = plan(node, context);
 
-        context.addDriverFactory(new DriverFactory(new DriverSupplier(physicalOperation), context.driverParallelism()));
+        context.addDriverFactory(new DriverFactory(new DriverSupplier(bigArrays, physicalOperation), context.driverParallelism()));
 
         LocalExecutionPlan localExecutionPlan = new LocalExecutionPlan();
         localExecutionPlan.driverFactories.addAll(context.driverFactories);
@@ -196,7 +197,7 @@ public class LocalExecutionPlanner {
 
                 for (NamedExpression e : aggregate.aggregates()) {
                     if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                        GroupingAggregatorFunctionFactory aggregatorFunc;
+                        GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggregatorFunc;
                         if (aggregateFunction instanceof Avg) {
                             aggregatorFunc = GroupingAggregatorFunction.avg;
                         } else if (aggregateFunction instanceof Count) {
@@ -207,15 +208,16 @@ public class LocalExecutionPlanner {
 
                         final Supplier<BlockHash> blockHash;
                         if (grpAttrib.dataType() == DataTypes.KEYWORD) {
-                            blockHash = () -> BlockHash.newBytesRefHash(BigArrays.NON_RECYCLING_INSTANCE);
+                            blockHash = () -> BlockHash.newBytesRefHash(bigArrays);
                         } else {
-                            blockHash = () -> BlockHash.newLongHash(BigArrays.NON_RECYCLING_INSTANCE);
+                            blockHash = () -> BlockHash.newLongHash(bigArrays);
                         }
                         if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
                             operatorFactory = new HashAggregationOperatorFactory(
                                 source.layout.getChannel(grpAttrib.id()),
                                 List.of(
-                                    new GroupingAggregatorFactory(
+                                    new GroupingAggregator.GroupingAggregatorFactory(
+                                        bigArrays,
                                         aggregatorFunc,
                                         AggregatorMode.INITIAL,
                                         source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
@@ -229,7 +231,8 @@ public class LocalExecutionPlanner {
                             operatorFactory = new HashAggregationOperatorFactory(
                                 source.layout.getChannel(grpAttrib.id()),
                                 List.of(
-                                    new GroupingAggregatorFactory(
+                                    new GroupingAggregator.GroupingAggregatorFactory(
+                                        bigArrays,
                                         aggregatorFunc,
                                         AggregatorMode.FINAL,
                                         source.layout.getChannel(alias.id())
@@ -307,7 +310,7 @@ public class LocalExecutionPlanner {
             PhysicalOperation source = plan(exchangeExec.child(), subContext);
             Layout layout = source.layout;
             PhysicalOperation sink = source.withSink(new ExchangeSinkOperatorFactory(ex), source.layout);
-            context.addDriverFactory(new DriverFactory(new DriverSupplier(sink), subContext.driverParallelism()));
+            context.addDriverFactory(new DriverFactory(new DriverSupplier(bigArrays, sink), subContext.driverParallelism()));
             return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(ex), layout);
         } else if (node instanceof TopNExec topNExec) {
             PhysicalOperation source = plan(topNExec.child(), context);
@@ -583,8 +586,8 @@ public class LocalExecutionPlanner {
             return sourceOperatorFactory.get();
         }
 
-        public List<Operator> operators() {
-            return intermediateOperatorFactories.stream().map(OperatorFactory::get).toList();
+        public void operators(List<Operator> operators) {
+            intermediateOperatorFactories.stream().map(OperatorFactory::get).forEach(operators::add);
         }
 
         public SinkOperator sink() {
@@ -649,11 +652,25 @@ public class LocalExecutionPlanner {
         }
     }
 
-    record DriverSupplier(PhysicalOperation physicalOperation) implements Supplier<Driver>, Describable {
+    record DriverSupplier(BigArrays bigArrays, PhysicalOperation physicalOperation) implements Supplier<Driver>, Describable {
 
         @Override
         public Driver get() {
-            return new Driver(physicalOperation.source(), physicalOperation.operators(), physicalOperation().sink(), () -> {});
+            SourceOperator source = null;
+            List<Operator> operators = new ArrayList<>();
+            SinkOperator sink = null;
+            boolean success = false;
+            try {
+                source = physicalOperation.source();
+                physicalOperation.operators(operators);
+                sink = physicalOperation.sink();
+                success = true;
+                return new Driver(source, operators, sink, () -> {});
+            } finally {
+                if (false == success) {
+                    Releasables.close(source, () -> Releasables.close(operators), sink);
+                }
+            }
         }
 
         @Override
@@ -680,14 +697,12 @@ public class LocalExecutionPlanner {
     public static class LocalExecutionPlan implements Describable {
         final List<DriverFactory> driverFactories = new ArrayList<>();
 
-        public List<Driver> createDrivers() {
-            return driverFactories.stream()
-                .flatMap(df -> IntStream.range(0, df.driverParallelism().instanceCount()).mapToObj(i -> df.driverSupplier.get()))
-                .collect(Collectors.toList());
-        }
-
-        public List<DriverFactory> getDriverFactories() {
-            return driverFactories;
+        public void createDrivers(List<Driver> drivers) {
+            for (DriverFactory df : driverFactories) {
+                for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
+                    drivers.add(df.driverSupplier.get());
+                }
+            }
         }
 
         @Override

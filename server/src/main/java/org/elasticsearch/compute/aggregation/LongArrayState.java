@@ -79,6 +79,11 @@ final class LongArrayState implements AggregatorState<LongArrayState> {
     }
 
     @Override
+    public void close() {
+        values.close();
+    }
+
+    @Override
     public AggregatorStateSerializer<LongArrayState> serializer() {
         return serializer;
     }

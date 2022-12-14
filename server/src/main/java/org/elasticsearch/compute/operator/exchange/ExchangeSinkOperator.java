@@ -24,7 +24,7 @@ public class ExchangeSinkOperator extends SinkOperator {
     private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
 
     public record ExchangeSinkOperatorFactory(Exchange ex) implements SinkOperatorFactory {
-
+        @Override
         public SinkOperator get() {
             return new ExchangeSinkOperator(ex.createSink());
         }

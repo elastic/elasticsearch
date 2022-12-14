@@ -444,6 +444,7 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.forceQueryCacheProvider(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setDirectoryWrapper(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setIndexCommitListener(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setReplicationTrackerFactory(null)).getMessage());
     }
 
     public void testSetupUnknownSimilarity() {
@@ -730,7 +731,7 @@ public class IndexModuleTests extends ESTestCase {
         }
     }
 
-    public void testCustomRecoverySourceFactory() throws IOException {
+    public void testCustomReplicationTrackerFactory() throws IOException {
         IndexModule module = new IndexModule(
             indexSettings,
             emptyAnalysisRegistry,

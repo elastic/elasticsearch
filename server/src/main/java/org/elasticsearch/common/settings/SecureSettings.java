@@ -19,6 +19,7 @@ import java.util.Set;
  */
 public interface SecureSettings extends Closeable {
 
+    /** The secure settings implementation name. Used in prompts and logging.*/
     String name();
 
     /** Returns true if the settings are loaded and retrievable. */
@@ -28,6 +29,9 @@ public interface SecureSettings extends Closeable {
     default boolean requiresCredentials() {
         return false;
     }
+
+    /** Unlocks the secure settings store with credentials if the store requires credentials */
+    default void openWithCredentials(SecureString credentials) throws Exception {}
 
     /** Returns the names of all secure settings available. */
     Set<String> getSettingNames();

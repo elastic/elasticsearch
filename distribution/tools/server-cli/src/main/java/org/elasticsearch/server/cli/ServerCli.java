@@ -82,7 +82,9 @@ class ServerCli extends EnvironmentAwareCommand {
             final SecureString credentials = readOptionalSecureSettingsCredentials(secrets, terminal);
             env = autoConfigureSecurity(terminal, options, processInfo, env, credentials);
 
-            SecureSettingsUtilities.openWithCredentials(secrets, credentials);
+            if (secrets != null && secrets.requiresCredentials()) {
+                secrets.openWithCredentials(credentials);
+            }
 
             // install/remove plugins from elasticsearch-plugins.yml
             syncPlugins(terminal, env, processInfo);

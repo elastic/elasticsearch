@@ -624,4 +624,9 @@ public class KeyStoreWrapper implements SecureSettings {
     public String name() {
         return "keystore";
     }
+
+    @Override
+    public void openWithCredentials(SecureString credentials) throws Exception {
+        decrypt(credentials.getChars());
+    }
 }

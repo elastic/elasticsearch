@@ -2914,6 +2914,8 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.openEngineAndRecoverFromTranslog();
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
+        // Recovery state should be propagated to the engine
+        assertEquals(shard.recoveryState(), shard.getEngine().config().getRecoveryState());
         closeShards(shard);
     }
 

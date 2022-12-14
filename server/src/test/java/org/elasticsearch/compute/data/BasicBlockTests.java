@@ -18,6 +18,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -47,11 +48,15 @@ public class BasicBlockTests extends ESTestCase {
             assertThat((long) pos, is(block.getLong(pos)));
             assertThat((double) pos, is(block.getDouble(pos)));
 
-            assertNullValues(
-                positionCount,
-                nulls -> new IntArrayBlock(values, positionCount, nulls),
-                (randomNonNullPosition, b) -> { assertThat((int) randomNonNullPosition, is(b.getInt(randomNonNullPosition.intValue()))); }
-            );
+            if (positionCount > 1) {
+                assertNullValues(
+                    positionCount,
+                    nulls -> new IntArrayBlock(values, positionCount, nulls),
+                    (randomNonNullPosition, b) -> {
+                        assertThat((int) randomNonNullPosition, is(b.getInt(randomNonNullPosition.intValue())));
+                    }
+                );
+            }
         }
     }
 
@@ -79,11 +84,15 @@ public class BasicBlockTests extends ESTestCase {
             assertThat((long) pos, is(block.getLong(pos)));
             assertThat((double) pos, is(block.getDouble(pos)));
 
-            assertNullValues(
-                positionCount,
-                nulls -> new LongArrayBlock(values, positionCount, nulls),
-                (randomNonNullPosition, b) -> { assertThat((long) randomNonNullPosition, is(b.getLong(randomNonNullPosition.intValue()))); }
-            );
+            if (positionCount > 1) {
+                assertNullValues(
+                    positionCount,
+                    nulls -> new LongArrayBlock(values, positionCount, nulls),
+                    (randomNonNullPosition, b) -> {
+                        assertThat((long) randomNonNullPosition, is(b.getLong(randomNonNullPosition.intValue())));
+                    }
+                );
+            }
         }
     }
 
@@ -112,13 +121,15 @@ public class BasicBlockTests extends ESTestCase {
             expectThrows(UOE, () -> block.getInt(pos));
             expectThrows(UOE, () -> block.getLong(pos));
 
-            assertNullValues(
-                positionCount,
-                nulls -> new DoubleArrayBlock(values, positionCount, nulls),
-                (randomNonNullPosition, b) -> {
-                    assertThat((double) randomNonNullPosition, is(b.getDouble(randomNonNullPosition.intValue())));
-                }
-            );
+            if (positionCount > 1) {
+                assertNullValues(
+                    positionCount,
+                    nulls -> new DoubleArrayBlock(values, positionCount, nulls),
+                    (randomNonNullPosition, b) -> {
+                        assertThat((double) randomNonNullPosition, is(b.getDouble(randomNonNullPosition.intValue())));
+                    }
+                );
+            }
         }
     }
 
@@ -167,14 +178,16 @@ public class BasicBlockTests extends ESTestCase {
             expectThrows(UOE, () -> block.getDouble(pos));
         }
 
-        assertNullValues(
-            positionCount,
-            nulls -> new BytesRefArrayBlock(positionCount, builder.getBytes(), nulls),
-            (randomNonNullPosition, b) -> assertThat(
-                values[randomNonNullPosition],
-                is(b.getBytesRef(randomNonNullPosition, new BytesRef()))
-            )
-        );
+        if (positionCount > 1) {
+            assertNullValues(
+                positionCount,
+                nulls -> new BytesRefArrayBlock(positionCount, builder.getBytes(), nulls),
+                (randomNonNullPosition, b) -> assertThat(
+                    values[randomNonNullPosition],
+                    is(b.getBytesRef(randomNonNullPosition, new BytesRef()))
+                )
+            );
+        }
     }
 
     public void testBytesRefBlockBuilder() {
@@ -266,6 +279,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     private void assertNullValues(int positionCount, Function<BitSet, Block> blockConstructor, BiConsumer<Integer, Block> asserter) {
+        assertThat("test needs at least two positions", positionCount, greaterThan(1));
         int randomNullPosition = randomIntBetween(0, positionCount - 1);
         int randomNonNullPosition = randomValueOtherThan(randomNullPosition, () -> randomIntBetween(0, positionCount - 1));
         BitSet nullsMask = new BitSet(positionCount);

@@ -465,7 +465,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         req.getHeaders().forEach((key, values) -> {
             final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
             final String value = switch (lowerKey) {
-                case "authorization", "cookie", "secret", "session", "set_cookie", "token" -> "[REDACTED]";
+                case "authorization", "cookie", "secret", "session", "set_cookie", "token", "x_elastic_app_auth" -> "[REDACTED]";
                 default -> String.join("; ", values);
             };
             attributes.put("http.request.headers." + lowerKey, value);

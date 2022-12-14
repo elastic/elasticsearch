@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 
 public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
@@ -284,7 +285,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             }
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());
-            SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, snapMeta.getOperationMode(), stats);
+            SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(
+                snapLifecycles,
+                currentSLMMode(currentState),
+                stats
+            );
             Metadata currentMeta = currentState.metadata();
             return ClusterState.builder(currentState)
                 .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))

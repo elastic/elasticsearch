@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.StoredCertificate;
+import org.elasticsearch.common.ssl.X509Field;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
@@ -29,14 +30,11 @@ import javax.net.ssl.X509ExtendedTrustManager;
 public final class RestrictedTrustConfig implements SslTrustConfig {
 
     private static final String RESTRICTIONS_KEY_SUBJECT_NAME = "trust.subject_name";
-    public static final String SAN_OTHER_COMMON = "subjectAltName.otherName.commonName";
-    public static final String SAN_DNS = "subjectAltName.dnsName";
-    static final Set<String> SUPPORTED_X_509_FIELDS = Set.of(SAN_OTHER_COMMON, SAN_DNS);
     private final Path groupConfigPath;
     private final SslTrustConfig delegate;
-    private final Set<String> configuredX509Fields;
+    private final Set<X509Field> configuredX509Fields;
 
-    RestrictedTrustConfig(Path groupConfigPath, Set<String> configuredX509Fields, SslTrustConfig delegate) {
+    RestrictedTrustConfig(Path groupConfigPath, Set<X509Field> configuredX509Fields, SslTrustConfig delegate) {
         this.configuredX509Fields = configuredX509Fields;
         this.groupConfigPath = Objects.requireNonNull(groupConfigPath);
         this.delegate = Objects.requireNonNull(delegate);

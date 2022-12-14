@@ -22,6 +22,8 @@ File repo = file("$buildDir/testclusters/repo")
 testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   numberOfNodes = 2
   setting 'path.repo', repo.absolutePath
+  // The first node does not have the ingest role so we're sure ingest requests are forwarded:
+  nodes."yamlRestTest-0".setting 'node.roles', '[master,data,ml,remote_cluster_client,transform]'
 }
 
 testClusters.configureEach {

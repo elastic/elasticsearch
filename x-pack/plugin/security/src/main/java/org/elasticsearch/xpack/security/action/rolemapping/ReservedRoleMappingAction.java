@@ -104,7 +104,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             return;
         }
 
-        GroupedActionListener<Boolean> taskListener = new GroupedActionListener<>(new ActionListener<>() {
+        GroupedActionListener<Boolean> taskListener = new GroupedActionListener<>(tasksCount, new ActionListener<>() {
             @Override
             public void onResponse(Collection<Boolean> booleans) {
                 listener.onResponse(new NonStateTransformResult(ReservedRoleMappingAction.NAME, Collections.unmodifiableSet(entities)));
@@ -114,7 +114,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        }, tasksCount);
+        });
 
         for (var request : requests) {
             roleMappingStore.putRoleMapping(request, taskListener);

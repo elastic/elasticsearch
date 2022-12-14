@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -63,7 +62,6 @@ public final class PreAuthorizationUtils {
      */
     public static void maybeSkipChildrenActionAuthorization(
         SecurityContext securityContext,
-        TransportRequest parentRequest,
         AuthorizationContext parentAuthorizationContext
     ) {
         final String parentAction = parentAuthorizationContext.getAction();
@@ -81,11 +79,6 @@ public final class PreAuthorizationUtils {
 
         // Just a sanity check. If we ended up here, the authz should have been granted.
         if (indicesAccessControl.isGranted() == false) {
-            return;
-        }
-
-        if (parentRequest instanceof IndicesRequest == false) {
-            // We can only pre-authorize indices request.
             return;
         }
 

@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
@@ -43,9 +41,8 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
 
         AuthorizationContext parentAuthorizationContext = createAuthorizationContext(action, role, IndicesAccessControl.allowAll());
         SecurityContext securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
-        TransportRequest parentRequest = new SearchRequest(index);
 
-        maybeSkipChildrenActionAuthorization(securityContext, parentRequest, parentAuthorizationContext);
+        maybeSkipChildrenActionAuthorization(securityContext, parentAuthorizationContext);
         assertThat(securityContext.getParentAuthorization(), notNullValue());
         assertThat(securityContext.getParentAuthorization().action(), equalTo(action));
     }
@@ -58,9 +55,8 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
 
         AuthorizationContext parentAuthorizationContext = createAuthorizationContext(action, role, IndicesAccessControl.allowAll());
         SecurityContext securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
-        TransportRequest parentRequest = new SearchRequest(index);
 
-        maybeSkipChildrenActionAuthorization(securityContext, parentRequest, parentAuthorizationContext);
+        maybeSkipChildrenActionAuthorization(securityContext, parentAuthorizationContext);
         assertThat(securityContext.getParentAuthorization(), nullValue());
     }
 

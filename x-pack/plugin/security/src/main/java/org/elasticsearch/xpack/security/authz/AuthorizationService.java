@@ -523,7 +523,7 @@ public class AuthorizationService {
         securityContext.putIndicesAccessControl(indicesAccessControl);
 
         final AuthorizationContext parentContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
-        PreAuthorizationUtils.maybeSkipChildrenActionAuthorization(securityContext, request, parentContext);
+        PreAuthorizationUtils.maybeSkipChildrenActionAuthorization(securityContext, parentContext);
 
         // if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {

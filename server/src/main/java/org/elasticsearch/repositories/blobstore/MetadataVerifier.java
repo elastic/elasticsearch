@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.integrity.VerifyRepositoryIntegrityAction;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -37,7 +38,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -100,9 +100,10 @@ class MetadataVerifier implements Releasable {
     }
 
     private void addFailure(String format, Object... args) {
-        if (failureCount.incrementAndGet() <= verifyRequest.getMaxFailures()) {
+        final var failureNumber = failureCount.incrementAndGet();
+        if (failureNumber <= verifyRequest.getMaxFailures()) {
             final var failure = format(format, args);
-            logger.debug("[{}] found metadata verification failure: {}", repositoryName, failure);
+            logger.debug("[{}] found metadata verification failure [{}]: {}", repositoryName, failureNumber, failure);
             failures.add(new RepositoryVerificationException(repositoryName, failure));
         }
     }
@@ -111,8 +112,9 @@ class MetadataVerifier implements Releasable {
         if (isCancelledSupplier.getAsBoolean() && exception instanceof TaskCancelledException) {
             return;
         }
-        if (failureCount.incrementAndGet() <= verifyRequest.getMaxFailures()) {
-            logger.debug(() -> format("[%s] exception during metadata verification: {}", repositoryName), exception);
+        final var failureNumber = failureCount.incrementAndGet();
+        if (failureNumber <= verifyRequest.getMaxFailures()) {
+            logger.debug(() -> format("[%s] exception [%d] during metadata verification", repositoryName, failureNumber), exception);
             failures.add(
                 exception instanceof RepositoryVerificationException rve
                     ? rve
@@ -168,11 +170,26 @@ class MetadataVerifier implements Releasable {
             }
         }));
 
-        forkSupply(snapshotRefs, () -> blobStoreRepository.getSnapshotGlobalMetadata(snapshotId), metadata -> {
-            if (metadata.indices().isEmpty() == false) {
+        forkSupply(snapshotRefs, () -> getSnapshotGlobalMetadata(snapshotId), metadata -> {
+            if (metadata != null && metadata.indices().isEmpty() == false) {
                 addFailure("snapshot [%s] contains unexpected index metadata within global metadata", snapshotId);
             }
         });
+    }
+
+    private Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+        try {
+            return blobStoreRepository.getSnapshotGlobalMetadata(snapshotId);
+        } catch (Exception e) {
+            addFailure(
+                new RepositoryVerificationException(
+                    repositoryName,
+                    format("failed to get snapshot global metadata for [%s]", snapshotId),
+                    e
+                )
+            );
+            return null;
+        }
     }
 
     private void verifyIndices() {
@@ -232,22 +249,14 @@ class MetadataVerifier implements Releasable {
             shardCountListenersByBlobId.computeIfAbsent(indexMetaBlobId, ignored -> {
                 final var shardCountFuture = new ListenableActionFuture<Integer>();
                 forkSupply(() -> {
-                    final var shardCount = blobStoreRepository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId)
-                        .getNumberOfShards();
+                    final var shardCount = getNumberOfShards(indexMetaBlobId, snapshotId);
                     for (int i = 0; i < shardCount; i++) {
                         shardContainerContentsListener.computeIfAbsent(i, shardId -> {
                             final var shardContainerContentsFuture = new ListenableActionFuture<ShardContainerContents>();
                             forkSupply(
                                 () -> new ShardContainerContents(
                                     blobStoreRepository.shardContainer(indexId, shardId).listBlobs(),
-                                    blobStoreRepository.getBlobStoreIndexShardSnapshots(
-                                        indexId,
-                                        shardId,
-                                        Objects.requireNonNull(
-                                            repositoryData.shardGenerations().getShardGen(indexId, shardId),
-                                            "shard generations for " + indexId + "/" + shardId
-                                        )
-                                    )
+                                    getBlobStoreIndexShardSnapshots(shardId)
                                 ),
                                 shardContainerContentsFuture
                             );
@@ -266,10 +275,7 @@ class MetadataVerifier implements Releasable {
                                 indexSnapshotRefs,
                                 shardContainerContents -> forkSupply(
                                     indexSnapshotRefs,
-                                    () -> blobStoreRepository.loadShardSnapshot(
-                                        blobStoreRepository.shardContainer(indexId, shardId),
-                                        snapshotId
-                                    ),
+                                    () -> getBlobStoreIndexShardSnapshot(snapshotId, shardId),
                                     shardSnapshot -> verifyShardSnapshot(snapshotId, shardId, shardContainerContents, shardSnapshot)
                                 )
                             )
@@ -278,12 +284,60 @@ class MetadataVerifier implements Releasable {
             }));
         }
 
+        private BlobStoreIndexShardSnapshot getBlobStoreIndexShardSnapshot(SnapshotId snapshotId, int shardId) {
+            try {
+                return blobStoreRepository.loadShardSnapshot(blobStoreRepository.shardContainer(indexId, shardId), snapshotId);
+            } catch (Exception e) {
+                addFailure(
+                    new RepositoryVerificationException(
+                        repositoryName,
+                        format("failed to load shard %s/%d snapshot for %s", indexId, shardId, snapshotId),
+                        e
+                    )
+                );
+                return null;
+            }
+        }
+
+        private int getNumberOfShards(String indexMetaBlobId, SnapshotId snapshotId) {
+            try {
+                return blobStoreRepository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId).getNumberOfShards();
+            } catch (Exception e) {
+                addFailure(
+                    new RepositoryVerificationException(
+                        repositoryName,
+                        format("failed to load index %s metadata for %s from blob [%s]", indexId, snapshotId, indexMetaBlobId),
+                        e
+                    )
+                );
+                return 0;
+            }
+        }
+
+        private BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(int shardId) {
+            final var shardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
+            if (shardGen == null) {
+                addFailure("unknown shard generation for %s/%d", indexId, shardId);
+                return null;
+            }
+            try {
+                return blobStoreRepository.getBlobStoreIndexShardSnapshots(indexId, shardId, shardGen);
+            } catch (Exception e) {
+                addFailure(e);
+                return null;
+            }
+        }
+
         private void verifyShardSnapshot(
             SnapshotId snapshotId,
             int shardId,
             ShardContainerContents shardContainerContents,
             BlobStoreIndexShardSnapshot shardSnapshot
         ) {
+            if (shardSnapshot == null) {
+                return;
+            }
+
             if (shardSnapshot.snapshot().equals(snapshotId.getName()) == false) {
                 addFailure(
                     "snapshot [%s] for shard [%s/%d] has mismatched name [%s]",
@@ -298,17 +352,20 @@ class MetadataVerifier implements Releasable {
                 verifyFileInfo(snapshotId.toString(), shardId, shardContainerContents.blobsByName(), fileInfo);
             }
 
-            boolean foundSnapshot = false;
-            for (SnapshotFiles summary : shardContainerContents.blobStoreIndexShardSnapshots().snapshots()) {
-                if (summary.snapshot().equals(snapshotId.getName())) {
-                    foundSnapshot = true;
-                    verifyConsistentShardFiles(snapshotId, shardId, shardSnapshot, summary);
-                    break;
+            final var blobStoreIndexShardSnapshots = shardContainerContents.blobStoreIndexShardSnapshots();
+            if (blobStoreIndexShardSnapshots != null) {
+                boolean foundSnapshot = false;
+                for (SnapshotFiles summary : blobStoreIndexShardSnapshots.snapshots()) {
+                    if (summary.snapshot().equals(snapshotId.getName())) {
+                        foundSnapshot = true;
+                        verifyConsistentShardFiles(snapshotId, shardId, shardSnapshot, summary);
+                        break;
+                    }
                 }
-            }
 
-            if (foundSnapshot == false) {
-                addFailure("snapshot [%s] for shard [%s/%d] has no entry in the shard-level summary", snapshotId, indexId, shardId);
+                if (foundSnapshot == false) {
+                    addFailure("snapshot [%s] for shard [%s/%d] has no entry in the shard-level summary", snapshotId, indexId, shardId);
+                }
             }
         }
 

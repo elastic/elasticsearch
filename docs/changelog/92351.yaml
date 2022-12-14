@@ -1,0 +1,5 @@
+pr: 92351
+summary: Add new 'exact' DSL query
+area: Search
+type: feature
+issues: []

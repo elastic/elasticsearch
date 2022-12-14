@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.admin.cluster.repositories.integrity.VerifyRepositoryIntegrityAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -131,6 +132,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -142,6 +144,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -3537,6 +3540,42 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn("store cannot be marked as corrupted", inner);
             }
         }
+    }
+
+    @Override
+    public void verifyMetadataIntegrity(
+        VerifyRepositoryIntegrityAction.Request request,
+        ActionListener<List<RepositoryVerificationException>> listener,
+        BooleanSupplier isCancelledSupplier
+    ) {
+        getRepositoryData(listener.delegateFailure((l, repositoryData) -> {
+            logger.info(
+                "[{}] verifying metadata integrity for index generation [{}]: repo UUID [{}], cluster UUID [{}]",
+                metadata.name(),
+                repositoryData.getGenId(),
+                repositoryData.getUuid(),
+                repositoryData.getClusterUUID()
+            );
+
+            threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
+                .execute(ActionRunnable.supply(l.delegateFailure((l2, loadedRepositoryData) -> {
+                    // really just checking that the repo data can be loaded, but may as well check a little consistency too
+                    if (loadedRepositoryData.getGenId() != repositoryData.getGenId()) {
+                        throw new IllegalStateException(
+                            String.format(
+                                Locale.ROOT,
+                                "[%s] has repository data generation [%d], expected [%d]",
+                                metadata.name(),
+                                loadedRepositoryData.getGenId(),
+                                repositoryData.getGenId()
+                            )
+                        );
+                    }
+                    try (var metadataVerifier = new MetadataVerifier(this, request, repositoryData, isCancelledSupplier, l2)) {
+                        metadataVerifier.run();
+                    }
+                }), () -> getRepositoryData(repositoryData.getGenId())));
+        }));
     }
 
     public boolean supportURLRepo() {

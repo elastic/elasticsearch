@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,5 +42,9 @@ public interface ChunkedToXContent {
             }
             return builder;
         };
+    }
+
+    default RestStatus getRestStatus() {
+        return RestStatus.OK;
     }
 }

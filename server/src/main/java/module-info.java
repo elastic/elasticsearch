@@ -70,6 +70,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.admin.cluster.repositories.cleanup;
     exports org.elasticsearch.action.admin.cluster.repositories.delete;
     exports org.elasticsearch.action.admin.cluster.repositories.get;
+    exports org.elasticsearch.action.admin.cluster.repositories.integrity;
     exports org.elasticsearch.action.admin.cluster.repositories.put;
     exports org.elasticsearch.action.admin.cluster.repositories.verify;
     exports org.elasticsearch.action.admin.cluster.reroute;

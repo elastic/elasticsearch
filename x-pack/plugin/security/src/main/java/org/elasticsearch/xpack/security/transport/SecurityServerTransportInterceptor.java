@@ -212,7 +212,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
 
         if (securityContext.getParentAuthorization() != null) {
-            if (RemoteConnectionManager.resolveRemoteClusterAlias(connection).isPresent()) {
+            if (remoteClusterAliasResolver.apply(connection).isPresent()) {
                 assert false : "parent authorization header should not be set for remote cluster requests";
             }
         }

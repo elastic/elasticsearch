@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;

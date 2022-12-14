@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 
 import java.util.List;
 import java.util.Map;
@@ -231,6 +230,13 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
     }
 
     private static double stdDev(double... data) {
-        return MovingFunctions.stdDev(data, MovingFunctions.unweightedAvg(data));
+        double total = 0.0;
+        double total2 = 0.0;
+        int count = data.length;
+        for (double d : data) {
+            total += d;
+            total2 += Math.pow(d, 2);
+        }
+        return Math.sqrt(total2 / count - Math.pow(total / count, 2));
     }
 }

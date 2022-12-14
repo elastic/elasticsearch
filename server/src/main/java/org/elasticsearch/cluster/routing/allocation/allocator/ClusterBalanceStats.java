@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -28,8 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.ToDoubleFunction;
-
-import static java.util.stream.Collectors.summarizingDouble;
 
 public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implements Writeable, ToXContentObject {
 
@@ -101,10 +98,26 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers) implement
     public record MetricStats(double total, double min, double max, double average, double stdDev) implements Writeable, ToXContentObject {
 
         private static MetricStats createFrom(List<NodeStats> nodes, ToDoubleFunction<NodeStats> metricExtractor) {
-            assert nodes.isEmpty() == false;
-            var summary = nodes.stream().collect(summarizingDouble(metricExtractor));
-            var stdDev = MovingFunctions.stdDev(nodes.stream().mapToDouble(metricExtractor).toArray(), summary.getAverage());
-            return new MetricStats(summary.getSum(), summary.getMin(), summary.getMax(), summary.getAverage(), stdDev);
+            assert nodes.isEmpty() == false : "Stats must be created from non empty nodes";
+            double total = 0.0;
+            double total2 = 0.0;
+            double min = Double.POSITIVE_INFINITY;
+            double max = Double.NEGATIVE_INFINITY;
+            int count = 0;
+            for (NodeStats node : nodes) {
+                var metric = metricExtractor.applyAsDouble(node);
+                if (Double.isNaN(metric)) {
+                    continue;
+                }
+                total += metric;
+                total2 += Math.pow(metric, 2);
+                min = Math.min(min, metric);
+                max = Math.max(max, metric);
+                count++;
+            }
+            double average = count == 0 ? Double.NaN : total / count;
+            double stdDev = count == 0 ? Double.NaN : Math.sqrt(total2 / count - Math.pow(average, 2));
+            return new MetricStats(total, min, max, average, stdDev);
         }
 
         public static MetricStats readFrom(StreamInput in) throws IOException {

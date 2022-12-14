@@ -101,7 +101,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         if (sources.length == 0) {
             return false;
         }
-        if (sources[0] instanceof GlobalOrdinalValuesSource firstSource) {
+        if (sources[0]instanceof GlobalOrdinalValuesSource firstSource) {
             if (firstSource.mayDynamicallyPrune() == false) {
                 return false;
             }

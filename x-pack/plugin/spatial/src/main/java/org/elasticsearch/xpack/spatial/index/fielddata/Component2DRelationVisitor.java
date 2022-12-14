@@ -17,7 +17,7 @@ import org.apache.lucene.index.PointValues;
  * This class supports checking {@link Component2D} relations against a serialized triangle tree.
  * It does not support bounding boxes crossing the dateline.
  */
-class Component2DRelationVisitor extends TriangleTreeReader.DecodedVisitor {
+class Component2DRelationVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
 
     private GeoRelation relation;
     private Component2D component2D;

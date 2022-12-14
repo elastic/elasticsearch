@@ -12,10 +12,10 @@ import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.index.PointValues;
 
 /**
- * A {@link TriangleTreeReader.Visitor} implementation for {@link Component2D} geometries.
+ * A {@link TriangleTreeVisitor.TriangleTreeDecodedVisitor} implementation for {@link Component2D} geometries.
  * It can solve spatial relationships against a serialize triangle tree.
  */
-public abstract class Component2DVisitor extends TriangleTreeReader.DecodedVisitor {
+public abstract class Component2DVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
 
     protected final Component2D component2D;
 

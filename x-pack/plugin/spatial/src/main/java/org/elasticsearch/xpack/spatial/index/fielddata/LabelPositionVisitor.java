@@ -17,7 +17,7 @@ import java.util.function.BiFunction;
  *
  * TODO: We could instead choose the point closer to the centroid which improves unbalanced trees
  */
-public class LabelPositionVisitor extends TriangleTreeReader.DecodedVisitor {
+public class LabelPositionVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
 
     private SpatialPoint labelPosition;
     private final BiFunction<Double, Double, SpatialPoint> pointMaker;

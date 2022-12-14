@@ -410,6 +410,10 @@ public final class EngineConfig {
         return indexCommitListener;
     }
 
+    /**
+     * Represents the primary state only in case when a recovery starts.
+     * IMPORTANT: The flag is a temporary solution and should NOT be used outside of Stateless.
+     */
     public boolean isRecoveringAsPrimary() {
         return recoveringAsPrimary;
     }

@@ -304,9 +304,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
-        assertNull(getTask().getState());
+        assertBusy(() -> { assertNull(getTask().getState()); });
         putNonGeoipPipeline();
-        assertNull(getTask().getState());
+        assertBusy(() -> { assertNull(getTask().getState()); });
         putNonGeoipPipeline();
         assertNull(getTask().getState());
         putPipeline();

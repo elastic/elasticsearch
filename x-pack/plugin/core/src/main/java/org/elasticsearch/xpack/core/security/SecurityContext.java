@@ -210,12 +210,18 @@ public class SecurityContext {
      */
     public void executeAfterRemovingParentAuthorization(Consumer<StoredContext> consumer) {
         final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
+        final Map<String, Object> existingTransientHeaders = threadContext.getTransientHeaders();
         final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             existingRequestHeaders.forEach((k, v) -> {
                 if (AuthorizationEngine.ParentActionAuthorization.THREAD_CONTEXT_KEY.equals(k) == false
                     && threadContext.getHeader(k) == null) {
                     threadContext.putHeader(k, v);
+                }
+            });
+            existingTransientHeaders.forEach((k, v) -> {
+                if (threadContext.getTransient(k) == null) {
+                    threadContext.putTransient(k, v);
                 }
             });
             consumer.accept(original);

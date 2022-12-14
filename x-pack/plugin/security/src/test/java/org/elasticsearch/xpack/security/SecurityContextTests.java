@@ -23,13 +23,17 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -261,19 +265,34 @@ public class SecurityContextTests extends ESTestCase {
         );
         threadContext.putHeader(requestHeaders);
 
+        final Map<String, Object> transientHeaders = Map.ofEntries(
+            Map.entry(AuthorizationServiceField.AUTHORIZATION_INFO_KEY, Mockito.mock(AuthorizationInfo.class)),
+            Map.entry(
+                AuthenticationField.AUTHENTICATION_KEY,
+                Authentication.newAnonymousAuthentication(new AnonymousUser(Settings.EMPTY), "test-node")
+            ),
+            Map.entry(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry("_some_map", Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8))),
+            Map.entry("_remote_address", "125.124.123.122"),
+            Map.entry(Task.APM_TRACE_CONTEXT, new Object())
+        );
+        transientHeaders.forEach((k, v) -> threadContext.putTransient(k, v));
+
         final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization("indices:data/read/search");
         securityContext.setParentAuthorization(parentAuthorization);
 
         securityContext.executeAfterRemovingParentAuthorization(original -> {
             // parent authorization header should be removed within execute method
             assertThat(securityContext.getParentAuthorization(), nullValue());
-            // other request headers should be preserved
+            // other request and transient headers should be preserved
             requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
+            transientHeaders.forEach((k, v) -> assertThat(threadContext.getTransient(k), equalTo(v)));
         });
 
         // and restored after execution
         assertThat(securityContext.getParentAuthorization(), equalTo(parentAuthorization));
-        // other request headers should still be preserved
+        // other request and transient headers should still be there
         requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
+        transientHeaders.forEach((k, v) -> assertThat(threadContext.getTransient(k), equalTo(v)));
     }
 }

@@ -511,6 +511,13 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
+     * Returns all transient headers.
+     */
+    public Map<String, Object> getTransientHeaders() {
+        return threadLocal.get().transientHeaders;
+    }
+
+    /**
      * Add the {@code value} for the specified {@code key} Any duplicate {@code value} is ignored.
      *
      * @param key         the header name

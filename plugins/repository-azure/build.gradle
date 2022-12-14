@@ -293,8 +293,6 @@ tasks.named("thirdPartyAudit").configure {
     )
   } else {
     ignoreMissingClasses(
-      'com.sun.org.apache.xml.internal.resolver.Catalog',
-      'com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver',
       'javax.activation.DataHandler',
       'javax.activation.DataSource',
       'javax.xml.bind.JAXBElement',

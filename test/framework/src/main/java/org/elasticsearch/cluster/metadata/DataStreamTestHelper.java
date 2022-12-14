@@ -98,7 +98,7 @@ public final class DataStreamTestHelper {
         Map<String, Object> metadata,
         boolean replicated
     ) {
-        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null);
+        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, null);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -240,7 +240,8 @@ public final class DataStreamTestHelper {
             false, // Some tests don't work well with system data streams, since these data streams require special handling
             timeProvider,
             randomBoolean(),
-            randomBoolean() ? IndexMode.STANDARD : null // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
+            randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
+            randomBoolean() ? Map.of(randomAlphaOfLength(4), randomAliasInstance()) : null
         );
     }
 
@@ -370,7 +371,8 @@ public final class DataStreamTestHelper {
             false,
             false,
             false,
-            IndexMode.TIME_SERIES
+            IndexMode.TIME_SERIES,
+            null
         );
         builder.put(ds);
     }

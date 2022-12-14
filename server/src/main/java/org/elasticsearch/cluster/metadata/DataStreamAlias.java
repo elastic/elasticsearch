@@ -71,7 +71,8 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         this.dataStreams = List.copyOf(dataStreams);
         this.writeDataStream = writeDataStream;
         this.filter = filter;
-        assert writeDataStream == null || dataStreams.contains(writeDataStream);
+        assert writeDataStream == null || dataStreams.contains(writeDataStream)
+            : "expected the writeDataStream to be either null, or the list of data streams to contain the writeDataStream";
     }
 
     public DataStreamAlias(String name, List<String> dataStreams, String writeDataStream, Map<String, Object> filter) {
@@ -159,16 +160,16 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
 
         boolean filterUpdated;
         CompressedXContent filter;
-        if (filterAsMap != null) {
+        if (filterAsMap == null) {
+            filter = null;
+            filterUpdated = this.filter != null;
+        } else {
             filter = compress(filterAsMap);
             if (this.filter == null) {
                 filterUpdated = true;
             } else {
                 filterUpdated = filterAsMap.equals(decompress(this.filter)) == false;
             }
-        } else {
-            filter = this.filter;
-            filterUpdated = false;
         }
 
         Set<String> dataStreams = new HashSet<>(this.dataStreams);

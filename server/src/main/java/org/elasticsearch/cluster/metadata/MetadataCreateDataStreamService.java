@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionLi
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -36,9 +37,11 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -264,6 +267,28 @@ public class MetadataCreateDataStreamService {
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
         final IndexMode indexMode = metadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
+
+        final Metadata.Builder builder = Metadata.builder(currentState.metadata());
+
+        List<String> aliases = new ArrayList<>();
+        var resolvedAliases = MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
+        Map<String, DataStreamAlias> dataStreamAliases = new HashMap<>();
+        for (var resolvedAliasMap : resolvedAliases) {
+            for (var alias : resolvedAliasMap.values()) {
+                aliases.add(alias.getAlias());
+                if (alias.filteringRequired()) {
+                    String filterAsString = alias.filter().string();
+                    DataStreamAlias dsa = new DataStreamAlias(
+                        alias.getAlias(),
+                        List.of(dataStreamName),
+                        writeIndex.getIndex().getName(),
+                        XContentHelper.convertToMap(XContentFactory.xContent(filterAsString), filterAsString, true)
+                    );
+                    dataStreamAliases.put(alias.getAlias(), dsa);
+                }
+                builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
+            }
+        }
         DataStream newDataStream = new DataStream(
             dataStreamName,
             dsBackingIndices,
@@ -273,18 +298,10 @@ public class MetadataCreateDataStreamService {
             false,
             isSystem,
             template.getDataStreamTemplate().isAllowCustomRouting(),
-            indexMode
+            indexMode,
+            dataStreamAliases
         );
-        Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
-
-        List<String> aliases = new ArrayList<>();
-        var resolvedAliases = MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
-        for (var resolvedAliasMap : resolvedAliases) {
-            for (var alias : resolvedAliasMap.values()) {
-                aliases.add(alias.getAlias());
-                builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
-            }
-        }
+        builder.put(newDataStream);
 
         logger.info(
             "adding data stream [{}] with write index [{}], backing indices [{}], and aliases [{}]",

@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.repositories.gcs;
+package fixture.gcs;
 
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -16,14 +16,14 @@ import java.util.Base64;
 import java.util.Random;
 import java.util.UUID;
 
-final class TestUtils {
+public final class TestUtils {
 
     private TestUtils() {}
 
     /**
      * Creates a random Service Account file for testing purpose
      */
-    static byte[] createServiceAccount(final Random random) {
+    public static byte[] createServiceAccount(final Random random) {
         try {
             final KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
             keyPairGenerator.initialize(2048);

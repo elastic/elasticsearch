@@ -54,7 +54,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private SortedSetDocValues lookup;
     private long currentValue;
     private Long afterValueGlobalOrd;
-    private Long highestCompetitiveValueGlobalOrd = MISSING_VALUE_FLAG;
+    private Long highestCompetitiveValueGlobalOrd;
     private boolean isTopValueInsertionPoint;
     private volatile CompetitiveIterator currentCompetitiveIterator;
 
@@ -421,7 +421,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         }
 
         public void updateBounds() throws IOException {
-            if (highestCompetitiveValueGlobalOrd == MISSING_VALUE_FLAG) {
+            if (highestCompetitiveValueGlobalOrd == null) {
                 return;
             }
 

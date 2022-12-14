@@ -10,10 +10,14 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.iterable.Iterables;
 
+import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Array;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Iterator;
@@ -37,6 +41,14 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         } else {
             return super.coerce(object);
         }
+    }
+
+    @Override
+    @SuppressWarnings({ "rawtypes", "removal" })
+    protected AccessibleObject findMember(Class sClass, String name) {
+        // crazy reflection here
+        SpecialPermission.check();
+        return AccessController.doPrivileged((PrivilegedAction<AccessibleObject>) () -> { return super.findMember(sClass, name); });
     }
 
     static final class ArrayMap extends AbstractMap<Object, Object> implements Iterable<Object> {

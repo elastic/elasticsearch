@@ -51,9 +51,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.runAfter;
@@ -82,7 +80,7 @@ public class TumblingWindow implements Executable {
         new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables()
     );
     private static final int CACHE_MAX_SIZE = 64;
-    private static final int MAX_SEQUENCES_TO_CHECK_FOR_MISSING = 100;
+    private static final int MAX_SEQUENCES_TO_CHECK_FOR_MISSING = 1000;
 
     private final Logger log = LogManager.getLogger(TumblingWindow.class);
 
@@ -310,12 +308,12 @@ public class TumblingWindow implements Executable {
                         builder.sort(r.timestampField(), SortOrder.DESC);
                         range.lt(sequence.startOrdinal().timestamp());
                     } else if (trailing(i)) {
-                        builder.sort(r.timestampField(), SortOrder.ASC);
                         builder.sorts().clear();
-                        range.gte(sequence.ordinal().timestamp());
+                        builder.sort(r.timestampField(), SortOrder.ASC);
+                        range.gt(sequence.ordinal().timestamp());
                     } else {
                         range.lt(sequence.matchAt(matcher.nextPositiveStage(i)).ordinal().timestamp());
-                        range.gte(sequence.matchAt(matcher.previousPositiveStage(i)).ordinal().timestamp());
+                        range.gt(sequence.matchAt(matcher.previousPositiveStage(i)).ordinal().timestamp());
                         builder.sort(r.timestampField(), SortOrder.ASC);
                     }
                     addKeyFilter(i, sequence, builder);
@@ -755,9 +753,27 @@ public class TumblingWindow implements Executable {
             if (criteria.get(matcher.firstPositiveStage()).descending()) {
                 Collections.reverse(completed);
             }
-            SequencePayload payload = new SequencePayload(completed, listOfHits, false, timeTook());
+            SequencePayload payload = new SequencePayload(completed, addMissingEventPlaceholders(listOfHits), false, timeTook());
             return payload;
         }));
+    }
+
+    private List<List<SearchHit>> addMissingEventPlaceholders(List<List<SearchHit>> hitLists) {
+        List<List<SearchHit>> result = new ArrayList<>();
+
+        for (List<SearchHit> hits : hitLists) {
+            List<SearchHit> filled = new ArrayList<>();
+            result.add(filled);
+            int nextHit = 0;
+            for (int i = 0; i < criteria.size(); i++) {
+                if (matcher.isMissingEvent(i)) {
+                    filled.add(null);
+                } else {
+                    filled.add(hits.get(nextHit++));
+                }
+            }
+        }
+        return result;
     }
 
     private TimeValue timeTook() {
@@ -809,12 +825,14 @@ public class TumblingWindow implements Executable {
 
                 @Override
                 public List<HitReference> next() {
-                    return addMissingEvents();
-                }
-
-                private List<HitReference> addMissingEvents() {
-                    // TODO replace nulls with markers!
-                    return delegate.next().hits().stream().filter(Objects::nonNull).collect(Collectors.toList());
+                    List<HitReference> result = new ArrayList<>();
+                    List<HitReference> originalHits = delegate.next().hits();
+                    for (HitReference hit : originalHits) {
+                        if (hit != null) {
+                            result.add(hit);
+                        }
+                    }
+                    return result;
                 }
             };
         };

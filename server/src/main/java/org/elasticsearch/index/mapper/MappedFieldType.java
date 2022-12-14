@@ -214,6 +214,9 @@ public abstract class MappedFieldType {
         );
     }
 
+    /**
+     * Generates a query that will only match documents with a field that contains exactly this value
+     */
     public Query exactQuery(Object value, SearchExecutionContext context) {
         return new ConstantScoreQuery(termQuery(value, context));
     }

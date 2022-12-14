@@ -102,6 +102,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean supportsExactQuery() {
+        return false;
+    }
+
     /**
      * Test parsing field mapping and adding simple field
      */

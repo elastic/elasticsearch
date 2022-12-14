@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -40,13 +41,47 @@ public class ExactQueryBuilder extends AbstractQueryBuilder<ExactQueryBuilder> {
     }
 
     public static ExactQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         String field = parser.currentName();
-        parser.nextToken();
-        Object value = XContentParserUtils.parseFieldsValue(parser);
+        XContentParser.Token nextToken = parser.nextToken();
+        ExactQueryBuilder query;
+        if (nextToken == XContentParser.Token.START_OBJECT) {
+            query = fromXContentComplex(field, parser);
+        } else {
+            query = fromXContentSimple(field, parser);
+        }
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        return query;
+    }
+
+    private static ExactQueryBuilder fromXContentSimple(String field, XContentParser parser) throws IOException {
+        Object value = XContentParserUtils.parseFieldsValue(parser);
         return new ExactQueryBuilder(field, value);
+    }
+
+    private static ExactQueryBuilder fromXContentComplex(String field, XContentParser parser) throws IOException {
+        Object value = null;
+        String queryName = null;
+        float boost = 1.0f;
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+            String fieldName = parser.currentName();
+            parser.nextToken();
+            switch (fieldName) {
+                case "value" -> value = XContentParserUtils.parseFieldsValue(parser);
+                case "boost" -> boost = parser.floatValue();
+                case "_name" -> queryName = parser.text();
+                default -> throw new XContentParseException(parser.getTokenLocation(), "Unknown field name [" + fieldName + "]");
+            }
+        }
+        ExactQueryBuilder query = new ExactQueryBuilder(field, value);
+        query.queryName(queryName);
+        query.boost(boost);
+        return query;
+    }
+
+    public String getField() {
+        return field;
     }
 
     @Override
@@ -61,7 +96,6 @@ public class ExactQueryBuilder extends AbstractQueryBuilder<ExactQueryBuilder> {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(this.field);
         out.writeGenericValue(this.value);
     }
@@ -69,7 +103,10 @@ public class ExactQueryBuilder extends AbstractQueryBuilder<ExactQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        builder.field(this.field, this.value);
+        builder.startObject(this.field);
+        builder.field("value", this.value);
+        boostAndQueryNameToXContent(builder);
+        builder.endObject();
         builder.endObject();
     }
 

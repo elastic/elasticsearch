@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -38,28 +39,52 @@ import java.util.Objects;
  */
 public class TextFieldExactQuery extends Query {
 
+    private final String field;
     private final String value;
     private final Query conjunction;
     private final IndexFieldData<?> fieldData;
 
     public TextFieldExactQuery(MappedFieldType fieldType, IndexFieldData<?> fieldData, String input) {
-        String field = fieldType.name();
+        this.field = fieldType.name();
         this.value = input;
         this.fieldData = fieldData;
+        this.conjunction = buildConjunction(
+            fieldType.name(),
+            fieldType.getTextSearchInfo().searchAnalyzer().tokenStream(fieldType.name(), input)
+        );
+    }
+
+    private TextFieldExactQuery(String field, String value, Query conjunction, IndexFieldData<?> fieldData) {
+        this.field = field;
+        this.value = value;
+        this.conjunction = conjunction;
+        this.fieldData = fieldData;
+    }
+
+    private static Query buildConjunction(String field, TokenStream ts) {
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        TokenStream ts = fieldType.getTextSearchInfo().searchAnalyzer().tokenStream(field, input);
         CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+        int count = 0;
         try {
             ts.reset();
-            while (ts.incrementToken()) {
-                bq.add(new TermQuery(new Term(field, termAtt.toString())), BooleanClause.Occur.MUST);
+            while (ts.incrementToken() && count++ < 1000) { // limit the size of the approximation
+                bq.add(new TermQuery(new Term(field, termAtt.toString())), BooleanClause.Occur.FILTER);
             }
             ts.end();
             ts.close();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        this.conjunction = bq.build();
+        return bq.build();
+    }
+
+    @Override
+    public Query rewrite(IndexReader reader) throws IOException {
+        Query rewrittenApprox = this.conjunction.rewrite(reader);
+        if (rewrittenApprox != this.conjunction) {
+            return new TextFieldExactQuery(this.field, this.value, rewrittenApprox, this.fieldData);
+        }
+        return this;
     }
 
     @Override
@@ -104,7 +129,7 @@ public class TextFieldExactQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return field + ":exact(" + value + ")";
+        return this.field + ":exact(" + value + ")";
     }
 
     @Override
@@ -118,11 +143,11 @@ public class TextFieldExactQuery extends Query {
             return false;
         }
         TextFieldExactQuery other = (TextFieldExactQuery) obj;
-        return Objects.equals(this.value, other.value) && Objects.equals(this.fieldData, other.fieldData);
+        return Objects.equals(this.value, other.value) && Objects.equals(this.field, other.field);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.value, this.fieldData);
+        return Objects.hash(this.field, this.value);
     }
 }

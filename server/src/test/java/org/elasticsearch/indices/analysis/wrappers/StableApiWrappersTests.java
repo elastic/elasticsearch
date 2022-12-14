@@ -74,7 +74,7 @@ public class StableApiWrappersTests extends ESTestCase {
             IllegalStateException.class,
             () -> oldTokenFilter.get(null, mock(Environment.class), null, null)
         );
-        assertThat(illegalStateException.getCause(), instanceOf(NoSuchMethodException.class));
+        assertThat(illegalStateException.getMessage(), equalTo("Missing @Inject annotation for constructor with settings."));
     }
 
     public void testAnalyzerFactoryDelegation() throws IOException {

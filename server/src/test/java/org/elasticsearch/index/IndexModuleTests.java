@@ -644,7 +644,7 @@ public class IndexModuleTests extends ESTestCase {
 
         module.setIndexCommitListener(new Engine.IndexCommitListener() {
             @Override
-            public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef) {
+            public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef, Set<String> additionalFiles) {
                 lastAcquiredPrimaryTerm.set(primaryTerm);
                 lastAcquiredCommit.set(indexCommitRef);
             }

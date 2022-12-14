@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -128,7 +127,7 @@ public class JsonProcessorTests extends ESTestCase {
     public void testArray() throws Exception {
         JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, REPLACE, false);
         Map<String, Object> document = new HashMap<>();
-        List<Boolean> value = Arrays.asList(true, true, false);
+        List<Boolean> value = List.of(true, true, false);
         document.put("field", value.toString());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         jsonProcessor.execute(ingestDocument);

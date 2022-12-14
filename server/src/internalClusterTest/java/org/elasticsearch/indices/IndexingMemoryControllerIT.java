@@ -79,7 +79,8 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getSnapshotCommitSupplier(),
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
-                config.getIndexCommitListener()
+                config.getIndexCommitListener(),
+                config.isRecoveringAsPrimary()
             );
         }
 

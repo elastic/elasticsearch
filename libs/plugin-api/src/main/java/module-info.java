@@ -8,4 +8,5 @@
 
 module org.elasticsearch.plugin.api {
     exports org.elasticsearch.plugin.api;
+    exports org.elasticsearch.plugin.api.settings;
 }

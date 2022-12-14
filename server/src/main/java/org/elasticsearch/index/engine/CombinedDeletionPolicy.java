@@ -22,10 +22,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * An {@link IndexDeletionPolicy} that coordinates between Lucene's commits and the retention of translog generation files,
@@ -43,7 +46,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     interface CommitsListener {
 
-        void onNewAcquiredCommit(IndexCommit commit);
+        void onNewAcquiredCommit(IndexCommit commit, Set<String> additionalFiles);
 
         void onDeletedCommit(IndexCommit commit);
     }
@@ -102,13 +105,14 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             totalDocsOfSafeCommit = safeCommitInfo.docCount;
         }
         IndexCommit newCommit = null;
+        IndexCommit previousLastCommit = null;
         List<IndexCommit> deletedCommits = null;
         synchronized (this) {
             this.safeCommitInfo = new SafeCommitInfo(
                 Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
                 totalDocsOfSafeCommit
             );
-            final IndexCommit previousLastCommit = this.lastCommit;
+            previousLastCommit = this.lastCommit;
             this.lastCommit = commits.get(commits.size() - 1);
             this.safeCommit = safeCommit;
             updateRetentionPolicy();
@@ -134,7 +138,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert assertSafeCommitUnchanged(safeCommit);
         if (commitsListener != null) {
             if (newCommit != null) {
-                commitsListener.onNewAcquiredCommit(newCommit);
+                final Set<String> additionalFiles = listOfNewFileNames(previousLastCommit, newCommit);
+                commitsListener.onNewAcquiredCommit(newCommit, additionalFiles);
             }
             if (deletedCommits != null) {
                 for (IndexCommit deletedCommit : deletedCommits) {
@@ -264,6 +269,11 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         // If an index was created before 6.2 or recovered from remote, we might not have a safe commit.
         // In this case, we return the oldest index commit instead.
         return 0;
+    }
+
+    private Set<String> listOfNewFileNames(IndexCommit previous, IndexCommit current) throws IOException {
+        final Set<String> previousFiles = previous != null ? new HashSet<>(previous.getFileNames()) : Set.of();
+        return current.getFileNames().stream().filter(f -> previousFiles.contains(f) == false).collect(Collectors.toUnmodifiableSet());
     }
 
     /**

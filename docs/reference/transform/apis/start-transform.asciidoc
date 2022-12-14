@@ -63,7 +63,8 @@ Identifier for the {transform}.
 
 `from`::
 (Optional, string) Restricts the set of transformed entities to those changed
- after this time. Only applicable for continuous transforms.
+ after this time. Relative times like now-30d are supported.
+Only applicable for continuous transforms.
 
 `timeout`::
 (Optional, time)

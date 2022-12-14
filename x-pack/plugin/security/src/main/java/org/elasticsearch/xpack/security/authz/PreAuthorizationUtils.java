@@ -98,10 +98,9 @@ public final class PreAuthorizationUtils {
         final ParentActionAuthorization existingParentAuthorization = securityContext.getParentAuthorization();
         if (existingParentAuthorization != null) {
             if (existingParentAuthorization.action().equals(parentAction)) {
-                // Single request can fan-out a child action to multiple nodes in the cluster, e.g. node1 and node2.
-                // Sending a child action to node1 would have already put parent authorization in the thread context.
-                // To avoid attempting to pre-authorize the same parent action twice we simply return here
-                // since parent authorization is already set in the thread context.
+                // This can happen if authorization is executed more than once for the same parent action.
+                // At the moment of writing, SecurityActionFilter can be executed twice for the same action
+                // when the action receiving and the action executing node is the same "local node".
                 if (logger.isDebugEnabled()) {
                     logger.debug("authorization for parent action [" + parentAction + "] is already set in the thread context");
                 }

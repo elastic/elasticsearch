@@ -32,7 +32,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +63,9 @@ class MetadataVerifier implements Releasable {
     private final Map<String, Set<SnapshotId>> snapshotsByIndex;
     private final Semaphore threadPoolPermits;
     private final Queue<AbstractRunnable> executorQueue = new ConcurrentLinkedQueue<>();
+    private final ProgressLogger snapshotProgressLogger;
+    private final ProgressLogger indexProgressLogger;
+    private final ProgressLogger indexSnapshotProgressLogger;
 
     MetadataVerifier(
         BlobStoreRepository blobStoreRepository,
@@ -84,6 +86,9 @@ class MetadataVerifier implements Releasable {
             .collect(Collectors.toMap(IndexId::getName, indexId -> Set.copyOf(this.repositoryData.getSnapshots(indexId))));
 
         this.threadPoolPermits = new Semaphore(Math.max(1, verifyRequest.getThreadpoolConcurrency()));
+        this.snapshotProgressLogger = new ProgressLogger("snapshots", repositoryData.getSnapshotIds().size(), 100);
+        this.indexProgressLogger = new ProgressLogger("indices", repositoryData.getIndices().size(), 100);
+        this.indexSnapshotProgressLogger = new ProgressLogger("index snapshots", repositoryData.getIndexSnapshotCount(), 10000);
     }
 
     @Override
@@ -115,11 +120,15 @@ class MetadataVerifier implements Releasable {
 
     public void run() {
         logger.info(
-            "[{}] verifying metadata integrity for index generation [{}]: repo UUID [{}], cluster UUID [{}]",
+            "[{}] verifying metadata integrity for index generation [{}]: "
+                + "repo UUID [{}], cluster UUID [{}], snapshots [{}], indices [{}], index snapshots [{}]",
             repositoryName,
             repositoryData.getGenId(),
             repositoryData.getUuid(),
-            repositoryData.getClusterUUID()
+            repositoryData.getClusterUUID(),
+            snapshotProgressLogger.getExpectedMax(),
+            indexProgressLogger.getExpectedMax(),
+            indexSnapshotProgressLogger.getExpectedMax()
         );
 
         verifySnapshots();
@@ -130,7 +139,8 @@ class MetadataVerifier implements Releasable {
             makeVoidListener(finalRefs, this::verifyIndices),
             repositoryData.getSnapshotIds().iterator(),
             this::verifySnapshot,
-            verifyRequest.getSnapshotVerificationConcurrency()
+            verifyRequest.getSnapshotVerificationConcurrency(),
+            snapshotProgressLogger
         );
     }
 
@@ -177,7 +187,8 @@ class MetadataVerifier implements Releasable {
             makeVoidListener(finalRefs, () -> {}),
             indicesMap.values().iterator(),
             (refCounted, indexId) -> new IndexVerifier(refCounted, indexId).run(),
-            verifyRequest.getIndexVerificationConcurrency()
+            verifyRequest.getIndexVerificationConcurrency(),
+            indexProgressLogger
         );
     }
 
@@ -186,7 +197,7 @@ class MetadataVerifier implements Releasable {
         private final IndexId indexId;
         private final Set<SnapshotId> expectedSnapshots;
         private final Map<Integer, ListenableActionFuture<Map<String, BlobMetadata>>> shardBlobsListenersByShard = newConcurrentMap();
-        private final Map<String, ListenableActionFuture<Integer>> shardCountListenersByBlobId = new HashMap<>();
+        private final Map<String, ListenableActionFuture<Integer>> shardCountListenersByBlobId = newConcurrentMap();
 
         IndexVerifier(RefCounted indexRefs, IndexId indexId) {
             this.indexRefs = indexRefs;
@@ -205,7 +216,8 @@ class MetadataVerifier implements Releasable {
                     makeVoidListener(indexMetadataChecksRef, () -> {}),
                     indexSnapshots.iterator(),
                     this::verifyIndexSnapshot,
-                    verifyRequest.getIndexSnapshotVerificationConcurrency()
+                    verifyRequest.getIndexSnapshotVerificationConcurrency(),
+                    indexSnapshotProgressLogger
                 );
             }
         }
@@ -523,9 +535,10 @@ class MetadataVerifier implements Releasable {
         ActionListener<Void> completionListener,
         Iterator<T> iterator,
         BiConsumer<RefCounted, T> consumer,
-        int maxConcurrency
+        int maxConcurrency,
+        ProgressLogger progressLogger
     ) {
-        try (var throttledIterator = new ThrottledIterator<>(completionListener, iterator, consumer, maxConcurrency)) {
+        try (var throttledIterator = new ThrottledIterator<>(completionListener, iterator, consumer, maxConcurrency, progressLogger)) {
             throttledIterator.run();
         }
     }
@@ -535,17 +548,20 @@ class MetadataVerifier implements Releasable {
         private final Iterator<T> iterator;
         private final BiConsumer<RefCounted, T> consumer;
         private final Semaphore permits;
+        private final ProgressLogger progressLogger;
 
         ThrottledIterator(
             ActionListener<Void> completionListener,
             Iterator<T> iterator,
             BiConsumer<RefCounted, T> consumer,
-            int maxConcurrency
+            int maxConcurrency,
+            ProgressLogger progressLogger
         ) {
             this.refCounted = wrap(completionListener);
             this.iterator = iterator;
             this.consumer = consumer;
             this.permits = new Semaphore(maxConcurrency);
+            this.progressLogger = progressLogger;
         }
 
         void run() {
@@ -566,6 +582,7 @@ class MetadataVerifier implements Releasable {
                         run();
                     } finally {
                         refCounted.decRef();
+                        progressLogger.maybeLogProgress();
                     }
                 });
                 try {
@@ -580,5 +597,30 @@ class MetadataVerifier implements Releasable {
         public void close() {
             refCounted.close();
         }
+    }
+
+    private class ProgressLogger {
+        private final String type;
+        private final long expectedMax;
+        private final long logFrequency;
+        private final AtomicLong currentCount = new AtomicLong();
+
+        ProgressLogger(String type, long expectedMax, long logFrequency) {
+            this.type = type;
+            this.expectedMax = expectedMax;
+            this.logFrequency = logFrequency;
+        }
+
+        long getExpectedMax() {
+            return expectedMax;
+        }
+
+        void maybeLogProgress() {
+            final var count = currentCount.incrementAndGet();
+            if (count % logFrequency == 0) {
+                logger.info("[{}] processed [{}] of [{}] {}", repositoryName, count, expectedMax, type);
+            }
+        }
+
     }
 }

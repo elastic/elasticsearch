@@ -92,12 +92,14 @@ public final class RetentionLease implements ToXContentObject, Writeable {
         if (timestamp < 0) {
             throw new IllegalArgumentException("retention lease timestamp [" + timestamp + "] out of range");
         }
+        Objects.requireNonNull(source);
         if (source.isEmpty()) {
             throw new IllegalArgumentException("retention lease source can not be empty");
         }
         this.id = id;
         this.retainingSequenceNumber = retainingSequenceNumber;
         this.timestamp = timestamp;
+        // deduplicate the string instances to save memory for the known possible source values
         this.source = switch (source) {
             case "ccr" -> "ccr";
             case ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE -> ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE;

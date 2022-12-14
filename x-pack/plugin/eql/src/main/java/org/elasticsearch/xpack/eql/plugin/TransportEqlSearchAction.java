@@ -217,7 +217,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                 .fieldTiebreaker(request.tiebreakerField())
                 .resultPosition("tail".equals(request.resultPosition()) ? Order.OrderDirection.DESC : Order.OrderDirection.ASC)
                 .size(request.size())
-                .fetchSize(request.fetchSize());
+                .fetchSize(request.fetchSize())
+                .maxSamplesPerKey(request.maxSamplesPerKey());
 
             EqlConfiguration cfg = new EqlConfiguration(
                 request.indices(),

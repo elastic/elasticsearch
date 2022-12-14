@@ -311,14 +311,6 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
             errorParsing("sample by pid with max_samples_per_key [any where true] [any where true]"),
             startsWith("1:40: mismatched input '[' expecting '='")
         );
-        assertThat(
-            errorParsing("sample by pid with max_samples_per_key=\"foo\" [any where true] [any where true]"),
-            startsWith("1:40: mismatched input '\"foo\"' expecting {INTEGER_VALUE, DECIMAL_VALUE}")
-        );
-        assertThat(
-            errorParsing("sample by pid with max_samples_per_key=0 [any where true] [any where true]"),
-            startsWith("1:41: A positive max_matches_per_key value is required; found [0]")
-        );
     }
 
     public void testSampleWithDuplicateKeys() {

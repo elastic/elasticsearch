@@ -25,8 +25,9 @@
 
 [[queries]]
 name = "oneSamplePerKey"
+max_samples_per_key = 1
 query = '''
-  sample by os with max_samples_per_key=1
+  sample by os
     [alert_1 where true]
     [alert_2 where true]
 '''
@@ -39,8 +40,9 @@ join_keys = ["redhat", "win10"]
 
 [[queries]]
 name = "twoSamplesPerKeyOutOfThree"
+max_samples_per_key = 2
 query = '''
-  sample by os with max_samples_per_key=2
+  sample by os
     [alert_1 where true]
     [alert_2 where true]
 '''
@@ -58,8 +60,9 @@ join_keys = ["redhat", "win10", "win10"]
 
 [[queries]]
 name = "twoSamplesPerKeyOutOfThree_withCondition"
+max_samples_per_key = 2
 query = '''
-  sample by os with max_samples_per_key=2
+  sample by os
     [alert_1 where host != "farcry"]
     [alert_2 where true]
 '''
@@ -77,8 +80,9 @@ join_keys = ["win10", "win10"]
 
 [[queries]]
 name = "twoSamplesPerKeyOutOfThree2"
+max_samples_per_key = 2
 query = '''
-  sample by os with max_samples_per_key=2
+  sample by os
     [alert_2 where true]
     [alert_1 where true]
 '''
@@ -96,8 +100,9 @@ join_keys = ["redhat", "win10", "win10"]
 
 [[queries]]
 name = "threeSamplesPerKey"
+max_samples_per_key = 3
 query = '''
-  sample by os with max_samples_per_key=3
+  sample by os
     [alert_1 where true]
     [alert_2 where true]
 '''
@@ -115,8 +120,9 @@ join_keys = ["redhat", "win10", "win10", "win10"]
 
 [[queries]]
 name = "moreSamplesPerKey"
+max_samples_per_key = 10
 query = '''
-  sample by os with max_samples_per_key=10
+  sample by os
     [alert_1 where true]
     [alert_2 where true]
 '''
@@ -134,8 +140,9 @@ join_keys = ["redhat", "win10", "win10", "win10"]
 
 [[queries]]
 name = "twoSamplesPerKeyOutOfThree_inlineByKey"
+max_samples_per_key = 2
 query = '''
-  sample with max_samples_per_key=2
+  sample
     [alert_1 where true] by os
     [alert_2 where true] by os
 '''

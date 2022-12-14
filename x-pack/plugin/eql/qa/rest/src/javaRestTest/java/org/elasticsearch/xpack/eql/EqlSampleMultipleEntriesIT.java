@@ -13,8 +13,15 @@ import java.util.List;
 
 public class EqlSampleMultipleEntriesIT extends EqlSampleMultipleEntriesTestCase {
 
-    public EqlSampleMultipleEntriesIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
-        super(query, name, eventIds, joinKeys, size);
+    public EqlSampleMultipleEntriesIT(
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey
+    ) {
+        super(query, name, eventIds, joinKeys, size, maxSamplesPerKey);
     }
 
 }

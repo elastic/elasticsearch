@@ -424,7 +424,6 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
 
         List<Attribute> parentJoinKeys = visitJoinKeys(ctx.by);
-        Number maxSamplesPerKey = visitSampleParams(ctx.sampleParams());
         int numberOfKeys = -1;
         List<KeyedFilter> queries = new ArrayList<>(ctx.joinTerm().size());
         boolean hasMissingJoinKeys = false;
@@ -493,7 +492,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(missingJoinKeysSource, "A sample must have at least one join key, found none");
         }
 
-        return new Sample(source, queries, maxSamplesPerKey.intValue());
+        return new Sample(source, queries, params.maxSamplesPerKey());
     }
 
     private LogicalPlan pipe(PipeContext ctx, LogicalPlan plan) {

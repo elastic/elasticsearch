@@ -51,6 +51,225 @@ are:
 [discrete]
 == Example Plugin
 
-TODO
+In the following example, we will create a simple stable plugin. Elastic has
+developed a Gradle plugin that can simplify plugin development and testing,
+and we will note where this plugin is useful.
 
+[discrete]
+=== Setup
+
+In this example, we will organize our source code under `main` and `test`
+directories. In your project's home directory, create `src/` `src/main/`,
+and `src/test/` directories.
+
+If you are using the Elasticsearch stable API Gradle plugin, you may also
+want to create a `src/yamlRestTest/` directory as well.
+
+[discrete]
+=== Dependencies
+
+Your java project needs a compile-time dependency on Elasticsearch and
+Lucene libraries, as well as an implementation dependency for unit testing.
+The compile-time dependency exists because Elasticsearch itself will provide
+these dependencies at runtime.
+
+The required dependencies for a stable analysis plugin are:
+
+* org.elasticsearch:elasticsearch-plugin-api
+* org.elasticsearch:elasticsearch-plugin-analysis-api
+* org.apache.lucene:lucene-analysis-common
+
+The versions for these dependencies should match the versions of Elasticsearch
+you are developing against. These versions can be found in the `build-tools-internal/version.properties`
+file in the Elasticsearch repository.
+
+Here is a sample Gradle project configuration for dependencies:
+
+["source","gradle"]
+---------------------
+ext.elasticsearchVersion = '$your_elasticsearch_version'
+ext.luceneVersion = '$matching_lucene_version'
+
+apply plugin: 'java'
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+    maven {
+        url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${luceneVersion}"
+    }
+}
+
+dependencies {
+    compileOnly "org.elasticsearch:elasticsearch-plugin-api:${elasticsearchVersion}"
+    compileOnly "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+    compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+
+    testImplementation "org.elasticsearch:elasticsearch-plugin-api:${elasticsearchVersion}"
+    testImplementation "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+    testImplementation "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+}
+---------------------
+
+[discrete]
+=== Implementing an interface
+
+We'll make a simple hello-world implementation using a Lucene Token Filter.
+Our goal will be to strip all tokens except for "hello" and "world". Such
+a filter could look like this:
+
+["source","java"]
+---------------------
+import org.apache.lucene.analysis.FilteringTokenFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+
+import java.util.Arrays;
+
+public class HelloWorldTokenFilter extends FilteringTokenFilter {
+    private final CharTermAttribute term = addAttribute(CharTermAttribute.class);
+
+    public HelloWorldTokenFilter(TokenStream input) {
+        super(input);
+    }
+
+    @Override
+    public boolean accept() {
+        if (term.length() != 5) return false;
+        return Arrays.equals(term.buffer(), 0, 4, "hello".toCharArray(), 0, 4)
+                || Arrays.equals(term.buffer(), 0, 4, "world".toCharArray(), 0, 4);
+    }
+}
+---------------------
+
+How do we provide this filter to Elasticsearch? We use a factory class, and we
+give that factory class a name so that we can reference it in configuration. Giving
+a name to an element always involves the `@NamedComponent` annotation, as in the
+example below:
+
+["source","java"]
+---------------------
+import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.plugin.analysis.api.TokenFilterFactory;
+import org.elasticsearch.plugin.api.NamedComponent;
+
+@NamedComponent(value = "hello_world")
+public class HelloWorldTokenFilterFactory implements TokenFilterFactory {
+
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
+        return new HelloWorldTokenFilter(tokenStream);
+    }
+
+}
+---------------------
+
+The following analyzer request would return "hello world":
+
+["source","json"]
+---------------------
+{
+  "text": "hello to everyone except the world",
+  "tokenizer": "standard",
+  "filter": {
+    "type": "hello_world"
+  }
+}
+---------------------
+
+[discrete]
+=== Creating and installing the plugin artifact
+
+Now that we have our two classes, we need to compile them into a jar file.
+There are many ways of doing this; in Gradle, the java plugin's "jar" task
+takes care of it. However you build the jar, once you have it, you need to
+write a plugin descriptor file. For a stable plugin, it should be called
+`stable-plugin.descriptor`.
+
+["source","properties"]
+------------------------
+description=a hello world stable analysis plugin
+version=1.0-SNAPSHOT
+name=hello-world-plugin
+java.version=17
+elasticsearch.version=8.7.0
+------------------------
+
+This and the jar should be compressed into a single ".zip" file.
+
+This file may then be installed on a node using the elasticsearch-plugin
+tool.
+
+If you are using the gradle plugin, you can compile the code, build the jar,
+generate the properties file, and put it all in a zip file just by running
+the task `bundlePlugin`. The plugin artifact will be written to
+`build/distributions`.
+
+[discrete]
+=== Unit testing
+
+Unit tests may go under the `src/test` directory. You will have to add
+dependencies for your preferred testing framework.
+
+[discrete]
+=== YAML REST tests
+
+If you are using the Elasticsearch stable api plugin for Gradle, you can
+use Elasticsearch's YAML Rest Test framework. This framework allows you to
+load your plugin in a running test cluster and issue real REST API queries
+against it. The full syntax for this framework is beyond the scope of this
+tutorial, but there are many examples in the Elasticsearch repository.
+
+["source","gradle"]
+-------------------------
+buildscript {
+    ext.elasticsearchVersion = '8.7.0-SNAPSHOT'
+    ext.luceneVersion = '9.4.1'
+    repositories {
+        // TODO: can uncredentialed users pull from the snapshot repository?
+        mavenLocal()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "org.elasticsearch.gradle:build-tools:${elasticsearchVersion}"
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'elasticsearch.stable-esplugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+    ext.log4jVersion = '2.19.0'
+    mavenCentral()
+    mavenLocal()
+}
+
+dependencies {
+    compileOnly "org.elasticsearch:elasticsearch-plugin-api:${elasticsearchVersion}"
+    compileOnly "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+    compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+
+    testImplementation "org.elasticsearch:elasticsearch-plugin-api:${elasticsearchVersion}"
+    testImplementation "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+    testImplementation "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+
+    testImplementation ('junit:junit:4.13.2'){
+        exclude group: 'org.hamcrest'
+    }
+    testImplementation 'org.hamcrest:hamcrest:2.2'
+}
+
+esplugin {
+    name 'hello-world-plugin'
+    description 'a hello world stable analysis plugin'
+}
+-------------------------
+
+TODO: necessary files for yaml test
 

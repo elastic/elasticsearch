@@ -11,8 +11,9 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -36,13 +37,13 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
     protected LongArray endTimes;
     protected DoubleArray resetCompensations;
 
-    long currentBucket = -1;
-    long currentEndTime = -1;
-    long currentStartTime = -1;
-    double resetCompensation = 0;
-    double currentEndValue = -1;
-    double currentStartValue = -1;
-    int currentTsid = -1;
+    private long currentBucket = -1;
+    private long currentEndTime = -1;
+    private long currentStartTime = -1;
+    private double resetCompensation = 0;
+    private double currentEndValue = -1;
+    private double currentStartValue = -1;
+    private int currentTsid = -1;
 
     // Unused parameters are so that the constructor implements `RateAggregatorSupplier`
     protected TimeSeriesRateAggregator(
@@ -90,12 +91,12 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
 
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        SortedNumericDoubleValues leafValues = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
+        NumericDoubleValues leafValues = MultiValueMode.MAX.select(valuesSource.doubleValues(aggCtx.getLeafReaderContext()));
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 leafValues.advanceExact(doc);   // TODO handle missing values
-                double latestValue = leafValues.nextValue();   // assume singleton values
+                double latestValue = leafValues.doubleValue();
 
                 if (bucket != currentBucket) {
                     startValues = bigArrays().grow(startValues, bucket + 1);

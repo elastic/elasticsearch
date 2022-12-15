@@ -63,6 +63,7 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
         assertEquals(0.01f, reduced.getValue(), 0.001);
     }
 
+    // Buckets must always be in-order so that we can detect resets between consecutive buckets
     @Override
     protected boolean supportsOutOfOrderReduce() {
         return false;

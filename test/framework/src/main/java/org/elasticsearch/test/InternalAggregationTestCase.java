@@ -401,6 +401,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     public record BuilderAndToReduce<T> (AggregationBuilder builder, List<T> toReduce) {}
 
+    /**
+     * Does this aggregation support reductions when the internal buckets are not in-order
+     */
     protected boolean supportsOutOfOrderReduce() {
         return true;
     }

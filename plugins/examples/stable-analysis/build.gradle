@@ -1,18 +1,4 @@
-buildscript {
-  repositories {
-    mavenLocal()
-
-    maven {
-      url = 'https://snapshots.elastic.co/maven/'
-    }
-    mavenCentral()
-  }
-  dependencies {
-    classpath "org.elasticsearch.gradle:build-tools:${elasticsearchVersion}"
-  }
-}
-
-apply plugin: 'elasticsearch.stable-esplugin'
+  apply plugin: 'elasticsearch.stable-esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {

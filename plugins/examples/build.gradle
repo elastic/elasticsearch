@@ -2,8 +2,6 @@ import org.elasticsearch.gradle.VersionProperties
 
 buildscript {
   repositories {
-    mavenLocal()
-
     maven {
       url = 'https://snapshots.elastic.co/maven/'
     }
@@ -21,7 +19,6 @@ subprojects {
   targetCompatibility = 17
 
   repositories {
-    mavenLocal()
     // Only necessary when building plugins against SNAPSHOT versions of Elasticsearch
     maven {
       url = 'https://snapshots.elastic.co/maven/'

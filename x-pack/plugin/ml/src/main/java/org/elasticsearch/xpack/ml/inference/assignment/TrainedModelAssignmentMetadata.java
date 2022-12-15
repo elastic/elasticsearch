@@ -17,8 +17,10 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -155,7 +157,13 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(
+            params -> Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                this.toXContentChunked(params),
+                ChunkedToXContentHelper.endObject()
+            )
+        );
     }
 
     public boolean hasOutdatedAssignments() {

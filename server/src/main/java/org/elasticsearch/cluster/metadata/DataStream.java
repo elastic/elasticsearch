@@ -26,6 +26,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -44,6 +45,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject {
 
@@ -679,7 +681,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), ALIASES);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(HashMap::new, xContentParser -> {
+            xContentParser.nextToken();
+            DataStreamAlias alias = DataStreamAlias.fromXContent(xContentParser);
+            xContentParser.nextToken();
+            return alias;
+        }), ALIASES);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -703,6 +710,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexMode != null) {
             builder.field(INDEX_MODE.getPreferredName(), indexMode);
         }
+        builder.field(ALIASES.getPreferredName());
+
+        Map<String, ToXContent> transformedMap = dataStreamAliases.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> (builder1, params1) -> {
+                builder1.startObject();
+                entry.getValue().toXContent(builder1, params1);
+                return builder1.endObject();
+            }));
+
+        builder.map(transformedMap);
         builder.endObject();
         return builder;
     }
@@ -719,12 +737,35 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             && hidden == that.hidden
             && replicated == that.replicated
             && allowCustomRouting == that.allowCustomRouting
-            && indexMode == that.indexMode;
+            && indexMode == that.indexMode
+            && dataStreamAliases.equals(that.dataStreamAliases);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, indices, generation, metadata, hidden, replicated, allowCustomRouting, indexMode);
+        return Objects.hash(name, indices, generation, metadata, hidden, replicated, allowCustomRouting, indexMode, dataStreamAliases);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    public DataStream addAlias(DataStreamAlias alias) {
+        Map<String, DataStreamAlias> updatedAliasesMap = new HashMap<>(dataStreamAliases);
+        updatedAliasesMap.put(alias.getName(), alias);
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            updatedAliasesMap
+        );
     }
 
     public static final class TimestampField implements Writeable, ToXContentObject {

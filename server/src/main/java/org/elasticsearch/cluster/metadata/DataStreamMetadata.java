@@ -105,9 +105,9 @@ public class DataStreamMetadata implements Metadata.Custom {
         return new DataStreamMetadata(ImmutableOpenMap.builder(dataStreams).fPut(name, datastream).build(), dataStreamAliases);
     }
 
-    public DataStreamMetadata withAlias(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
-        if (dataStreams.containsKey(dataStream) == false) {
-            throw new IllegalArgumentException("alias [" + aliasName + "] refers to a non existing data stream [" + dataStream + "]");
+    public DataStreamMetadata withAlias(String aliasName, String dataStreamName, Boolean isWriteDataStream, String filter) {
+        if (dataStreams.containsKey(dataStreamName) == false) {
+            throw new IllegalArgumentException("alias [" + aliasName + "] refers to a non existing data stream [" + dataStreamName + "]");
         }
 
         Map<String, Object> filterAsMap;
@@ -119,11 +119,11 @@ public class DataStreamMetadata implements Metadata.Custom {
 
         DataStreamAlias alias = dataStreamAliases.get(aliasName);
         if (alias == null) {
-            String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
-            alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream, filterAsMap);
+            String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStreamName : null;
+            alias = new DataStreamAlias(aliasName, List.of(dataStreamName), writeDataStream, filterAsMap);
             logger.info("--> adding new alias: {}", alias);
         } else {
-            DataStreamAlias copy = alias.update(dataStream, isWriteDataStream, filterAsMap);
+            DataStreamAlias copy = alias.update(dataStreamName, isWriteDataStream, filterAsMap);
             logger.info("--> updating alias with new filter: {}, copy: {}", filterAsMap, copy);
             if (copy == alias) {
                 return this;
@@ -131,7 +131,13 @@ public class DataStreamMetadata implements Metadata.Custom {
             alias = copy;
             logger.info("--> updating alias: {}", alias);
         }
-        return new DataStreamMetadata(dataStreams, ImmutableOpenMap.builder(dataStreamAliases).fPut(aliasName, alias).build());
+        DataStream originalDataStream = dataStreams.get(dataStreamName);
+        DataStream newDataStream = originalDataStream.addAlias(alias);
+        ImmutableOpenMap<String, DataStream> updatedDataStreams = new ImmutableOpenMap.Builder<String, DataStream>().putAllFromMap(
+            dataStreams
+        ).fPut(dataStreamName, newDataStream).build();
+        // TODO: Do we want to always make sure the filter in the alias is nulled out here?
+        return new DataStreamMetadata(updatedDataStreams, ImmutableOpenMap.builder(dataStreamAliases).fPut(aliasName, alias).build());
     }
 
     public DataStreamMetadata withRemovedDataStream(String name) {

@@ -287,7 +287,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 ds.isReplicated(),
                 ds.isSystem(),
                 ds.isAllowCustomRouting(),
-                IndexMode.TIME_SERIES
+                IndexMode.TIME_SERIES,
+                ds.getAliases()
             )
         );
         Metadata metadata = mb.build();

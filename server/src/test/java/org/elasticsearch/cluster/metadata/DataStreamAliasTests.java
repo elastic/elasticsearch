@@ -127,11 +127,10 @@ public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<Da
                 Map.of("term", Map.of("field", "value"))
             );
             DataStreamAlias result = alias.update("ds-2", null, null);
-            assertThat(result, sameInstance(alias));
+            assertNotEquals(result, alias);
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
-            assertThat(result.getFilter().string(), equalTo("""
-                {"term":{"field":"value"}}"""));
+            assertNull(result.getFilter());
         }
     }
 

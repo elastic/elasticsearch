@@ -141,7 +141,9 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         logger.info("--> requested streams: {}", requestedDataStreams);
         for (String requestedDataStream : requestedDataStreams) {
             List<DataStreamAlias> aliases = state.metadata()
-                .dataStreamAliases()
+                .dataStreams()
+                .get(requestedDataStream)
+                .getAliases()
                 .values()
                 .stream()
                 .peek(dsa -> logger.info("--> found DSA: {}, filter: {}", dsa.getDataStreams(), dsa.getFilter()))

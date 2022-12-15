@@ -1512,8 +1512,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         // Realm
         final Authentication authentication3 = AuthenticationTests.randomRealmAuthentication(randomBoolean());
-        assertThat(ApiKeyService.getCreatorRealmName(authentication3), equalTo(authentication3.getSourceRealm().getName()));
-        assertThat(ApiKeyService.getCreatorRealmType(authentication3), equalTo(authentication3.getSourceRealm().getType()));
+        assertThat(ApiKeyService.getCreatorRealmName(authentication3), equalTo(authentication3.getEffectiveSubject().getRealm().getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication3), equalTo(authentication3.getEffectiveSubject().getRealm().getType()));
 
         // Realm run-as
         final Authentication authentication4 = authentication3.runAs(AuthenticationTests.randomUser(), lookupRealmRef);
@@ -1526,8 +1526,19 @@ public class ApiKeyServiceTests extends ESTestCase {
             AuthenticationTests.randomAnonymousAuthentication(),
             AuthenticationTests.randomInternalAuthentication()
         );
-        assertThat(ApiKeyService.getCreatorRealmName(authentication5), equalTo(authentication5.getSourceRealm().getName()));
-        assertThat(ApiKeyService.getCreatorRealmType(authentication5), equalTo(authentication5.getSourceRealm().getType()));
+        assertThat(ApiKeyService.getCreatorRealmName(authentication5), equalTo(authentication5.getEffectiveSubject().getRealm().getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication5), equalTo(authentication5.getEffectiveSubject().getRealm().getType()));
+
+        // Failed run-as returns authenticating subject's realm
+        final Authentication authentication6 = authentication3.runAs(AuthenticationTests.randomUser(), null);
+        assertThat(
+            ApiKeyService.getCreatorRealmName(authentication6),
+            equalTo(authentication6.getAuthenticatingSubject().getRealm().getName())
+        );
+        assertThat(
+            ApiKeyService.getCreatorRealmType(authentication6),
+            equalTo(authentication6.getAuthenticatingSubject().getRealm().getType())
+        );
     }
 
     public void testGetOwnersRealmNames() {

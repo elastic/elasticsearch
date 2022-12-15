@@ -13,7 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -133,11 +133,10 @@ class APMJvmOptions {
      * because it will be deleted once Elasticsearch starts.
      *
      * @param settings the Elasticsearch settings to consider
-     * @param keystore a wrapper to access the keystore, or null if there is no keystore
+     * @param secrets a wrapper to access the secrets, or null if there is no secrets
      * @param tmpdir Elasticsearch's temporary directory, where the config file will be written
      */
-    static List<String> apmJvmOptions(Settings settings, @Nullable KeyStoreWrapper keystore, Path tmpdir) throws UserException,
-        IOException {
+    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path tmpdir) throws UserException, IOException {
         final Path agentJar = findAgentJar();
 
         if (agentJar == null) {
@@ -158,8 +157,8 @@ class APMJvmOptions {
             }
         }
 
-        if (keystore != null) {
-            extractSecureSettings(keystore, propertiesMap);
+        if (secrets != null) {
+            extractSecureSettings(secrets, propertiesMap);
         }
         final Map<String, String> dynamicSettings = extractDynamicSettings(propertiesMap);
 
@@ -180,11 +179,11 @@ class APMJvmOptions {
         return "-javaagent:" + agentJar + "=c=" + tmpPropertiesFile;
     }
 
-    private static void extractSecureSettings(KeyStoreWrapper keystore, Map<String, String> propertiesMap) {
-        final Set<String> settingNames = keystore.getSettingNames();
+    private static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
+        final Set<String> settingNames = secrets.getSettingNames();
         for (String key : List.of("api_key", "secret_token")) {
             if (settingNames.contains("tracing.apm." + key)) {
-                try (SecureString token = keystore.getString("tracing.apm." + key)) {
+                try (SecureString token = secrets.getString("tracing.apm." + key)) {
                     propertiesMap.put(key, token.toString());
                 }
             }

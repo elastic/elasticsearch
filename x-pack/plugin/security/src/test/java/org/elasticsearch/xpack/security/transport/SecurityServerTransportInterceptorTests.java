@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transport.Connection;
@@ -84,6 +85,7 @@ import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentica
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -565,17 +567,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(
-                new User(
-                    randomAlphaOfLengthBetween(3, 10),
-                    randomArray(
-                        0,
-                        4,
-                        String[]::new,
-                        () -> randomValueOtherThanMany(ReservedRolesStore::isReserved, () -> randomAlphaOfLengthBetween(1, 20))
-                    )
-                )
-            )
+            .user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles()))
             .realm()
             .build();
         authentication.writeToContext(threadContext);
@@ -667,7 +659,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             equalTo(new RemoteAccessAuthentication(authentication, expectedRoleDescriptorsIntersection))
         );
         verify(securityContext, never()).executeAsInternalUser(any(), any(), anyConsumer());
-        verify(remoteClusterAuthorizationResolver, times(2)).resolveAuthorization(eq(remoteClusterAlias));
+        verify(remoteClusterAuthorizationResolver, times(1)).resolveAuthorization(eq(remoteClusterAlias));
         verify(authzService).retrieveRemoteAccessRoleDescriptorsIntersection(
             eq(remoteClusterAlias),
             eq(authentication.getEffectiveSubject()),
@@ -697,14 +689,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         if (unsupportedAuthentication) {
             authentication = randomFrom(builder.apiKey().build(), builder.serviceAccount().build(), builder.internal().build());
         } else {
-            authentication = builder.user(
-                new User(
-                    randomAlphaOfLengthBetween(3, 10),
-                    randomBoolean()
-                        ? randomArray(0, 4, String[]::new, () -> randomAlphaOfLengthBetween(1, 20))
-                        : randomNonEmptySubsetOf(ReservedRolesStore.names()).toArray(String[]::new)
-                )
-            ).realm().build();
+            authentication = builder.user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build();
         }
         authentication.writeToContext(threadContext);
         final Tuple<String, TransportRequest> actionAndReq = nonAllowlistedRequest
@@ -840,114 +825,19 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 return null;
             }
         });
+        assertThat(actualException.get(), instanceOf(SendRequestTransportException.class));
+        assertThat(actualException.get().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(
-            actualException.get().getMessage(),
+            actualException.get().getCause().getMessage(),
             equalTo(
-                "Settings for remote cluster indicate remote access headers should be sent but target cluster version ["
+                "Settings for remote cluster ["
+                    + remoteClusterAlias
+                    + "] indicate remote access headers should be sent but target cluster version ["
                     + connection.getVersion()
                     + "] does not support receiving them"
             )
         );
         verify(remoteClusterAuthorizationResolver, times(1)).resolveAuthorization(eq(remoteClusterAlias));
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
-    }
-
-    public void testSendWithRemoteAccessHeadersThrowsOnMissingClusterCredential() throws Exception {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(
-                new User(
-                    randomAlphaOfLengthBetween(3, 10),
-                    randomArray(
-                        0,
-                        4,
-                        String[]::new,
-                        () -> randomValueOtherThanMany(ReservedRolesStore::isReserved, () -> randomAlphaOfLengthBetween(1, 20))
-                    )
-                )
-            )
-            .realm()
-            .build();
-        authentication.writeToContext(threadContext);
-        final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
-        final String remoteClusterCredential = randomAlphaOfLengthBetween(10, 42);
-        // Return a credential on the first call, but null on second -- this mimics a race condition where the setting for the credential
-        // is reset while processing the request
-        when(remoteClusterAuthorizationResolver.resolveAuthorization(any())).thenReturn(remoteClusterCredential).thenReturn(null);
-        final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
-        final AuthorizationService authzService = mock(AuthorizationService.class);
-        // We capture the listener so that we can complete the full flow, by calling onResponse further down
-        @SuppressWarnings("unchecked")
-        final ArgumentCaptor<ActionListener<RoleDescriptorsIntersection>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
-        doAnswer(i -> null).when(authzService).retrieveRemoteAccessRoleDescriptorsIntersection(any(), any(), listenerCaptor.capture());
-
-        final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
-            settings,
-            threadPool,
-            mock(AuthenticationService.class),
-            authzService,
-            mock(SSLService.class),
-            securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            remoteClusterAuthorizationResolver,
-            ignored -> Optional.of(remoteClusterAlias)
-        );
-        ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
-
-        final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
-            @Override
-            public <T extends TransportResponse> void sendRequest(
-                Transport.Connection connection,
-                String action,
-                TransportRequest request,
-                TransportRequestOptions options,
-                TransportResponseHandler<T> handler
-            ) {
-                fail("sender should not be called");
-            }
-        });
-        final Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getVersion()).thenReturn(Version.CURRENT);
-        final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
-        final AtomicBoolean calledHandleException = new AtomicBoolean(false);
-        final AtomicReference<TransportException> actualException = new AtomicReference<>();
-        sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
-            @Override
-            public void handleResponse(TransportResponse response) {
-                fail("should not receive a response");
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                if (calledHandleException.compareAndSet(false, true) == false) {
-                    fail("handle exception called more than once");
-                }
-                actualException.set(exp);
-                assertThat(securityContext.getAuthentication(), equalTo(authentication));
-                assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
-                assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
-            }
-
-            @Override
-            public TransportResponse read(StreamInput in) {
-                return null;
-            }
-        });
-        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
-            randomList(0, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
-        );
-        listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
-        assertThat(calledHandleException.get(), is(true));
-        assertThat(
-            actualException.get().getCause().getMessage(),
-            equalTo("remote cluster credential unavailable for target cluster [" + remoteClusterAlias + "]")
-        );
-        verify(remoteClusterAuthorizationResolver, times(2)).resolveAuthorization(eq(remoteClusterAlias));
         assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
     }

@@ -42,6 +42,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
@@ -104,9 +105,9 @@ class MetadataVerifier implements Releasable {
 
     private void addFailure(String format, Object... args) {
         final var failureNumber = failureCount.incrementAndGet();
+        final var failure = format(format, args);
+        logger.debug("[{}] found metadata verification failure [{}]: {}", repositoryName, failureNumber, failure);
         if (failureNumber <= verifyRequest.getMaxFailures()) {
-            final var failure = format(format, args);
-            logger.debug("[{}] found metadata verification failure [{}]: {}", repositoryName, failureNumber, failure);
             failures.add(new RepositoryVerificationException(repositoryName, failure));
         }
     }
@@ -116,8 +117,8 @@ class MetadataVerifier implements Releasable {
             return;
         }
         final var failureNumber = failureCount.incrementAndGet();
+        logger.debug(() -> format("[%s] exception [%d] during metadata verification", repositoryName, failureNumber), exception);
         if (failureNumber <= verifyRequest.getMaxFailures()) {
-            logger.debug(() -> format("[%s] exception [%d] during metadata verification", repositoryName, failureNumber), exception);
             failures.add(
                 exception instanceof RepositoryVerificationException rve
                     ? rve
@@ -230,11 +231,13 @@ class MetadataVerifier implements Releasable {
         private final Set<SnapshotId> expectedSnapshots;
         private final Map<Integer, ListenableActionFuture<ShardContainerContents>> shardContainerContentsListener = newConcurrentMap();
         private final Map<String, ListenableActionFuture<Integer>> shardCountListenersByBlobId = newConcurrentMap();
+        private final AtomicInteger totalSnapshotCounter = new AtomicInteger();
+        private final AtomicInteger restorableSnapshotCounter = new AtomicInteger();
 
         IndexVerifier(RefCounted indexRefs, IndexId indexId) {
             this.indexRefs = indexRefs;
             this.indexId = indexId;
-            this.expectedSnapshots = snapshotsByIndex.get(this.indexId.getName());
+            this.expectedSnapshots = snapshotsByIndex.get(indexId.getName());
         }
 
         void run() {
@@ -243,7 +246,7 @@ class MetadataVerifier implements Releasable {
             }
 
             runThrottled(
-                makeVoidListener(indexRefs, () -> {}),
+                makeVoidListener(indexRefs, () -> logRestorability(totalSnapshotCounter.get(), restorableSnapshotCounter.get())),
                 repositoryData.getSnapshots(indexId).iterator(),
                 this::verifyIndexSnapshot,
                 verifyRequest.getIndexSnapshotVerificationConcurrency(),
@@ -251,7 +254,26 @@ class MetadataVerifier implements Releasable {
             );
         }
 
+        private void logRestorability(int totalSnapshotCount, int restorableSnapshotCount) {
+            if (isCancelledSupplier.getAsBoolean() == false) {
+                if (totalSnapshotCount == restorableSnapshotCount) {
+                    logger.debug("[{}] index {} is fully restorable from [{}] snapshots", repositoryName, indexId, totalSnapshotCount);
+                } else {
+                    logger.debug(
+                        "[{}] index {} is not fully restorable: of [{}] snapshots, [{}] are restorable and [{}] are not",
+                        repositoryName,
+                        indexId,
+                        totalSnapshotCount,
+                        restorableSnapshotCount,
+                        totalSnapshotCount - restorableSnapshotCount
+                    );
+                }
+            }
+        }
+
         private void verifyIndexSnapshot(RefCounted indexSnapshotRefs, SnapshotId snapshotId) {
+            totalSnapshotCounter.incrementAndGet();
+
             if (expectedSnapshots.contains(snapshotId) == false) {
                 addFailure("index %s has mismatched snapshot [%s]", indexId, snapshotId);
             }
@@ -278,19 +300,32 @@ class MetadataVerifier implements Releasable {
                 }, shardCountFuture);
                 return shardCountFuture;
             }).addListener(makeListener(indexSnapshotRefs, shardCount -> {
-                for (int i = 0; i < shardCount; i++) {
-                    final var shardId = i;
-                    shardContainerContentsListener.get(i)
-                        .addListener(
-                            makeListener(
-                                indexSnapshotRefs,
-                                shardContainerContents -> forkSupply(
-                                    indexSnapshotRefs,
-                                    () -> getBlobStoreIndexShardSnapshot(snapshotId, shardId),
-                                    shardSnapshot -> verifyShardSnapshot(snapshotId, shardId, shardContainerContents, shardSnapshot)
+                final var restorableShardCount = new AtomicInteger();
+                try (var shardSnapshotsRefs = wrap(makeVoidListener(indexSnapshotRefs, () -> {
+                    if (shardCount > 0 && shardCount == restorableShardCount.get()) {
+                        restorableSnapshotCounter.incrementAndGet();
+                    }
+                }))) {
+                    for (int i = 0; i < shardCount; i++) {
+                        final var shardId = i;
+                        shardContainerContentsListener.get(i)
+                            .addListener(
+                                makeListener(
+                                    shardSnapshotsRefs,
+                                    shardContainerContents -> forkSupply(
+                                        shardSnapshotsRefs,
+                                        () -> getBlobStoreIndexShardSnapshot(snapshotId, shardId),
+                                        shardSnapshot -> verifyShardSnapshot(
+                                            snapshotId,
+                                            shardId,
+                                            shardContainerContents,
+                                            shardSnapshot,
+                                            restorableShardCount::incrementAndGet
+                                        )
+                                    )
                                 )
-                            )
-                        );
+                            );
+                    }
                 }
             }));
         }
@@ -310,6 +345,14 @@ class MetadataVerifier implements Releasable {
             }
         }
 
+        private List<SnapshotId> getSnapshotsWithIndexMetadataBlob(String indexMetaBlobId) {
+            final var indexMetaDataGenerations = repositoryData.indexMetaDataGenerations();
+            return repositoryData.getSnapshotIds()
+                .stream()
+                .filter(s -> indexMetaBlobId.equals(indexMetaDataGenerations.indexMetaBlobId(s, indexId)))
+                .toList();
+        }
+
         private int getNumberOfShards(String indexMetaBlobId, SnapshotId snapshotId) {
             try {
                 return blobStoreRepository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId).getNumberOfShards();
@@ -317,7 +360,12 @@ class MetadataVerifier implements Releasable {
                 addFailure(
                     new RepositoryVerificationException(
                         repositoryName,
-                        format("failed to load index %s metadata for [%s] from blob [%s]", indexId, snapshotId, indexMetaBlobId),
+                        format(
+                            "failed to load index %s metadata from blob [%s] for %s",
+                            indexId,
+                            indexMetaBlobId,
+                            getSnapshotsWithIndexMetadataBlob(indexMetaBlobId)
+                        ),
                         e
                     )
                 );
@@ -343,7 +391,8 @@ class MetadataVerifier implements Releasable {
             SnapshotId snapshotId,
             int shardId,
             ShardContainerContents shardContainerContents,
-            BlobStoreIndexShardSnapshot shardSnapshot
+            BlobStoreIndexShardSnapshot shardSnapshot,
+            Runnable runIfRestorable
         ) {
             if (shardSnapshot == null) {
                 return;
@@ -359,8 +408,12 @@ class MetadataVerifier implements Releasable {
                 );
             }
 
+            var restorable = true;
             for (final var fileInfo : shardSnapshot.indexFiles()) {
-                verifyFileInfo(snapshotId.toString(), shardId, shardContainerContents.blobsByName(), fileInfo);
+                restorable &= verifyFileInfo(snapshotId.toString(), shardId, shardContainerContents.blobsByName(), fileInfo);
+            }
+            if (restorable) {
+                runIfRestorable.run();
             }
 
             final var blobStoreIndexShardSnapshots = shardContainerContents.blobStoreIndexShardSnapshots();
@@ -435,7 +488,7 @@ class MetadataVerifier implements Releasable {
             }
         }
 
-        private void verifyFileInfo(
+        private boolean verifyFileInfo(
             String snapshot,
             int shardId,
             Map<String, BlobMetadata> shardBlobs,
@@ -455,6 +508,7 @@ class MetadataVerifier implements Releasable {
                         formatExact(actualLength),
                         formatExact(fileLength)
                     );
+                    return false;
                 }
             } else {
                 for (int part = 0; part < fileInfo.numberOfParts(); part++) {
@@ -475,7 +529,7 @@ class MetadataVerifier implements Releasable {
                             formatExact(fileLength),
                             formatExact(partLength)
                         );
-
+                        return false;
                     } else if (blobInfo.length() != partLength.getBytes()) {
                         addFailure(
                             "snapshot [%s] for shard %s[%d] has blob [%s] for [%s] part [%d/%d] with length [%s] instead of [%s]; "
@@ -491,9 +545,11 @@ class MetadataVerifier implements Releasable {
                             formatExact(partLength),
                             formatExact(fileLength)
                         );
+                        return false;
                     }
                 }
             }
+            return true;
         }
     }
 
@@ -538,7 +594,8 @@ class MetadataVerifier implements Releasable {
                     try {
                         runnable.onRejection(e);
                     } finally {
-                        onCompletion();
+                        threadPoolPermits.release();
+                        // no need to call tryProcessQueue() again here, we're still running it
                     }
                 }
 
@@ -641,7 +698,7 @@ class MetadataVerifier implements Releasable {
     }
 
     private static class ThrottledIterator<T> implements Releasable {
-        private final RefCountedListenerWrapper refCounted;
+        private final RefCountedListenerWrapper throttleRefs;
         private final Iterator<T> iterator;
         private final BiConsumer<RefCounted, T> consumer;
         private final Semaphore permits;
@@ -654,7 +711,7 @@ class MetadataVerifier implements Releasable {
             int maxConcurrency,
             ProgressLogger progressLogger
         ) {
-            this.refCounted = wrap(completionListener);
+            this.throttleRefs = wrap(completionListener);
             this.iterator = iterator;
             this.consumer = consumer;
             this.permits = new Semaphore(maxConcurrency);
@@ -672,27 +729,54 @@ class MetadataVerifier implements Releasable {
                         return;
                     }
                 }
-                refCounted.incRef();
-                final var itemRefCount = AbstractRefCounted.of(() -> {
-                    permits.release();
-                    try {
-                        run();
-                    } finally {
-                        refCounted.decRef();
-                        progressLogger.maybeLogProgress();
-                    }
-                });
-                try {
-                    consumer.accept(itemRefCount, item);
-                } finally {
-                    itemRefCount.decRef();
+                try (var itemRefsWrapper = new RefCountedWrapper()) {
+                    consumer.accept(itemRefsWrapper.unwrap(), item);
                 }
             }
         }
 
         @Override
         public void close() {
-            refCounted.close();
+            throttleRefs.close();
+        }
+
+        // Wraps a RefCounted with protection against calling back into run() from within safeDecRef()
+        private class RefCountedWrapper implements Releasable {
+            private boolean isRecursive;
+            private final RefCounted itemRefs = AbstractRefCounted.of(this::onItemCompletion);
+
+            RefCountedWrapper() {
+                throttleRefs.incRef();
+            }
+
+            RefCounted unwrap() {
+                return itemRefs;
+            }
+
+            private synchronized boolean isRecursive() {
+                return isRecursive;
+            }
+
+            private void onItemCompletion() {
+                progressLogger.maybeLogProgress();
+                permits.release();
+                try {
+                    if (isRecursive() == false) {
+                        run();
+                    }
+                } finally {
+                    throttleRefs.decRef();
+                }
+            }
+
+            @Override
+            public synchronized void close() {
+                // if the decRef() below releases the last ref and calls onItemCompletion(), no other thread blocks on us; conversely
+                // if decRef() doesn't release the last ref then we release this mutex immediately so the closing thread can proceed
+                isRecursive = true;
+                itemRefs.decRef();
+                isRecursive = false;
+            }
         }
     }
 
@@ -714,7 +798,7 @@ class MetadataVerifier implements Releasable {
 
         void maybeLogProgress() {
             final var count = currentCount.incrementAndGet();
-            if (count == expectedMax || count % logFrequency == 0) {
+            if (count == expectedMax || count % logFrequency == 0 && isCancelledSupplier.getAsBoolean() == false) {
                 logger.info("[{}] processed [{}] of [{}] {}", repositoryName, count, expectedMax, type);
             }
         }

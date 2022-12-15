@@ -424,6 +424,22 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                         // no need to set visited, as we are on a leaf
                     }
 
+                    /**
+                     * Optimization
+                     *
+                     * a - b - c - d
+                     * |   |    \- h
+                     * |   |\- e - f
+                     * |    \- h - j
+                     *  \- x - y
+                     *
+                     * assume we pruned at d above, if c has the same count as d, we don't need the sub-branches, but go up
+                     * until we find a branch that has a higher count than the pruned one. This allows us to skip over subtrees.
+                     */
+                    if (setTraverser.atLeaf()) {
+                        setTraverser.pruneToNextMainBranch();
+                    }
+
                     continue;
                 }
 
@@ -472,6 +488,16 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                 if (previousMinCount != minCount) {
                     previousMinCount = minCount;
                     logger.debug("adjusting min count to {}", minCount);
+                }
+
+                /**
+                 * Optimization:
+                 *
+                 * If we reached a leaf, go up the branch until the new branch has a higher count than our current leaf.
+                 */
+                if (setTraverser.atLeaf()) {
+                    setTraverser.prune();
+                    setTraverser.pruneToNextMainBranch();
                 }
             }
             FrequentItemSet[] topFrequentItems = collector.finalizeAndGetResults(fields);

@@ -62,6 +62,8 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.realms.jwt.jwt1.claims.dn', 'dn'
   setting 'xpack.security.authc.realms.jwt.jwt1.claims.name', 'name'
   setting 'xpack.security.authc.realms.jwt.jwt1.claims.mail', 'mail'
+  setting 'xpack.security.authc.realms.jwt.jwt1.required_claims.token_use', 'id'
+  setting 'xpack.security.authc.realms.jwt.jwt1.required_claims.version', '2.0'
   setting 'xpack.security.authc.realms.jwt.jwt1.client_authentication.type', 'NONE'
   // Use default value (RS256) for signature algorithm
   setting 'xpack.security.authc.realms.jwt.jwt1.pkc_jwkset_path', 'rsa.jwkset'
@@ -84,12 +86,13 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
     setting 'xpack.security.authc.realms.jwt.jwt2.claims.principal', 'sub'
   }
   setting 'xpack.security.authc.realms.jwt.jwt2.claim_patterns.principal', '^(.*)@[^.]*[.]example[.]com$'
+  setting 'xpack.security.authc.realms.jwt.jwt2.required_claims.token_use', 'access'
   setting 'xpack.security.authc.realms.jwt.jwt2.authorization_realms', 'lookup_native'
   setting 'xpack.security.authc.realms.jwt.jwt2.client_authentication.type', 'shared_secret'
   keystore 'xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret', 'test-secret'
   keystore 'xpack.security.authc.realms.jwt.jwt2.hmac_key', 'test-HMAC/secret passphrase-value'
 
-  // Place PKI realm after JWT realm to verify realm chain fall-throug
+  // Place PKI realm after JWT realm to verify realm chain fall-through
   setting 'xpack.security.authc.realms.pki.pki_realm.order', '4'
 
   setting 'xpack.security.authc.realms.jwt.jwt3.order', '5'

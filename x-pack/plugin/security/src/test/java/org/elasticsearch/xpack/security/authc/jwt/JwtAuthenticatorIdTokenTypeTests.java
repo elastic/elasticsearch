@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
-import org.junit.Before;
 
 import java.text.ParseException;
 
@@ -16,27 +15,17 @@ import static org.hamcrest.Matchers.containsString;
 
 public class JwtAuthenticatorIdTokenTypeTests extends JwtAuthenticatorTests {
 
-    private String fallbackSub;
-    private String fallbackAud;
-
-    @Before
-    public void beforeTest() {
-        doBeforeTest();
-        fallbackSub = null;
-        fallbackAud = null;
-    }
-
     @Override
     protected JwtRealmSettings.TokenType getTokenType() {
         return JwtRealmSettings.TokenType.ID_TOKEN;
     }
 
     public void testSubjectIsRequired() throws ParseException {
-        final IllegalArgumentException e = doTestSubjectIsRequired(buildJwtAuthenticator(fallbackSub, fallbackAud));
+        final IllegalArgumentException e = doTestSubjectIsRequired(buildJwtAuthenticator());
         assertThat(e.getMessage(), containsString("missing required string claim [sub]"));
     }
 
     public void testInvalidIssuerIsCheckedBeforeAlgorithm() throws ParseException {
-        doTestInvalidIssuerIsCheckedBeforeAlgorithm(buildJwtAuthenticator(fallbackSub, fallbackAud));
+        doTestInvalidIssuerIsCheckedBeforeAlgorithm(buildJwtAuthenticator());
     }
 }

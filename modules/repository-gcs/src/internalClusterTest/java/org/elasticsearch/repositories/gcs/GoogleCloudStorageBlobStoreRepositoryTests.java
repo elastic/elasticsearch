@@ -10,6 +10,7 @@ package org.elasticsearch.repositories.gcs;
 
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
+import fixture.gcs.TestUtils;
 
 import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;

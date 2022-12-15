@@ -62,6 +62,13 @@ public class GroupingAggregator implements Releasable {
         }
     }
 
+    /**
+     * Add the position-th row from the intermediate output of the given aggregator to this aggregator at the groupId position
+     */
+    public void addIntermediateRow(int groupId, GroupingAggregator input, int position) {
+        aggregatorFunction.addIntermediateRowInput(groupId, input.aggregatorFunction, position);
+    }
+
     public Block evaluate() {
         if (mode.isOutputPartial()) {
             return aggregatorFunction.evaluateIntermediate();

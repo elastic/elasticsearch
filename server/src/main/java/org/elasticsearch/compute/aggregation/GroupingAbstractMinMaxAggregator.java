@@ -61,6 +61,16 @@ abstract class GroupingAbstractMinMaxAggregator implements GroupingAggregatorFun
     }
 
     @Override
+    public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
+        if (input.getClass() != getClass()) {
+            throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
+        }
+        final DoubleArrayState inState = ((GroupingAbstractMinMaxAggregator) input).state;
+        final double newValue = operator(state.getOrDefault(groupId), inState.get(position));
+        state.set(newValue, groupId);
+    }
+
+    @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<DoubleArrayState>, DoubleArrayState> builder = AggregatorStateBlock
             .builderOfAggregatorState(DoubleArrayState.class, state.getEstimatedSize());

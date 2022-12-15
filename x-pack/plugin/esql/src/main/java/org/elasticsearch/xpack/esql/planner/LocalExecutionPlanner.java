@@ -34,6 +34,7 @@ import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
+import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -205,7 +206,6 @@ public class LocalExecutionPlanner {
                         } else {
                             throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
                         }
-
                         final Supplier<BlockHash> blockHash;
                         if (grpAttrib.dataType() == DataTypes.KEYWORD) {
                             blockHash = () -> BlockHash.newBytesRefHash(bigArrays);
@@ -213,19 +213,35 @@ public class LocalExecutionPlanner {
                             blockHash = () -> BlockHash.newLongHash(bigArrays);
                         }
                         if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
-                            operatorFactory = new HashAggregationOperatorFactory(
-                                source.layout.getChannel(grpAttrib.id()),
-                                List.of(
-                                    new GroupingAggregator.GroupingAggregatorFactory(
-                                        bigArrays,
-                                        aggregatorFunc,
-                                        AggregatorMode.INITIAL,
-                                        source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
-                                    )
-                                ),
-                                blockHash,
-                                AggregatorMode.INITIAL
+                            List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories = List.of(
+                                new GroupingAggregator.GroupingAggregatorFactory(
+                                    bigArrays,
+                                    aggregatorFunc,
+                                    AggregatorMode.INITIAL,
+                                    source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
+                                )
                             );
+                            final Integer inputChannel = source.layout.getChannel(grpAttrib.id());
+                            // The grouping-by values are ready, let's group on them directly.
+                            if (inputChannel != null) {
+                                operatorFactory = new HashAggregationOperatorFactory(
+                                    inputChannel,
+                                    aggregatorFactories,
+                                    blockHash,
+                                    AggregatorMode.FINAL
+                                );
+                            } else {
+                                var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregate.child());
+                                operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
+                                    grpAttrib.name(),
+                                    source.layout.getChannel(sourceAttributes.get(2).id()),
+                                    source.layout.getChannel(sourceAttributes.get(1).id()),
+                                    source.layout.getChannel(sourceAttributes.get(0).id()),
+                                    searchContexts,
+                                    aggregatorFactories,
+                                    BigArrays.NON_RECYCLING_INSTANCE
+                                );
+                            }
                             layout.appendChannel(alias.id());  // <<<< TODO: this one looks suspicious
                         } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
                             operatorFactory = new HashAggregationOperatorFactory(

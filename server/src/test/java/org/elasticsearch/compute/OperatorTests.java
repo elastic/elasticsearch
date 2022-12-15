@@ -14,9 +14,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
@@ -27,6 +29,7 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -38,6 +41,7 @@ import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -52,6 +56,7 @@ import org.elasticsearch.compute.operator.LongGroupingOperator;
 import org.elasticsearch.compute.operator.LongMaxOperator;
 import org.elasticsearch.compute.operator.LongTransformerOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
@@ -68,6 +73,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -96,6 +102,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -775,6 +782,65 @@ public class OperatorTests extends ESTestCase {
         }
     }
 
+    public void testGroupingWithOrdinals() throws IOException {
+        final String gField = "g";
+        final int numDocs = between(100, 10000);
+        final Map<BytesRef, Long> expectedCounts = new HashMap<>();
+        int keyLength = randomIntBetween(1, 10);
+        try (BaseDirectoryWrapper dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                BytesRef key = new BytesRef(randomByteArrayOfLength(keyLength));
+                SortedSetDocValuesField docValuesField = new SortedSetDocValuesField(gField, key);
+                doc.add(docValuesField);
+                writer.addDocument(doc);
+                expectedCounts.compute(key, (k, v) -> v == null ? 1 : v + 1);
+            }
+            writer.commit();
+            Map<BytesRef, Long> actualCounts = new HashMap<>();
+            BigArrays bigArrays = bigArrays();
+            try (DirectoryReader reader = writer.getReader()) {
+                Driver driver = new Driver(
+                    new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
+                    List.of(
+                        new MapPageOperator(p -> p.appendBlock(new ConstantIntBlock(1, p.getPositionCount()))),
+                        new OrdinalsGroupingOperator(
+                            gField,
+                            2,
+                            1,
+                            0,
+                            List.of(randomBoolean() ? getOrdinalsValuesSource(gField) : getBytesValuesSource(gField)),
+                            List.of(CoreValuesSourceType.KEYWORD),
+                            List.of(reader),
+                            List.of(
+                                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.count, INITIAL, 3)
+                            ),
+                            bigArrays
+                        ),
+                        new HashAggregationOperator(
+                            0, // group by channel
+                            List.of(
+                                new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.count, FINAL, 1)
+                            ),
+                            () -> BlockHash.newBytesRefHash(bigArrays)
+                        )
+                    ),
+                    new PageConsumerOperator(page -> {
+                        Block keys = page.getBlock(0);
+                        Block counts = page.getBlock(1);
+                        for (int i = 0; i < keys.getPositionCount(); i++) {
+                            BytesRef spare = new BytesRef();
+                            actualCounts.put(keys.getBytesRef(i, spare), counts.getLong(i));
+                        }
+                    }),
+                    () -> {}
+                );
+                driver.run();
+                assertThat(actualCounts, equalTo(expectedCounts));
+            }
+        }
+    }
+
     // Tests that overflows throw during summation.
     public void testSumLongOverflow() {
         Operator source = new SequenceLongBlockSourceOperator(List.of(Long.MAX_VALUE, 1L), 2);
@@ -1380,6 +1446,102 @@ public class OperatorTests extends ESTestCase {
             }
         });
         return docIds;
+    }
+
+    static ValuesSource.Bytes.WithOrdinals getOrdinalsValuesSource(String field) {
+        return new ValuesSource.Bytes.WithOrdinals() {
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SortedSetDocValues ordinalsValues(LeafReaderContext context) throws IOException {
+                return context.reader().getSortedSetDocValues(field);
+            }
+
+            @Override
+            public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean supportsGlobalOrdinalsMapping() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    static ValuesSource.Bytes getBytesValuesSource(String field) {
+        return new ValuesSource.Bytes() {
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                SortedSetDocValues dv = context.reader().getSortedSetDocValues(field);
+                return new SortedBinaryDocValues() {
+                    @Override
+                    public boolean advanceExact(int doc) throws IOException {
+                        return dv.advanceExact(doc);
+                    }
+
+                    @Override
+                    public int docValueCount() {
+                        return dv.docValueCount();
+                    }
+
+                    @Override
+                    public BytesRef nextValue() throws IOException {
+                        return dv.lookupOrd(dv.nextOrd());
+                    }
+                };
+            }
+        };
+    }
+
+    static class MapPageOperator implements Operator {
+        private Page output;
+        private final Function<Page, Page> fn;
+        private boolean finished = false;
+
+        MapPageOperator(Function<Page, Page> fn) {
+            this.fn = fn;
+        }
+
+        @Override
+        public boolean needsInput() {
+            return output == null;
+        }
+
+        @Override
+        public void addInput(Page page) {
+            output = fn.apply(page);
+        }
+
+        @Override
+        public void finish() {
+            finished = true;
+        }
+
+        @Override
+        public boolean isFinished() {
+            return finished && output == null;
+        }
+
+        @Override
+        public Page getOutput() {
+            Page p = output;
+            output = null;
+            return p;
+        }
+
+        @Override
+        public void close() {
+
+        }
     }
 
     /**

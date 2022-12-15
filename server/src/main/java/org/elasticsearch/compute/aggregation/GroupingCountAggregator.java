@@ -72,6 +72,15 @@ public class GroupingCountAggregator implements GroupingAggregatorFunction {
     }
 
     @Override
+    public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
+        if (input.getClass() != getClass()) {
+            throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
+        }
+        final LongArrayState inState = ((GroupingCountAggregator) input).state;
+        state.increment(inState.get(position), groupId);
+    }
+
+    @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<LongArrayState>, LongArrayState> builder = AggregatorStateBlock
             .builderOfAggregatorState(LongArrayState.class, state.getEstimatedSize());

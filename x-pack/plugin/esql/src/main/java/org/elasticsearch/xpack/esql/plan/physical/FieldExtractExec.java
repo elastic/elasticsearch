@@ -43,7 +43,7 @@ public class FieldExtractExec extends UnaryExec {
         }
     }
 
-    private static List<Attribute> extractSourceAttributesFrom(PhysicalPlan plan) {
+    public static List<Attribute> extractSourceAttributesFrom(PhysicalPlan plan) {
         var list = new ArrayList<Attribute>(EsQueryExec.NAMES_SET.size());
         plan.outputSet().forEach(e -> {
             if (EsQueryExec.isSourceAttribute(e)) {

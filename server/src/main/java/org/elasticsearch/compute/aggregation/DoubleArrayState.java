@@ -69,7 +69,7 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
     private void ensureCapacity(int position) {
         if (position >= values.size()) {
             long prevSize = values.size();
-            values = bigArrays.grow(values, prevSize + 1);
+            values = bigArrays.grow(values, position + 1);
             values.fill(prevSize, values.size(), initialDefaultValue);
         }
     }

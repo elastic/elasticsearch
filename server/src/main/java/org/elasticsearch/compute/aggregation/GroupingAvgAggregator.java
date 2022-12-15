@@ -74,6 +74,15 @@ final class GroupingAvgAggregator implements GroupingAggregatorFunction {
     }
 
     @Override
+    public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
+        if (input.getClass() != getClass()) {
+            throw new IllegalArgumentException("expected " + getClass() + " ; got " + input.getClass());
+        }
+        final GroupingAvgState inState = ((GroupingAvgAggregator) input).state;
+        state.add(inState.values.get(position), inState.deltas.get(position), groupId, inState.counts.get(position));
+    }
+
+    @Override
     public Block evaluateIntermediate() {
         AggregatorStateBlock.Builder<AggregatorStateBlock<GroupingAvgState>, GroupingAvgState> builder = AggregatorStateBlock
             .builderOfAggregatorState(GroupingAvgState.class, state.getEstimatedSize());

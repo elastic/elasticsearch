@@ -46,6 +46,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class PhysicalPlanOptimizerTests extends ESTestCase {
@@ -268,6 +270,27 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
+    }
+
+    public void testDoNotExtractGroupingFields() {
+        var plan = physicalPlan("""
+            from test
+            | stats x = avg(salary) by gender
+            """);
+
+        var optimized = fieldExtractorRule(plan);
+        var limit = as(optimized, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+        var exchange = as(aggregate.child(), ExchangeExec.class);
+        aggregate = as(exchange.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+
+        var extract = as(aggregate.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), equalTo(List.of("salary")));
+
+        var source = as(extract.child(), EsQueryExec.class);
+        assertNotNull(source);
     }
 
     public void testQueryWithAggregation() {

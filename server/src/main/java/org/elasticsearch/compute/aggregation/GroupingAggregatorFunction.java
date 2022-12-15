@@ -22,6 +22,11 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     void addIntermediateInput(Block groupIdBlock, Block block);
 
+    /**
+     * Add the position-th row from the intermediate output of the given aggregator function to the groupId
+     */
+    void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position);
+
     Block evaluateIntermediate();
 
     Block evaluateFinal();

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
@@ -107,6 +108,11 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
                         missing.add(f);
                     }
                 });
+
+                // don't extract grouping fields the hash aggregator will do the extraction by itself
+                if (p instanceof AggregateExec agg) {
+                    missing.removeAll(Expressions.references(agg.groupings()));
+                }
 
                 // add extractor
                 if (missing.isEmpty() == false) {

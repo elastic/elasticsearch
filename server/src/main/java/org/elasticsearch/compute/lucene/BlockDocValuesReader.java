@@ -52,7 +52,7 @@ public abstract class BlockDocValuesReader {
      * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
      */
     public static boolean canReuse(BlockDocValuesReader reader, int startingDocID) {
-        return reader != null && reader.docID() <= startingDocID && reader.creationThread == Thread.currentThread();
+        return reader != null && reader.creationThread == Thread.currentThread() && reader.docID() <= startingDocID;
     }
 
     public static BlockDocValuesReader createBlockReader(

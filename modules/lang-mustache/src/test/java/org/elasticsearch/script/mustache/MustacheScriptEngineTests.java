@@ -215,22 +215,16 @@ public class MustacheScriptEngineTests extends ESTestCase {
             assertThat(o, equalTo(""));
         }
         {
-            // accessing a public field will fail
+            // accessing a public field works now
             String templateString = "{{obj.publicField}}";
-            GeneralScriptException e = expectThrows(
-                GeneralScriptException.class,
-                () -> qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute()
-            );
-            assertTrue(e.getCause().getCause().getCause() instanceof AccessControlException);
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo("2"));
         }
         {
-            // accessing a public method will fail
+            // accessing a public method works now
             String templateString = "{{obj.publicMethod}}";
-            GeneralScriptException e = expectThrows(
-                GeneralScriptException.class,
-                () -> qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute()
-            );
-            assertTrue(e.getCause().getCause().getCause() instanceof AccessControlException);
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo("4"));
         }
     }
 

@@ -158,7 +158,7 @@ public class ExecutionManager {
     /*
      * Sample assembler
      */
-    public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans, Limit limit, int maxSamplesPerKey) {
+    public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans, Limit limit) {
         if (cfg.fetchSize() > SAMPLE_MAX_PAGE_SIZE) {
             throw new EqlIllegalArgumentException("Fetch size cannot be greater than [{}]", SAMPLE_MAX_PAGE_SIZE);
         }
@@ -217,7 +217,7 @@ public class ExecutionManager {
             cfg.fetchSize(),
             limit,
             session.circuitBreaker(),
-            maxSamplesPerKey
+            cfg.maxSamplesPerKey()
         );
     }
 

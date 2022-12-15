@@ -231,6 +231,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                 timeout,
                 request.indicesOptions(),
                 request.fetchSize(),
+                request.maxSamplesPerKey(),
                 clientId,
                 new TaskId(nodeId, task.getId()),
                 task

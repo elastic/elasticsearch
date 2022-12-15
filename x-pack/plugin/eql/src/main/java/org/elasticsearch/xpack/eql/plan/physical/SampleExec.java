@@ -27,27 +27,24 @@ public class SampleExec extends PhysicalPlan {
     private final List<List<Attribute>> keys;
     private final Limit limit;
 
-    private final int maxSamplesPerKey;
-
-    public SampleExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, int maxSamplesPerKey) {
-        this(source, children, keys, null, maxSamplesPerKey);
+    public SampleExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys) {
+        this(source, children, keys, null);
     }
 
-    public SampleExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Limit limit, int maxSamplesPerKey) {
+    public SampleExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Limit limit) {
         super(source, children);
         this.keys = keys;
         this.limit = limit;
-        this.maxSamplesPerKey = maxSamplesPerKey;
     }
 
     @Override
     protected NodeInfo<SampleExec> info() {
-        return NodeInfo.create(this, SampleExec::new, children(), keys, limit, maxSamplesPerKey);
+        return NodeInfo.create(this, SampleExec::new, children(), keys, limit);
     }
 
     @Override
     public PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
-        return new SampleExec(source(), newChildren, keys, limit, maxSamplesPerKey);
+        return new SampleExec(source(), newChildren, keys, limit);
     }
 
     @Override
@@ -65,16 +62,16 @@ public class SampleExec extends PhysicalPlan {
 
     @Override
     public void execute(EqlSession session, ActionListener<Payload> listener) {
-        new ExecutionManager(session).assemble(keys(), children(), limit, maxSamplesPerKey).execute(listener);
+        new ExecutionManager(session).assemble(keys(), children(), limit).execute(listener);
     }
 
     public PhysicalPlan with(Limit limit) {
-        return new SampleExec(this.source(), this.children(), this.keys, limit, maxSamplesPerKey);
+        return new SampleExec(this.source(), this.children(), this.keys, limit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(keys, children(), limit, maxSamplesPerKey);
+        return Objects.hash(keys, children(), limit);
     }
 
     @Override
@@ -88,9 +85,6 @@ public class SampleExec extends PhysicalPlan {
         }
 
         SampleExec other = (SampleExec) obj;
-        return Objects.equals(children(), other.children())
-            && Objects.equals(keys, other.keys)
-            && Objects.equals(limit, other.limit)
-            && maxSamplesPerKey == other.maxSamplesPerKey;
+        return Objects.equals(children(), other.children()) && Objects.equals(keys, other.keys) && Objects.equals(limit, other.limit);
     }
 }

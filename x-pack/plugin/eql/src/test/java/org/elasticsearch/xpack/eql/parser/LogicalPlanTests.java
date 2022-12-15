@@ -200,7 +200,6 @@ public class LogicalPlanTests extends ESTestCase {
         plan = ((LimitWithOffset) plan).child();
         assertEquals(Sample.class, plan.getClass());
         Sample sample = (Sample) plan;
-        assertEquals(1, sample.maxSamplesPerKey());
         List<? extends LogicalPlan> queries = sample.queries();
         assertEquals(2, queries.size());
         LogicalPlan subPlan = queries.get(0);

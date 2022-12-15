@@ -30,7 +30,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 public class SourceLookup implements Source, Map<String, Object> {
-
     private SourceProvider sourceProvider;
 
     private int docId = -1;

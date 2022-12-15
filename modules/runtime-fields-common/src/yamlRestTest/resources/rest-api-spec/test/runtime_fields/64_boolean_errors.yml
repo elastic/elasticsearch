@@ -75,8 +75,8 @@ setup:
               terms:
                 field: rtf
   - length: { aggregations.rtf.buckets: 2 }
-  - match: { aggregations.rtf.buckets.0.key: true }
-  - match: { aggregations.rtf.buckets.1.key: false }
+  - match: { aggregations.rtf.buckets.0.key_as_string: true }
+  - match: { aggregations.rtf.buckets.1.key_as_string: false }
 ---
 "Aggregate on rtf with on_script_error fail":
   - do:
@@ -97,6 +97,7 @@ setup:
         body:
           query: { match_all: { } }
           fields: [ age, rtf ]
+          sort: age
   - match: { hits.total.value: 3 }
   - match: { hits.hits.1.fields.age: [ 14 ] }
   - match: { hits.hits.1.fields.rtf: [ false ] }

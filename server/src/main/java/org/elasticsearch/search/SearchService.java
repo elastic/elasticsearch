@@ -725,7 +725,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             ) {
                 searchContext.searcher().setAggregatedDfs(request.dfs());
                 QueryPhase.execute(searchContext);
-                RuntimeExceptionHandler h = searchContext.getSearchExecutionContext().getRuntimeExceptionHandler();
                 if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     // no hits, we can release the context since there will be no fetch phase
                     freeReaderContext(readerContext.id());

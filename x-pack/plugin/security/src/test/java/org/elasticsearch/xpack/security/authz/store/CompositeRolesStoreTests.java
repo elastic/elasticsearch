@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -1806,13 +1807,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(SECURITY_ENABLED_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
         ApiKeyService apiKeyService = spy(
             new ApiKeyService(
                 SECURITY_ENABLED_SETTINGS,
                 Clock.systemUTC(),
                 mock(Client.class),
                 mock(SecurityIndexManager.class),
-                mock(ClusterService.class),
+                clusterService,
                 mock(CacheInvalidatorRegistry.class),
                 mock(ThreadPool.class)
             )
@@ -1882,13 +1887,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
 
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(SECURITY_ENABLED_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
         ApiKeyService apiKeyService = spy(
             new ApiKeyService(
                 SECURITY_ENABLED_SETTINGS,
                 Clock.systemUTC(),
                 mock(Client.class),
                 mock(SecurityIndexManager.class),
-                mock(ClusterService.class),
+                clusterService,
                 mock(CacheInvalidatorRegistry.class),
                 mock(ThreadPool.class)
             )

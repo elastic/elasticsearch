@@ -632,7 +632,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
-        final Tuple<String, TransportRequest> actionAndReq = randomWhitelistedActionAndRequest();
+        final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
         sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
             @Override
             public void handleResponse(TransportResponse response) {
@@ -682,10 +682,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         boolean noCredential = randomBoolean();
         final boolean notRemoteConnection = randomBoolean();
-        final boolean nonWhitelistedRequest = randomBoolean();
+        final boolean nonAllowlistedRequest = randomBoolean();
         final boolean unsupportedAuthentication = randomBoolean();
         // Ensure at least one condition fails
-        if (false == (notRemoteConnection || noCredential || nonWhitelistedRequest || unsupportedAuthentication)) {
+        if (false == (notRemoteConnection || noCredential || nonAllowlistedRequest || unsupportedAuthentication)) {
             noCredential = true;
         }
         final RemoteClusterAuthorizationResolver remoteClusterAuthorizationResolver = mock(RemoteClusterAuthorizationResolver.class);
@@ -707,9 +707,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             ).realm().build();
         }
         authentication.writeToContext(threadContext);
-        final Tuple<String, TransportRequest> actionAndReq = nonWhitelistedRequest
+        final Tuple<String, TransportRequest> actionAndReq = nonAllowlistedRequest
             ? new Tuple<>(ClusterStateAction.NAME, mock(ClusterStatsRequest.class))
-            : randomWhitelistedActionAndRequest();
+            : randomAllowlistedActionAndRequest();
 
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
         final AuthorizationService authzService = mock(AuthorizationService.class);
@@ -817,7 +817,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             versionBeforeRemoteAccessHeaders
         );
         when(connection.getVersion()).thenReturn(version);
-        final Tuple<String, TransportRequest> actionAndReq = randomWhitelistedActionAndRequest();
+        final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
         final AtomicBoolean calledHandleException = new AtomicBoolean(false);
         final AtomicReference<TransportException> actualException = new AtomicReference<>();
         sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
@@ -913,7 +913,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getVersion()).thenReturn(Version.CURRENT);
-        final Tuple<String, TransportRequest> actionAndReq = randomWhitelistedActionAndRequest();
+        final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
         final AtomicBoolean calledHandleException = new AtomicBoolean(false);
         final AtomicReference<TransportException> actualException = new AtomicReference<>();
         sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
@@ -952,7 +952,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY), nullValue());
     }
 
-    private Tuple<String, TransportRequest> randomWhitelistedActionAndRequest() {
+    private Tuple<String, TransportRequest> randomAllowlistedActionAndRequest() {
         return randomFrom(
             new Tuple<>(SearchAction.NAME, mock(SearchRequest.class)),
             new Tuple<>(SearchTransportService.QUERY_ACTION_NAME, mock(ShardSearchRequest.class)),

@@ -28,7 +28,6 @@ import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -42,7 +41,6 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -51,7 +49,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
@@ -141,6 +138,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
+                assertNoRemoteAccessHeadersInContext();
+
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
@@ -191,6 +190,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         sendWithUser(connection, action, request, options, handler, sender);
                     }
             }
+
+            private void assertNoRemoteAccessHeadersInContext() {
+                assert securityContext.getThreadContext().getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY) == null
+                    : "remote access headers should not be in security context";
+                assert securityContext.getThreadContext()
+                    .getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null
+                    : "remote access headers should not be in security context";
+            }
         };
     }
 
@@ -217,16 +224,35 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             }
 
             private boolean shouldSendWithRemoteAccessHeaders(final Transport.Connection connection, final TransportRequest request) {
+                final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
+                if (remoteClusterAlias.isEmpty()) {
+                    logger.trace("Connection is not remote");
+                    return false;
+                } else if (remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get()) == null) {
+                    logger.trace("No cluster credential is configured for remote cluster [{}]", remoteClusterAlias.get());
+                    return false;
+                } else if (false == isAllowlistedForRemoteAccessHeaders(request)) {
+                    logger.trace("Request to remote cluster [{}] is not an allow-listed type", remoteClusterAlias.get());
+                    return false;
+                }
+
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
                 final Subject effectiveSubject = authentication.getEffectiveSubject();
-                final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
-                return remoteClusterAlias.isPresent()
-                    && remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get()) != null
-                    && isWhitelistedForRemoteAccessHeaders(request)
-                    && effectiveSubject.getType().equals(Subject.Type.USER)
-                    && false == User.isInternal(effectiveSubject.getUser())
-                    && Arrays.stream(effectiveSubject.getUser().roles()).noneMatch(ReservedRolesStore::isReserved);
+                if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
+                    logger.trace(
+                        "Effective subject of request to remote cluster [{}] is of an unsupported type [{}]",
+                        remoteClusterAlias.get(),
+                        effectiveSubject.getType()
+                    );
+                    return false;
+                }
+                if (User.isInternal(effectiveSubject.getUser())) {
+                    logger.trace("Effective subject of request to remote cluster [{}] is an internal user", remoteClusterAlias.get());
+                    return false;
+                }
+
+                return true;
             }
 
             private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
@@ -236,24 +262,30 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportRequestOptions options,
                 final TransportResponseHandler<T> handler
             ) {
-                logger.debug("Sending request with remote access headers for [{}] action", action);
+                final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
+                assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
 
                 if (connection.getVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
                     handler.handleException(
-                        new TransportException(
-                            "Settings for remote cluster indicate remote access headers should be sent but target cluster version ["
-                                + connection.getVersion()
-                                + "] does not support receiving them"
+                        new SendRequestTransportException(
+                            connection.getNode(),
+                            action,
+                            new IllegalArgumentException(
+                                "Settings for remote cluster ["
+                                    + remoteClusterAlias
+                                    + "] indicate remote access headers should be sent but target cluster version ["
+                                    + connection.getVersion()
+                                    + "] does not support receiving them"
+                            )
                         )
                     );
                     return;
                 }
 
+                logger.debug("Sending request to [{}] with remote access headers for [{}] action", remoteClusterAlias.get(), action);
+
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
-
-                final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
-                assert remoteClusterAlias.isPresent() : "remote cluster alias must be set for the transport connection";
 
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
@@ -270,7 +302,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 );
             }
 
-            private boolean isWhitelistedForRemoteAccessHeaders(final TransportRequest request) {
+            private boolean isAllowlistedForRemoteAccessHeaders(final TransportRequest request) {
                 return request instanceof ShardSearchRequest
                     || request instanceof ShardFetchRequest
                     || request instanceof SearchRequest

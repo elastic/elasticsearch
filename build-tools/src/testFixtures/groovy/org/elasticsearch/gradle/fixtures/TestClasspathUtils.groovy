@@ -16,14 +16,19 @@ import net.bytebuddy.dynamic.DynamicType
 import net.bytebuddy.implementation.ExceptionMethod
 import net.bytebuddy.implementation.FixedValue
 import net.bytebuddy.implementation.Implementation
+import net.bytebuddy.implementation.MethodDelegation
+
+import org.elasticsearch.gradle.FakeNamedComponent
 
 import static org.junit.Assert.fail
 
 class TestClasspathUtils {
 
     static void setupNamedComponentScanner(File projectRoot, String version) {
+        def value = MethodDelegation.to(FakeNamedComponent.class)
         generateJarWithClass(projectRoot, "org.elasticsearch.plugin.scanner.NamedComponentScanner","elasticsearch-plugin-scanner",
-            version, FixedValue.value(TypeDescription.VOID))
+            version, value
+        )
     }
 
     static void setupJarHellJar(File projectRoot) {
@@ -46,6 +51,7 @@ class TestClasspathUtils {
     private static void generateJdkJarHellCheck(File targetDir, String className, Implementation mainImplementation) {
         generateJarWithClass(targetDir, className, "elasticsearch-core", "current", mainImplementation)
     }
+
 
     private static void generateJarWithClass(File targetDir, String className, String artifactName, String version, Implementation mainImplementation) {
         DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)

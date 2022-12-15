@@ -72,6 +72,8 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
             spec.classpath(pluginScannerClasspath.plus(getClasspath()).getAsPath());
             spec.getMainClass().set("org.elasticsearch.plugin.scanner.NamedComponentScanner");
             spec.args(outputFile);
+            spec.setErrorOutput(System.err);
+            spec.setStandardOutput(System.out);
         });
         execResult.assertNormalExitValue();
     }

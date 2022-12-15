@@ -1,0 +1,32 @@
+pr: 92395
+summary: Speed up ingest set and append processors
+area: Ingest Node
+type: bug
+issues: []
+highlight:
+  title: Speed up ingest set and append processors
+  body: |-
+    Previously, we were running the relatively expensive
+    `SpecialPermission.check()` / `AccessController.doPrivileged(...)` pair
+    on every mustache invocation, whether it actually used forbidden
+    reflection methods or not.
+
+    This PR goes through a few iterations of the permissions and reflection
+    code, using a newly introduced `testReflection` test to show what works
+    and doesn't work at each iteration (starting with the base case -- that
+    is, I add a test before changing anything of importance).
+
+    The long story short is that this never actually worked in a way that
+    was especially useful, so the extra permissions weren't necessary and we
+    can drop the expensive `SpecialPermission.check()` /
+    `AccessController.doPrivileged(...)` pair with essentially no change in
+    behavior, but with the resulting code being much much faster.
+
+    This change results in a ~60% speedup in set and append processors (et.
+    al.) when using mustache templates, and we use those frequently enough
+    that it improves the total ingest time of one of our nightly benchmarks
+    by 10%.
+
+    Reviewing commit by commit is best,
+    IMHO[.](https://youtu.be/clG_1sqOsBs)
+  notable: true

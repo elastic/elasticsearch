@@ -482,6 +482,7 @@ public abstract class AggregationContext implements Releasable {
         public BigArrays bigArraysForResults() {
             return bigArraysForResults;
         }
+
         @Override
         public IndexSearcher searcher() {
             return context.searcher();

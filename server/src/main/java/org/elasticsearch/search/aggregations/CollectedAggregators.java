@@ -23,7 +23,7 @@ import java.util.List;
  * in a given query.  This class is responsible for serialization and closing of the classes
  * it holds.
  */
-// NOCOMMIT - Does this need to be a named writeable? or just a plain writable?  I think it's okay to just be plain...
+// NOCOMMIT - Does this need to be a named writeable? or just a plain writable? I think it's okay to just be plain...
 public class CollectedAggregators implements Releasable, Writeable {
     protected List<CollectedAggregator> aggregations;
 

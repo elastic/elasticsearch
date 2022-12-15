@@ -73,7 +73,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.Single
 
     @Override
     public boolean canUseCollectedAggregator() {
-        // this is a metric agg, so there aren't any sub aggs.  A bucketing agg would need to look down the tree.
+        // this is a metric agg, so there aren't any sub aggs. A bucketing agg would need to look down the tree.
         return true;
     }
 

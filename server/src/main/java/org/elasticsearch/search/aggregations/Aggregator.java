@@ -143,7 +143,9 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      *
      * @return true iff this aggregation has been migrated to the new style
      */
-    public boolean canUseCollectedAggregator() { return false; }
+    public boolean canUseCollectedAggregator() {
+        return false;
+    }
 
     /**
      * Build the results of this aggregation.

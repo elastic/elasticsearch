@@ -325,7 +325,6 @@ public abstract class AggregatorBase extends Aggregator {
         return context.bigArrays();
     }
 
-
     protected final BigArrays bigArraysForResults() {
         return context.bigArraysForResults();
     }

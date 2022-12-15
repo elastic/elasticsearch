@@ -39,7 +39,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     final String pointField;
     final Function<byte[], Number> pointConverter;
 
-    // Flag to indicate if we are responsible for closing our collected aggregator.  Gets set to false when we hand it back to the
+    // Flag to indicate if we are responsible for closing our collected aggregator. Gets set to false when we hand it back to the
     // framework.
     private boolean shouldClose;
 

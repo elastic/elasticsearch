@@ -26,7 +26,7 @@ public interface ChunkedToXContent {
      * {@link ToXContent.Params} for each call until it is fully drained.
      * @return iterator over chunks of {@link ToXContent}
      */
-    Iterator<? extends ToXContent> toXContentChunked();
+    Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params);
 
     /**
      * Wraps the given instance in a {@link ToXContentObject} that will fully serialize the instance when serialized.
@@ -35,7 +35,7 @@ public interface ChunkedToXContent {
      */
     static ToXContentObject wrapAsXContentObject(ChunkedToXContent chunkedToXContent) {
         return (builder, params) -> {
-            Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked();
+            Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked(params);
             while (serialization.hasNext()) {
                 serialization.next().toXContent(builder, params);
             }

@@ -90,6 +90,10 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             return frequentItemSets;
         }
 
+        Map<String, Object> getProfilingInfo() {
+            return profilingInfo;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeArray(frequentItemSets);

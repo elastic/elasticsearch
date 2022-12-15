@@ -28,6 +28,9 @@ grant codeBase "${codebase.elasticsearch}" {
   // for module layer
   permission java.lang.RuntimePermission "createClassLoader";
   permission java.lang.RuntimePermission "getClassLoader";
+
+  // for plugin api dynamic settings instances
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.reflect";
 };
 
 //// Very special jar permissions:

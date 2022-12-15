@@ -9,6 +9,7 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
 
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -18,6 +19,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.security.AccessControlException;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -155,6 +158,80 @@ public class MustacheScriptEngineTests extends ESTestCase {
         TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Map.of());
         TemplateScript TemplateScript = compiled.newInstance(script.getParams());
         assertThat(TemplateScript.execute(), equalTo("{ \"match_all\":{} }"));
+    }
+
+    private static class TestReflection {
+
+        private final int privateField = 1;
+
+        public final int publicField = 2;
+
+        private int getPrivateMethod() {
+            return 3;
+        }
+
+        public int getPublicMethod() {
+            return 4;
+        }
+
+        @Override
+        public String toString() {
+            return List.of(privateField, publicField, getPrivateMethod(), getPublicMethod()).toString();
+        }
+    }
+
+    /**
+     * BWC test for some odd reflection edge-cases. It's not really expected that customer code would be exercising this,
+     * but maybe it's out there! Who knows!?
+     *
+     * If we change this, we should *know* that we're changing it.
+     */
+    @SuppressWarnings({ "deprecation", "removal" })
+    public void testReflection() {
+        Map<String, Object> vars = Map.of("obj", new TestReflection());
+
+        {
+            // non-reflective access calls toString
+            String templateString = "{{obj}}";
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo("[1, 2, 3, 4]"));
+        }
+        {
+            // accessing a field/method that *doesn't* exist will give an empty result
+            String templateString = "{{obj.missing}}";
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo(""));
+        }
+        {
+            // accessing a private field that does exist will give an empty result
+            String templateString = "{{obj.privateField}}";
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo(""));
+        }
+        {
+            // accessing a private method that does exist will give an empty result
+            String templateString = "{{obj.privateMethod}}";
+            String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
+            assertThat(o, equalTo(""));
+        }
+        {
+            // accessing a public field will fail
+            String templateString = "{{obj.publicField}}";
+            GeneralScriptException e = expectThrows(
+                GeneralScriptException.class,
+                () -> qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute()
+            );
+            assertTrue(e.getCause().getCause().getCause() instanceof AccessControlException);
+        }
+        {
+            // accessing a public method will fail
+            String templateString = "{{obj.publicMethod}}";
+            GeneralScriptException e = expectThrows(
+                GeneralScriptException.class,
+                () -> qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute()
+            );
+            assertTrue(e.getCause().getCause().getCause() instanceof AccessControlException);
+        }
     }
 
     public void testEscapeJson() throws IOException {

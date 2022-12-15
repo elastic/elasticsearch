@@ -145,7 +145,7 @@ class Elasticsearch {
         final ServerArgs args = bootstrap.args();
         final SecureSettings secrets;
         try {
-            secrets = SecureSettingsUtilities.bootstrap(args.nodeSettings(), args.configDir(), args.credentials());
+            secrets = (new SecureSettingsUtilities()).bootstrap(args.nodeSettings(), args.configDir(), args.credentials());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

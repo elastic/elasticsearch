@@ -77,7 +77,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
         validateConfig(options, env);
 
-        try (SecureSettings secrets = SecureSettingsUtilities.load(env.settings(), env.configFile())) {
+        try (SecureSettings secrets = secureSettingsUtilities().load(env.settings(), env.configFile())) {
             // setup security
             final SecureString credentials = readOptionalSecureSettingsCredentials(secrets, terminal);
             env = autoConfigureSecurity(terminal, options, processInfo, env, credentials);
@@ -103,6 +103,11 @@ class ServerCli extends EnvironmentAwareCommand {
         if (exitCode != ExitCodes.OK) {
             throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
         }
+    }
+
+    // package private for testing
+    SecureSettingsUtilities secureSettingsUtilities() {
+        return new SecureSettingsUtilities();
     }
 
     private void printVersion(Terminal terminal) {

@@ -23,7 +23,7 @@ public class SecureSettingsUtilities {
      * @param configFile path to the configuration directory
      * @return a SecureSettings instance or null if none is found
      */
-    public static SecureSettings load(Settings nodeSettings, Path configFile) throws Exception {
+    public SecureSettings load(Settings nodeSettings, Path configFile) throws Exception {
         // TODO: Use the settings to decide what kind of SecureSettings we'll provide
         return KeyStoreWrapper.load(configFile);
     }
@@ -38,7 +38,7 @@ public class SecureSettingsUtilities {
      *                    required.
      * @return a SecureSettings instance which might be a default one if none was found
      */
-    public static SecureSettings bootstrap(Settings nodeSettings, Path configFile, SecureString credentials) throws Exception {
+    public SecureSettings bootstrap(Settings nodeSettings, Path configFile, SecureString credentials) throws Exception {
         // TODO: Use the settings to decide what kind of SecureSettings we'll provide
         return KeyStoreWrapper.bootstrap(configFile, () -> credentials);
     }

@@ -38,6 +38,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
@@ -65,7 +66,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             false,
             false,
-            IndexMode.TIME_SERIES
+            IndexMode.TIME_SERIES,
+            Map.of()
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
@@ -171,7 +173,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             false,
             false,
-            dsIndexMode
+            dsIndexMode,
+            Map.of()
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
@@ -258,7 +261,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             false,
             false,
-            IndexMode.TIME_SERIES
+            IndexMode.TIME_SERIES,
+            Map.of()
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
             .template(

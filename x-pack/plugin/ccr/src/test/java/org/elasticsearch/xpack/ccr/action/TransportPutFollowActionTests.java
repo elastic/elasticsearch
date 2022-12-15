@@ -126,7 +126,8 @@ public class TransportPutFollowActionTests extends ESTestCase {
             true,
             false,
             false,
-            null
+            null,
+            Map.of()
         );
 
         // follow backing index 7
@@ -171,12 +172,12 @@ public class TransportPutFollowActionTests extends ESTestCase {
             .mapToObj(value -> DataStream.getDefaultBackingIndexName(name, value))
             .map(value -> new Index(value, "uuid"))
             .collect(Collectors.toList());
-        return new DataStream(name, backingIndices, backingIndices.size(), Map.of(), false, replicate, false, false, null);
+        return new DataStream(name, backingIndices, backingIndices.size(), Map.of(), false, replicate, false, false, null, Map.of());
     }
 
     static DataStream generateDataSteam(String name, int generation, boolean replicate, String... backingIndexNames) {
         List<Index> backingIndices = Arrays.stream(backingIndexNames).map(value -> new Index(value, "uuid")).collect(Collectors.toList());
-        return new DataStream(name, backingIndices, generation, Map.of(), false, replicate, false, false, null);
+        return new DataStream(name, backingIndices, generation, Map.of(), false, replicate, false, false, null, Map.of());
     }
 
 }

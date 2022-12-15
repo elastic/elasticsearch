@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.Strings;
@@ -17,6 +19,7 @@ import org.elasticsearch.core.Nullable;
  * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.
  */
 public abstract class AliasAction {
+    private static final Logger logger = LogManager.getLogger(AliasAction.class);
     private final String index;
 
     private AliasAction(String index) {
@@ -253,7 +256,7 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             aliasValidator.validate(aliasName, null, null, filter, isWriteDataStream);
-            System.out.println("--> adding alias " + aliasName + " to " + dataStreamName + " with filter: " + filter);
+            logger.debug("--> adding alias " + aliasName + " to " + dataStreamName + " with filter: " + filter);
             return metadata.put(aliasName, dataStreamName, isWriteDataStream, filter);
         }
     }

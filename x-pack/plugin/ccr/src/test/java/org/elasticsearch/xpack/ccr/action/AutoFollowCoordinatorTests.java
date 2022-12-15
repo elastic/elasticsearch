@@ -1088,7 +1088,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     )
                     .build(),
                 new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD, Map.of())
                 )
             );
 
@@ -1133,7 +1133,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     )
                     .build(),
                 new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD, Map.of())
                 )
             );
 
@@ -1178,7 +1178,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     )
                     .build(),
                 new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD, Map.of())
                 )
             );
 
@@ -1266,7 +1266,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     )
                     .build(),
                 new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD, Map.of())
                 )
             );
 
@@ -1311,7 +1311,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     )
                     .build(),
                 new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD, Map.of())
                 )
             );
 
@@ -2622,7 +2622,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             false,
             system,
             false,
-            null
+            null,
+            Map.of()
         );
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().put(indexMetadata, true).put(dataStream).version(0L));

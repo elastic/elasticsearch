@@ -101,7 +101,8 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         );
 
         final JwtAuthenticationToken jwtAuthenticationToken = mock(JwtAuthenticationToken.class);
-        when(jwtAuthenticationToken.getEndUserSignedJwt()).thenReturn(new SecureString(signedJWT.serialize().toCharArray()));
+        when(jwtAuthenticationToken.getSignedJWT()).thenReturn(signedJWT);
+        when(jwtAuthenticationToken.getJWTClaimsSet()).thenReturn(signedJWT.getJWTClaimsSet());
 
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         final JwtAuthenticator jwtAuthenticator = buildJwtAuthenticator();
@@ -138,7 +139,8 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         );
 
         final JwtAuthenticationToken jwtAuthenticationToken = mock(JwtAuthenticationToken.class);
-        when(jwtAuthenticationToken.getEndUserSignedJwt()).thenReturn(new SecureString(signedJWT.serialize().toCharArray()));
+        when(jwtAuthenticationToken.getSignedJWT()).thenReturn(signedJWT);
+        when(jwtAuthenticationToken.getJWTClaimsSet()).thenReturn(signedJWT.getJWTClaimsSet());
 
         final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>();
         final JwtAuthenticator jwtAuthenticator = buildJwtAuthenticator();
@@ -181,7 +183,8 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         );
 
         final JwtAuthenticationToken jwtAuthenticationToken = mock(JwtAuthenticationToken.class);
-        when(jwtAuthenticationToken.getEndUserSignedJwt()).thenReturn(new SecureString(signedJWT.serialize().toCharArray()));
+        when(jwtAuthenticationToken.getSignedJWT()).thenReturn(signedJWT);
+        when(jwtAuthenticationToken.getJWTClaimsSet()).thenReturn(signedJWT.getJWTClaimsSet());
 
         // Required claim is mandatory when configured
         final PlainActionFuture<JWTClaimsSet> future1 = new PlainActionFuture<>();

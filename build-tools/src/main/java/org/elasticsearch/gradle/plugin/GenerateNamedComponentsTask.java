@@ -23,11 +23,14 @@ import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
+import org.gradle.process.ExecResult;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 
 import javax.inject.Inject;
 
@@ -53,11 +56,20 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
     @TaskAction
     public void scanPluginClasses() {
         var s = pluginScannerClasspath.getFiles();
-        System.out.println("ff" + s);
-        LoggedExec.javaexec(execOperations, spec -> {
-            spec.environment("CLASSPATH", pluginScannerClasspath.plus(getClasspath()).getAsPath());
+        File outputFile = projectLayout.getBuildDirectory().file("generated-named-components/" + NAMED_COMPONENTS_FILE)
+            .get().getAsFile();
+        try {
+            Files.writeString(projectLayout.getBuildDirectory().file("generated-named-components/debugfile")
+                .get().getAsFile().toPath(), "heee");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        ExecResult execResult = LoggedExec.javaexec(execOperations, spec -> {
+            spec.classpath(pluginScannerClasspath.plus(getClasspath()).getAsPath());
             spec.getMainClass().set("org.elasticsearch.plugin.scanner.NamedComponentScanner");
+            spec.args(outputFile);
         });
+        execResult.assertNormalExitValue();
     }
 
     @OutputFile
@@ -74,18 +86,6 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
 
     public void setPluginScannerClasspath(FileCollection pluginScannerClasspath) {
         this.pluginScannerClasspath = pluginScannerClasspath;
-    }
-
-    public abstract static class GenerateNamedComponentsAction implements WorkAction<Parameters> {
-        private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
-        @Override
-        public void execute() {
-            LoggedExec.javaexec(getParameters().getExecOperations().get(), spec -> {
-                spec.environment("CLASSPATH", getParameters().getClasspath().getAsPath());
-                spec.getMainClass().set("org.elasticsearch.plugin.scanner.NamedComponentScanner");
-            });
-        }
     }
 
     interface Parameters extends WorkParameters {

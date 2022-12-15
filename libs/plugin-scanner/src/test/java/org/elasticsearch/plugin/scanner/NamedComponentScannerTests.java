@@ -74,8 +74,6 @@ public class NamedComponentScannerTests extends ESTestCase {
             @NamedComponent("b_component")
             public class B implements ExtensibleInterface{}
             """)));
-        createPluginApiJar(dirWithJar);
-        createExtensibleApiJar(dirWithJar);// for instance analysis api
 
         Collection<ClassReader> classReaderStream = Stream.concat(
             ClassReaders.ofDirWithJars(dirWithJar.toString()),
@@ -200,11 +198,4 @@ public class NamedComponentScannerTests extends ESTestCase {
         return clazz.getCanonicalName().replace(".", "/");
     }
 
-    public static Path createExtensibleApiJar(Path jar) throws IOException {
-        return null;
-    }
-
-    public static Path createPluginApiJar(Path jar) throws IOException {
-        return null;
-    }
 }

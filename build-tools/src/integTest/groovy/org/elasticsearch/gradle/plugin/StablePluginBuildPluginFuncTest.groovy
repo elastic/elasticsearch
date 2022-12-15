@@ -77,6 +77,7 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     def "can scan and create named components file"() {
+        //THIS IS RUNNING A MOCK CONFIGURED IN setup()
         given:
         File jarFolder = new File(testProjectDir.root, "jars")
         jarFolder.mkdirs()
@@ -99,17 +100,12 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
             }
         """
 
-
         when:
         def result = gradleRunner(":assemble").build()
-//        Path namedComponents = file("build/generated-named-components/named_components.json").toPath();
-//        def map = new JsonSlurper().parse(namedComponents.toFile())
+
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
-
-//        map  == ["org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass" : (["componentA" : "org.acme.A"]) ]
     }
-
 
     Map<String, String> getPluginProperties() {
         Path propsFile = file("build/generated-descriptor/stable-plugin-descriptor.properties").toPath();

@@ -13,7 +13,11 @@ import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 
+import java.io.File;
+import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -23,28 +27,28 @@ import java.util.stream.Collectors;
 
 public class NamedComponentScanner {
     // private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final String NAMED_COMPONENTS_FILE = "named_components.json";
-    static final String dir = "generated-named-components/";
 
     // main method to be used by gradle build plugin
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
+        Files.writeString(Path.of(args[0]),"yyyyy");
+
         Set<URL> classpathFiles = JarHell.parseClassPath(System.getProperty("java.class.path"));
         List<ClassReader> classReaders = ClassReaders.ofPaths(classpathFiles).collect(Collectors.toList());
 
         NamedComponentScanner scanner = new NamedComponentScanner();
         Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
-        scanner.writeToFile(namedComponentsMap);
+        scanner.writeToFile(namedComponentsMap,args[0]);
     }
 
-    private void writeToFile(Map<String, Map<String, String>> namedComponentsMap) {
-        // try {
+    private void writeToFile(Map<String, Map<String, String>> namedComponentsMap, String arg) {
+         try {
         // String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
-        // File file = new File(dir, NAMED_COMPONENTS_FILE);
-        // Path of = Path.of(file.getAbsolutePath());
-        // Files.writeString(of, json);
-        // } catch (Exception e) {
-        // e.printStackTrace();
-        // }
+         File file = new File(arg);
+         Path of = Path.of(file.getAbsolutePath());
+         Files.writeString(of, namedComponentsMap.toString());
+         } catch (Exception e) {
+         e.printStackTrace();
+         }
     }
 
     // returns a Map<String, Map<String,String> - extensible interface -> map{ namedName -> className }

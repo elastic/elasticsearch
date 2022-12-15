@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -31,7 +32,7 @@ public class NamedComponentScanner {
     // main method to be used by gradle build plugin
     public static void main(String[] args) throws IOException {
         Files.writeString(Path.of(args[0]),"yyyyy");
-
+        Files.createFile(Path.of(args[0]+"dd"));//,"heee");
         Set<URL> classpathFiles = JarHell.parseClassPath(System.getProperty("java.class.path"));
         List<ClassReader> classReaders = ClassReaders.ofPaths(classpathFiles).collect(Collectors.toList());
 

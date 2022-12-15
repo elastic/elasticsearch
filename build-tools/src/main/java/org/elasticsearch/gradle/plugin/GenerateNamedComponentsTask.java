@@ -64,6 +64,10 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        System.out.println("ff" + s);
+        System.out.println("ff2" +  pluginScannerClasspath.plus(getClasspath()).getAsPath());
+        System.out.println(projectLayout.getBuildDirectory().file("generated-named-components/" + NAMED_COMPONENTS_FILE).get().getAsFile());
+
         ExecResult execResult = LoggedExec.javaexec(execOperations, spec -> {
             spec.classpath(pluginScannerClasspath.plus(getClasspath()).getAsPath());
             spec.getMainClass().set("org.elasticsearch.plugin.scanner.NamedComponentScanner");

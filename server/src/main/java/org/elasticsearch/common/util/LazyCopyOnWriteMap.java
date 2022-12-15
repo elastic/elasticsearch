@@ -22,7 +22,7 @@ import java.util.Set;
  * This map is designed to be constructed from an immutable map and only be copied if a (rare) mutation operation occurs.
  * It could be converted back to an immutable map using `org.elasticsearch.common.util.LazyCopyOnWriteMap#toImmutableMap()`.
  */
-public class LazyCopyOnWriteMap<K, V> implements Map<K, V> {
+public class CopyOnFirstWriteMap<K, V> implements Map<K, V> {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 

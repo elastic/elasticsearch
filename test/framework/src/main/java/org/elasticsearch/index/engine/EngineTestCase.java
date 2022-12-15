@@ -142,6 +142,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 @SuppressWarnings("HiddenField")
 public abstract class EngineTestCase extends ESTestCase {
@@ -825,7 +826,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 randomNonNegativeLong(),
                 SequenceNumbers.NO_OPS_PERFORMED,
                 update -> {},
-                () -> 0L,
+                mock(ThreadPool.class),
                 (leases, listener) -> listener.onResponse(new ReplicationResponse()),
                 () -> SafeCommitInfo.EMPTY
             );

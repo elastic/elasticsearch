@@ -368,7 +368,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings,
             primaryTerm,
             globalCheckpointListeners::globalCheckpointUpdated,
-            threadPool::absoluteTimeInMillis,
+            threadPool,
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
             this::getSafeCommitInfo,
             pendingReplicationActions
@@ -577,7 +577,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the master started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                        ensurePeerRecoveryRetentionLeasesExist();
+                        replicationTracker.createMissingPeerRecoveryRetentionLeases();
                     }
                 } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
@@ -632,7 +632,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         assert getOperationPrimaryTerm() == newPrimaryTerm;
                         try {
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                            ensurePeerRecoveryRetentionLeasesExist();
+                            replicationTracker.createMissingPeerRecoveryRetentionLeases();
                             /*
                              * If this shard was serving as a replica shard when another shard was promoted to primary then
                              * its Lucene index was reset during the primary term transition. In particular, the Lucene index
@@ -2859,19 +2859,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
-        ensurePeerRecoveryRetentionLeasesExist();
-    }
-
-    private void ensurePeerRecoveryRetentionLeasesExist() {
-        threadPool.generic()
-            .execute(
-                () -> replicationTracker.createMissingPeerRecoveryRetentionLeases(
-                    ActionListener.wrap(
-                        r -> logger.trace("created missing peer recovery retention leases"),
-                        e -> logger.debug("failed creating missing peer recovery retention leases", e)
-                    )
-                )
-            );
+        replicationTracker.createMissingPeerRecoveryRetentionLeases();
     }
 
     /**

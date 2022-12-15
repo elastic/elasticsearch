@@ -19,6 +19,7 @@ import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -45,6 +46,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTestCase {
 
@@ -58,7 +61,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             primaryTerm,
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -106,7 +109,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             primaryTerm,
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -138,7 +141,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             primaryTerm,
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -168,7 +171,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             randomNonNegativeLong(),
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {
                 // we do not want to hold a lock on the replication tracker in the callback!
                 assertFalse(Thread.holdsLock(reference.get()));
@@ -215,7 +218,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             primaryTerm,
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -267,6 +270,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final AllocationId allocationId = AllocationId.newInitializing();
         final AtomicReference<ReplicationTracker> replicationTrackerRef = new AtomicReference<>();
         final AtomicLong timeReference = new AtomicLong();
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.absoluteTimeInMillis()).thenAnswer(invocation -> timeReference.get());
         final AtomicBoolean synced = new AtomicBoolean();
         final ReplicationTracker replicationTracker = new ReplicationTracker(
             new ShardId("test", "_na", 0),
@@ -275,7 +280,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             randomLongBetween(1, Long.MAX_VALUE),
             UNASSIGNED_SEQ_NO,
             value -> {},
-            timeReference::get,
+            threadPool,
             (leases, listener) -> {
                 assertFalse(Thread.holdsLock(replicationTrackerRef.get()));
                 assertTrue(synced.compareAndSet(false, true));
@@ -325,7 +330,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             randomLongBetween(1, Long.MAX_VALUE),
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -354,7 +359,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             randomLongBetween(1, Long.MAX_VALUE),
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -387,7 +392,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             primaryTerm,
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -417,7 +422,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             randomNonNegativeLong(),
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {
                 // we do not want to hold a lock on the replication tracker in the callback!
                 assertFalse(Thread.holdsLock(reference.get()));
@@ -466,6 +471,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
     private void runExpirationTest(final boolean primaryMode) {
         final AllocationId allocationId = AllocationId.newInitializing();
         final AtomicLong currentTimeMillis = new AtomicLong(randomLongBetween(0, 1024));
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.absoluteTimeInMillis()).thenAnswer(invocation -> currentTimeMillis.get());
         final long retentionLeaseMillis = randomLongBetween(1, TimeValue.timeValueHours(12).millis());
         final Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), TimeValue.timeValueMillis(retentionLeaseMillis))
@@ -478,7 +485,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             primaryTerm,
             UNASSIGNED_SEQ_NO,
             value -> {},
-            currentTimeMillis::get,
+            threadPool,
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -557,7 +564,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             randomNonNegativeLong(),
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -610,7 +617,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             primaryTerm,
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -645,7 +652,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             primaryTerm,
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -698,7 +705,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             primaryTerm,
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -762,7 +769,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             primaryTerm,
             UNASSIGNED_SEQ_NO,
             value -> {},
-            () -> 0L,
+            mock(ThreadPool.class),
             (leases, listener) -> {},
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );

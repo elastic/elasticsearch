@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -73,7 +74,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         indexSettings,
         operationPrimaryTerm,
         onGlobalCheckpointUpdated,
-        currentTimeMillisSupplier,
+        threadPool,
         onSyncRetentionLeases,
         safeCommitInfoSupplier,
         onReplicationGroupUpdated) -> new ReplicationTracker(
@@ -83,7 +84,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             operationPrimaryTerm,
             UNASSIGNED_SEQ_NO,
             onGlobalCheckpointUpdated,
-            currentTimeMillisSupplier,
+            threadPool,
             onSyncRetentionLeases,
             safeCommitInfoSupplier,
             onReplicationGroupUpdated
@@ -175,11 +176,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     private final LongConsumer onGlobalCheckpointUpdated;
 
-    /**
-     * A supplier of the current time. This supplier is used to add a timestamp to retention leases, and to determine retention lease
-     * expiration.
-     */
-    private final LongSupplier currentTimeMillisSupplier;
+    private final ThreadPool threadPool;
 
     /**
      * A callback when a new retention lease is created or an existing retention lease is removed. In practice, this callback invokes the
@@ -218,10 +215,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Whether there should be a peer recovery retention lease (PRRL) for every tracked shard copy. Always true on indices created from
      * {@link Version#V_7_4_0} onwards, because these versions create PRRLs properly. May be false on indices created in an earlier version
-     * if we recently did a rolling upgrade and {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)} has not
+     * if we recently did a rolling upgrade and {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases()} has not
      * yet completed. Is only permitted to change from false to true; can be removed once support for pre-PRRL indices is no longer needed.
      */
-    private boolean hasAllPeerRecoveryRetentionLeases;
+    private volatile boolean hasAllPeerRecoveryRetentionLeases;
 
     /**
      * Supplies information about the current safe commit which may be used to expire peer-recovery retention leases.
@@ -259,7 +256,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
         assert primaryMode;
         // the primary calculates the non-expired retention leases and syncs them to replicas
-        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
+        final long currentTimeMillis = threadPool.absoluteTimeInMillis();
         final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
         final Set<String> leaseIdsForCurrentPeers = routingTable.assignedShards()
             .stream()
@@ -382,12 +379,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (retentionLeases.contains(id)) {
             throw new RetentionLeaseAlreadyExistsException(id);
         }
-        final RetentionLease retentionLease = new RetentionLease(
-            id,
-            retainingSequenceNumber,
-            currentTimeMillisSupplier.getAsLong(),
-            source
-        );
+        final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, threadPool.absoluteTimeInMillis(), source);
         logger.debug("adding new retention lease [{}] to current retention leases [{}]", retentionLease, retentionLeases);
         retentionLeases = new RetentionLeases(
             operationPrimaryTerm,
@@ -424,12 +416,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     + "]";
             throw new RetentionLeaseInvalidRetainingSeqNoException(id, source, retainingSequenceNumber, existingRetentionLease);
         }
-        final RetentionLease retentionLease = new RetentionLease(
-            id,
-            retainingSequenceNumber,
-            currentTimeMillisSupplier.getAsLong(),
-            source
-        );
+        final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, threadPool.absoluteTimeInMillis(), source);
         retentionLeases = new RetentionLeases(
             operationPrimaryTerm,
             retentionLeases.version() + 1,
@@ -599,7 +586,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          * persisted and the resulting IO can be expensive on nodes with large numbers of shards (see #42299). We choose to renew them after
          * half the expiry time, so that by default the cluster has at least 6 hours to recover before these leases start to expire.
          */
-        final long renewalTimeMillis = currentTimeMillisSupplier.getAsLong() - indexSettings.getRetentionLeaseMillis() / 2;
+        final long renewalTimeMillis = threadPool.absoluteTimeInMillis() - indexSettings.getRetentionLeaseMillis() / 2;
 
         /*
          * If any of the peer-recovery retention leases need renewal, it's a good opportunity to renew them all.
@@ -932,7 +919,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final long operationPrimaryTerm,
         final long globalCheckpoint,
         final LongConsumer onGlobalCheckpointUpdated,
-        final LongSupplier currentTimeMillisSupplier,
+        final ThreadPool threadPool,
         final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
         final Supplier<SafeCommitInfo> safeCommitInfoSupplier
     ) {
@@ -943,7 +930,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             operationPrimaryTerm,
             globalCheckpoint,
             onGlobalCheckpointUpdated,
-            currentTimeMillisSupplier,
+            threadPool,
             onSyncRetentionLeases,
             safeCommitInfoSupplier,
             x -> {}
@@ -969,7 +956,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final long operationPrimaryTerm,
         final long globalCheckpoint,
         final LongConsumer onGlobalCheckpointUpdated,
-        final LongSupplier currentTimeMillisSupplier,
+        final ThreadPool threadPool,
         final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
         final Supplier<SafeCommitInfo> safeCommitInfoSupplier,
         final Consumer<ReplicationGroup> onReplicationGroupUpdated
@@ -984,7 +971,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.globalCheckpoint = globalCheckpoint;
         this.checkpoints = Maps.newMapWithExpectedSize(1 + indexSettings.getNumberOfReplicas());
         this.onGlobalCheckpointUpdated = Objects.requireNonNull(onGlobalCheckpointUpdated);
-        this.currentTimeMillisSupplier = Objects.requireNonNull(currentTimeMillisSupplier);
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.onSyncRetentionLeases = Objects.requireNonNull(onSyncRetentionLeases);
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
@@ -1119,7 +1106,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * Creates a peer recovery retention lease for this shard, if one does not already exist and this shard is the sole shard copy in the
      * replication group. If one does not already exist and yet there are other shard copies in this group then we must have just done
      * a rolling upgrade from a version before {@link Version#V_7_4_0}, in which case the missing leases should be created asynchronously
-     * by the caller using {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)}.
+     * by the caller using {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases()}.
      */
     private void addPeerRecoveryRetentionLeaseForSolePrimary() {
         assert primaryMode;
@@ -1485,7 +1472,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
-    public synchronized boolean hasAllPeerRecoveryRetentionLeases() {
+    public boolean hasAllPeerRecoveryRetentionLeases() {
         return hasAllPeerRecoveryRetentionLeases;
     }
 
@@ -1493,41 +1480,48 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * Create any required peer-recovery retention leases that do not currently exist because we just did a rolling upgrade from a version
      * prior to {@link Version#V_7_4_0} that does not create peer-recovery retention leases.
      */
-    public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
-        if (hasAllPeerRecoveryRetentionLeases == false) {
-            final List<ShardRouting> shardRoutings = routingTable.assignedShards();
-            final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(
-                shardRoutings.size(),
-                ActionListener.wrap(vs -> {
-                    setHasAllPeerRecoveryRetentionLeases();
-                    listener.onResponse(null);
-                }, listener::onFailure)
-            );
-            for (ShardRouting shardRouting : shardRoutings) {
-                if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
-                    groupedActionListener.onResponse(null);
-                } else {
-                    final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
-                    if (checkpointState.tracked == false) {
+    public void createMissingPeerRecoveryRetentionLeases() {
+        if (hasAllPeerRecoveryRetentionLeases) {
+            logger.trace("createMissingPeerRecoveryRetentionLeases: nothing to do");
+            return;
+        }
+        threadPool.generic().execute(() -> {
+            synchronized (this) {
+                if (hasAllPeerRecoveryRetentionLeases) {
+                    logger.trace("createMissingPeerRecoveryRetentionLeases: nothing to do");
+                    return;
+                }
+                final List<ShardRouting> shardRoutings = routingTable.assignedShards();
+                final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(
+                    shardRoutings.size(),
+                    ActionListener.wrap(vs -> {
+                        setHasAllPeerRecoveryRetentionLeases();
+                        logger.trace("created missing peer recovery retention leases");
+                    }, e -> logger.debug("failed creating missing peer recovery retention leases", e))
+                );
+                for (ShardRouting shardRouting : shardRoutings) {
+                    if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
                         groupedActionListener.onResponse(null);
                     } else {
-                        logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
-                        try {
-                            addPeerRecoveryRetentionLease(
-                                shardRouting.currentNodeId(),
-                                Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
-                                groupedActionListener
-                            );
-                        } catch (Exception e) {
-                            groupedActionListener.onFailure(e);
+                        final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
+                        if (checkpointState.tracked == false) {
+                            groupedActionListener.onResponse(null);
+                        } else {
+                            logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
+                            try {
+                                addPeerRecoveryRetentionLease(
+                                    shardRouting.currentNodeId(),
+                                    Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
+                                    groupedActionListener
+                                );
+                            } catch (Exception e) {
+                                groupedActionListener.onFailure(e);
+                            }
                         }
                     }
                 }
             }
-        } else {
-            logger.trace("createMissingPeerRecoveryRetentionLeases: nothing to do");
-            listener.onResponse(null);
-        }
+        });
     }
 
     private Runnable getMasterUpdateOperationFromCurrentState() {
@@ -1663,7 +1657,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             IndexSettings indexSettings,
             long operationPrimaryTerm,
             LongConsumer onGlobalCheckpointUpdated,
-            LongSupplier currentTimeMillisSupplier,
+            ThreadPool threadPool,
             BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
             Supplier<SafeCommitInfo> safeCommitInfoSupplier,
             Consumer<ReplicationGroup> onReplicationGroupUpdated

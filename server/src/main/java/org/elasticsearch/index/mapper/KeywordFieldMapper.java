@@ -431,6 +431,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            if (normalizer == null) {
+                return super.exactQuery(value, context);
+            }
+            return new TextFieldExactQuery(this, context.getForField(this, FielddataOperation.SOURCE), value.toString());
+        }
+
+        @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (isIndexed()) {
@@ -703,11 +711,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 failIfNoDocValues();
                 return fieldDataFromDocValues();
             }
-            if (operation != FielddataOperation.SCRIPT) {
-                throw new IllegalStateException("unknown operation [" + operation.name() + "]");
-            }
 
-            if (hasDocValues()) {
+            if (operation != FielddataOperation.SOURCE && hasDocValues()) {
                 return fieldDataFromDocValues();
             }
             if (isSyntheticSource) {

@@ -17,6 +17,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -784,5 +786,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             syntheticSourceFieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("store", true))
         );
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testExactQueryWithNormalizer() throws IOException {
+        // When a keyword is configured with a normalizer, exact queries fall back to
+        // checking the source
+        MapperService mapper = createMapperService("""
+            { "_doc" : { "properties" : { "field" : { "type" : "keyword", "normalizer" : "lowercase" } } } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapper);
+        Query q = mapper.fieldType("field").exactQuery("value", sec);
+        assertThat(q, instanceOf(TextFieldExactQuery.class));
     }
 }

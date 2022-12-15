@@ -985,9 +985,6 @@ public class TextFieldMapper extends FieldMapper {
                 );
             }
 
-            if (operation != FielddataOperation.SCRIPT) {
-                throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
-            }
             if (isSyntheticSource) {
                 if (isStored()) {
                     return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(

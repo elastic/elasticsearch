@@ -85,8 +85,12 @@ public abstract class MappedFieldType {
      * field data from and generate a representation of doc values.
      */
     public enum FielddataOperation {
+        // Fielddata to be used as part of a search or aggregation
         SEARCH,
-        SCRIPT
+        // Fielddata to be used as part of a script
+        SCRIPT,
+        // Fielddata that must be read from source
+        SOURCE
     }
 
     /**

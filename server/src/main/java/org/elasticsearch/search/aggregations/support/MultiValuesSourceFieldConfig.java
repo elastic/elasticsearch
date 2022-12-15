@@ -52,6 +52,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
      * @param timezoneAware - allows specifying timezone
      * @param filtered - allows specifying filters on the values
      * @param heterogeneous - allows specifying value-source specific format and user value type hint
+     * @param supportsIncludesExcludes - allows specifying includes and excludes
      * @param <C> - parser context
      * @return configured parser
      */

@@ -182,9 +182,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         // to terms that are within the range based on what the composite queue is tracking.
         // For example, if the composite agg size is 5, and we have seen terms with ordinals [1, 4, 5, 10, 11],
         // we know that we never need to look at terms with and ordinal higher than 11.
-        final CompetitiveIterator competitiveIterator = fieldType == null
-            ? null
-            : new CompetitiveIterator(context, fieldType.name(), false);
+        final CompetitiveIterator competitiveIterator = fieldType == null ? null : new CompetitiveIterator(context, fieldType.name());
         currentCompetitiveIterator = competitiveIterator;
 
         return new LeafBucketCollector() {
@@ -287,17 +285,15 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         private final LeafReaderContext context;
         private final int maxDoc;
         private final String field;
-        private final boolean dense;
         private int doc = -1;
         private ArrayDeque<PostingsEnumAndOrd> postings;
         private DocIdSetIterator docsWithField;
         private PriorityQueue<PostingsEnumAndOrd> disjunction;
 
-        CompetitiveIterator(LeafReaderContext context, String field, boolean dense) {
+        CompetitiveIterator(LeafReaderContext context, String field) {
             this.context = context;
             this.maxDoc = context.reader().maxDoc();
             this.field = field;
-            this.dense = dense;
         }
 
         @Override
@@ -316,8 +312,6 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 return doc = NO_MORE_DOCS;
             } else if (disjunction == null) {
                 if (docsWithField != null) {
-                    // The field is sparse and we're only interested in documents that have a value.
-                    assert dense == false;
                     return doc = docsWithField.advance(target);
                 } else {
                     // We haven't started skipping yet
@@ -350,7 +344,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             final int maxTerms = Math.min(MAX_TERMS_FOR_DYNAMIC_PRUNING, IndexSearcher.getMaxClauseCount());
             final long size = Math.max(0, maxOrd - minOrd + 1);
             if (size > maxTerms) {
-                if (dense == false && docsWithField == null) {
+                if (docsWithField == null) {
                     docsWithField = getSortedDocValues(context, field);
                 }
             } else if (postings == null) {

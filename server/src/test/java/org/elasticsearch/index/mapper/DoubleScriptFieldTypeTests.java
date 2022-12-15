@@ -64,7 +64,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             List<Double> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                DoubleScriptFieldType ft = build("add_param", Map.of("param", 1));
+                DoubleScriptFieldType ft = build("add_param", Map.of("param", 1), false);
                 DoubleScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -190,7 +190,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("1", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1.1, mockContext())), equalTo(0));
-                assertThat(searcher.count(build("add_param", Map.of("param", 1)).termQuery(2, mockContext())), equalTo(1));
+                assertThat(searcher.count(build("add_param", Map.of("param", 1), false).termQuery(2, mockContext())), equalTo(1));
             }
         }
     }
@@ -223,12 +223,12 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
 
     @Override
     protected DoubleScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of());
+        return build("read_foo", Map.of(), false);
     }
 
     @Override
     protected MappedFieldType loopFieldType() {
-        return build("loop", Map.of());
+        return build("loop", Map.of(), false);
     }
 
     @Override
@@ -236,8 +236,9 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         return "double";
     }
 
-    private static DoubleScriptFieldType build(String code, Map<String, Object> params) {
-        return build(new Script(ScriptType.INLINE, "test", code, params));
+    protected DoubleScriptFieldType build(String code, Map<String, Object> params, boolean onErrorContinue) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        return new DoubleScriptFieldType("test", factory(script), script, emptyMap(), onErrorContinue);
     }
 
     private static DoubleFieldScript.Factory factory(Script script) {
@@ -261,13 +262,15 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             case "loop" -> (fieldName, params, lookup) -> {
                 // Indicate that this script wants the field call "test", which *is* the name of this field
                 lookup.forkAndTrackFieldReferences("test");
-                throw new IllegalStateException("shoud have thrown on the line above");
+                throw new IllegalStateException("should have thrown on the line above");
+            };
+            case "error" -> (fieldName, params, lookup) -> ctx -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    throw new RuntimeException("test error");
+                }
             };
             default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         };
-    }
-
-    private static DoubleScriptFieldType build(Script script) {
-        return new DoubleScriptFieldType("test", factory(script), script, emptyMap(), false);
     }
 }

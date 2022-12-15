@@ -76,7 +76,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                LongScriptFieldType ft = build("add_param", Map.of("param", 1));
+                LongScriptFieldType ft = build("add_param", Map.of("param", 1), false);
                 LongScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -132,7 +132,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                LongScriptFieldData ifd = build("millis_ago", Map.of()).fielddataBuilder(mockFielddataContext()).build(null, null);
+                LongScriptFieldData ifd = build("millis_ago", Map.of(), false).fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181356]}"));
@@ -222,7 +222,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("1", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1.1, mockContext())), equalTo(0));
-                assertThat(searcher.count(build("add_param", Map.of("param", 1)).termQuery(2, mockContext())), equalTo(1));
+                assertThat(searcher.count(build("add_param", Map.of("param", 1), false).termQuery(2, mockContext())), equalTo(1));
             }
         }
     }
@@ -255,12 +255,12 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
     @Override
     protected LongScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of());
+        return build("read_foo", Map.of(), false);
     }
 
     @Override
     protected LongScriptFieldType loopFieldType() {
-        return build("loop", Map.of());
+        return build("loop", Map.of(), false);
     }
 
     @Override
@@ -268,8 +268,9 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         return "long";
     }
 
-    private static LongScriptFieldType build(String code, Map<String, Object> params) {
-        return build(new Script(ScriptType.INLINE, "test", code, params));
+    protected LongScriptFieldType build(String code, Map<String, Object> params, boolean onErrorContinue) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        return new LongScriptFieldType("test", factory(script), script, emptyMap(), onErrorContinue);
     }
 
     private static LongFieldScript.Factory factory(Script script) {
@@ -309,12 +310,15 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     lookup.forkAndTrackFieldReferences("test");
                     throw new IllegalStateException("shoud have thrown on the line above");
                 };
+            case "error":
+                return (fieldName, params, lookup) -> ctx -> new LongFieldScript(fieldName, params, lookup, ctx) {
+                    @Override
+                    public void execute() {
+                        throw new RuntimeException("test error");
+                    }
+                };
             default:
                 throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         }
-    }
-
-    private static LongScriptFieldType build(Script script) {
-        return new LongScriptFieldType("test", factory(script), script, emptyMap(), false);
     }
 }

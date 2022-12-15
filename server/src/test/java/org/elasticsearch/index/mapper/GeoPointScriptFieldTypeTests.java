@@ -64,7 +64,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                GeoPointScriptFieldType ft = build("fromLatLon", Map.of());
+                GeoPointScriptFieldType ft = build("fromLatLon", Map.of(), false);
                 GeoPointScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -213,12 +213,12 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     @Override
     protected GeoPointScriptFieldType simpleMappedFieldType() {
-        return build("fromLatLon", Map.of());
+        return build("fromLatLon", Map.of(), false);
     }
 
     @Override
     protected MappedFieldType loopFieldType() {
-        return build("loop", Map.of());
+        return build("loop", Map.of(), false);
     }
 
     @Override
@@ -226,8 +226,9 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
         return "geo_point";
     }
 
-    private static GeoPointScriptFieldType build(String code, Map<String, Object> params) {
-        return build(new Script(ScriptType.INLINE, "test", code, params));
+    protected GeoPointScriptFieldType build(String code, Map<String, Object> params, boolean onErrorContinue) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        return new GeoPointScriptFieldType("test", factory(script), script, emptyMap(), onErrorContinue);
     }
 
     private static GeoPointFieldScript.Factory factory(Script script) {
@@ -244,11 +245,13 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 lookup.forkAndTrackFieldReferences("test");
                 throw new IllegalStateException("shoud have thrown on the line above");
             };
+            case "error" -> (fieldName, params, lookup) -> ctx -> new GeoPointFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    throw new RuntimeException("test error");
+                }
+            };
             default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         };
-    }
-
-    private static GeoPointScriptFieldType build(Script script) {
-        return new GeoPointScriptFieldType("test", factory(script), script, emptyMap(), false);
     }
 }

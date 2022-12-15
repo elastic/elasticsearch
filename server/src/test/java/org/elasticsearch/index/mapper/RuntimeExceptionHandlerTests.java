@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class RuntimeExceptionHandlerTest extends ESTestCase {
+public class RuntimeExceptionHandlerTests extends ESTestCase {
 
     public void testContinueOnErrorForField() {
         RuntimeExceptionHandler h = new RuntimeExceptionHandler();

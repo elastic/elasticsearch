@@ -44,6 +44,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -60,7 +61,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             List<String> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType ft = build("append_param", Map.of("param", "-suffix"));
+                KeywordScriptFieldType ft = build("append_param", Map.of("param", "-suffix"), false);
                 StringScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -287,7 +288,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"));
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), false);
                 assertThat(searcher.count(fieldType.termQuery("1-suffix", mockContext())), equalTo(1));
             }
         }
@@ -299,7 +300,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"));
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), false);
                 expectThrows(
                     IllegalArgumentException.class,
                     () -> {
@@ -375,7 +376,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"));
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), false);
                 SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
                 Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(searchExecutionContext);
                 assertThat(searcher.count(query), equalTo(1));
@@ -383,14 +384,34 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         }
     }
 
+    /**
+     * Check that running a script that throws errors with a field type with enabled lenient error handling doesn't throw exception
+     */
+    public void testQueryErrorHandling() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                KeywordScriptFieldType fieldType = build("error", Collections.emptyMap(), true);
+                SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
+                Query query = new MatchQueryBuilder("test", "foo").toQuery(searchExecutionContext);
+                try {
+                    assertThat(searcher.count(query), equalTo(0));
+                } catch (RuntimeException e) {
+                    fail("lenient error handling should silently ignore all runtime errors");
+                }
+            }
+        }
+    }
+
     @Override
     protected KeywordScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of());
+        return build("read_foo", Map.of(), false);
     }
 
     @Override
     protected KeywordScriptFieldType loopFieldType() {
-        return build("loop", Map.of());
+        return build("loop", Map.of(), false);
     }
 
     @Override
@@ -398,8 +419,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         return "keyword";
     }
 
-    private static KeywordScriptFieldType build(String code, Map<String, Object> params) {
-        return build(new Script(ScriptType.INLINE, "test", code, params));
+    protected KeywordScriptFieldType build(String code, Map<String, Object> params, boolean onErrorContinue) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        return new KeywordScriptFieldType("test", factory(script), script, emptyMap(), onErrorContinue);
     }
 
     private static StringFieldScript.Factory factory(Script script) {
@@ -425,11 +447,13 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 lookup.forkAndTrackFieldReferences("test");
                 throw new IllegalStateException("shoud have thrown on the line above");
             };
+            case "error" -> (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    throw new RuntimeException("test error");
+                }
+            };
             default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         };
-    }
-
-    private static KeywordScriptFieldType build(Script script) {
-        return new KeywordScriptFieldType("test", factory(script), script, emptyMap(), false);
     }
 }

@@ -39,7 +39,6 @@ public class SequenceMatcher {
         long ignored = 0;
         long rejectionMaxspan = 0;
         long rejectionUntil = 0;
-        long rejectionMissing = 0;
 
         @Override
         public String toString() {

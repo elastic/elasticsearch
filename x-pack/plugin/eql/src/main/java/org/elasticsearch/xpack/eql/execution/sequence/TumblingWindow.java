@@ -113,8 +113,6 @@ public class TumblingWindow implements Executable {
     private boolean restartWindowFromTailQuery;
 
     private long startTime;
-    private Ordinal lastPositiveEnd;
-    private Ordinal lastPositiveBegin;
 
     private static class WindowInfo {
         private final int baseStage;

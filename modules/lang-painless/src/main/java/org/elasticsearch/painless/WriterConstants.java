@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.api.ValueIterator;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -48,8 +49,17 @@ public final class WriterConstants {
     public static final MethodType NEEDS_PARAMETER_METHOD_TYPE = MethodType.methodType(boolean.class);
 
     public static final Type ITERATOR_TYPE = Type.getType(Iterator.class);
+    public static final Type VALUE_ITERATOR_TYPE = Type.getType(ValueIterator.class);
     public static final Method ITERATOR_HASNEXT = getAsmMethod(boolean.class, "hasNext");
     public static final Method ITERATOR_NEXT = getAsmMethod(Object.class, "next");
+    public static final Method VALUE_ITERATOR_NEXT_BOOLEAN = getAsmMethod(boolean.class, "nextBoolean");
+    public static final Method VALUE_ITERATOR_NEXT_BYTE = getAsmMethod(byte.class, "nextByte");
+    public static final Method VALUE_ITERATOR_NEXT_SHORT = getAsmMethod(short.class, "nextShort");
+    public static final Method VALUE_ITERATOR_NEXT_CHAR = getAsmMethod(char.class, "nextChar");
+    public static final Method VALUE_ITERATOR_NEXT_INT = getAsmMethod(int.class, "nextInt");
+    public static final Method VALUE_ITERATOR_NEXT_LONG = getAsmMethod(long.class, "nextLong");
+    public static final Method VALUE_ITERATOR_NEXT_FLOAT = getAsmMethod(float.class, "nextFloat");
+    public static final Method VALUE_ITERATOR_NEXT_DOUBLE = getAsmMethod(double.class, "nextDouble");
 
     public static final Type UTILITY_TYPE = Type.getType(Utility.class);
     public static final Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);

@@ -23,7 +23,9 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.Strings.capitalize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -535,4 +537,55 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         );
     }
 
+    public void testRequiredClaims() {
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+
+        // Required claims are optional
+        final RealmConfig realmConfig1 = buildRealmConfig(JwtRealmSettings.TYPE, realmName, Settings.EMPTY, randomInt());
+        assertThat(realmConfig1.getSetting(JwtRealmSettings.REQUIRED_CLAIMS).names(), emptyIterable());
+
+        // Multiple required claims with different value types
+        final String prefix = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.REQUIRED_CLAIMS);
+        final Settings settings = Settings.builder()
+            .put(prefix + "extra_1", "foo")
+            .put(prefix + "extra_2", "hello,world")
+            .put(prefix + "extra_3", 42)
+            .build();
+        final RealmConfig realmConfig2 = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, randomInt());
+        final Settings requireClaimsSettings = realmConfig2.getSetting(JwtRealmSettings.REQUIRED_CLAIMS);
+        assertThat(requireClaimsSettings.names(), containsInAnyOrder("extra_1", "extra_2", "extra_3"));
+        assertThat(requireClaimsSettings.getAsList("extra_1"), equalTo(List.of("foo")));
+        assertThat(requireClaimsSettings.getAsList("extra_2"), equalTo(List.of("hello", "world")));
+        assertThat(requireClaimsSettings.getAsList("extra_3"), equalTo(List.of("42")));
+    }
+
+    public void testInvalidRequiredClaims() {
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String invalidRequiredClaim = randomFrom("iss", "sub", "aud", "exp", "nbf", "iat");
+        final String fullSettingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.REQUIRED_CLAIMS) + invalidRequiredClaim;
+        final Settings settings = Settings.builder().put(fullSettingKey, randomAlphaOfLength(8)).build();
+
+        final RealmConfig realmConfig = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, randomInt());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> realmConfig.getSetting(JwtRealmSettings.REQUIRED_CLAIMS)
+        );
+
+        assertThat(e.getMessage(), containsString("required claim [" + fullSettingKey + "] cannot be one of [iss,sub,aud,exp,nbf,iat]"));
+    }
+
+    public void testRequiredClaimsCannotBeEmpty() {
+        final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String invalidRequiredClaim = randomAlphaOfLengthBetween(4, 8);
+        final String fullSettingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.REQUIRED_CLAIMS) + invalidRequiredClaim;
+        final Settings settings = Settings.builder().put(fullSettingKey, "").build();
+
+        final RealmConfig realmConfig = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, randomInt());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> realmConfig.getSetting(JwtRealmSettings.REQUIRED_CLAIMS)
+        );
+
+        assertThat(e.getMessage(), containsString("required claim [" + fullSettingKey + "] cannot be empty"));
+    }
 }

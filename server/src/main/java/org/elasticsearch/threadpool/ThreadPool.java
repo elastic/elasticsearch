@@ -187,9 +187,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
         );
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, false));
-        builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000, false));
+        builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, searchOrGetThreadPoolSize(allocatedProcessors), 1000, false));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16, false));
-        builders.put(Names.SEARCH, new FixedExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, true));
+        builders.put(
+            Names.SEARCH,
+            new FixedExecutorBuilder(settings, Names.SEARCH, searchOrGetThreadPoolSize(allocatedProcessors), 1000, true)
+        );
         builders.put(Names.SEARCH_COORDINATION, new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProcMaxAt5, 1000, true));
         builders.put(
             Names.AUTO_COMPLETE,
@@ -557,7 +560,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return boundedBy(allocatedProcessors / 8, 1, Integer.MAX_VALUE);
     }
 
-    public static int searchThreadPoolSize(final int allocatedProcessors) {
+    public static int searchOrGetThreadPoolSize(final int allocatedProcessors) {
         return ((allocatedProcessors * 3) / 2) + 1;
     }
 

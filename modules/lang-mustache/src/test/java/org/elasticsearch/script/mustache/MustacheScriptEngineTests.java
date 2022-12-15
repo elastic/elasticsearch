@@ -9,7 +9,6 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
 
-import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -19,7 +18,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringWriter;
-import java.security.AccessControlException;
 import java.util.List;
 import java.util.Map;
 
@@ -215,16 +213,16 @@ public class MustacheScriptEngineTests extends ESTestCase {
             assertThat(o, equalTo(""));
         }
         {
-            // accessing a public field works now
+            // accessing a public field that does exist will give an empty result
             String templateString = "{{obj.publicField}}";
             String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
-            assertThat(o, equalTo("2"));
+            assertThat(o, equalTo(""));
         }
         {
-            // accessing a public method works now
+            // accessing a public method that does exist will give an empty result
             String templateString = "{{obj.publicMethod}}";
             String o = qe.compile(null, templateString, TemplateScript.CONTEXT, Map.of()).newInstance(vars).execute();
-            assertThat(o, equalTo("4"));
+            assertThat(o, equalTo(""));
         }
     }
 

@@ -10,14 +10,11 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.iterable.Iterables;
 
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Array;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Iterator;
@@ -44,11 +41,21 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
     }
 
     @Override
-    @SuppressWarnings({ "rawtypes", "removal" })
+    @SuppressWarnings("rawtypes")
     protected AccessibleObject findMember(Class sClass, String name) {
-        // crazy reflection here
-        SpecialPermission.check();
-        return AccessController.doPrivileged((PrivilegedAction<AccessibleObject>) () -> { return super.findMember(sClass, name); });
+        /*
+         * overriding findMember from BaseObjectHandler (our superclass's superclass) to always return null.
+         *
+         * if you trace findMember there, you'll see that it always either returns null or invokes the getMethod
+         * or getField methods of that class. the last thing that getMethod and getField do is call 'setAccessible'
+         * but we don't have java.lang.reflect.ReflectPermission/suppressAccessChecks so that will always throw an
+         * exception.
+         *
+         * that is, with the permissions we're running with, it would always return null ('not found!') or throw
+         * an exception ('found, but you cannot do this!') -- so by overriding to null we're effectively saying
+         * "you will never find success going down this path, so don't bother trying"
+         */
+        return null;
     }
 
     static final class ArrayMap extends AbstractMap<Object, Object> implements Iterable<Object> {

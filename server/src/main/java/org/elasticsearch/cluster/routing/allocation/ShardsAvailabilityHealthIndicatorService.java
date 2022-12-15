@@ -924,7 +924,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     return diagnosisToAffectedIndices.entrySet().stream().map(e -> {
                         List<Diagnosis.Resource> affectedResources = new ArrayList<>(1);
                         if (e.getKey().equals(ACTION_RESTORE_FROM_SNAPSHOT)) {
-                            Set<String> restoreFromSnapshotIndices = diagnosisToAffectedIndices.get(ACTION_RESTORE_FROM_SNAPSHOT);
+                            Set<String> restoreFromSnapshotIndices = e.getValue();
                             if (restoreFromSnapshotIndices != null && restoreFromSnapshotIndices.isEmpty() == false) {
                                 affectedResources = getRestoreFromSnapshotAffectedResources(
                                     clusterMetadata,

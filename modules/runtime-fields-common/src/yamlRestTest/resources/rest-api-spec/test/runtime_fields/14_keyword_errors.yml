@@ -17,6 +17,7 @@ setup:
                 type: keyword
                 script: |
                   emit(doc['name'].value.substring(0,1));
+                on_script_error: fail
             properties:
               name:
                 type: keyword
@@ -168,3 +169,48 @@ setup:
               script: |
                 emit(doc['name'].value.substring(0,1));
               on_script_error: fail
+
+---
+"Change error behaviour for lenient runtime field":
+
+  - do:
+      indices.put_mapping:
+        index: testindex
+        body:
+          runtime:
+            first_char_variant:
+              type: keyword
+              script: |
+                emit(doc['name'].value.substring(0,1));
+
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              first_char_variant: "f"
+
+  - do:
+      indices.put_mapping:
+        index: testindex
+        body:
+          runtime:
+            first_char_variant:
+              type: keyword
+              script: |
+                emit(doc['name'].value.substring(0,1));
+              on_script_error: continue
+
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              first_char_variant: "f"
+          fields: [ name, first_char_variant ]
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.name: [ foo ] }
+  - match: { hits.hits.0.fields.first_char_variant: [ f ] }

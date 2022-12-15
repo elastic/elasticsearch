@@ -224,25 +224,31 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
             }
 
+            /**
+             * Returns cluster credentials if the connection is remote, cluster credentials are set up for the target cluster, and access
+             * via remote access headers is supported for the request type and authenticated subject. If remote access is not supported,
+             * this method does not return credentials even if they are configured, to signify that the request should be sent according to
+             * the basic security model
+             */
             private Optional<RemoteAccessCredentials> getRemoteAccessCredentials(
                 final Transport.Connection connection,
                 final TransportRequest request
             ) {
-                final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
-                if (remoteClusterAlias.isEmpty()) {
-                    // TODO check if trace log enabled?
+                final Optional<String> optionalRemoteClusterAlias = remoteClusterAliasResolver.apply(connection);
+                if (optionalRemoteClusterAlias.isEmpty()) {
                     logger.trace("Connection is not remote");
                     return Optional.empty();
                 }
 
-                final String remoteClusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias.get());
+                final String remoteClusterAlias = optionalRemoteClusterAlias.get();
+                final String remoteClusterCredential = remoteClusterAuthorizationResolver.resolveAuthorization(remoteClusterAlias);
                 if (remoteClusterCredential == null) {
-                    logger.trace("No cluster credential is configured for remote cluster [{}]", remoteClusterAlias.get());
+                    logger.trace("No cluster credential is configured for remote cluster [{}]", remoteClusterAlias);
                     return Optional.empty();
                 }
 
                 if (false == isAllowlistedForRemoteAccessHeaders(request)) {
-                    logger.trace("Request to remote cluster [{}] does not have an allow-listed type", remoteClusterAlias.get());
+                    logger.trace("Request to remote cluster [{}] does not have an allow-listed type", remoteClusterAlias);
                     return Optional.empty();
                 }
 
@@ -252,17 +258,17 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
                     logger.trace(
                         "Effective subject of request to remote cluster [{}] has an unsupported type [{}]",
-                        remoteClusterAlias.get(),
+                        remoteClusterAlias,
                         effectiveSubject.getType()
                     );
                     return Optional.empty();
                 }
                 if (User.isInternal(effectiveSubject.getUser())) {
-                    logger.trace("Effective subject of request to remote cluster [{}] is an internal user", remoteClusterAlias.get());
+                    logger.trace("Effective subject of request to remote cluster [{}] is an internal user", remoteClusterAlias);
                     return Optional.empty();
                 }
 
-                return Optional.of(new RemoteAccessCredentials(remoteClusterAlias.get(), remoteClusterCredential));
+                return Optional.of(new RemoteAccessCredentials(remoteClusterAlias, remoteClusterCredential));
             }
 
             private <T extends TransportResponse> void sendWithRemoteAccessHeaders(
@@ -311,9 +317,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     || request instanceof ClusterSearchShardsRequest;
             }
 
-            record RemoteAccessCredentials(String clusterAlias, String credential) {
+            record RemoteAccessCredentials(String clusterAlias, String credentials) {
                 void writeToContext(final ThreadContext ctx) {
-                    ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, encodedWithApiKeyPrefix(credential));
+                    ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, encodedWithApiKeyPrefix(credentials));
                 }
 
                 private String encodedWithApiKeyPrefix(final String clusterCredential) {

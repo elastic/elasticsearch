@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.BitSet;
 import java.util.stream.IntStream;
 
 public class FilteredBlockTests extends ESTestCase {
@@ -56,6 +57,49 @@ public class FilteredBlockTests extends ESTestCase {
         assertEquals(positionCount / 4, filteredTwice.getPositionCount());
         var anyPosition = randomIntBetween(0, positionCount / 4 - 1);
         assertEquals(anyPosition * 4, filteredTwice.getInt(anyPosition));
+    }
+
+    public void testFilterOnNull() {
+        var nulls = new BitSet();
+        nulls.set(1);
+        var block = new IntArrayBlock(new int[] { 10, 0, 30, 40 }, 4, nulls);
+
+        var filtered = block.filter(1, 2, 3);
+
+        assertTrue(filtered.isNull(0));
+        assertTrue(filtered.mayHaveNulls());
+        assertFalse(filtered.areAllValuesNull());
+        assertEquals(1, filtered.nullValuesCount());
+        assertEquals(2, filtered.validPositionCount());
+        assertFalse(filtered.isNull(1));
+        assertEquals(30, filtered.getInt(1));
+    }
+
+    public void testFilterOnAllNullsBlock() {
+        var nulls = new BitSet();
+        nulls.set(0, 4);
+        var block = new IntArrayBlock(new int[] { 0, 0, 0, 0 }, 4, nulls);
+
+        var filtered = block.filter(1, 2, 3);
+
+        assertTrue(filtered.isNull(0));
+        assertTrue(filtered.mayHaveNulls());
+        assertTrue(filtered.areAllValuesNull());
+        assertEquals(3, filtered.nullValuesCount());
+        assertEquals(0, filtered.validPositionCount());
+    }
+
+    public void testFilterOnNoNullsBlock() {
+        var nulls = new BitSet();
+        var block = new IntArrayBlock(new int[] { 10, 20, 30, 40 }, 4, nulls);
+
+        var filtered = block.filter(1, 2, 3);
+
+        assertFalse(filtered.isNull(0));
+        assertFalse(filtered.mayHaveNulls());
+        assertFalse(filtered.areAllValuesNull());
+        assertEquals(0, filtered.nullValuesCount());
+        assertEquals(3, filtered.validPositionCount());
     }
 
 }

@@ -15,7 +15,7 @@ public class ConstantBytesRefBlock extends Block {
     private final BytesRef value;
 
     public ConstantBytesRefBlock(BytesRef value, int positionCount) {
-        super(positionCount, null);
+        super(positionCount);
         this.value = value;
     }
 

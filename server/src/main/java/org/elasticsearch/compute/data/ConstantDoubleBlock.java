@@ -16,7 +16,7 @@ public final class ConstantDoubleBlock extends Block {
     private final double value;
 
     public ConstantDoubleBlock(double value, int positionCount) {
-        super(positionCount, null);
+        super(positionCount);
         this.value = value;
     }
 

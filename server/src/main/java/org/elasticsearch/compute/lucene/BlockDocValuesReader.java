@@ -105,8 +105,7 @@ public abstract class BlockDocValuesReader {
                 }
                 lastDoc = doc;
             }
-            // If nullsMask has no bit set, we pass null as the nulls mask, so that mayHaveNull() returns false
-            return new LongArrayBlock(values, positionCount, nullsMask.cardinality() > 0 ? nullsMask : null);
+            return new LongArrayBlock(values, positionCount, nullsMask);
         }
 
         @Override
@@ -144,8 +143,7 @@ public abstract class BlockDocValuesReader {
                 lastDoc = doc;
                 this.docID = doc;
             }
-            // If nullsMask has no bit set, we pass null as the nulls mask, so that mayHaveNull() returns false
-            return new DoubleArrayBlock(values, positionCount, nullsMask.cardinality() > 0 ? nullsMask : null);
+            return new DoubleArrayBlock(values, positionCount, nullsMask);
         }
 
         @Override

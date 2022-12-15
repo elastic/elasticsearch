@@ -15,7 +15,21 @@ public final class ConstantNullBlock extends Block {
 
     public ConstantNullBlock(int positionCount) {
         super(positionCount);
-        this.nullsMask.set(0, positionCount);
+    }
+
+    @Override
+    public boolean isNull(int position) {
+        return true;
+    }
+
+    @Override
+    public int nullValuesCount() {
+        return getPositionCount();
+    }
+
+    @Override
+    public boolean areAllValuesNull() {
+        return true;
     }
 
     @Override

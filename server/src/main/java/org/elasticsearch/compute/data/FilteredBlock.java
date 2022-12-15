@@ -24,7 +24,7 @@ public class FilteredBlock extends Block {
     private final Block block;
 
     public FilteredBlock(Block block, int[] positions) {
-        super(positions.length, block.nullsMask);
+        super(positions.length);
         this.positions = positions;
         this.block = block;
     }
@@ -52,6 +52,38 @@ public class FilteredBlock extends Block {
     @Override
     public BytesRef getBytesRef(int position, BytesRef spare) {
         return block.getBytesRef(mapPosition(position), spare);
+    }
+
+    @Override
+    public boolean isNull(int position) {
+        return block.isNull(mapPosition(position));
+    }
+
+    @Override
+    public boolean mayHaveNulls() {
+        return block.mayHaveNulls();
+    }
+
+    @Override
+    public boolean areAllValuesNull() {
+        return block.areAllValuesNull();
+    }
+
+    @Override
+    public int nullValuesCount() {
+        if (mayHaveNulls() == false) {
+            return 0;
+        } else if (areAllValuesNull()) {
+            return getPositionCount();
+        } else {
+            int nulls = 0;
+            for (int i = 0; i < getPositionCount(); i++) {
+                if (isNull(i)) {
+                    nulls++;
+                }
+            }
+            return nulls;
+        }
     }
 
     private int mapPosition(int position) {

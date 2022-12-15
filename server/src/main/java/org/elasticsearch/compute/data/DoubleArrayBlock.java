@@ -14,7 +14,7 @@ import java.util.BitSet;
 /**
  * Block implementation that stores an array of double values.
  */
-public final class DoubleArrayBlock extends Block {
+public final class DoubleArrayBlock extends NullsAwareBlock {
 
     private final double[] values;
 

@@ -11,14 +11,13 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.core.Nullable;
 
 import java.util.BitSet;
 
 /**
  * Block implementation that stores an array of {@link org.apache.lucene.util.BytesRef}.
  */
-public final class BytesRefArrayBlock extends Block {
+public final class BytesRefArrayBlock extends NullsAwareBlock {
 
     private static final BytesRef NULL_VALUE = new BytesRef();
     private final BytesRefArray bytes;
@@ -27,7 +26,7 @@ public final class BytesRefArrayBlock extends Block {
         this(positionCount, bytes, null);
     }
 
-    public BytesRefArrayBlock(int positionCount, BytesRefArray bytes, @Nullable BitSet nullsMask) {
+    public BytesRefArrayBlock(int positionCount, BytesRefArray bytes, BitSet nullsMask) {
         super(positionCount, nullsMask);
         assert bytes.size() == positionCount : bytes.size() + " != " + positionCount;
         this.bytes = bytes;
@@ -87,7 +86,7 @@ public final class BytesRefArrayBlock extends Block {
                 throw new IllegalStateException("Incomplete block; expected " + positionCount + " values; got " + bytes.size());
             }
             // If nullsMask has no bit set, we pass null as the nulls mask, so that mayHaveNull() returns false
-            return new BytesRefArrayBlock(positionCount, bytes, nullsMask.cardinality() > 0 ? nullsMask : null);
+            return new BytesRefArrayBlock(positionCount, bytes, nullsMask);
         }
 
         // Method provided for testing only

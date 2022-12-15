@@ -14,7 +14,7 @@ import java.util.BitSet;
 /**
  * Block implementation that stores an array of long values.
  */
-public final class LongArrayBlock extends Block {
+public final class LongArrayBlock extends NullsAwareBlock {
 
     private final long[] values;
 

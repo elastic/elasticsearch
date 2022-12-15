@@ -16,7 +16,7 @@ public final class ConstantLongBlock extends Block {
     private final long value;
 
     public ConstantLongBlock(long value, int positionCount) {
-        super(positionCount, null);
+        super(positionCount);
         this.value = value;
     }
 

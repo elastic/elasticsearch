@@ -14,7 +14,7 @@ import java.util.BitSet;
 /**
  * Block implementation that stores an array of integers.
  */
-public final class IntArrayBlock extends Block {
+public final class IntArrayBlock extends NullsAwareBlock {
 
     private final int[] values;
 
@@ -23,26 +23,9 @@ public final class IntArrayBlock extends Block {
         this.values = values;
     }
 
-    public IntArrayBlock(Number[] values, int positionCount) {
-        super(positionCount);
-        assert values.length == positionCount;
-        this.values = new int[positionCount];
-        for (int i = 0; i < positionCount; i++) {
-            if (values[i] == null) {
-                nullsMask.set(i);
-                this.values[i] = nullValue();
-            } else {
-                this.values[i] = values[i].intValue();
-            }
-        }
-    }
-
     public IntArrayBlock(int[] values, int positionCount, BitSet nulls) {
         super(positionCount, nulls);
         this.values = values;
-        for (int i = nullsMask.nextSetBit(0); i >= 0; i = nullsMask.nextSetBit(i + 1)) {
-            this.values[i] = nullValue();
-        }
     }
 
     @Override
@@ -72,9 +55,5 @@ public final class IntArrayBlock extends Block {
     @Override
     public String toString() {
         return "IntArrayBlock{positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + '}';
-    }
-
-    private int nullValue() {
-        return 0;
     }
 }

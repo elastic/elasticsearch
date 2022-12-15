@@ -5,14 +5,10 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.plugin.api;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 
-import static java.lang.annotation.ElementType.TYPE;
+package org.elasticsearch.plugin.scanner.test_model;
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target(value = { TYPE })
-public @interface Extensible {
+@org.elasticsearch.plugin.api.NamedComponent("test_named_component")
+public class TestNamedComponent implements ExtensibleInterface {
+
 }

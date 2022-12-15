@@ -8,71 +8,48 @@
 
 package org.elasticsearch.plugin.scanner;
 
-import junit.framework.TestCase;
-
 import org.elasticsearch.plugin.api.Extensible;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class ClassScannerTests extends TestCase {
+public class ClassScannerTests extends ESTestCase {
     static final System.Logger logger = System.getLogger(ClassScannerTests.class.getName());
 
     public void testClassAndInterfaceHierarchy() throws IOException {
-        var reader = new ClassScanner(
-            Type.getDescriptor(Extensible.class), (classname, map) -> {
+        var reader = new ClassScanner(Type.getDescriptor(Extensible.class), (classname, map) -> {
             map.put(classname, classname);
             return null;
-        }
-        );
-        Stream<ClassReader> classReaderStream = ofClassPath();
-        logger.log(System.Logger.Level.INFO, "classReaderStream size " + ofClassPath().collect(Collectors.toList()).size());
+        });
+        Stream<ClassReader> classReaderStream = ClassReaders.ofClassPath();
+        logger.log(System.Logger.Level.INFO, "classReaderStream size " + ClassReaders.ofClassPath().collect(Collectors.toList()).size());
 
         reader.visit(classReaderStream);
         Map<String, String> extensibleClasses = reader.getFoundClasses();
 
-        then:
         org.hamcrest.MatcherAssert.assertThat(
             extensibleClasses,
             Matchers.allOf(
                 Matchers.hasEntry(
-                    "org/elasticsearch/plugin/scanner/test_classes/ExtensibleClass",
-                    "org/elasticsearch/plugin/scanner/test_classes/ExtensibleClass"
+                    "org/elasticsearch/plugin/scanner/test_model/ExtensibleClass",
+                    "org/elasticsearch/plugin/scanner/test_model/ExtensibleClass"
                 ),
                 Matchers.hasEntry(
-                    "org/elasticsearch/plugin/scanner/test_classes/ImplementingExtensible",
-                    "org/elasticsearch/plugin/scanner/test_classes/ExtensibleInterface"
+                    "org/elasticsearch/plugin/scanner/test_model/ImplementingExtensible",
+                    "org/elasticsearch/plugin/scanner/test_model/ExtensibleInterface"
                 ),
                 Matchers.hasEntry(
-                    "org/elasticsearch/plugin/scanner/test_classes/SubClass",
-                    "org/elasticsearch/plugin/scanner/test_classes/ExtensibleClass"
+                    "org/elasticsearch/plugin/scanner/test_model/SubClass",
+                    "org/elasticsearch/plugin/scanner/test_model/ExtensibleClass"
                 )
             )
         );
-    }
-
-    static Stream<ClassReader> ofClassPath() throws IOException {
-        String classpath = System.getProperty("java.class.path");
-        logger.log(System.Logger.Level.INFO, "classpath " + classpath);
-        return ofClassPath(classpath);
-    }
-
-    static Stream<ClassReader> ofClassPath(String classpath) {
-        if (classpath != null && classpath.equals("") == false) {// todo when do we set cp to "" ?
-            var classpathSeparator = System.getProperty("path.separator");
-            logger.log(System.Logger.Level.INFO, "classpathSeparator " + classpathSeparator);
-
-            String[] pathelements = classpath.split(classpathSeparator);
-            return ClassReaders.ofPaths(Arrays.stream(pathelements).map(Paths::get));
-        }
-        return Stream.empty();
     }
 
 }

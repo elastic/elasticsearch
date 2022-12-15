@@ -18,7 +18,6 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.OutputFile;
@@ -29,10 +28,7 @@ import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Map;
-import java.util.Set;
+
 import javax.inject.Inject;
 
 public abstract class GenerateNamedComponentsTask extends DefaultTask {
@@ -44,11 +40,9 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
     private FileCollection classpath;
     private ExecOperations execOperations;
     private ProjectLayout projectLayout;
+
     @Inject
-    public GenerateNamedComponentsTask(WorkerExecutor workerExecutor,
-                                       ExecOperations execOperations,
-                                       ProjectLayout projectLayout
-                                       ) {
+    public GenerateNamedComponentsTask(WorkerExecutor workerExecutor, ExecOperations execOperations, ProjectLayout projectLayout) {
         this.workerExecutor = workerExecutor;
         this.execOperations = execOperations;
         this.projectLayout = projectLayout;
@@ -59,7 +53,7 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
     @TaskAction
     public void scanPluginClasses() {
         var s = pluginScannerClasspath.getFiles();
-        System.out.println("ff"+s);
+        System.out.println("ff" + s);
         LoggedExec.javaexec(execOperations, spec -> {
             spec.environment("CLASSPATH", pluginScannerClasspath.plus(getClasspath()).getAsPath());
             spec.getMainClass().set("org.elasticsearch.plugin.scanner.NamedComponentScanner");
@@ -97,7 +91,9 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
     interface Parameters extends WorkParameters {
 
         ConfigurableFileCollection getClasspath();
+
         RegularFileProperty getOutputFile();
+
         Property<ExecOperations> getExecOperations();
     }
 }

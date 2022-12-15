@@ -8,13 +8,10 @@
 
 package org.elasticsearch.plugin.scanner;
 
-import junit.framework.TestCase;
-
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 import org.hamcrest.Matchers;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 import org.objectweb.asm.ClassReader;
 
 import java.io.IOException;
@@ -25,29 +22,22 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
 
-public class ClassReadersTests extends TestCase {
-    @Rule
-    TemporaryFolder testProjectDir = new TemporaryFolder();
+public class ClassReadersTests extends ESTestCase {
 
     private Path tmpDir() throws IOException {
-        return testProjectDir.getRoot().toPath();
+        return createTempDir();
     }
-
 
     public void testModuleInfoIsNotReturnedAsAClassFromJar() throws IOException {
         final Path tmp = tmpDir();
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
         Path jar = dirWithJar.resolve("api.jar");
-        JarUtils.createJarWithEntries(
-            jar, Map.of(
-                "module-info.class", InMemoryJavaCompiler.compile(
-                    "module-info", """
-                        module p {}
-                        """)
-            )
-        );
+        JarUtils.createJarWithEntries(jar, Map.of("module-info.class", InMemoryJavaCompiler.compile("module-info", """
+            module p {}
+            """)));
 
         try (Stream<ClassReader> classReaderStream = ClassReaders.ofPaths(Stream.of(jar))) {
 
@@ -55,27 +45,18 @@ public class ClassReadersTests extends TestCase {
         }
     }
 
-
     public void testTwoClassesInAStreamFromJar() throws IOException {
         final Path tmp = tmpDir();
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
         Path jar = dirWithJar.resolve("api.jar");
-        JarUtils.createJarWithEntries(
-            jar, Map.of(
-                "p/A.class", InMemoryJavaCompiler.compile(
-                    "p.A", """
-                        package p;
-                        public class A {}
-                        """),
-                "p/B.class", InMemoryJavaCompiler.compile(
-                    "p.B", """
-                        package p;
-                        public class B {}
-                        """)
-            )
-        );
-
+        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            public class A {}
+            """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+            package p;
+            public class B {}
+            """)));
 
         try (Stream<ClassReader> classReaderStream = ClassReaders.ofPaths(Stream.of(jar))) {
             List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());
@@ -83,58 +64,37 @@ public class ClassReadersTests extends TestCase {
         }
     }
 
-
     public void testStreamOfJarsAndIndividualClasses() throws IOException {
         final Path tmp = tmpDir();
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
 
         Path jar = dirWithJar.resolve("a_b.jar");
-        JarUtils.createJarWithEntries(
-            jar, Map.of(
-                "p/A.class", InMemoryJavaCompiler.compile(
-                    "p.A", """
-                        package p;
-                        public class A {}
-                        """),
-                "p/B.class", InMemoryJavaCompiler.compile(
-                    "p.B", """
-                        package p;
-                        public class B {}
-                        """)
-            )
-        );
+        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            public class A {}
+            """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+            package p;
+            public class B {}
+            """)));
 
         Path jar2 = dirWithJar.resolve("c_d.jar");
-        JarUtils.createJarWithEntries(
-            jar2, Map.of(
-                "p/C.class", InMemoryJavaCompiler.compile(
-                    "p.C", """
-                        package p;
-                        public class C {}
-                        """),
-                "p/D.class", InMemoryJavaCompiler.compile(
-                    "p.D", """
-                        package p;
-                        public class D {}
-                        """)
-            )
-        );
+        JarUtils.createJarWithEntries(jar2, Map.of("p/C.class", InMemoryJavaCompiler.compile("p.C", """
+            package p;
+            public class C {}
+            """), "p/D.class", InMemoryJavaCompiler.compile("p.D", """
+            package p;
+            public class D {}
+            """)));
 
-        InMemoryJavaCompiler.compile(
-            "p.E", """
-                package p;
-                public class E {}
-                """
-        );
-        Files.write(
-            tmp.resolve("E.class"), InMemoryJavaCompiler.compile(
-                "p.E", """
-                    package p;
-                    public class E {}
-                    """)
-        );
-
+        InMemoryJavaCompiler.compile("p.E", """
+            package p;
+            public class E {}
+            """);
+        Files.write(tmp.resolve("E.class"), InMemoryJavaCompiler.compile("p.E", """
+            package p;
+            public class E {}
+            """));
 
         try (Stream<ClassReader> classReaderStream = ClassReaders.ofPaths(Stream.of(tmp, jar, jar2))) {
 
@@ -148,38 +108,23 @@ public class ClassReadersTests extends TestCase {
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
 
-
         Path jar = dirWithJar.resolve("a_b.jar");
-        JarUtils.createJarWithEntries(
-            jar, Map.of(
-                "p/A.class", InMemoryJavaCompiler.compile(
-                    "p.A", """
-                        package p;
-                        public class A {}
-                        """),
-                "p/B.class", InMemoryJavaCompiler.compile(
-                    "p.B", """
-                        package p;
-                        public class B {}
-                        """)
-            )
-        );
+        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            public class A {}
+            """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+            package p;
+            public class B {}
+            """)));
 
         Path jar2 = dirWithJar.resolve("c_d.jar");
-        JarUtils.createJarWithEntries(
-            jar2, Map.of(
-                "p/C.class", InMemoryJavaCompiler.compile(
-                    "p.C", """
-                        package p;
-                        public class C {}
-                        """),
-                "p/D.class", InMemoryJavaCompiler.compile(
-                    "p.D", """
-                        package p;
-                        public class D {}
-                        """)
-            )
-        );
+        JarUtils.createJarWithEntries(jar2, Map.of("p/C.class", InMemoryJavaCompiler.compile("p.C", """
+            package p;
+            public class C {}
+            """), "p/D.class", InMemoryJavaCompiler.compile("p.D", """
+            package p;
+            public class D {}
+            """)));
 
         try (Stream<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString())) {
             List<String> collect = classReaderStream.map(cr -> cr.getClassName()).collect(Collectors.toList());

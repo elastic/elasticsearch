@@ -6,4 +6,6 @@
  * Side Public License, v 1.
  */
 
+package org.elasticsearch.plugin.scanner.test_model;
+
 public class SubClass extends ExtensibleClass {}

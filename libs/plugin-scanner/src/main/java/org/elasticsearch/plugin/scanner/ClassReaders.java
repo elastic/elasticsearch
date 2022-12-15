@@ -19,6 +19,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
@@ -59,6 +60,7 @@ public class ClassReaders {
             throw new AssertionError(e);
         }
     }
+
     /**
      * This method must be used within a try-with-resources statement or similar
      * control structure.
@@ -111,5 +113,18 @@ public class ClassReaders {
         }
     }
 
+    public static Stream<ClassReader> ofClassPath() throws IOException {
+        String classpath = System.getProperty("java.class.path");
+        return ofClassPath(classpath);
+    }
 
+    public static Stream<ClassReader> ofClassPath(String classpath) {
+        if (classpath != null && classpath.equals("") == false) {// todo when do we set cp to "" ?
+            var classpathSeparator = System.getProperty("path.separator");
+
+            String[] pathelements = classpath.split(classpathSeparator);
+            return ofPaths(Arrays.stream(pathelements).map(Paths::get));
+        }
+        return Stream.empty();
+    }
 }

@@ -8,38 +8,38 @@
 
 package org.elasticsearch.plugin.scanner;
 
-import junit.framework.TestCase;
-
-import org.elasticsearch.gradle.internal.test.InMemoryJavaCompiler;
-import org.elasticsearch.gradle.internal.test.JarUtils;
-import org.elasticsearch.gradle.internal.test.StableApiJarMocks;
-import org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass;
-import org.elasticsearch.plugin.scanner.test_classes.ExtensibleInterface;
-import org.elasticsearch.plugin.scanner.test_classes.TestNamedComponent;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
+import org.elasticsearch.plugin.scanner.test_model.ExtensibleClass;
+import org.elasticsearch.plugin.scanner.test_model.ExtensibleInterface;
+import org.elasticsearch.plugin.scanner.test_model.TestNamedComponent;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
+import org.elasticsearch.test.jar.JarUtils;
 import org.objectweb.asm.ClassReader;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 ;
 
-public class NamedComponentScannerSpec extends TestCase {
-    @Rule
-    TemporaryFolder testProjectDir = new TemporaryFolder();
+public class NamedComponentScannerTests extends ESTestCase {
 
     private Path tmpDir() throws IOException {
-        return testProjectDir.getRoot().toPath();
+        return createTempDir();
     }
 
     NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
+
     public void testFindNamedComponentInSingleClass() throws URISyntaxException {
-        when:
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(
             classReaderStream(TestNamedComponent.class, ExtensibleInterface.class)
         );
@@ -56,45 +56,35 @@ public class NamedComponentScannerSpec extends TestCase {
 
     }
 
-    def "named components are found when single jar provided"()
-
-    {
-        given:
+    public void testNamedComponentsAreFoundWhenSingleJarProvided() throws IOException {
         final Path tmp = tmpDir();
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
         Path jar = dirWithJar.resolve("plugin.jar");
-        JarUtils.createJarWithEntries(
-            jar, Map.of(
-                "p/A.class", InMemoryJavaCompiler.compile(
-                    "p.A", """
-                        package p;
-                        import org.elasticsearch.plugin.api.*;
-                        import org.elasticsearch.plugin.scanner.test_classes.*;
-                        @NamedComponent("a_component")
-                        public class A extends ExtensibleClass {}
-                        """
-                ), "p/B.class", InMemoryJavaCompiler.compile(
-                    "p.B", """
-                        package p;
-                        import org.elasticsearch.plugin.api.*;
-                        import org.elasticsearch.plugin.scanner.test_classes.*;
-                        @NamedComponent("b_component")
-                        public class B implements ExtensibleInterface{}
-                        """
-                )
-            )
-        );
-        StableApiJarMocks.createPluginApiJar(dirWithJar);
-        StableApiJarMocks.createExtensibleApiJar(dirWithJar);//for instance analysis api
+        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            import org.elasticsearch.plugin.api.*;
+            import org.elasticsearch.plugin.scanner.test_model.*;
+            @NamedComponent("a_component")
+            public class A extends ExtensibleClass {}
+            """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+            package p;
+            import org.elasticsearch.plugin.api.*;
+            import org.elasticsearch.plugin.scanner.test_model.*;
+            @NamedComponent("b_component")
+            public class B implements ExtensibleInterface{}
+            """)));
+        createPluginApiJar(dirWithJar);
+        createExtensibleApiJar(dirWithJar);// for instance analysis api
 
+        Collection<ClassReader> classReaderStream = Stream.concat(
+            ClassReaders.ofDirWithJars(dirWithJar.toString()),
+            ClassReaders.ofClassPath()
+        )// contains plugin-api
+            .collect(Collectors.toList());
 
-        Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).collect(Collectors.toList())
-
-        when:
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
 
-        then:
         org.hamcrest.MatcherAssert.assertThat(
             namedComponents,
             org.hamcrest.Matchers.equalTo(
@@ -102,22 +92,25 @@ public class NamedComponentScannerSpec extends TestCase {
                     ExtensibleClass.class.getCanonicalName(),
                     Map.of("a_component", "p.A"),
                     ExtensibleInterface.class.getCanonicalName(),
-                    Map.of("b_component", "p.B")
+                    Map.of(
+                        "b_component",
+                        "p.B",
+                        // noise from classpath
+                        "test_named_component",
+                        "org.elasticsearch.plugin.scanner.test_model.TestNamedComponent"
+                    )
                 )
             )
         );
     }
 
-    def "named components can extend common super class"()
-
-    {
-        given:
+    public void testNamedComponentsCanExtednCommonSuperClass() throws IOException {
         Map<String, CharSequence> sources = Map.of(
             "p.CustomExtensibleInterface",
             """
                 package p;
                 import org.elasticsearch.plugin.api.*;
-                import org.elasticsearch.plugin.scanner.test_classes.*;
+                import org.elasticsearch.plugin.scanner.test_model.*;
                 public interface CustomExtensibleInterface extends ExtensibleInterface {}
                 """,
             // note that this class implements a custom interface
@@ -125,14 +118,14 @@ public class NamedComponentScannerSpec extends TestCase {
             """
                 package p;
                 import org.elasticsearch.plugin.api.*;
-                import org.elasticsearch.plugin.scanner.test_classes.*;
+                import org.elasticsearch.plugin.scanner.test_model.*;
                 public class CustomExtensibleClass implements CustomExtensibleInterface {}
                 """,
             "p.A",
             """
                 package p;
                 import org.elasticsearch.plugin.api.*;
-                import org.elasticsearch.plugin.scanner.test_classes.*;
+                import org.elasticsearch.plugin.scanner.test_model.*;
                 @NamedComponent("a_component")
                 public class A extends CustomExtensibleClass {}
                 """,
@@ -140,7 +133,7 @@ public class NamedComponentScannerSpec extends TestCase {
             """
                 package p;
                 import org.elasticsearch.plugin.api.*;
-                import org.elasticsearch.plugin.scanner.test_classes.*;
+                import org.elasticsearch.plugin.scanner.test_model.*;
                 @NamedComponent("b_component")
                 public class B implements CustomExtensibleInterface{}
                 """
@@ -159,54 +152,59 @@ public class NamedComponentScannerSpec extends TestCase {
         Path jar = dirWithJar.resolve("plugin.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
 
-        StableApiJarMocks.createPluginApiJar(dirWithJar)
-        StableApiJarMocks.createExtensibleApiJar(dirWithJar);//for instance analysis api
+        Collection<ClassReader> classReaderStream = Stream.concat(
+            ClassReaders.ofDirWithJars(dirWithJar.toString()),
+            ClassReaders.ofClassPath()
+        )// contains plugin-api
+            .collect(Collectors.toList());
 
-        Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).collect(Collectors.toList())
-
-        when:
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
 
-        then:
         org.hamcrest.MatcherAssert.assertThat(
             namedComponents,
             org.hamcrest.Matchers.equalTo(
                 Map.of(
                     ExtensibleInterface.class.getCanonicalName(),
                     Map.of(
-                        "a_component", "p.A",
-                        "b_component", "p.B"
+                        "a_component",
+                        "p.A",
+                        "b_component",
+                        "p.B",
+                        "test_named_component",
+                        "org.elasticsearch.plugin.scanner.test_model.TestNamedComponent"// noise from classpath
                     )
                 )
             )
         );
     }
 
-
     private Collection<ClassReader> classReaderStream(Class<?>... classes) {
         try {
-            return Arrays.stream(classes).map(
-                clazz -> {
-                    String className = classNameToPath(clazz) + ".class";
-                    def stream = this.getClass().getClassLoader().getResourceAsStream(className)
-                    try (InputStream is = stream) {
-                        byte[] classBytes = is.readAllBytes();
-                        ClassReader classReader = new ClassReader(classBytes);
-                        return classReader;
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+            return Arrays.stream(classes).map(clazz -> {
+                String className = classNameToPath(clazz) + ".class";
+                var stream = this.getClass().getClassLoader().getResourceAsStream(className);
+                try (InputStream is = stream) {
+                    byte[] classBytes = is.readAllBytes();
+                    ClassReader classReader = new ClassReader(classBytes);
+                    return classReader;
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
                 }
-            ).collect(Collectors.toList())
+            }).collect(Collectors.toList());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
     }
 
     private String classNameToPath(Class<?> clazz) {
         return clazz.getCanonicalName().replace(".", "/");
     }
 
+    public static Path createExtensibleApiJar(Path jar) throws IOException {
+        return null;
+    }
 
+    public static Path createPluginApiJar(Path jar) throws IOException {
+        return null;
+    }
 }

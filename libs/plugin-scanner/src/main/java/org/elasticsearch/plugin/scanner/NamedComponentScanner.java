@@ -8,16 +8,12 @@
 
 package org.elasticsearch.plugin.scanner;
 
-
 import org.elasticsearch.jdk.JarHell;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 
-import java.io.File;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -26,7 +22,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class NamedComponentScanner {
-//    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    // private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String NAMED_COMPONENTS_FILE = "named_components.json";
     static final String dir = "generated-named-components/";
 
@@ -41,14 +37,14 @@ public class NamedComponentScanner {
     }
 
     private void writeToFile(Map<String, Map<String, String>> namedComponentsMap) {
-//        try {
-//            String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
-//            File file = new File(dir, NAMED_COMPONENTS_FILE);
-//            Path of = Path.of(file.getAbsolutePath());
-//            Files.writeString(of, json);
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
+        // try {
+        // String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
+        // File file = new File(dir, NAMED_COMPONENTS_FILE);
+        // Path of = Path.of(file.getAbsolutePath());
+        // Files.writeString(of, json);
+        // } catch (Exception e) {
+        // e.printStackTrace();
+        // }
     }
 
     // returns a Map<String, Map<String,String> - extensible interface -> map{ namedName -> className }
@@ -93,7 +89,5 @@ public class NamedComponentScanner {
     private String pathToClassName(String classWithSlashes) {
         return classWithSlashes.replace('/', '.');
     }
-
-
 
 }

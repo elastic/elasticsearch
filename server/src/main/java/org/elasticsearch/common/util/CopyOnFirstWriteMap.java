@@ -8,42 +8,35 @@
 
 package org.elasticsearch.common.util;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer;
-
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
- * This map is designed to be constructed from an immutable map and only be copied if a (rare) mutation operation occurs.
- * It could be converted back to an immutable map using `org.elasticsearch.common.util.LazyCopyOnWriteMap#toImmutableMap()`.
+ * This map is designed to be constructed from an immutable map and be copied only if a (rare) mutation operation occurs.
+ * It should be converted back to an immutable map using `org.elasticsearch.common.util.LazyCopyOnWriteMap#toImmutableMap()`.
  */
 public class CopyOnFirstWriteMap<K, V> implements Map<K, V> {
 
-    private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
-
     private Map<K, V> source;
-    private Map<K, V> copy;
+    private boolean wasCopied = false;
 
-    public LazyCopyOnWriteMap(Map<K, V> source) {
+    public CopyOnFirstWriteMap(Map<K, V> source) {
         this.source = source;
-        this.copy = null;
     }
 
     private Map<K, V> getForUpdate() {
-        if (copy == null) {
-            this.copy = new HashMap<>(source);
-            this.source = null;
+        if (wasCopied == false) {
+            source = new HashMap<>(source);
+            wasCopied = true;
         }
-        return copy;
+        return source;
     }
 
     private Map<K, V> getForRead() {
-        return Objects.requireNonNullElse(source, copy);
+        return source;
     }
 
     public Map<K, V> toImmutableMap() {
@@ -97,16 +90,16 @@ public class CopyOnFirstWriteMap<K, V> implements Map<K, V> {
 
     @Override
     public Set<K> keySet() {
-        return getForRead().keySet();
+        return Collections.unmodifiableSet(getForRead().keySet());
     }
 
     @Override
     public Collection<V> values() {
-        return getForRead().values();
+        return Collections.unmodifiableCollection(getForRead().values());
     }
 
     @Override
     public Set<Entry<K, V>> entrySet() {
-        return getForRead().entrySet();
+        return Collections.unmodifiableSet(getForRead().entrySet());
     }
 }

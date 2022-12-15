@@ -18,8 +18,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringWriter;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +36,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
     }
 
     public void testSimpleParameterReplace() {
-        Map<String, String> compileParams = Collections.singletonMap("content_type", "application/json");
+        Map<String, String> compileParams = Map.of("content_type", "application/json");
         {
             String template = """
                 GET _search
@@ -61,8 +59,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     }
                   }
                 }""";
-            Map<String, Object> vars = new HashMap<>();
-            vars.put("boost_val", "0.3");
+            Map<String, Object> vars = Map.of("boost_val", "0.3");
             String o = qe.compile(null, template, TemplateScript.CONTEXT, compileParams).newInstance(vars).execute();
             assertEquals("""
                 GET _search
@@ -108,9 +105,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     }
                   }
                 }""";
-            Map<String, Object> vars = new HashMap<>();
-            vars.put("boost_val", "0.3");
-            vars.put("body_val", "\"quick brown\"");
+            Map<String, Object> vars = Map.of("boost_val", "0.3", "body_val", "\"quick brown\"");
             String o = qe.compile(null, template, TemplateScript.CONTEXT, compileParams).newInstance(vars).execute();
             assertEquals("""
                 GET _search
@@ -141,7 +136,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
             {"source":{"match_{{template}}": {}},"params":{"template":"all"}}""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
-        TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Collections.emptyMap());
+        TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Map.of());
         TemplateScript TemplateScript = compiled.newInstance(script.getParams());
         assertThat(TemplateScript.execute(), equalTo("{\"match_all\":{}}"));
     }
@@ -157,7 +152,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
             }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
-        TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Collections.emptyMap());
+        TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Map.of());
         TemplateScript TemplateScript = compiled.newInstance(script.getParams());
         assertThat(TemplateScript.execute(), equalTo("{ \"match_all\":{} }"));
     }

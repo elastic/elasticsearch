@@ -432,7 +432,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query exactQuery(Object value, SearchExecutionContext context) {
-            if (normalizer == null) {
+            if (normalizer == Lucene.KEYWORD_ANALYZER) {
                 return super.exactQuery(value, context);
             }
             return new TextFieldExactQuery(this, context.getForField(this, FielddataOperation.SOURCE), value.toString());

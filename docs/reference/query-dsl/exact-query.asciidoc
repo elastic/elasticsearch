@@ -7,8 +7,9 @@
 Returns documents that contain an exact value for a field.
 
 For most field types, this behaves the same as a <<query-dsl-term-query, term query>>.  For
-analyzed fields such as <<text-field-type, text>> however, it will only return documents where
-the query value exactly matches the entire content of the field.
+analyzed fields such as <<text-field-type, text>> or <<keyword-field-type, keyword>>
+fields with a normalizer configured, it will only return documents where
+the query value exactly matches the entire content of the field in the source.
 
 [[exact-query-ex-request]]
 ==== Example request

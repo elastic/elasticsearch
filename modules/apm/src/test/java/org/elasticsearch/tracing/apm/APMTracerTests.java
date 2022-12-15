@@ -8,12 +8,14 @@
 
 package org.elasticsearch.tracing.apm;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
@@ -164,6 +166,43 @@ public class APMTracerTests extends ESTestCase {
         assertThat(apmTracer.getSpans(), not(hasKey("id1")));
         assertThat(apmTracer.getSpans(), not(hasKey("id2")));
         assertThat(apmTracer.getSpans(), hasKey("id3"));
+    }
+
+    /**
+     * Check that sensitive attributes are not added verbatim to a span, but instead the value is redacted.
+     */
+    public void test_whenAddingAttributes_thenSensitiveValuesAreRedacted() {
+        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), false).build();
+        APMTracer apmTracer = buildTracer(settings);
+        CharacterRunAutomaton labelFilterAutomaton = apmTracer.getLabelFilterAutomaton();
+
+        Stream.of(
+            "auth",
+            "auth-header",
+            "authValue",
+            "card",
+            "card-details",
+            "card-number",
+            "credit",
+            "credit-card",
+            "key",
+            "my-credit-number",
+            "my_session_id",
+            "passwd",
+            "password",
+            "principal",
+            "principal-value",
+            "pwd",
+            "secret",
+            "secure-key",
+            "sensitive-token*",
+            "session",
+            "session_id",
+            "set-cookie",
+            "some-auth",
+            "some-principal",
+            "token-for login"
+        ).forEach(key -> assertTrue("Expected label filter automaton to redact [" + key + "]", labelFilterAutomaton.run(key)));
     }
 
     private APMTracer buildTracer(Settings settings) {

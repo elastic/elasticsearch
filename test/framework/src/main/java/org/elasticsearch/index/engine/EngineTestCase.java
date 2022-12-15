@@ -275,7 +275,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener()
+            config.getIndexCommitListener(),
+            config.isRecoveringAsPrimary()
         );
     }
 
@@ -305,7 +306,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener()
+            config.getIndexCommitListener(),
+            config.isRecoveringAsPrimary()
         );
     }
 
@@ -335,7 +337,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener()
+            config.getIndexCommitListener(),
+            config.isRecoveringAsPrimary()
         );
     }
 
@@ -858,7 +861,8 @@ public abstract class EngineTestCase extends ESTestCase {
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
             System::nanoTime,
-            indexCommitListener
+            indexCommitListener,
+            false
         );
     }
 
@@ -896,7 +900,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getSnapshotCommitSupplier(),
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener()
+            config.getIndexCommitListener(),
+            config.isRecoveringAsPrimary()
         );
     }
 
@@ -1628,7 +1633,7 @@ public abstract class EngineTestCase extends ESTestCase {
         throw new IllegalStateException("Can not extract lazy bits from given index reader [" + reader + "]");
     }
 
-    static CodecService newCodecService() {
+    protected static CodecService newCodecService() {
         return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
     }
 }

@@ -19,15 +19,13 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DateProcessorTests extends ESTestCase {
 
@@ -46,7 +44,7 @@ public class DateProcessorTests extends ESTestCase {
             templatize(ZoneId.of("Europe/Amsterdam")),
             templatize(Locale.ENGLISH),
             "date_as_string",
-            Collections.singletonList("yyyy dd MM HH:mm:ss"),
+            List.of("yyyy dd MM HH:mm:ss"),
             "date_as_date"
         );
         Map<String, Object> document = new HashMap<>();
@@ -129,7 +127,7 @@ public class DateProcessorTests extends ESTestCase {
             null,
             null,
             "date_as_string",
-            Arrays.asList("yyyy dd MM HH:mm:ss XXX"),
+            List.of("yyyy dd MM HH:mm:ss XXX"),
             "date_as_date"
         );
 
@@ -148,7 +146,7 @@ public class DateProcessorTests extends ESTestCase {
                 templatize(ZoneOffset.UTC),
                 templatize(randomLocale(random())),
                 "date_as_string",
-                Collections.singletonList("invalid pattern"),
+                List.of("invalid pattern"),
                 "date_as_date"
             );
             Map<String, Object> document = new HashMap<>();
@@ -169,7 +167,7 @@ public class DateProcessorTests extends ESTestCase {
             templatize(ZoneId.of("Europe/Amsterdam")),
             templatize(Locale.ITALIAN),
             "date_as_string",
-            Collections.singletonList("yyyy dd MMMM"),
+            List.of("yyyy dd MMMM"),
             "date_as_date"
         );
         Map<String, Object> document = new HashMap<>();
@@ -187,7 +185,7 @@ public class DateProcessorTests extends ESTestCase {
             templatize(ZoneId.of("Europe/Amsterdam")),
             templatize(Locale.ENGLISH),
             "date_as_string",
-            Collections.singletonList("yyyy dd MMMM"),
+            List.of("yyyy dd MMMM"),
             "date_as_date"
         );
         Map<String, Object> document = new HashMap<>();
@@ -205,7 +203,7 @@ public class DateProcessorTests extends ESTestCase {
             templatize(ZoneId.of("Europe/Amsterdam")),
             templatize(Locale.ENGLISH),
             "date_as_string",
-            Collections.singletonList(format),
+            List.of(format),
             "date_as_date"
         );
         Map<String, Object> document = new HashMap<>();
@@ -225,7 +223,7 @@ public class DateProcessorTests extends ESTestCase {
             templatize(ZoneOffset.ofHours(2)),
             templatize(randomLocale(random())),
             "date_as_string",
-            Collections.singletonList("TAI64N"),
+            List.of("TAI64N"),
             "date_as_date"
         );
         Map<String, Object> document = new HashMap<>();
@@ -243,7 +241,7 @@ public class DateProcessorTests extends ESTestCase {
             templatize(ZoneOffset.UTC),
             templatize(randomLocale(random())),
             "date_as_string",
-            Collections.singletonList("UNIX_MS"),
+            List.of("UNIX_MS"),
             "date_as_date"
         );
         Map<String, Object> document = new HashMap<>();
@@ -266,7 +264,7 @@ public class DateProcessorTests extends ESTestCase {
             templatize(ZoneOffset.UTC),
             templatize(randomLocale(random())),
             "date_as_string",
-            Collections.singletonList("UNIX"),
+            List.of("UNIX"),
             "date_as_date"
         );
         Map<String, Object> document = new HashMap<>();
@@ -283,7 +281,7 @@ public class DateProcessorTests extends ESTestCase {
             new TestTemplateService.MockTemplateScript.Factory("invalid_timezone"),
             templatize(randomLocale(random())),
             "date_as_string",
-            Collections.singletonList("yyyy"),
+            List.of("yyyy"),
             "date_as_date"
         );
         Map<String, Object> document = new HashMap<>();
@@ -303,7 +301,7 @@ public class DateProcessorTests extends ESTestCase {
             templatize(ZoneOffset.UTC),
             new TestTemplateService.MockTemplateScript.Factory("invalid_locale"),
             "date_as_string",
-            Collections.singletonList("yyyy"),
+            List.of("yyyy"),
             "date_as_date"
         );
         Map<String, Object> document = new HashMap<>();
@@ -324,7 +322,7 @@ public class DateProcessorTests extends ESTestCase {
             null,
             null,
             "date_as_string",
-            Collections.singletonList("iso8601"),
+            List.of("iso8601"),
             "date_as_date",
             "HH:mm:ss.SSSSSSSSS"
         );

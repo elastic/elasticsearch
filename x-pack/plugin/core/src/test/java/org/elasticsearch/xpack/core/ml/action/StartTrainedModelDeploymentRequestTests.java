@@ -221,7 +221,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
 
     public void testDefaults() {
         Request request = new Request(randomAlphaOfLength(10));
-        assertThat(request.getTimeout(), equalTo(TimeValue.timeValueSeconds(20)));
+        assertThat(request.getTimeout(), equalTo(TimeValue.timeValueSeconds(30)));
         assertThat(request.getWaitForState(), equalTo(AllocationStatus.State.STARTED));
         assertThat(request.getNumberOfAllocations(), equalTo(1));
         assertThat(request.getThreadsPerAllocation(), equalTo(1));

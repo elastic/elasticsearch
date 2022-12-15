@@ -1,5 +1,6 @@
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.engine.StatelessEngine;
 import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.lucene.StatelessDirectory;
@@ -18,13 +19,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -36,11 +40,12 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class Stateless extends Plugin {
+public class Stateless extends Plugin implements EnginePlugin {
 
     private static final Logger logger = LogManager.getLogger(Stateless.class);
 
@@ -88,7 +93,13 @@ public class Stateless extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(STATELESS_ENABLED, ObjectStoreService.TYPE, ObjectStoreService.BUCKET, ObjectStoreService.CLIENT);
+        return List.of(
+            STATELESS_ENABLED,
+            ObjectStoreService.TYPE,
+            ObjectStoreService.BUCKET,
+            ObjectStoreService.CLIENT,
+            StatelessEngine.INDEX_FLUSH_INTERVAL_SETTING
+        );
     }
 
     @Override
@@ -107,7 +118,11 @@ public class Stateless extends Plugin {
                 directory.addListener(new DefaultDirectoryListener(indexShard.shardId(), indexShard::getOperationPrimaryTerm));
             }
         });
+    }
 
+    @Override
+    public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+        return Optional.of(StatelessEngine::new);
     }
 
     /**

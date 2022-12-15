@@ -71,10 +71,14 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
     protected CollectedAggregator(StreamInput in) throws IOException {
         name = in.readString();
         metadata = in.readMap();
-        // NOCOMMIT - Get a real instance here.
-        // We need a real BigArrays because the buffer backed version is read-only and we need to allocate
-        // something to store the reduction results.
-        bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+
+        /*
+        We want a no-op instance here because in this path, we are reading our big arrays out of the netty buffer, which should be
+        immutable. The reduction context will pass in a big arrays instance which should be used for reduction, but we don't have
+        access to it yet.  Since the NO_OP_INSTANCE will throw if we try to use it, this provides a safeguard against using the wrong
+        instance.
+         */
+        bigArrays = BigArrays.NO_OP_INSTANCE;
     }
 
     @Override

@@ -34,6 +34,11 @@ public class BigArrays {
 
     public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(null, null, CircuitBreaker.REQUEST);
 
+    /**
+     * "filler" instance to be used when no Big Array operations should be allowed.
+     */
+    public static final BigArrays NO_OP_INSTANCE = new NoOpBigArrays(null, null, null);
+
     /** Returns the next size to grow when working with parallel arrays that
      *  may have different page sizes or number of bytes per element. */
     public static long overSize(long minTargetSize) {

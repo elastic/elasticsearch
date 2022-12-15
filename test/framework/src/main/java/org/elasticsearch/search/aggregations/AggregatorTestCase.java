@@ -461,7 +461,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         // NOCOMMIT - re-enable cranky
-        //runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
+        // runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
         // Second run it to the end
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         return searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig);
@@ -484,13 +484,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
         }
     }
+
     private <A extends InternalAggregation, C extends Aggregator> A searchAndReduceCollectedAgg(
         IndexSettings indexSettings,
         IndexSearcher searcher,
         CircuitBreakerService breakerService,
         AggTestConfig aggTestConfig
     ) throws IOException {
-
 
         // Run collection, sometimes splitting with multiple collectors
         List<CollectedAggregator> collectedAggs = getCollectedAggregators(indexSettings, searcher, breakerService, aggTestConfig);
@@ -509,6 +509,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         // Run the reduction
         final PipelineTree pipelines = aggTestConfig.builder().buildPipelineTree();
         BigArrays bigArraysForReduction = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
+        CollectedAggregator reduced = null;
         try {
             // NOCOMMIT
             // TODO: Put the partial reduce step back
@@ -546,7 +547,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 pipelines
             );
 
-            CollectedAggregator reduced = reduceTime.get(0).reduce(reduceTime, reduceContext);
+            reduced = reduceTime.get(0).reduce(reduceTime, reduceContext);
             // assertRoundTrip(internalAgg);
 
             // materialize any parent pipelines
@@ -569,12 +570,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
             List<Releasable> toClose = new ArrayList<>();
             toClose.addAll(reduceTime);
             toClose.add(breakerService);
+            toClose.add(reduced);
             Releasables.close(toClose);
         }
 
     }
 
-    private <C extends Aggregator> List<CollectedAggregator> getCollectedAggregators(IndexSettings indexSettings, IndexSearcher searcher, CircuitBreakerService breakerService, AggTestConfig aggTestConfig) throws IOException {
+    private <C extends Aggregator> List<CollectedAggregator> getCollectedAggregators(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        CircuitBreakerService breakerService,
+        AggTestConfig aggTestConfig
+    ) throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         // we still want a list here for the multiple collect case
         List<CollectedAggregator> aggs = new ArrayList<>();

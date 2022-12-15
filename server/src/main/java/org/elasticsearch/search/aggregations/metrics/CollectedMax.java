@@ -70,7 +70,7 @@ public class CollectedMax extends CollectedAggregator {
 
     @Override
     public CollectedAggregator reduce(List<CollectedAggregator> aggregations, AggregationReduceContext reduceContext) {
-        CollectedMax reducedMax = new CollectedMax(name, metadata, bigArrays(), aggregations.size(), format);
+        CollectedMax reducedMax = new CollectedMax(name, metadata, reduceContext.bigArrays(), aggregations.size(), format);
         reducedMax.fill(Double.NEGATIVE_INFINITY);
         for (CollectedAggregator aggregation : aggregations) {
             if (aggregation instanceof CollectedMax other) {
@@ -80,6 +80,7 @@ public class CollectedMax extends CollectedAggregator {
                 }
             } else {
                 // this should never happen, right?
+                Releasables.close(reducedMax);
                 throw new AggregationExecutionException(
                     "Mixed type reduction! Expected ["
                         + this.getClass().getSimpleName()

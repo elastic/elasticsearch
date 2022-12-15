@@ -448,7 +448,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             return null;
         }
 
-        return issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + subject;
+        final String userPrincipal = claimParserPrincipal.getClaimValue(jwtClaimsSet);
+        if (false == Strings.hasText(userPrincipal)) {
+            logger.debug("No user principal can be extracted with [{}] for realm [{}]", claimParserPrincipal, name());
+            return null;
+        }
+
+        return issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + subject + "/" + userPrincipal;
     }
 
     /**

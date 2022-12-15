@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.elasticsearch.action.admin.cluster.repositories.integrity.VerifyRepositoryIntegrityAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -93,7 +94,7 @@ public class BlobStoreMetadataIntegrityIT extends AbstractSnapshotIntegTestCase 
             createFullSnapshot(REPOSITORY_NAME, "test-snapshot-" + snapshotIndex);
         }
 
-        final var request = new VerifyRepositoryIntegrityAction.Request(REPOSITORY_NAME, 5, 5, 5, 5, 10000, false);
+        final var request = new VerifyRepositoryIntegrityAction.Request(REPOSITORY_NAME, Strings.EMPTY_ARRAY, 5, 5, 5, 5, 10000, false);
 
         final var response = PlainActionFuture.<VerifyRepositoryIntegrityAction.Response, RuntimeException>get(
             listener -> client().execute(VerifyRepositoryIntegrityAction.INSTANCE, request, listener),

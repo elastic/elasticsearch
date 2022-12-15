@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepositoryIntegrityAction.Response> {
 
@@ -55,6 +56,7 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
     public static class Request extends MasterNodeReadRequest<Request> {
 
         private final String repository;
+        private final String[] indices;
         private final int threadpoolConcurrency;
         private final int snapshotVerificationConcurrency;
         private final int indexVerificationConcurrency;
@@ -64,6 +66,7 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
 
         public Request(
             String repository,
+            String[] indices,
             int threadpoolConcurrency,
             int snapshotVerificationConcurrency,
             int indexVerificationConcurrency,
@@ -72,6 +75,7 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
             boolean permitMissingSnapshotDetails
         ) {
             this.repository = repository;
+            this.indices = Objects.requireNonNull(indices, "indices");
             this.threadpoolConcurrency = requireMin("threadpoolConcurrency", 0, threadpoolConcurrency);
             this.snapshotVerificationConcurrency = requireMin("snapshotVerificationConcurrency", 1, snapshotVerificationConcurrency);
             this.indexVerificationConcurrency = requireMin("indexVerificationConcurrency", 1, indexVerificationConcurrency);
@@ -94,6 +98,7 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
         public Request(StreamInput in) throws IOException {
             super(in);
             this.repository = in.readString();
+            this.indices = in.readStringArray();
             this.threadpoolConcurrency = in.readVInt();
             this.snapshotVerificationConcurrency = in.readVInt();
             this.indexVerificationConcurrency = in.readVInt();
@@ -106,6 +111,7 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(repository);
+            out.writeStringArray(indices);
             out.writeVInt(threadpoolConcurrency);
             out.writeVInt(snapshotVerificationConcurrency);
             out.writeVInt(indexVerificationConcurrency);
@@ -122,6 +128,14 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+        }
+
+        public String getRepository() {
+            return repository;
+        }
+
+        public String[] getIndices() {
+            return indices;
         }
 
         public int getThreadpoolConcurrency() {
@@ -152,6 +166,7 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
             if (threadpoolConcurrency == 0) {
                 final var request = new Request(
                     repository,
+                    indices,
                     Math.max(1, EsExecutors.allocatedProcessors(settings) / 2),
                     snapshotVerificationConcurrency,
                     indexVerificationConcurrency,
@@ -249,7 +264,7 @@ public class VerifyRepositoryIntegrityAction extends ActionType<VerifyRepository
         protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             // TODO add mechanism to block blob deletions while this is running
             final var cancellableTask = (CancellableTask) task;
-            repositoriesService.repository(request.repository)
+            repositoriesService.repository(request.getRepository())
                 .verifyMetadataIntegrity(
                     request.withDefaultThreadpoolConcurrency(clusterService.getSettings()),
                     listener.map(Response::new),

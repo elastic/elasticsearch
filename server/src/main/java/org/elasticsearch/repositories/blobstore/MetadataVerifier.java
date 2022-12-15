@@ -69,6 +69,7 @@ class MetadataVerifier implements Releasable {
     private final ProgressLogger snapshotProgressLogger;
     private final ProgressLogger indexProgressLogger;
     private final ProgressLogger indexSnapshotProgressLogger;
+    private final Set<String> requestedIndices;
 
     MetadataVerifier(
         BlobStoreRepository blobStoreRepository,
@@ -92,6 +93,8 @@ class MetadataVerifier implements Releasable {
         this.snapshotProgressLogger = new ProgressLogger("snapshots", repositoryData.getSnapshotIds().size(), 100);
         this.indexProgressLogger = new ProgressLogger("indices", repositoryData.getIndices().size(), 20);
         this.indexSnapshotProgressLogger = new ProgressLogger("index snapshots", repositoryData.getIndexSnapshotCount(), 1000);
+
+        this.requestedIndices = Set.of(verifyRequest.getIndices());
     }
 
     @Override
@@ -136,7 +139,11 @@ class MetadataVerifier implements Releasable {
             indexSnapshotProgressLogger.getExpectedMax()
         );
 
-        verifySnapshots();
+        if (requestedIndices.isEmpty()) {
+            verifySnapshots();
+        } else {
+            verifyIndices();
+        }
     }
 
     private void verifySnapshots() {
@@ -231,6 +238,10 @@ class MetadataVerifier implements Releasable {
         }
 
         void run() {
+            if (requestedIndices.isEmpty() == false && requestedIndices.contains(indexId.getName()) == false) {
+                return;
+            }
+
             runThrottled(
                 makeVoidListener(indexRefs, () -> {}),
                 repositoryData.getSnapshots(indexId).iterator(),

@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.repositories.integrity.VerifyRepositoryIntegrityAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -35,6 +36,7 @@ public class RestVerifyRepositoryIntegrityAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final var verifyRequest = new VerifyRepositoryIntegrityAction.Request(
             request.param("repository"),
+            request.paramAsStringArray("indices", Strings.EMPTY_ARRAY),
             request.paramAsInt("threadpool_concurrency", 0),
             request.paramAsInt("snapshot_verification_concurrency", 5),
             request.paramAsInt("index_verification_concurrency", 5),

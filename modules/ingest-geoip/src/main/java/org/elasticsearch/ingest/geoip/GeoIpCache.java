@@ -15,7 +15,6 @@ import org.elasticsearch.common.cache.CacheBuilder;
 
 import java.net.InetAddress;
 import java.nio.file.Path;
-import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -82,29 +81,5 @@ final class GeoIpCache {
      * path is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
      * IP may be in both with different values and we need to cache both.
      */
-    private static class CacheKey {
-
-        private final InetAddress ip;
-        private final String databasePath;
-
-        private CacheKey(InetAddress ip, String databasePath) {
-            this.ip = ip;
-            this.databasePath = databasePath;
-        }
-
-        // generated
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            CacheKey cacheKey = (CacheKey) o;
-            return Objects.equals(ip, cacheKey.ip) && Objects.equals(databasePath, cacheKey.databasePath);
-        }
-
-        // generated
-        @Override
-        public int hashCode() {
-            return Objects.hash(ip, databasePath);
-        }
-    }
+    private record CacheKey(InetAddress ip, String databasePath) {}
 }

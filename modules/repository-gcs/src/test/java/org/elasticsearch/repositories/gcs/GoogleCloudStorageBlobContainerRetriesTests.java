@@ -60,6 +60,7 @@ import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeEnd;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeLimit;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeStart;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
+import static fixture.gcs.TestUtils.createServiceAccount;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH;
@@ -67,7 +68,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
-import static org.elasticsearch.repositories.gcs.TestUtils.createServiceAccount;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

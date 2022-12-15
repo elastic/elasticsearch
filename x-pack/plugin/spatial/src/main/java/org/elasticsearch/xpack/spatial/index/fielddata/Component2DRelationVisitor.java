@@ -17,7 +17,7 @@ import org.apache.lucene.index.PointValues;
  * This class supports checking {@link Component2D} relations against a serialized triangle tree.
  * It does not support bounding boxes crossing the dateline.
  */
-class Component2DRelationVisitor extends TriangleTreeReader.DecodedVisitor {
+class Component2DRelationVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
 
     private GeoRelation relation;
     private Component2D component2D;
@@ -39,7 +39,7 @@ class Component2DRelationVisitor extends TriangleTreeReader.DecodedVisitor {
     }
 
     @Override
-    void visitDecodedPoint(double x, double y) {
+    protected void visitDecodedPoint(double x, double y) {
         if (component2D.contains(x, y)) {
             if (canBeContained()) {
                 relation = GeoRelation.QUERY_CONTAINS;
@@ -54,7 +54,7 @@ class Component2DRelationVisitor extends TriangleTreeReader.DecodedVisitor {
     }
 
     @Override
-    void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
+    protected void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {
         if (component2D.intersectsLine(aX, aY, bX, bY)) {
             final boolean ab = (metadata & 1 << 4) == 1 << 4;
             if (canBeContained() && component2D.containsLine(aX, aY, bX, bY)) {
@@ -70,7 +70,7 @@ class Component2DRelationVisitor extends TriangleTreeReader.DecodedVisitor {
     }
 
     @Override
-    void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
+    protected void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
         if (component2D.intersectsTriangle(aX, aY, bX, bY, cX, cY)) {
             final boolean ab = (metadata & 1 << 4) == 1 << 4;
             final boolean bc = (metadata & 1 << 5) == 1 << 5;

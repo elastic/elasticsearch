@@ -27,6 +27,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSourceTests.createKeywordFieldTestInstance;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class EclatMapReducerTests extends ESTestCase {
 
@@ -240,7 +242,7 @@ public class EclatMapReducerTests extends ESTestCase {
         assertThat(result.getProfilingInfo().get("unique_items_after_reduce"), equalTo(21L));
         assertThat(result.getProfilingInfo().get("total_transactions_after_reduce"), equalTo(12L));
         assertThat(result.getProfilingInfo().get("total_items_after_reduce"), equalTo(72L));
-        assertThat(result.getProfilingInfo().get("item_sets_checked_eclat"), equalTo(63L));
+        assertThat(result.getProfilingInfo().get("item_sets_checked_eclat"), equalTo(47L));
     }
 
     public void testPruneToNextMainBranchAfterMinCountPrune() throws IOException {
@@ -456,7 +458,11 @@ public class EclatMapReducerTests extends ESTestCase {
         assertThat(result.getProfilingInfo().get("total_transactions_after_reduce"), equalTo(12L));
         assertThat(result.getProfilingInfo().get("total_items_after_reduce"), equalTo(96L));
         assertThat(result.getProfilingInfo().get("total_items_after_prune"), equalTo(96L));
-        assertThat(result.getProfilingInfo().get("item_sets_checked_eclat"), equalTo(495L));
+
+        // the number can vary depending on order, so we can only check a range, which is still much lower than without
+        // that optimization
+        assertThat((Long) result.getProfilingInfo().get("item_sets_checked_eclat"), greaterThanOrEqualTo(294L));
+        assertThat((Long) result.getProfilingInfo().get("item_sets_checked_eclat"), lessThan(310L));
     }
 
     private static BigArrays mockBigArrays() {

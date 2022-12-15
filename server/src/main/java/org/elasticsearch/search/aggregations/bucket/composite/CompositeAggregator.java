@@ -60,6 +60,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.LongUnaryOperator;
 
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
@@ -84,6 +85,8 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     private BucketCollector deferredCollectors;
 
     private boolean earlyTerminated;
+
+    private int numDocsVisitedNoIndexSorting;
 
     CompositeAggregator(
         String name,
@@ -500,6 +503,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                     public void collect(int doc, long zeroBucket) throws IOException {
                         assert zeroBucket == 0L;
                         inner.collect(doc);
+                        numDocsVisitedNoIndexSorting++;
                     }
 
                     @Override
@@ -623,6 +627,12 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             );
         }
         return innerSizedBucketAggregators[0].bucketSize(unit);
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        add.accept("num_docs_visited_no_index_sorting", numDocsVisitedNoIndexSorting);
     }
 
     private static class Entry {

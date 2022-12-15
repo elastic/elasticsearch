@@ -44,6 +44,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -113,6 +114,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests.nestedObject;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -121,6 +124,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class CompositeAggregatorTests extends AggregatorTestCase {
@@ -3253,6 +3257,202 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertThat(composite.afterKey(), is(nullValue()));
             })
         );
+    }
+
+    public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsNotApplicableDueToMissingBucket() throws Exception {
+        final CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            Arrays.asList(new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true))
+        ).size(2);
+        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
+        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 1; i <= 100; i++) {
+                addDocWithKeywordFields(iw, "keyword", "a_" + i, "foo", "bar");
+            }
+        };
+
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{keyword=a_10}", result.afterKey().toString());
+                assertEquals("{keyword=a_1}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=a_10}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(debug, matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", equalTo(100))));
+            },
+            keywordMapping,
+            fooMapping
+        );
+    }
+
+    public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsNotApplicableDueToSize() throws Exception {
+        final CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            Arrays.asList(new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true))
+        ).size(13); // We need a size that is more than 1/8 of the total count.
+        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
+        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 1; i <= 100; i++) {
+                addDocWithKeywordFields(iw, "keyword", "a_" + i, "foo", "bar");
+            }
+        };
+
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(13));
+                assertEquals(CompositeAggregator.class, impl);
+                assertMap(debug, matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", equalTo(100))));
+            },
+            keywordMapping,
+            fooMapping
+        );
+    }
+
+    public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsApplicableAndAscendingOrder() throws Exception {
+        CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            Arrays.asList(new TermsValuesSourceBuilder("keyword").field("keyword"))
+        ).size(2);
+        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
+        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 1; i <= 100; i++) {
+                addDocWithKeywordFields(iw, "keyword", "a_" + i, "foo", "bar");
+            }
+        };
+
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{keyword=a_10}", result.afterKey().toString());
+                assertEquals("{keyword=a_1}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=a_10}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(
+                    debug,
+                    matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", lessThanOrEqualTo(20)))
+                );
+            },
+            keywordMapping,
+            fooMapping
+        );
+
+        aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            Arrays.asList(new TermsValuesSourceBuilder("keyword").field("keyword"))
+        ).size(2).aggregateAfter(Collections.singletonMap("keyword", "a_10"));
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{keyword=a_11}", result.afterKey().toString());
+                assertEquals("{keyword=a_100}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=a_11}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(
+                    debug,
+                    matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", lessThanOrEqualTo(20)))
+                );
+            },
+            keywordMapping,
+            fooMapping
+        );
+    }
+
+    public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsApplicableAndDescendingOrder() throws Exception {
+        CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            Arrays.asList(new TermsValuesSourceBuilder("keyword").field("keyword").order(SortOrder.DESC))
+        ).size(2);
+        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
+        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 1; i <= 100; i++) {
+                addDocWithKeywordFields(iw, "keyword", "a_" + i, "foo", "bar");
+            }
+        };
+
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{keyword=a_98}", result.afterKey().toString());
+                assertEquals("{keyword=a_99}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=a_98}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(
+                    debug,
+                    matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", lessThanOrEqualTo(50)))
+                );
+            },
+            keywordMapping,
+            fooMapping
+        );
+
+        aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            Arrays.asList(new TermsValuesSourceBuilder("keyword").field("keyword").order(SortOrder.DESC))
+        ).size(2).aggregateAfter(Collections.singletonMap("keyword", "a_98"));
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{keyword=a_96}", result.afterKey().toString());
+                assertEquals("{keyword=a_97}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=a_96}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(
+                    debug,
+                    matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", lessThanOrEqualTo(50)))
+                );
+            },
+            keywordMapping,
+            fooMapping
+        );
+    }
+
+    private static void addDocWithKeywordFields(RandomIndexWriter iw, String... fieldValuePairs) throws IOException {
+        assertThat(fieldValuePairs.length, greaterThan(0));
+        assertThat(fieldValuePairs.length % 2, equalTo(0));
+        List<Field> fields = new ArrayList<>();
+        for (int i = 0; i < fieldValuePairs.length; i = i + 2) {
+            String field = fieldValuePairs[i];
+            String value = fieldValuePairs[i + 1];
+            fields.add(new StringField(field, value, Field.Store.NO));
+            fields.add(new SortedSetDocValuesField(field, new BytesRef(value)));
+        }
+        iw.addDocument(fields);
     }
 
     private <T extends AggregationBuilder, V extends InternalAggregation> void testSearchCase(

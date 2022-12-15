@@ -1,0 +1,5 @@
+pr: 92171
+summary: Forwarding simulate calls to ingest nodes
+area: Ingest Node
+type: bug
+issues: []

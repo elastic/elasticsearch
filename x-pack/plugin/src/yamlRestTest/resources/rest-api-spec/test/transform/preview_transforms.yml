@@ -11,6 +11,10 @@ setup:
                 type: keyword
               responsetime:
                 type: float
+              agg_metric:
+                type: aggregate_metric_double
+                metrics: [ "min", "max" ]
+                default_metric: "max"
               event_rate:
                 type: integer
               _isDeleted:
@@ -636,5 +640,21 @@ setup:
             },
             "settings": {
               "unattended": true
+            }
+          }
+
+---
+"Test preview transform latest with unique key field of aggregate_metric_double type":
+  - do:
+      catch: /Field \[agg_metric\] of type \[aggregate_metric_double\] is not supported for aggregation \[terms\]/
+      transform.preview_transform:
+        body:  >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "latest": {
+              "unique_key": ["agg_metric"],
+              "sort": "time"
             }
           }

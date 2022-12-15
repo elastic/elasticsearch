@@ -30,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -74,8 +73,8 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             } else {
                 expectedFileSnapshotTasks.addAndGet(filesToUpload);
                 ActionListener<Void> uploadListener = new GroupedActionListener<>(
-                    ActionListener.wrap(finishedShardSnapshots::incrementAndGet),
-                    filesToUpload
+                    filesToUpload,
+                    ActionListener.wrap(finishedShardSnapshots::incrementAndGet)
                 );
                 for (int i = 0; i < filesToUpload; i++) {
                     taskRunner.enqueueFileSnapshot(context, ShardSnapshotTaskRunnerTests::dummyFileInfo, uploadListener);
@@ -137,7 +136,6 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             null,
             IndexShardSnapshotStatus.newInitializing(null),
             Version.CURRENT,
-            Collections.emptyMap(),
             startTime,
             ActionListener.noop()
         );

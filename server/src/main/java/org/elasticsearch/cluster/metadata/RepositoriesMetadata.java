@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.UnaryOperator;
 
@@ -250,15 +251,11 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         return new RepositoriesMetadata(repository);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        for (RepositoryMetadata repository : repositories) {
-            toXContent(repository, builder, params);
-        }
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return repositories.stream()
+            .map(repository -> (ToXContent) (builder, params) -> toXContent(repository, builder, params))
+            .iterator();
     }
 
     @Override
@@ -273,7 +270,8 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      * @param builder    XContent builder
      * @param params     serialization parameters
      */
-    public static void toXContent(RepositoryMetadata repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public static XContentBuilder toXContent(RepositoryMetadata repository, XContentBuilder builder, ToXContent.Params params)
+        throws IOException {
         builder.startObject(repository.name());
         builder.field("type", repository.type());
         if (repository.uuid().equals(RepositoryData.MISSING_UUID) == false) {
@@ -288,6 +286,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
             builder.field("pending_generation", repository.pendingGeneration());
         }
         builder.endObject();
+        return builder;
     }
 
     @Override

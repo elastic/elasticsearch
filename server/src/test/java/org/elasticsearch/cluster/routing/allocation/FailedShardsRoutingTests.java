@@ -41,7 +41,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -151,6 +150,12 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         // check promotion of replica to primary
         assertThat(clusterState.getRoutingNodes().node(origReplicaNodeId).iterator().next().state(), equalTo(STARTED));
         assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo(origReplicaNodeId));
+
+        if (clusterState.routingTable().index("test").shard(0).replicaShards().get(0).assignedToNode() == false) {
+            // desired node may be ignored due to previous failure - try again if so
+            clusterState = startShardsAndReroute(allocation, clusterState);
+        }
+
         assertThat(
             clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(),
             anyOf(equalTo(origPrimaryNodeId), equalTo("node3"))
@@ -501,10 +506,14 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(2));
-        assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED, RELOCATING), equalTo(2));
-        assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), lessThan(3));
-        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED, RELOCATING), equalTo(2));
-        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), lessThan(3));
+        assertThat(
+            routingNodes.node("node1").numberOfShardsWithState(STARTED) + routingNodes.node("node1").numberOfShardsWithState(RELOCATING),
+            equalTo(2)
+        );
+        assertThat(
+            routingNodes.node("node2").numberOfShardsWithState(STARTED) + routingNodes.node("node2").numberOfShardsWithState(RELOCATING),
+            equalTo(2)
+        );
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(1));
 
         logger.info("Fail the shards on node 3");
@@ -515,10 +524,14 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(2));
-        assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED, RELOCATING), equalTo(2));
-        assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), lessThan(3));
-        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED, RELOCATING), equalTo(2));
-        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), lessThan(3));
+        assertThat(
+            routingNodes.node("node1").numberOfShardsWithState(STARTED) + routingNodes.node("node1").numberOfShardsWithState(RELOCATING),
+            equalTo(2)
+        );
+        assertThat(
+            routingNodes.node("node2").numberOfShardsWithState(STARTED) + routingNodes.node("node2").numberOfShardsWithState(RELOCATING),
+            equalTo(2)
+        );
 
         if (strategy.isBalancedShardsAllocator()) {
             assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(1));

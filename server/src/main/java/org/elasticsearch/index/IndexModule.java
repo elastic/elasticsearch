@@ -165,6 +165,7 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -370,6 +371,11 @@ public final class IndexModule {
         this.indexDirectoryWrapper.set(Objects.requireNonNull(wrapper));
     }
 
+    public void setIndexCommitListener(Engine.IndexCommitListener listener) {
+        ensureNotFrozen();
+        this.indexCommitListener.set(Objects.requireNonNull(listener));
+    }
+
     IndexEventListener freeze() { // pkg private for testing
         if (this.frozen.compareAndSet(false, true)) {
             return new CompositeIndexEventListener(indexSettings, indexEventListeners);
@@ -517,7 +523,8 @@ public final class IndexModule {
                 valuesSourceRegistry,
                 recoveryStateFactory,
                 indexFoldersDeletionListener,
-                snapshotCommitSupplier
+                snapshotCommitSupplier,
+                indexCommitListener.get()
             );
             success = true;
             return indexService;

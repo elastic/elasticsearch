@@ -1,5 +1,0 @@
-pr: 91338
-summary: Extend systemd startup timeout to 900s
-area: Infra/Core
-type: enhancement
-issues: []

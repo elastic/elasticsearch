@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -24,9 +25,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.core.Strings.format;
@@ -36,18 +37,23 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 /**
  * Responsible for cleaning the invalidated and expired API keys from the security index.
  */
-public final class ExpiredApiKeysRemover extends AbstractRunnable {
-    public static final Duration EXPIRED_API_KEYS_RETENTION_PERIOD = Duration.ofDays(7L);
-
-    private static final Logger logger = LogManager.getLogger(ExpiredApiKeysRemover.class);
+public final class InactiveApiKeysRemover extends AbstractRunnable {
+    private static final Logger logger = LogManager.getLogger(InactiveApiKeysRemover.class);
 
     private final Client client;
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
     private final TimeValue timeout;
+    private final AtomicLong retentionPeriodInMs;
 
-    ExpiredApiKeysRemover(Settings settings, Client client) {
+    InactiveApiKeysRemover(Settings settings, Client client, ClusterService clusterService) {
         this.client = client;
         this.timeout = ApiKeyService.DELETE_TIMEOUT.get(settings);
+        this.retentionPeriodInMs = new AtomicLong(ApiKeyService.DELETE_RETENTION_PERIOD.get(settings).getMillis());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                ApiKeyService.DELETE_RETENTION_PERIOD,
+                newRetentionPeriod -> this.retentionPeriodInMs.set(newRetentionPeriod.getMillis())
+            );
     }
 
     @Override
@@ -58,11 +64,18 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
             expiredDbq.getSearchRequest().source().timeout(timeout);
         }
         final Instant now = Instant.now();
+        final long cutoffTimestamp = now.minusMillis(retentionPeriodInMs.get()).toEpochMilli();
         expiredDbq.setQuery(
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termsQuery("doc_type", "api_key"))
-                .should(QueryBuilders.termsQuery("api_key_invalidated", true))
-                .should(QueryBuilders.rangeQuery("expiration_time").lte(now.minus(EXPIRED_API_KEYS_RETENTION_PERIOD).toEpochMilli()))
+                .should(QueryBuilders.rangeQuery("expiration_time").lte(cutoffTimestamp))
+                .should(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termsQuery("api_key_invalidated", true))
+                        .should(QueryBuilders.rangeQuery("invalidation_time").lte(cutoffTimestamp))
+                        .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("invalidation_time")))
+                        .minimumShouldMatch(1)
+                )
                 .minimumShouldMatch(1)
         );
 

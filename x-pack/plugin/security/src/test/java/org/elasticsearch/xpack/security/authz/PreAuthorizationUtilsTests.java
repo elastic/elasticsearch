@@ -8,15 +8,20 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 
 import java.util.Optional;
@@ -34,7 +39,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class PreAuthorizationUtilsTests extends ESTestCase {
 
     public void testMaybeSkipChildrenActionAuthorizationAddsParentAuthorizationHeader() {
-        String index = "test-index";
         String action = SearchAction.NAME;
 
         Role role = Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, "test-*").build();
@@ -48,7 +52,6 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testMaybeSkipChildrenActionAuthorizationDoesNotAddHeaderForRandomAction() {
-        String index = "test-index";
         String action = "indices:data/" + randomAlphaOfLengthBetween(3, 8);
 
         Role role = Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, "test-*").build();
@@ -107,6 +110,40 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
             ),
             equalTo(true)
         );
+    }
+
+    public void testShouldPreAuthorizeChildByParentAction() {
+        final String parentAction = SearchAction.NAME;
+        final String childAction = randomWhitelistedChildAction(parentAction);
+
+        ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(parentAction);
+        Authentication authentication = Authentication.newRealmAuthentication(
+            new User("username1", "role1"),
+            new RealmRef("realm1", "native", "node1")
+        );
+        RequestInfo requestInfo = new RequestInfo(authentication, new SearchRequest("test-index"), childAction, null, parentAuthorization);
+
+        Role role = Role.builder(RESTRICTED_INDICES, "role1").add(IndexPrivilege.READ, "test-*").build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        assertThat(PreAuthorizationUtils.shouldPreAuthorizeChildByParentAction(requestInfo, authzInfo), equalTo(true));
+    }
+
+    public void testShouldPreAuthorizeChildByParentActionWhenParentAndChildAreSame() {
+        final String parentAction = SearchAction.NAME;
+        final String childAction = parentAction;
+
+        ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(parentAction);
+        Authentication authentication = Authentication.newRealmAuthentication(
+            new User("username1", "role1"),
+            new RealmRef("realm1", "native", "node1")
+        );
+        RequestInfo requestInfo = new RequestInfo(authentication, new SearchRequest("test-index"), childAction, null, parentAuthorization);
+
+        Role role = Role.builder(RESTRICTED_INDICES, "role1").add(IndexPrivilege.READ, "test-*").build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        assertThat(PreAuthorizationUtils.shouldPreAuthorizeChildByParentAction(requestInfo, authzInfo), equalTo(true));
     }
 
     private String randomWhitelistedChildAction(String parentAction) {

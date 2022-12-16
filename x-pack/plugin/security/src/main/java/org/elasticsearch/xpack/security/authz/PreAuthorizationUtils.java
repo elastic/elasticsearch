@@ -114,7 +114,7 @@ public final class PreAuthorizationUtils {
 
     private static boolean shouldPreAuthorizeChildActionOfParent(final String parent, final String child) {
         final Set<String> children = CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(parent);
-        return children != null && (parent.equals(child) || children.contains(child));
+        return children != null && children.contains(child);
     }
 
     public static boolean shouldRemoveParentAuthorizationFromThreadContext(
@@ -149,6 +149,10 @@ public final class PreAuthorizationUtils {
         }
 
         Role role = RBACEngine.maybeGetRBACEngineRole(childAuthorizationInfo);
+        if (role == null) {
+            // If role is null, it means a custom authorization engine is in use.
+            return false;
+        }
         if (role.hasFieldOrDocumentLevelSecurity()) {
             // We can't safely pre-authorize actions if DLS or FLS is configured
             // without sending IAC as well with authorization result.

@@ -208,20 +208,7 @@ generate the properties file, and put it all in a zip file just by running
 the task `bundlePlugin`. The plugin artifact will be written to
 `build/distributions`.
 
-[discrete]
-=== Unit testing
-
-Unit tests may go under the `src/test` directory. You will have to add
-dependencies for your preferred testing framework.
-
-[discrete]
-=== YAML REST tests
-
-If you are using the Elasticsearch stable api plugin for Gradle, you can
-use Elasticsearch's YAML Rest Test framework. This framework allows you to
-load your plugin in a running test cluster and issue real REST API queries
-against it. The full syntax for this framework is beyond the scope of this
-tutorial, but there are many examples in the Elasticsearch repository.
+A sample Gradle build file for using the Gradle plugin:
 
 ["source","gradle"]
 -------------------------
@@ -272,5 +259,70 @@ esplugin {
 }
 -------------------------
 
-TODO: necessary files for yaml test
+[discrete]
+=== Unit testing
 
+Unit tests may go under the `src/test` directory. You will have to add
+dependencies for your preferred testing framework.
+
+[discrete]
+=== YAML REST tests
+
+If you are using the Elasticsearch stable api plugin for Gradle, you can
+use Elasticsearch's YAML Rest Test framework. This framework allows you to
+load your plugin in a running test cluster and issue real REST API queries
+against it. The full syntax for this framework is beyond the scope of this
+tutorial, but there are many examples in the Elasticsearch repository.
+
+Under your yamlRestTest directory, create a `java` folder for Java sources
+and a `resources` folder.
+
+In your Java folder, create an implementation of the ESClientYamlSuiteTestCase
+class (that is, under `src/yamlRestTest/java/your/package/name`):
+
+[source,java]
+-------------------------
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+
+public class HelloWorldPluginClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    public HelloWorldPluginClientYamlTestSuiteIT(
+            @Name("yaml") ClientYamlTestCandidate testCandidate
+    ) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
+}
+-------------------------
+
+Under `src/yamlRestTest/resources/rest-api-spec/test/plugin`, create a yaml file:
+
+[source,yaml]
+--------------------------
+## Sample rest test
+---
+"Hello world plugin test - removes all tokens except hello and world":
+  - do:
+      indices.analyze:
+        body:
+          text: hello to everyone except the world
+          tokenizer: standard
+          filter:
+            - type: "hello_world"
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: "hello" }
+  - match:  { tokens.1.token: "world" }
+--------------------------
+
+This test executes a request against the `_analyze` API under the "do" block and
+verifies the conditions in the "length" and "match" sections. For more information,
+see...
+
+TODO: Link to the source doc for rest API tests.

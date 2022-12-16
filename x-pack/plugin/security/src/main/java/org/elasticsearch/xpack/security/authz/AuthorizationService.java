@@ -522,8 +522,8 @@ public class AuthorizationService {
         final String action = requestInfo.getAction();
         securityContext.putIndicesAccessControl(indicesAccessControl);
 
-        final AuthorizationContext parentContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
-        PreAuthorizationUtils.maybeSkipChildrenActionAuthorization(securityContext, parentContext);
+        final AuthorizationContext authzContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
+        PreAuthorizationUtils.maybeSkipChildrenActionAuthorization(securityContext, authzContext);
 
         // if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
@@ -536,7 +536,7 @@ public class AuthorizationService {
                 runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             } else {
                 Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
-                final RequestInfo aliasesRequestInfo = new RequestInfo(authentication, request, IndicesAliasesAction.NAME, parentContext);
+                final RequestInfo aliasesRequestInfo = new RequestInfo(authentication, request, IndicesAliasesAction.NAME, authzContext);
                 authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo, ril -> {
                     resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                         List<String> aliasesAndIndices = new ArrayList<>(resolvedIndices.getLocal());
@@ -564,7 +564,6 @@ public class AuthorizationService {
             // if this is performing multiple actions on the index, then check each of those actions.
             assert request instanceof BulkShardRequest
                 : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
-            final AuthorizationContext authzContext = new AuthorizationContext(action, authzInfo, indicesAccessControl);
             authorizeBulkItems(
                 requestInfo,
                 authzContext,

@@ -561,11 +561,7 @@ public abstract class StreamOutput extends OutputStream {
             .iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            if (this.getVersion().onOrAfter(Version.V_8_7_0)) {
-                this.writeGenericValue(next.getKey());
-            } else {
-                this.writeString(next.getKey());
-            }
+            this.writeString(next.getKey());
             this.writeGenericValue(next.getValue());
         }
     }
@@ -689,17 +685,20 @@ public abstract class StreamOutput extends OutputStream {
         entry(Map.class, (o, v) -> {
             if (v instanceof LinkedHashMap) {
                 o.writeByte((byte) 9);
-            } else {
-                o.writeByte((byte) 10);
-            }
-            if (o.getVersion().onOrAfter(Version.V_8_7_0)) {
-                @SuppressWarnings("unchecked")
-                final Map<Object, Object> map = (Map<Object, Object>) v;
-                o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
-            } else {
                 @SuppressWarnings("unchecked")
                 final Map<String, Object> map = (Map<String, Object>) v;
                 o.writeMap(map, StreamOutput::writeString, StreamOutput::writeGenericValue);
+            } else {
+                o.writeByte((byte) 10);
+                if (o.getVersion().onOrAfter(Version.V_8_7_0)) {
+                    @SuppressWarnings("unchecked")
+                    final Map<Object, Object> map = (Map<Object, Object>) v;
+                    o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
+                } else {
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> map = (Map<String, Object>) v;
+                    o.writeMap(map, StreamOutput::writeString, StreamOutput::writeGenericValue);
+                }
             }
         }),
         entry(Byte.class, (o, v) -> {

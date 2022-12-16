@@ -2264,7 +2264,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 indicesLookup = previousIndicesLookup;
             } else if (skipNameCollisionChecks == false) {
                 // we have changes to the the entity names so we ensure we have no naming collisions
-                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata());
+                DataStreamMetadata updatedMetadata = ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata());
+                this.customs.fPut(DataStreamMetadata.TYPE, updatedMetadata);
             }
             assert assertDataStreams(indicesMap, dataStreamMetadata());
 
@@ -2310,7 +2311,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             );
         }
 
-        private static void ensureNoNameCollisions(
+        private static DataStreamMetadata ensureNoNameCollisions(
             Set<String> indexAliases,
             ImmutableOpenMap<String, IndexMetadata> indicesMap,
             DataStreamMetadata dataStreamMetadata
@@ -2320,7 +2321,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final Set<String> aliasDuplicatesWithDataStreams = new HashSet<>();
             final var allDataStreams = dataStreamMetadata.dataStreams();
             // Adding data stream aliases:
-            for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
+            Map<String, DataStreamAlias> allDataStreamAliases = dataStreamMetadata.getDataStreamAliases();
+            for (String dataStreamAlias : allDataStreamAliases.keySet()) {
                 if (indexAliases.contains(dataStreamAlias)) {
                     duplicates.add("data stream alias and indices alias have the same name (" + dataStreamAlias + ")");
                 }
@@ -2358,6 +2360,49 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                         + "]"
                 );
             }
+            Map<String, DataStream> updatedDataStreams = new HashMap<>();
+            for (Map.Entry<String, DataStream> dataStreamEntry : dataStreamMetadata.dataStreams().entrySet()) {
+                DataStream currentDataStream = dataStreamEntry.getValue();
+                Map<String, DataStreamAlias> currentDataStreamAliases = currentDataStream.getAliases();
+                Map<String, DataStreamAlias> updatedDataStreamAliases = new HashMap<>();
+                DataStream updatedDataStream = new DataStream(
+                    currentDataStream.getName(),
+                    currentDataStream.getIndices(),
+                    currentDataStream.getGeneration(),
+                    currentDataStream.getMetadata(),
+                    currentDataStream.isHidden(),
+                    currentDataStream.isReplicated(),
+                    currentDataStream.isSystem(),
+                    currentDataStream.isAllowCustomRouting(),
+                    currentDataStream.getIndexMode(),
+                    updatedDataStreamAliases
+                );
+                updatedDataStreams.put(dataStreamEntry.getKey(), updatedDataStream);
+                for (Map.Entry<String, DataStreamAlias> aliasEntry : currentDataStreamAliases.entrySet()) {
+                    DataStreamAlias referenceDataAtreamAlias = allDataStreamAliases.get(aliasEntry.getKey());
+                    if (referenceDataAtreamAlias != null) {
+                        DataStreamAlias currentDataStreamAlias = aliasEntry.getValue();
+                        if (Objects.equals(
+                            referenceDataAtreamAlias.getWriteDataStream(),
+                            currentDataStreamAlias.getWriteDataStream()
+                        ) == false || currentDataStreamAlias.getDataStreams().size() != referenceDataAtreamAlias.getDataStreams().size()) {
+                            DataStreamAlias updatedDataStreamAlias = currentDataStreamAlias.update(
+                                referenceDataAtreamAlias.getDataStreams(),
+                                referenceDataAtreamAlias.getWriteDataStream()
+                            );
+                            updatedDataStreamAliases.put(aliasEntry.getKey(), updatedDataStreamAlias);
+                            logger.info("We need to update this one");
+                        } else {
+                            updatedDataStreamAliases.put(aliasEntry.getKey(), currentDataStreamAlias);
+                        }
+                    }
+                }
+            }
+            DataStreamMetadata updatedDataStreamMetadata = new DataStreamMetadata(
+                new ImmutableOpenMap.Builder<String, DataStream>().putAllFromMap(updatedDataStreams).build(),
+                new ImmutableOpenMap.Builder<String, DataStreamAlias>().putAllFromMap(allDataStreamAliases).build()
+            );
+            return updatedDataStreamMetadata;
         }
 
         /**

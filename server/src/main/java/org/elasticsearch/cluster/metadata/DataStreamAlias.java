@@ -137,6 +137,10 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         return filter != null;
     }
 
+    public DataStreamAlias update(List<String> updatedDataStreams, String updatedWriteDataStream) {
+        return new DataStreamAlias(name, updatedDataStreams, updatedWriteDataStream, filter);
+    }
+
     /**
      * Returns a new {@link DataStreamAlias} instance with the provided data stream name added to it as a new member.
      * If the provided isWriteDataStream is set to <code>true</code> then the provided data stream is also set as write data stream.

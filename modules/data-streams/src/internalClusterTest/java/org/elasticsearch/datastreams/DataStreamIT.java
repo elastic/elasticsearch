@@ -812,11 +812,17 @@ public class DataStreamIT extends ESIntegTestCase {
             .flatMap(Collection::stream)
             .distinct()
             .collect(Collectors.toList());
-        assertThat(result, hasSize(1));
+        assertThat(result, hasSize(2)); // Because one has a filter so it's not equal to the rest
         assertThat(result.get(0).getName(), equalTo(alias));
         assertThat(result.get(0).getDataStreams(), containsInAnyOrder(dataStreams));
         assertThat(result.get(0).getWriteDataStream(), equalTo(dataStreams[0]));
-        assertThat(result.get(0).getFilter().string(), equalTo("{\"term\":{\"type\":{\"value\":\"y\"}}}"));
+        assertThat(
+            result.stream()
+                .map(DataStreamAlias::getFilter)
+                .map(filter -> filter == null ? "" : filter.string())
+                .collect(Collectors.toSet()),
+            containsInAnyOrder("", "{\"term\":{\"type\":{\"value\":\"y\"}}}")
+        );
     }
 
     public void testDataSteamAliasWithMalformedFilter() throws Exception {

@@ -42,10 +42,12 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -273,6 +275,7 @@ public class MetadataCreateDataStreamService {
         List<String> aliases = new ArrayList<>();
         var resolvedAliases = MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
         Map<String, DataStreamAlias> dataStreamAliases = new HashMap<>();
+        Set<AliasMetadata> allAliases = new HashSet<>();
         for (var resolvedAliasMap : resolvedAliases) {
             for (var alias : resolvedAliasMap.values()) {
                 aliases.add(alias.getAlias());
@@ -286,7 +289,7 @@ public class MetadataCreateDataStreamService {
                     );
                     dataStreamAliases.put(alias.getAlias(), dsa);
                 }
-                builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
+                allAliases.add(alias);
             }
         }
         DataStream newDataStream = new DataStream(
@@ -302,7 +305,10 @@ public class MetadataCreateDataStreamService {
             dataStreamAliases
         );
         builder.put(newDataStream);
-
+        // We have to add the aliases after the DataStream because the builder checks whether the DataStream exists when adding an alias:
+        for (AliasMetadata alias : allAliases) {
+            builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
+        }
         logger.info(
             "adding data stream [{}] with write index [{}], backing indices [{}], and aliases [{}]",
             dataStreamName,

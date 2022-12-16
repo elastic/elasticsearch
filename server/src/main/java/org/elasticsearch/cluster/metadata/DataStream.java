@@ -682,8 +682,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(HashMap::new, xContentParser -> {
+            // The toXContent for DataStreamAliases in this class adds a wrapper object, so we need to move past that:
             xContentParser.nextToken();
             DataStreamAlias alias = DataStreamAlias.fromXContent(xContentParser);
+            // Moving past the end of the wrapper object:
             xContentParser.nextToken();
             return alias;
         }), ALIASES);
@@ -712,6 +714,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         builder.field(ALIASES.getPreferredName());
 
+        // DataStreamAlias's toXContent result needs to be wrapped in an object so that it can be put in a map:
         Map<String, ToXContent> transformedMap = dataStreamAliases.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> (builder1, params1) -> {
@@ -719,7 +722,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 entry.getValue().toXContent(builder1, params1);
                 return builder1.endObject();
             }));
-
         builder.map(transformedMap);
         builder.endObject();
         return builder;

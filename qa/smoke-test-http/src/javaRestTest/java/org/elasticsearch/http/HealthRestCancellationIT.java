@@ -111,7 +111,7 @@ public class HealthRestCancellationIT extends HttpSmokeTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+        public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
             try {
                 operationBlock.acquire();
             } catch (InterruptedException e) {

@@ -700,7 +700,7 @@ final class HexRing {
      * @param dir Direction to move in
      * @return H3Index of the specified neighbor or -1 if there is no more neighbor
      */
-    private static long h3NeighborInDirection(long origin, int dir) {
+    static long h3NeighborInDirection(long origin, int dir) {
         long current = origin;
 
         int newRotations = 0;

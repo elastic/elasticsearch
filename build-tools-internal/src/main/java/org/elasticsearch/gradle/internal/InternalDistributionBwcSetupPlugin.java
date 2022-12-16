@@ -18,8 +18,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.api.services.BuildService;
-import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
@@ -44,7 +42,6 @@ import static java.util.Arrays.stream;
  */
 public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
-    private static final String BWC_TASK_THROTTLE_SERVICE = "bwcTaskThrottle";
     private ProviderFactory providerFactory;
 
     @Inject
@@ -55,26 +52,19 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        Provider<BwcTaskThrottle> bwcTaskThrottleProvider = project.getGradle()
-            .getSharedServices()
-            .registerIfAbsent(BWC_TASK_THROTTLE_SERVICE, BwcTaskThrottle.class, spec -> spec.getMaxParallelUsages().set(1));
         BuildParams.getBwcVersions()
             .forPreviousUnreleased(
                 (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
-                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath()), unreleasedVersion, bwcTaskThrottleProvider);
+                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath()), unreleasedVersion);
                 }
             );
     }
 
-    private void configureBwcProject(
-        Project project,
-        BwcVersions.UnreleasedVersionInfo versionInfo,
-        Provider<BwcTaskThrottle> bwcTaskThrottleProvider
-    ) {
+    private void configureBwcProject(Project project, BwcVersions.UnreleasedVersionInfo versionInfo) {
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
         Provider<File> checkoutDir = versionInfoProvider.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch()));
         BwcSetupExtension bwcSetupExtension = project.getExtensions()
-            .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, bwcTaskThrottleProvider, checkoutDir);
+            .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, checkoutDir);
         BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version());
         gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version()));
@@ -323,5 +313,4 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         }
     }
 
-    public abstract class BwcTaskThrottle implements BuildService<BuildServiceParameters.None> {}
 }

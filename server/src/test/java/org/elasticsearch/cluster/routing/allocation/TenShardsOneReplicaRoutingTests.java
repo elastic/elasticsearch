@@ -143,10 +143,16 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(10));
-        assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED, RELOCATING), equalTo(10));
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), lessThan(10));
-        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED, RELOCATING), equalTo(10));
+        assertThat(
+            routingNodes.node("node1").numberOfShardsWithState(STARTED) + routingNodes.node("node1").numberOfShardsWithState(RELOCATING),
+            equalTo(10)
+        );
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), lessThan(10));
+        assertThat(
+            routingNodes.node("node2").numberOfShardsWithState(STARTED) + routingNodes.node("node2").numberOfShardsWithState(RELOCATING),
+            equalTo(10)
+        );
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(6));
 
         logger.info("Start the shards on node 3");

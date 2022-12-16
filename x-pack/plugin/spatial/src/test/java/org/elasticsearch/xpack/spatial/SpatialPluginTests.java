@@ -17,82 +17,46 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregati
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
-import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridAggregationBuilder;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianBoundsAggregationBuilder;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianCentroidAggregationBuilder;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SpatialPluginTests extends ESTestCase {
 
-    public void testGeoCentroidLicenseCheck() {
-        for (License.OperationMode operationMode : License.OperationMode.values()) {
-            SpatialPlugin plugin = getPluginWithOperationMode(operationMode);
-            ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder();
-            List<Consumer<ValuesSourceRegistry.Builder>> registrar = plugin.getAggregationExtentions();
-            registrar.forEach(c -> c.accept(registryBuilder));
-            ValuesSourceRegistry registry = registryBuilder.build();
-            MetricAggregatorSupplier centroidSupplier = registry.getAggregator(
-                GeoCentroidAggregationBuilder.REGISTRY_KEY,
-                new ValuesSourceConfig(GeoShapeValuesSourceType.instance(), null, true, null, null, null, null, null, null)
-            );
-            if (License.OperationMode.TRIAL != operationMode
-                && License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
-                ElasticsearchSecurityException exception = expectThrows(
-                    ElasticsearchSecurityException.class,
-                    () -> centroidSupplier.build(null, null, null, null, null)
-                );
-                assertThat(
-                    exception.getMessage(),
-                    equalTo("current license is non-compliant for [geo_centroid aggregation on geo_shape fields]")
-                );
+    public void testGeoShapeCentroidLicenseCheck() {
+        checkLicenseRequired(GeoShapeValuesSourceType.instance(), GeoCentroidAggregationBuilder.REGISTRY_KEY, (agg) -> {
+            try {
+                agg.build(null, null, null, null, null);
+            } catch (IOException e) {
+                fail("Unexpected exception: " + e.getMessage());
             }
-        }
+        }, "geo_centroid", "geo_shape");
     }
 
     public void testGeoHexLicenseCheck() {
-        for (License.OperationMode operationMode : License.OperationMode.values()) {
-            SpatialPlugin plugin = getPluginWithOperationMode(operationMode);
-            ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder();
-            List<SearchPlugin.AggregationSpec> specs = plugin.getAggregations();
-            specs.forEach(c -> c.getAggregatorRegistrar().accept(registryBuilder));
-            ValuesSourceRegistry registry = registryBuilder.build();
-            GeoGridAggregatorSupplier hexSupplier = registry.getAggregator(
-                GeoHexGridAggregationBuilder.REGISTRY_KEY,
-                new ValuesSourceConfig(CoreValuesSourceType.GEOPOINT, null, true, null, null, null, null, null, null)
-            );
-            if (License.OperationMode.TRIAL != operationMode
-                && License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
-                ElasticsearchSecurityException exception = expectThrows(
-                    ElasticsearchSecurityException.class,
-                    () -> hexSupplier.build(
-                        null,
-                        AggregatorFactories.EMPTY,
-                        null,
-                        0,
-                        null,
-                        0,
-                        0,
-                        null,
-                        null,
-                        CardinalityUpperBound.NONE,
-                        null
-                    )
-                );
-                assertThat(
-                    exception.getMessage(),
-                    equalTo("current license is non-compliant for [geohex_grid aggregation on geo_point fields]")
-                );
+        checkLicenseRequired(CoreValuesSourceType.GEOPOINT, GeoHexGridAggregationBuilder.REGISTRY_KEY, (agg) -> {
+            try {
+                agg.build(null, AggregatorFactories.EMPTY, null, 0, null, 0, 0, null, null, CardinalityUpperBound.NONE, null);
+            } catch (IOException e) {
+                fail("Unexpected exception: " + e.getMessage());
             }
-        }
+        }, "geohex_grid", "geo_point");
     }
 
     public void testGeoGridLicenseCheck() {
@@ -100,29 +64,58 @@ public class SpatialPluginTests extends ESTestCase {
             GeoHashGridAggregationBuilder.REGISTRY_KEY,
             GeoTileGridAggregationBuilder.REGISTRY_KEY
         )) {
-            for (License.OperationMode operationMode : License.OperationMode.values()) {
-                SpatialPlugin plugin = getPluginWithOperationMode(operationMode);
-                ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder();
-                List<Consumer<ValuesSourceRegistry.Builder>> registrar = plugin.getAggregationExtentions();
-                registrar.forEach(c -> c.accept(registryBuilder));
-                ValuesSourceRegistry registry = registryBuilder.build();
-                GeoGridAggregatorSupplier supplier = registry.getAggregator(
-                    registryKey,
-                    new ValuesSourceConfig(GeoShapeValuesSourceType.instance(), null, true, null, null, null, null, null, null)
-                );
-                if (License.OperationMode.TRIAL != operationMode
-                    && License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
-                    ElasticsearchSecurityException exception = expectThrows(
-                        ElasticsearchSecurityException.class,
-                        () -> supplier.build(null, null, null, 0, null, 0, 0, null, null, CardinalityUpperBound.NONE, null)
-                    );
-                    assertThat(
-                        exception.getMessage(),
-                        equalTo("current license is non-compliant for [" + registryKey.getName() + " aggregation on geo_shape fields]")
-                    );
+            checkLicenseRequired(GeoShapeValuesSourceType.instance(), registryKey, (agg) -> {
+                try {
+                    agg.build(null, null, null, 0, null, 0, 0, null, null, CardinalityUpperBound.NONE, null);
+                } catch (IOException e) {
+                    fail("Unexpected exception: " + e.getMessage());
                 }
-            }
+            }, registryKey.getName(), "geo_shape");
         }
+    }
+
+    public void testCartesianShapeCentroidLicenseCheck() {
+        checkLicenseRequired(CartesianShapeValuesSourceType.instance(), CartesianCentroidAggregationBuilder.REGISTRY_KEY, (agg) -> {
+            try {
+                agg.build(null, null, null, null, null);
+            } catch (IOException e) {
+                fail("Unexpected exception: " + e.getMessage());
+            }
+        }, "cartesian_centroid", "shape");
+    }
+
+    public void testCartesianPointCentroidLicenseCheck() {
+        checkLicenseNotRequired(CartesianPointValuesSourceType.instance(), CartesianCentroidAggregationBuilder.REGISTRY_KEY, (agg) -> {
+            try {
+                agg.build(null, null, null, null, null);
+            } catch (IOException e) {
+                fail("Unexpected exception: " + e.getMessage());
+            }
+        }, "cartesian_centroid", "point");
+    }
+
+    public void testCartesianPointBoundsLicenseCheck() {
+        CartesianPointValuesSourceType sourceType = CartesianPointValuesSourceType.instance();
+        TestValuesSourceConfig sourceConfig = new TestValuesSourceConfig(sourceType);
+        checkLicenseNotRequired(sourceType, CartesianBoundsAggregationBuilder.REGISTRY_KEY, (agg) -> {
+            try {
+                agg.build(null, null, null, sourceConfig, null);
+            } catch (IOException e) {
+                fail("Unexpected exception: " + e.getMessage());
+            }
+        }, "cartesian_bounds", "point");
+    }
+
+    public void testCartesianShapeBoundsLicenseCheck() {
+        CartesianShapeValuesSourceType sourceType = CartesianShapeValuesSourceType.instance();
+        TestValuesSourceConfig sourceConfig = new TestValuesSourceConfig(sourceType);
+        checkLicenseNotRequired(sourceType, CartesianBoundsAggregationBuilder.REGISTRY_KEY, (agg) -> {
+            try {
+                agg.build(null, null, null, sourceConfig, null);
+            } catch (IOException e) {
+                fail("Unexpected exception: " + e.getMessage());
+            }
+        }, "cartesian_bounds", "shape");
     }
 
     private SpatialPlugin getPluginWithOperationMode(License.OperationMode operationMode) {
@@ -133,5 +126,80 @@ public class SpatialPluginTests extends ESTestCase {
                 return licenseState;
             }
         };
+    }
+
+    private <T> void checkLicenseNotRequired(
+        ValuesSourceType sourceType,
+        ValuesSourceRegistry.RegistryKey<T> registryKey,
+        Consumer<T> builder,
+        String aggName,
+        String fieldTypeName
+    ) {
+        for (License.OperationMode operationMode : License.OperationMode.values()) {
+            SpatialPlugin plugin = getPluginWithOperationMode(operationMode);
+            ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder();
+            List<Consumer<ValuesSourceRegistry.Builder>> registrar = plugin.getAggregationExtentions();
+            registrar.forEach(c -> c.accept(registryBuilder));
+            List<SearchPlugin.AggregationSpec> specs = plugin.getAggregations();
+            specs.forEach(c -> c.getAggregatorRegistrar().accept(registryBuilder));
+            ValuesSourceRegistry registry = registryBuilder.build();
+            T aggregator = registry.getAggregator(
+                registryKey,
+                new ValuesSourceConfig(sourceType, null, true, null, null, null, null, null, null)
+            );
+            NullPointerException exception = expectThrows(NullPointerException.class, () -> builder.accept(aggregator));
+            assertThat(
+                "Incorrect exception testing " + aggName + " on field " + fieldTypeName,
+                exception.getMessage(),
+                containsString("because \"context\" is null")
+            );
+        }
+    }
+
+    private <T> void checkLicenseRequired(
+        ValuesSourceType sourceType,
+        ValuesSourceRegistry.RegistryKey<T> registryKey,
+        Consumer<T> builder,
+        String aggName,
+        String fieldTypeName
+    ) {
+        for (License.OperationMode operationMode : License.OperationMode.values()) {
+            SpatialPlugin plugin = getPluginWithOperationMode(operationMode);
+            ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder();
+            List<Consumer<ValuesSourceRegistry.Builder>> registrar = plugin.getAggregationExtentions();
+            registrar.forEach(c -> c.accept(registryBuilder));
+            List<SearchPlugin.AggregationSpec> specs = plugin.getAggregations();
+            specs.forEach(c -> c.getAggregatorRegistrar().accept(registryBuilder));
+            ValuesSourceRegistry registry = registryBuilder.build();
+            T aggregator = registry.getAggregator(
+                registryKey,
+                new ValuesSourceConfig(sourceType, null, true, null, null, null, null, null, null)
+            );
+            if (License.OperationMode.TRIAL != operationMode
+                && License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
+                ElasticsearchSecurityException exception = expectThrows(
+                    ElasticsearchSecurityException.class,
+                    () -> builder.accept(aggregator)
+                );
+                assertThat(
+                    exception.getMessage(),
+                    equalTo("current license is non-compliant for [" + aggName + " aggregation on " + fieldTypeName + " fields]")
+                );
+            } else {
+                try {
+                    builder.accept(aggregator);
+                } catch (NullPointerException e) {
+                    // Expected exception from passing null aggregation context
+                } catch (Exception e) {
+                    fail("Unexpected exception testing " + aggName + " at license level " + operationMode + ": " + e.getMessage());
+                }
+            }
+        }
+    }
+
+    private static class TestValuesSourceConfig extends ValuesSourceConfig {
+        private TestValuesSourceConfig(ValuesSourceType sourceType) {
+            super(sourceType, null, true, null, null, null, null, null, null);
+        }
     }
 }

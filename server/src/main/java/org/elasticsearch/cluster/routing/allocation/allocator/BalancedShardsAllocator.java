@@ -34,10 +34,13 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
@@ -100,7 +103,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
     public static final Setting<Float> DISK_USAGE_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.disk_usage",
-        0.0f,
+        2e-11f,
         0.0f,
         Property.Dynamic,
         Property.NodeScope
@@ -131,13 +134,36 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         watchSetting(settings, clusterSettings, SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
         watchSetting(settings, clusterSettings, WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
         watchSetting(settings, clusterSettings, DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
-        watchSetting(settings, clusterSettings, THRESHOLD_SETTING, value -> this.threshold = value);
+        watchSetting(settings, clusterSettings, THRESHOLD_SETTING, value -> this.threshold = ensureValidThreshold(value));
         this.writeLoadForecaster = writeLoadForecaster;
     }
 
     private <T> void watchSetting(Settings settings, ClusterSettings clusterSettings, Setting<T> setting, Consumer<T> consumer) {
         consumer.accept(setting.get(settings));
         clusterSettings.addSettingsUpdateConsumer(setting, consumer);
+    }
+
+    /**
+     * Clamp threshold to be at least 1, and log a critical deprecation warning if smaller values are given.
+     *
+     * Once {@link org.elasticsearch.Version#V_7_17_0} goes out of scope, start to properly reject such bad values.
+     */
+    private static float ensureValidThreshold(float threshold) {
+        if (1.0f <= threshold) {
+            return threshold;
+        } else {
+            DeprecationLogger.getLogger(BalancedShardsAllocator.class)
+                .critical(
+                    DeprecationCategory.SETTINGS,
+                    "balance_threshold_too_small",
+                    "ignoring value [{}] for [{}] since it is smaller than 1.0; "
+                        + "setting [{}] to a value smaller than 1.0 will be forbidden in a future release",
+                    threshold,
+                    THRESHOLD_SETTING.getKey(),
+                    THRESHOLD_SETTING.getKey()
+                );
+            return 1.0f;
+        }
     }
 
     @Override
@@ -931,7 +957,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * process. In short, this method recreates the status-quo in the cluster.
          */
         private Map<String, ModelNode> buildModelFromAssigned() {
-            Map<String, ModelNode> nodes = new HashMap<>();
+            Map<String, ModelNode> nodes = Maps.newMapWithExpectedSize(routingNodes.size());
             for (RoutingNode rn : routingNodes) {
                 ModelNode node = new ModelNode(writeLoadForecaster, metadata, rn);
                 nodes.put(rn.nodeId(), node);
@@ -1220,18 +1246,19 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     static class ModelNode implements Iterable<ModelIndex> {
-        private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
         private double writeLoad = 0.0;
         private double diskUsageInBytes = 0.0;
         private final WriteLoadForecaster writeLoadForecaster;
         private final Metadata metadata;
         private final RoutingNode routingNode;
+        private final Map<String, ModelIndex> indices;
 
         ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, RoutingNode routingNode) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.metadata = metadata;
             this.routingNode = routingNode;
+            this.indices = Maps.newMapWithExpectedSize(routingNode.size() + 10);// some extra to account for shard movements
         }
 
         public ModelIndex getIndex(String indexName) {

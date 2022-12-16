@@ -267,7 +267,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         Optional<Tuple<ShardRouting, ShardAllocationDecision>> unmovableShard = currentState.getRoutingNodes()
             .node(nodeId)
             .shardsWithState(ShardRoutingState.STARTED)
-            .stream()
             .map(shardRouting -> new Tuple<>(shardRouting, allocationService.explainShardAllocation(shardRouting, allocation)))
             // Given that we're checking the status of a node that's shutting down, no shards should be allowed to remain
             .filter(pair -> {

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.aggregations.metric.matrix.stats;
+package org.elasticsearch.aggregations.metric;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.ParsedAggregation;

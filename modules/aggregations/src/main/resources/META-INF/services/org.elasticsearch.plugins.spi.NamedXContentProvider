@@ -6,4 +6,4 @@
 # Side Public License, v 1.
 #
 
-org.elasticsearch.aggregations.metric.matrix.spi.MatrixStatsNamedXContentProvider
+org.elasticsearch.aggregations.metric.MatrixStatsNamedXContentProvider

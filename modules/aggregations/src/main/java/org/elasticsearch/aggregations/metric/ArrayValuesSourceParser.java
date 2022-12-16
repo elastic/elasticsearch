@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.aggregations.metric.matrix;
+package org.elasticsearch.aggregations.metric;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.script.Script;

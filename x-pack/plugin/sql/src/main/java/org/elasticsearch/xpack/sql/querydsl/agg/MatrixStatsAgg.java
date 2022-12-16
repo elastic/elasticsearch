@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.aggregations.metric.matrix.stats.MatrixStatsAggregationBuilder;
+import org.elasticsearch.aggregations.metric.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 
 import java.util.List;

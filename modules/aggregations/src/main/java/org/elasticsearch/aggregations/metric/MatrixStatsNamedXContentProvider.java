@@ -6,10 +6,8 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.aggregations.metric.matrix.spi;
+package org.elasticsearch.aggregations.metric;
 
-import org.elasticsearch.aggregations.metric.matrix.stats.MatrixStatsAggregationBuilder;
-import org.elasticsearch.aggregations.metric.matrix.stats.ParsedMatrixStats;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.xcontent.ContextParser;

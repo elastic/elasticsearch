@@ -14,9 +14,9 @@ import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregat
 import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
-import org.elasticsearch.aggregations.metric.matrix.stats.InternalMatrixStats;
-import org.elasticsearch.aggregations.metric.matrix.stats.MatrixStatsAggregationBuilder;
-import org.elasticsearch.aggregations.metric.matrix.stats.MatrixStatsParser;
+import org.elasticsearch.aggregations.metric.InternalMatrixStats;
+import org.elasticsearch.aggregations.metric.MatrixStatsAggregationBuilder;
+import org.elasticsearch.aggregations.metric.MatrixStatsParser;
 import org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.Derivative;

@@ -5,10 +5,9 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.aggregations.metric.matrix.stats;
+package org.elasticsearch.aggregations.metric;
 
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.aggregations.metric.matrix.ArrayValuesSource;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;

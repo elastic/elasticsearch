@@ -17,8 +17,7 @@ module org.elasticsearch.aggs {
     exports org.elasticsearch.aggregations.bucket.adjacency;
     exports org.elasticsearch.aggregations.bucket.timeseries;
     exports org.elasticsearch.aggregations.pipeline;
-    exports org.elasticsearch.aggregations.metric.matrix;
-    exports org.elasticsearch.aggregations.metric.matrix.stats;
+    exports org.elasticsearch.aggregations.metric;
 
     opens org.elasticsearch.aggregations to org.elasticsearch.painless.spi; // whitelist resource access
 
@@ -26,5 +25,5 @@ module org.elasticsearch.aggs {
 
     provides org.elasticsearch.plugins.spi.NamedXContentProvider
         with
-            org.elasticsearch.aggregations.metric.matrix.spi.MatrixStatsNamedXContentProvider;
+            org.elasticsearch.aggregations.metric.MatrixStatsNamedXContentProvider;
 }

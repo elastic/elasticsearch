@@ -376,8 +376,8 @@ public class CompositeRolesStore {
             () -> {
                 final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser).getRoleReferences();
                 final GroupedActionListener<Set<RoleDescriptor>> groupedActionListener = new GroupedActionListener<>(
-                    listener,
-                    roleReferences.size()
+                    roleReferences.size(),
+                    listener
                 );
 
                 roleReferences.forEach(roleReference -> {

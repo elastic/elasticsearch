@@ -217,7 +217,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final int size,
         final ActionListener<Table> listener
     ) {
-        return new GroupedActionListener<>(new ActionListener.Delegating<>(listener) {
+        return new GroupedActionListener<>(size, new ActionListener.Delegating<>(listener) {
             @Override
             public void onResponse(final Collection<ActionResponse> responses) {
                 try {
@@ -242,7 +242,7 @@ public class RestIndicesAction extends AbstractCatAction {
                     onFailure(e);
                 }
             }
-        }, size);
+        });
     }
 
     @Override

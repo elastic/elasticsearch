@@ -1,0 +1,5 @@
+pr: 92238
+summary: Diff the list of filenames that are added by each new commit
+area: Engine
+type: enhancement
+issues: []

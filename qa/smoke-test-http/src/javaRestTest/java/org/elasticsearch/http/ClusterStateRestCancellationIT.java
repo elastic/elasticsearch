@@ -24,10 +24,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.function.UnaryOperator;
@@ -116,7 +117,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             throw new AssertionError("task should have been cancelled before serializing this custom");
         }
     }

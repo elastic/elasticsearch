@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class AutoFollowMetadataTests extends AbstractXContentSerializingTestCase<AutoFollowMetadata> {
+public class AutoFollowMetadataTests extends AbstractChunkedSerializingTestCase<AutoFollowMetadata> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
@@ -79,5 +79,10 @@ public class AutoFollowMetadataTests extends AbstractXContentSerializingTestCase
     @Override
     protected Writeable.Reader<AutoFollowMetadata> instanceReader() {
         return AutoFollowMetadata::new;
+    }
+
+    @Override
+    protected boolean isFragment() {
+        return true;
     }
 }

@@ -1387,6 +1387,10 @@ public class TransportService extends AbstractLifecycleComponent
             this.handler = timeoutHandler;
         }
 
+        // for tests
+        TransportResponseHandler<T> unwrap() {
+            return delegate;
+        }
     }
 
     static class DirectResponseChannel implements TransportChannel {

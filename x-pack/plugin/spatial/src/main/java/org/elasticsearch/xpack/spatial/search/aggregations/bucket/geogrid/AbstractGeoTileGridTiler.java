@@ -154,7 +154,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
                         values.resizeCell(getNewSize(valuesIndex, numTilesAtPrecision + 1));
                         valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex);
                     }
-                } else if (GeoRelation.QUERY_CROSSES == relation) {
+                } else if (GeoRelation.QUERY_DISJOINT != relation) {
                     if (zTile == precision) {
                         values.resizeCell(getNewSize(valuesIndex, 1));
                         values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));

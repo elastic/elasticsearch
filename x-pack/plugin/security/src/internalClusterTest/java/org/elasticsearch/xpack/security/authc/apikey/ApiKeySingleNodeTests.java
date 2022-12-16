@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
@@ -74,7 +76,12 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
 
@@ -374,6 +381,33 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
                     + ", because user [user1] is unauthorized to run as [user4]"
             )
         );
+    }
+
+    public void testInvalidateApiKeyWillRecordTimestamp() {
+        final String apiKeyId = client().execute(
+            CreateApiKeyAction.INSTANCE,
+            new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, TimeValue.timeValueMillis(randomLongBetween(1, 1000)), null)
+        ).actionGet().getId();
+        assertThat(getApiKeyDocument(apiKeyId).get("invalidation_time"), nullValue());
+
+        final long start = Instant.now().toEpochMilli();
+        final List<String> invalidatedApiKeys = client().execute(
+            InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, true)
+        ).actionGet().getInvalidatedApiKeys();
+        final long finish = Instant.now().toEpochMilli();
+
+        assertThat(invalidatedApiKeys, equalTo(List.of(apiKeyId)));
+        final Map<String, Object> apiKeyDocument = getApiKeyDocument(apiKeyId);
+        assertThat(apiKeyDocument.get("api_key_invalidated"), is(true));
+        assertThat(apiKeyDocument.get("invalidation_time"), instanceOf(Long.class));
+        final long invalidationTime = (long) apiKeyDocument.get("invalidation_time");
+        assertThat(invalidationTime, greaterThanOrEqualTo(start));
+        assertThat(invalidationTime, lessThanOrEqualTo(finish));
+
+        // Invalidate it again won't change the timestamp
+        client().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, true)).actionGet();
+        assertThat((long) getApiKeyDocument(apiKeyId).get("invalidation_time"), equalTo(invalidationTime));
     }
 
     private GrantApiKeyRequest buildGrantApiKeyRequest(String username, SecureString password, String runAsUsername) throws IOException {

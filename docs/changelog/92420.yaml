@@ -1,0 +1,9 @@
+pr: 92420
+summary: GA the health API
+area: Health
+type: feature
+issues: []
+highlight:
+  title: GA the health API
+  body: This marks the new Health API as generally available.
+  notable: true

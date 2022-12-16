@@ -112,7 +112,6 @@ public final class AnalyzerRules {
 
         public ResolveFunctions(Configuration configuration, FunctionRegistry functionRegistry) {
             this.configuration = configuration;
-            Objects.requireNonNull(functionRegistry);
             this.functionRegistry = functionRegistry;
         }
 
@@ -129,7 +128,6 @@ public final class AnalyzerRules {
                 return uf;
             }
 
-            Objects.requireNonNull(functionRegistry);
             String functionName = functionRegistry.resolveAlias(uf.name());
             if (functionRegistry.functionExists(functionName) == false) {
                 return uf.missing(functionName, functionRegistry.listFunctions());

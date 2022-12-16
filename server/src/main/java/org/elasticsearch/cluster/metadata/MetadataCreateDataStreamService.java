@@ -272,19 +272,17 @@ public class MetadataCreateDataStreamService {
 
         final Metadata.Builder builder = Metadata.builder(currentState.metadata());
 
-        List<String> aliases = new ArrayList<>();
         var resolvedAliases = MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
         Map<String, DataStreamAlias> dataStreamAliases = new HashMap<>();
         Set<AliasMetadata> allAliases = new HashSet<>();
         for (var resolvedAliasMap : resolvedAliases) {
             for (var alias : resolvedAliasMap.values()) {
-                aliases.add(alias.getAlias());
                 if (alias.filteringRequired()) {
                     String filterAsString = alias.filter().string();
                     DataStreamAlias dsa = new DataStreamAlias(
                         alias.getAlias(),
                         List.of(dataStreamName),
-                        writeIndex.getIndex().getName(),
+                        dataStreamName,
                         XContentHelper.convertToMap(XContentFactory.xContent(filterAsString), filterAsString, true)
                     );
                     dataStreamAliases.put(alias.getAlias(), dsa);
@@ -314,7 +312,7 @@ public class MetadataCreateDataStreamService {
             dataStreamName,
             writeIndex.getIndex().getName(),
             Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()),
-            Strings.collectionToCommaDelimitedString(aliases)
+            Strings.collectionToCommaDelimitedString(allAliases)
         );
 
         return ClusterState.builder(currentState).metadata(builder).build();

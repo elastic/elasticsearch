@@ -2263,9 +2263,16 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
                 indicesLookup = previousIndicesLookup;
             } else if (skipNameCollisionChecks == false) {
-                // we have changes to the the entity names so we ensure we have no naming collisions
-                DataStreamMetadata updatedMetadata = ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata());
-                this.customs.fPut(DataStreamMetadata.TYPE, updatedMetadata);
+                // we have changes to the entity names so we ensure we have no naming collisions
+                DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
+                DataStreamMetadata updatedDataStreamMetadata = ensureNoNameCollisions(
+                    aliasedIndices.keySet(),
+                    indicesMap,
+                    dataStreamMetadata()
+                );
+                if (dataStreamMetadata.equals(updatedDataStreamMetadata) == false) {
+                    this.customs.put(DataStreamMetadata.TYPE, updatedDataStreamMetadata);
+                }
             }
             assert assertDataStreams(indicesMap, dataStreamMetadata());
 

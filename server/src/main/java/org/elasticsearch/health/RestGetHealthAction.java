@@ -31,7 +31,7 @@ public class RestGetHealthAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_internal/_health"), new Route(GET, "/_internal/_health/{indicator}"));
+        return List.of(new Route(GET, "/_health"), new Route(GET, "/_health/{indicator}"));
     }
 
     @Override

@@ -4,18 +4,14 @@
 <titleabbrev>Health</titleabbrev>
 ++++
 
-An experimental API that returns the health status of an {es} cluster.
-
-This API is currently experimental for internal use by Elastic software only.
-
-NOTE: {cloud-only}
+An API that returns the health status of an {es} cluster.
 
 [[health-api-request]]
 ==== {api-request-title}
 
-`GET /_internal/_health` +
+`GET /_health` +
 
-`GET /_internal/_health/<indicator>` +
+`GET /_health/<indicator>` +
 
 [[health-api-prereqs]]
 ==== {api-prereq-title}

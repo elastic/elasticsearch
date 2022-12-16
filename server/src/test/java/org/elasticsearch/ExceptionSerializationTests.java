@@ -833,6 +833,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(165, SnapshotNameAlreadyInUseException.class);
         ids.put(166, HealthNodeNotDiscoveredException.class);
         ids.put(167, UnsupportedAggregationOnDownsampledIndex.class);
+        ids.put(168, ShardSearchFailure.ShardUnavailableException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

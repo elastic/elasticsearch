@@ -30,7 +30,7 @@ public class AzimuthTests extends ESTestCase {
         for (int i = 0; i < Vec3d.faceCenterPoint.length; i++) {
             final double azVec3d = Vec3d.faceCenterPoint[i].geoAzimuthRads(point.x, point.y, point.z);
             final double azVec2d = Vec2d.faceCenterGeo[i].geoAzimuthRads(point.getLatitude(), point.getLongitude());
-            assertEquals("Face " + i, azVec2d, azVec3d, 1e-14);
+            assertEquals("Face " + i, azVec2d, azVec3d, 1e-12);
         }
     }
 

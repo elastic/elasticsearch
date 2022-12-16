@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.text.ParseException;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -47,16 +49,19 @@ public class JwtAuthenticator implements Releasable {
     ) {
         this.realmConfig = realmConfig;
         this.tokenType = realmConfig.getSetting(JwtRealmSettings.TOKEN_TYPE);
+        final List<JwtFieldValidator> jwtFieldValidators = new ArrayList<>();
         if (tokenType == JwtRealmSettings.TokenType.ID_TOKEN) {
             this.fallbackClaimNames = Map.of();
-            this.jwtFieldValidators = configureFieldValidatorsForIdToken(realmConfig);
+            jwtFieldValidators.addAll(configureFieldValidatorsForIdToken(realmConfig));
         } else {
             this.fallbackClaimNames = Map.ofEntries(
                 Map.entry("sub", realmConfig.getSetting(JwtRealmSettings.FALLBACK_SUB_CLAIM)),
                 Map.entry("aud", realmConfig.getSetting(JwtRealmSettings.FALLBACK_AUD_CLAIM))
             );
-            this.jwtFieldValidators = configureFieldValidatorsForAccessToken(realmConfig, fallbackClaimNames);
+            jwtFieldValidators.addAll(configureFieldValidatorsForAccessToken(realmConfig, fallbackClaimNames));
         }
+        jwtFieldValidators.addAll(getRequireClaimsValidators());
+        this.jwtFieldValidators = List.copyOf(jwtFieldValidators);
         this.jwtSignatureValidator = new JwtSignatureValidator.DelegatingJwtSignatureValidator(realmConfig, sslService, reloadNotifier);
     }
 
@@ -104,10 +109,15 @@ public class JwtAuthenticator implements Releasable {
         }
 
         try {
-            jwtSignatureValidator.validate(tokenPrincipal, signedJWT, listener.map(ignored -> jwtClaimsSet));
+            validateSignature(tokenPrincipal, signedJWT, listener.map(ignored -> jwtClaimsSet));
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    // Package private for testing
+    void validateSignature(String tokenPrincipal, SignedJWT signedJWT, ActionListener<Void> listener) {
+        jwtSignatureValidator.validate(tokenPrincipal, signedJWT, listener);
     }
 
     @Override
@@ -172,6 +182,13 @@ public class JwtAuthenticator implements Releasable {
             new JwtDateClaimValidator(clock, "iat", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, false),
             new JwtDateClaimValidator(clock, "exp", allowedClockSkew, JwtDateClaimValidator.Relationship.AFTER_NOW, false)
         );
+    }
 
+    private List<JwtStringClaimValidator> getRequireClaimsValidators() {
+        final Settings requiredClaims = realmConfig.getSetting(JwtRealmSettings.REQUIRED_CLAIMS);
+        return requiredClaims.names().stream().map(name -> {
+            final List<String> allowedValues = requiredClaims.getAsList(name);
+            return new JwtStringClaimValidator(name, allowedValues, false);
+        }).toList();
     }
 }

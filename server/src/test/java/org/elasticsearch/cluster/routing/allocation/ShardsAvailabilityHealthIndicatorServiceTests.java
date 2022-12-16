@@ -1477,7 +1477,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     private static UnassignedInfo noShardCopy() {
         return new UnassignedInfo(
-            UnassignedInfo.Reason.NODE_LEFT,
+            randomBoolean() ? UnassignedInfo.Reason.NODE_LEFT : UnassignedInfo.Reason.CLUSTER_RECOVERED,
             null,
             null,
             0,

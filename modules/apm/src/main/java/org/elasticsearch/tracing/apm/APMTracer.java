@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
 
 /**
  * This is an implementation of the {@link org.elasticsearch.tracing.Tracer} interface, which uses
@@ -65,8 +66,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private List<String> includeNames;
     private List<String> excludeNames;
+    private List<String> labelFilters;
     /** Built using {@link #includeNames} and {@link #excludeNames}, and filters out spans based on their name. */
     private volatile CharacterRunAutomaton filterAutomaton;
+    private volatile CharacterRunAutomaton labelFilterAutomaton;
     private String clusterName;
     private String nodeName;
 
@@ -86,7 +89,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     public APMTracer(Settings settings) {
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APM_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
+        this.labelFilters = APM_TRACING_SANITIZE_FIELD_NAMES.get(settings);
+
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
+        this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
         this.enabled = APM_ENABLED_SETTING.get(settings);
     }
 
@@ -107,6 +113,16 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     void setExcludeNames(List<String> excludeNames) {
         this.excludeNames = excludeNames;
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
+    }
+
+    void setLabelFilters(List<String> labelFilters) {
+        this.labelFilters = labelFilters;
+        this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
+    }
+
+    // package-private for testing
+    CharacterRunAutomaton getLabelFilterAutomaton() {
+        return labelFilterAutomaton;
     }
 
     @Override
@@ -271,6 +287,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             for (Map.Entry<String, Object> entry : spanAttributes.entrySet()) {
                 final String key = entry.getKey();
                 final Object value = entry.getValue();
+
+                if (this.labelFilterAutomaton.run(key)) {
+                    spanBuilder.setAttribute(key, "[REDACTED]");
+                    continue;
+                }
+
                 if (value instanceof String) {
                     spanBuilder.setAttribute(key, (String) value);
                 } else if (value instanceof Long) {
@@ -394,9 +416,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return spans;
     }
 
-    private static CharacterRunAutomaton buildAutomaton(List<String> includeNames, List<String> excludeNames) {
-        Automaton includeAutomaton = patternsToAutomaton(includeNames);
-        Automaton excludeAutomaton = patternsToAutomaton(excludeNames);
+    private static CharacterRunAutomaton buildAutomaton(List<String> includePatterns, List<String> excludePatterns) {
+        Automaton includeAutomaton = patternsToAutomaton(includePatterns);
+        Automaton excludeAutomaton = patternsToAutomaton(excludePatterns);
 
         if (includeAutomaton == null) {
             includeAutomaton = Automata.makeAnyString();

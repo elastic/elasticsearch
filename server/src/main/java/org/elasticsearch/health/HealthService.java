@@ -89,8 +89,8 @@ public class HealthService {
         int maxAffectedResourcesCount,
         ActionListener<List<HealthIndicatorResult>> listener
     ) {
-        if (maxAffectedResourcesCount < 0 || maxAffectedResourcesCount > 10_000) {
-            throw new IllegalArgumentException("The max number of resources must be a positive integer less than 10_000");
+        if (maxAffectedResourcesCount < 0) {
+            throw new IllegalArgumentException("The max number of resources must be a positive integer");
         }
         // Determine if cluster is stable enough to calculate health before running other indicators
         List<HealthIndicatorResult> preflightResults = preflightHealthIndicatorServices.stream()

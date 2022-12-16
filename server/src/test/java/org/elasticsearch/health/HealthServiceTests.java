@@ -145,26 +145,11 @@ public class HealthServiceTests extends ESTestCase {
 
         var service = new HealthService(Collections.emptyList(), List.of(createMockHealthIndicatorService(shardsAvailable)), threadPool);
         NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
-        {
-            IllegalArgumentException illegalArgumentException = expectThrows(
-                IllegalArgumentException.class,
-                () -> service.getHealth(client, null, true, -1, ActionListener.NOOP)
-            );
-            assertThat(
-                illegalArgumentException.getMessage(),
-                is("The max number of resources must be a positive integer less than " + "10_000")
-            );
-        }
-        {
-            IllegalArgumentException illegalArgumentException = expectThrows(
-                IllegalArgumentException.class,
-                () -> service.getHealth(client, null, true, 10_001, ActionListener.NOOP)
-            );
-            assertThat(
-                illegalArgumentException.getMessage(),
-                is("The max number of resources must be a positive integer less than " + "10_000")
-            );
-        }
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.getHealth(client, null, true, -1, ActionListener.NOOP)
+        );
+        assertThat(illegalArgumentException.getMessage(), is("The max number of resources must be a positive integer"));
     }
 
     private <T extends Throwable> void assertGetHealthThrowsException(

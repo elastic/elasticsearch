@@ -165,8 +165,6 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             ActionRequestValidationException validationException = null;
             if (size < 0) {
                 validationException = addValidationError("The size parameter must be a positive integer", validationException);
-            } else if (size > 10_000) {
-                validationException = addValidationError("Cannot request more than 10_000 affected resources", validationException);
             }
             return validationException;
         }

@@ -18,20 +18,10 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GetHealthRequestTests extends ESTestCase {
 
     public void testValidation() {
-        {
-            var req = new GetHealthAction.Request(true, -1);
-            ActionRequestValidationException validationException = req.validate();
-            assertThat(validationException, notNullValue());
-            assertThat(validationException.validationErrors().size(), is(1));
-            assertThat(validationException.validationErrors().get(0), containsString("The size parameter must be a positive integer"));
-        }
-
-        {
-            var req = new GetHealthAction.Request(true, 10_001);
-            ActionRequestValidationException validationException = req.validate();
-            assertThat(validationException, notNullValue());
-            assertThat(validationException.validationErrors().size(), is(1));
-            assertThat(validationException.validationErrors().get(0), containsString("Cannot request more than 10_000 affected resources"));
-        }
+        var req = new GetHealthAction.Request(true, -1);
+        ActionRequestValidationException validationException = req.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(validationException.validationErrors().get(0), containsString("The size parameter must be a positive integer"));
     }
 }

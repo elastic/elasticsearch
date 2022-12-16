@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ShardAllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -631,43 +632,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             Settings.EMPTY,
             state,
             Map.of(),
-            new SystemIndices(
-                List.of(
-                    new SystemIndices.Feature(
-                        "feature-with-system-index",
-                        "testing",
-                        List.of(new SystemIndexDescriptor(".feature-*", "feature with index"))
-                    ),
-                    new SystemIndices.Feature(
-                        "feature-with-system-data-stream",
-                        "feature with data stream",
-                        List.of(),
-                        List.of(
-                            new SystemDataStreamDescriptor(
-                                featureDataStreamName,
-                                "description",
-                                SystemDataStreamDescriptor.Type.EXTERNAL,
-                                new ComposableIndexTemplate(
-                                    List.of(".test-ds-*"),
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    new ComposableIndexTemplate.DataStreamTemplate()
-                                ),
-                                Map.of(),
-                                List.of("test"),
-                                new ExecutorNames(
-                                    ThreadPool.Names.SYSTEM_CRITICAL_READ,
-                                    ThreadPool.Names.SYSTEM_READ,
-                                    ThreadPool.Names.SYSTEM_WRITE
-                                )
-                            )
-                        )
-                    )
-                )
-            )
+            getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*")
         );
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
@@ -676,6 +641,49 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         Diagnosis diagnosis = result.diagnosisList().get(0);
         List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
         assertThat("expecting we report a resource of type INDEX and one of type FEATURE_STATE", affectedResources.size(), is(2));
+        for (Diagnosis.Resource resource : affectedResources) {
+            if (resource.getType() == INDEX) {
+                assertThat(resource.getValues(), hasItems("regular-index"));
+            } else {
+                assertThat(resource.getType(), is(FEATURE_STATE));
+                assertThat(resource.getValues(), hasItems("feature-with-system-data-stream", "feature-with-system-index"));
+            }
+        }
+    }
+
+    public void testGetRestoreFromSnapshotAffectedResources() {
+        String featureDataStreamName = ".test-ds-feature";
+        IndexMetadata backingIndex = createBackingIndex(featureDataStreamName, 1).build();
+
+        List<IndexMetadata> indexMetadataList = List.of(
+            IndexMetadata.builder(".feature-index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(),
+            IndexMetadata.builder("regular-index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(),
+            backingIndex
+        );
+
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
+        for (IndexMetadata indexMetadata : indexMetadataList) {
+            indexMetadataMap.put(indexMetadata.getIndex().getName(), indexMetadata);
+        }
+        metadataBuilder.indices(indexMetadataMap);
+        metadataBuilder.put(newInstance(featureDataStreamName, List.of(backingIndex.getIndex())));
+
+        List<Diagnosis.Resource> affectedResources = ShardAllocationStatus.getRestoreFromSnapshotAffectedResources(
+            metadataBuilder.build(),
+            getSystemIndices(featureDataStreamName, ".test-ds-*", ".feature-*"),
+            Set.of(backingIndex.getIndex().getName(), ".feature-index", "regular-index")
+        );
+
+        assertThat(affectedResources.size(), is(2));
         for (Diagnosis.Resource resource : affectedResources) {
             if (resource.getType() == INDEX) {
                 assertThat(resource.getValues(), hasItems("regular-index"));
@@ -1305,6 +1313,53 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         assertThat(actions, hasSize(1));
         assertThat(actions, contains(ACTION_INCREASE_NODE_CAPACITY));
+    }
+
+    /**
+     * Creates the {@link SystemIndices} with one standalone system index and a system data stream
+     */
+    private SystemIndices getSystemIndices(
+        String featureDataStreamName,
+        String systemDataStreamPattern,
+        String standaloneSystemIndexPattern
+    ) {
+        return new SystemIndices(
+            List.of(
+                new SystemIndices.Feature(
+                    "feature-with-system-index",
+                    "testing",
+                    List.of(new SystemIndexDescriptor(standaloneSystemIndexPattern, "feature with index"))
+                ),
+                new SystemIndices.Feature(
+                    "feature-with-system-data-stream",
+                    "feature with data stream",
+                    List.of(),
+                    List.of(
+                        new SystemDataStreamDescriptor(
+                            featureDataStreamName,
+                            "description",
+                            SystemDataStreamDescriptor.Type.EXTERNAL,
+                            new ComposableIndexTemplate(
+                                List.of(systemDataStreamPattern),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                new ComposableIndexTemplate.DataStreamTemplate()
+                            ),
+                            Map.of(),
+                            List.of("test"),
+                            new ExecutorNames(
+                                ThreadPool.Names.SYSTEM_CRITICAL_READ,
+                                ThreadPool.Names.SYSTEM_READ,
+                                ThreadPool.Names.SYSTEM_WRITE
+                            )
+                        )
+                    )
+                )
+            )
+        );
     }
 
     private HealthIndicatorResult createExpectedResult(

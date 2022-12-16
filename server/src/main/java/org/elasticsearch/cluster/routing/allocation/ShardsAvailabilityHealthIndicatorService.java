@@ -773,7 +773,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
-    private class ShardAllocationStatus {
+    class ShardAllocationStatus {
         private final ShardAllocationCounts primaries = new ShardAllocationCounts();
         private final ShardAllocationCounts replicas = new ShardAllocationCounts();
         private final Metadata clusterMetadata;
@@ -957,7 +957,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
          * identified unassigned indices and returns the affected {@link Diagnosis.Resource}s of type `INDEX`
          * and if applicable `FEATURE_STATE`
          */
-        private static List<Diagnosis.Resource> getRestoreFromSnapshotAffectedResources(
+        static List<Diagnosis.Resource> getRestoreFromSnapshotAffectedResources(
             Metadata metadata,
             SystemIndices systemIndices,
             Set<String> restoreFromSnapshotIndices

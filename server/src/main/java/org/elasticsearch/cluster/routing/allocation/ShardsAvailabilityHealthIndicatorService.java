@@ -134,7 +134,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final String PRIMARY_UNASSIGNED_IMPACT_ID = "primary_unassigned";
     public static final String REPLICA_UNASSIGNED_IMPACT_ID = "replica_unassigned";
 
-    public static final String RESTORE_FROM_SNAPSHOT_ACTION_GUIDE = "http://ela.st/restore-snapshot";
+    public static final String RESTORE_FROM_SNAPSHOT_ACTION_GUIDE = "https://ela.st/restore-snapshot";
     public static final Diagnosis.Definition ACTION_RESTORE_FROM_SNAPSHOT = new Diagnosis.Definition(
         NAME,
         "restore_from_snapshot",
@@ -144,7 +144,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         RESTORE_FROM_SNAPSHOT_ACTION_GUIDE
     );
 
-    public static final String DIAGNOSE_SHARDS_ACTION_GUIDE = "http://ela.st/diagnose-shards";
+    public static final String DIAGNOSE_SHARDS_ACTION_GUIDE = "https://ela.st/diagnose-shards";
     public static final Diagnosis.Definition ACTION_CHECK_ALLOCATION_EXPLAIN_API = new Diagnosis.Definition(
         NAME,
         "explain_allocations",
@@ -155,7 +155,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         DIAGNOSE_SHARDS_ACTION_GUIDE
     );
 
-    public static final String FIX_DELAYED_SHARDS_GUIDE = "http://ela.st/fix-delayed-shard-allocation";
+    public static final String FIX_DELAYED_SHARDS_GUIDE = "https://ela.st/fix-delayed-shard-allocation";
     public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS = new Diagnosis.Definition(
         NAME,
         "delayed_shard_allocations",
@@ -166,7 +166,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         FIX_DELAYED_SHARDS_GUIDE
     );
 
-    public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "http://ela.st/fix-index-allocation";
+    public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "https://ela.st/fix-index-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new Diagnosis.Definition(
         NAME,
         "enable_index_allocations",
@@ -179,7 +179,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + "].",
         ENABLE_INDEX_ALLOCATION_GUIDE
     );
-    public static final String ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE = "http://ela.st/fix-cluster-allocation";
+    public static final String ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE = "https://ela.st/fix-cluster-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION = new Diagnosis.Definition(
         NAME,
         "enable_cluster_allocations",
@@ -193,7 +193,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE
     );
 
-    public static final String ENABLE_TIER_ACTION_GUIDE = "http://ela.st/enable-tier";
+    public static final String ENABLE_TIER_ACTION_GUIDE = "https://ela.st/enable-tier";
     public static final Map<String, Diagnosis.Definition> ACTION_ENABLE_TIERS_LOOKUP = DataTier.ALL_DATA_TIERS.stream()
         .collect(
             Collectors.toUnmodifiableMap(
@@ -209,7 +209,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    public static final String INCREASE_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/index-total-shards";
+    public static final String INCREASE_SHARD_LIMIT_ACTION_GUIDE = "https://ela.st/index-total-shards";
     public static final Diagnosis.Definition ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING = new Diagnosis.Definition(
         NAME,
         "increase_shard_limit_index_setting",
@@ -240,7 +240,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    public static final String INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/cluster-total-shards";
+    public static final String INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE = "https://ela.st/cluster-total-shards";
     public static final Diagnosis.Definition ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING = new Diagnosis.Definition(
         NAME,
         "increase_shard_limit_cluster_setting",
@@ -271,7 +271,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    public static final String MIGRATE_TO_TIERS_ACTION_GUIDE = "http://ela.st/migrate-to-tiers";
+    public static final String MIGRATE_TO_TIERS_ACTION_GUIDE = "https://ela.st/migrate-to-tiers";
     public static final Diagnosis.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA = new Diagnosis.Definition(
         NAME,
         "migrate_data_tiers_require_data",
@@ -340,7 +340,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    public static final String TIER_CAPACITY_ACTION_GUIDE = "http://ela.st/tier-capacity";
+    public static final String TIER_CAPACITY_ACTION_GUIDE = "https://ela.st/tier-capacity";
     public static final Diagnosis.Definition ACTION_INCREASE_NODE_CAPACITY = new Diagnosis.Definition(
         NAME,
         "increase_node_capacity_for_allocations",

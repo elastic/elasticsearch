@@ -99,7 +99,7 @@ public class TaskCancellationService {
         if (task.shouldCancelChildrenOnCancellation()) {
             logger.trace("cancelling task [{}] and its descendants", taskId);
             StepListener<Void> completedListener = new StepListener<>();
-            GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(completedListener.map(r -> null), 3);
+            GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(3, completedListener.map(r -> null));
             Collection<Transport.Connection> childConnections = taskManager.startBanOnChildTasks(task.getId(), reason, () -> {
                 logger.trace("child tasks of parent [{}] are completed", taskId);
                 groupedListener.onResponse(null);
@@ -149,7 +149,7 @@ public class TaskCancellationService {
         }
         final TaskId taskId = new TaskId(localNodeId(), task.getId());
         logger.trace("cancelling child tasks of [{}] on child connections {}", taskId, childConnections);
-        GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(listener.map(r -> null), childConnections.size());
+        GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(childConnections.size(), listener.map(r -> null));
         final BanParentTaskRequest banRequest = BanParentTaskRequest.createSetBanParentTaskRequest(taskId, reason, waitForCompletion);
         for (Transport.Connection connection : childConnections) {
             assert TransportService.unwrapConnection(connection) == connection : "Child connection must be unwrapped";
@@ -313,8 +313,8 @@ public class TaskCancellationService {
                 );
                 final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason, channel);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                    new ChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request).map(r -> TransportResponse.Empty.INSTANCE),
-                    childTasks.size() + 1
+                    childTasks.size() + 1,
+                    new ChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request).map(r -> TransportResponse.Empty.INSTANCE)
                 );
                 for (CancellableTask childTask : childTasks) {
                     cancelTaskAndDescendants(childTask, request.reason, request.waitForCompletion, listener);

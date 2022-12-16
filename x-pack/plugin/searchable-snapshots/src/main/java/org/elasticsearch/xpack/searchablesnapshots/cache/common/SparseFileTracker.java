@@ -258,8 +258,8 @@ public class SparseFileTracker {
             }
             default -> {
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
-                    wrappedListener.map(progress -> null),
-                    requiredRanges.size()
+                    requiredRanges.size(),
+                    wrappedListener.map(progress -> null)
                 );
                 requiredRanges.forEach(
                     r -> r.completionListener.addListener(groupedActionListener, Math.min(r.completionListener.end, subRange.end()))
@@ -346,8 +346,8 @@ public class SparseFileTracker {
             }
             default -> {
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
-                    wrappedListener.map(progress -> null),
-                    pendingRanges.size()
+                    pendingRanges.size(),
+                    wrappedListener.map(progress -> null)
                 );
                 pendingRanges.forEach(
                     r -> r.completionListener.addListener(groupedActionListener, Math.min(r.completionListener.end, range.end()))

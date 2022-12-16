@@ -34,6 +34,7 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
                         Path.of(System.getProperty("java.io.tmpdir")).resolve(description.getDisplayName()).toAbsolutePath(),
                         new LocalDistributionResolver(new SnapshotDistributionResolver())
                     ).create(spec);
+                    handle.start();
                     base.evaluate();
                 } finally {
                     close();

@@ -66,6 +66,7 @@ public class LocalClusterHandle implements ClusterHandle {
             LOGGER.info("Starting Elasticsearch test cluster '{}'", name);
             execute(() -> nodes.parallelStream().forEach(Node::start));
         }
+        waitUntilReady();
     }
 
     @Override
@@ -99,7 +100,6 @@ public class LocalClusterHandle implements ClusterHandle {
     @Override
     public String getHttpAddresses() {
         start();
-        waitUntilReady();
         return execute(() -> nodes.parallelStream().map(Node::getHttpAddress).collect(Collectors.joining(",")));
     }
 

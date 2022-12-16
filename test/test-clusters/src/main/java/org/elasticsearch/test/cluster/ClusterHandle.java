@@ -15,8 +15,7 @@ import java.io.Closeable;
  */
 public interface ClusterHandle extends Closeable {
     /**
-     * Starts the cluster. This method is non-blocking. There is no guarantee that the cluster is available or ready to serve requests. This
-     * method is thread-safe and subsequent calls to an already started cluster will result in a noop.
+     * Starts the cluster. This method will block until all nodes are started and cluster is ready to serve requests.
      */
     void start();
 
@@ -38,8 +37,7 @@ public interface ClusterHandle extends Closeable {
 
     /**
      * Returns a comma-separated list of HTTP transport endpoints for cluster. If this method is called on an unstarted cluster, the cluster
-     * will be started. Unlike {@link #start()}, calls to this method block on cluster availability. This method is thread-safe and
-     * subsequent calls will wait for cluster start and availability.
+     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
      *
      * @return cluster node HTTP transport addresses
      */

@@ -55,7 +55,12 @@ public class LocalDistributionResolver implements DistributionResolver {
                 );
             }
 
-            return new DefaultDistributionDescriptor(version, true, testDistributionDir, type);
+            return new DefaultDistributionDescriptor(
+                version,
+                Boolean.parseBoolean(System.getProperty("build.snapshot", "true")),
+                testDistributionDir,
+                type
+            );
         }
 
         return delegate.resolve(version, type);

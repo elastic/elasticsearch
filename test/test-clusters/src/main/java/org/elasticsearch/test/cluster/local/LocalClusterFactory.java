@@ -127,13 +127,19 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
         }
 
         public String getHttpAddress() {
-            waitUntilReady();
-            return readPortsFile(workingDir.resolve("logs").resolve("http.ports")).get(0);
+            Path portFile = workingDir.resolve("logs").resolve("http.ports");
+            if (Files.notExists(portFile)) {
+                waitUntilReady();
+            }
+            return readPortsFile(portFile).get(0);
         }
 
         public String getTransportEndpoint() {
-            waitUntilReady();
-            return readPortsFile(workingDir.resolve("logs").resolve("transport.ports")).get(0);
+            Path portsFile = workingDir.resolve("logs").resolve("transport.ports");
+            if (Files.notExists(portsFile)) {
+                waitUntilReady();
+            }
+            return readPortsFile(portsFile).get(0);
         }
 
         public LocalNodeSpec getSpec() {
@@ -148,7 +154,9 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             try {
                 Retry.retryUntilTrue(NODE_UP_TIMEOUT, Duration.ofMillis(500), () -> {
                     if (process.isAlive() == false) {
-                        throw new RuntimeException("Elasticsearch process died while waiting for ports file.");
+                        throw new RuntimeException(
+                            "Elasticsearch process died while waiting for ports file. See console output for details."
+                        );
                     }
 
                     Path httpPorts = workingDir.resolve("logs").resolve("http.ports");
@@ -443,8 +451,8 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             environment.put("TMP", workingDir.resolve("tmp").toString());
 
             String featureFlagProperties = "";
-            if (spec.getFeatures().isEmpty() == false && distributionDescriptor.isSnapshot()) {
-                spec.getFeatures()
+            if (spec.getFeatures().isEmpty() == false && distributionDescriptor.isSnapshot() == false) {
+                featureFlagProperties = spec.getFeatures()
                     .stream()
                     .filter(f -> spec.getVersion().onOrAfter(f.from) && (f.until == null || spec.getVersion().before(f.until)))
                     .map(f -> "-D" + f.systemProperty)

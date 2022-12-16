@@ -14,7 +14,7 @@ import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
-import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.server.cli.ServerProcess;
 
@@ -34,9 +34,11 @@ class WindowsServiceDaemon extends EnvironmentAwareCommand {
 
     @Override
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
-        var args = new ServerArgs(false, true, null, new SecureString(""), env.settings(), env.configFile());
-        this.server = ServerProcess.start(terminal, processInfo, args, null);
-        // start does not return until the server is ready, and we do not wait for the process
+        try (SecureSettings secrets = secureSettingsLoader(env).load(env.settings(), env.configFile(), terminal, (s, c) -> {})) {
+            var args = new ServerArgs(false, true, null, secrets, env.settings(), env.configFile());
+            this.server = ServerProcess.start(terminal, processInfo, args);
+            // start does not return until the server is ready, and we do not wait for the process
+        }
     }
 
     @Override

@@ -25,6 +25,9 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -80,13 +83,24 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** An entry in the keystore. The bytes are opaque and interpreted based on the entry type. */
-    private static class Entry {
+    private static class Entry implements Writeable {
         final byte[] bytes;
         final byte[] sha256Digest;
 
         Entry(byte[] bytes) {
             this.bytes = bytes;
             this.sha256Digest = MessageDigests.sha256().digest(bytes);
+        }
+
+        Entry(StreamInput input) throws IOException {
+            this.bytes = input.readByteArray();
+            this.sha256Digest = input.readByteArray();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByteArray(bytes);
+            out.writeByteArray(sha256Digest);
         }
     }
 
@@ -165,6 +179,14 @@ public class KeyStoreWrapper implements SecureSettings {
         this.formatVersion = formatVersion;
         this.hasPassword = hasPassword;
         this.dataBytes = dataBytes;
+    }
+
+    public KeyStoreWrapper(StreamInput input) throws IOException {
+        formatVersion = input.readInt();
+        hasPassword = input.readBoolean();
+        dataBytes = input.readByteArray();
+        entries.set(input.readMap(StreamInput::readString, Entry::new));
+        closed = input.readBoolean();
     }
 
     /**
@@ -616,17 +638,12 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     @Override
-    public boolean requiresCredentials() {
-        return hasPassword();
-    }
-
-    @Override
-    public String name() {
-        return "keystore";
-    }
-
-    @Override
-    public void openWithCredentials(SecureString credentials) throws Exception {
-        decrypt(credentials.getChars());
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeInt(formatVersion);
+        out.writeBoolean(hasPassword);
+        out.writeByteArray(dataBytes);
+        var entriesMap = entries.get();
+        out.writeMap((entriesMap == null) ? Map.of() : entriesMap, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeBoolean(closed);
     }
 }

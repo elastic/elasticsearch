@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.notification;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -209,12 +210,6 @@ public abstract class NotificationService<Account> {
             }
         }
         return new SecureSettings() {
-
-            @Override
-            public String name() {
-                return "NotificationService secure settings";
-            }
-
             @Override
             public boolean isLoaded() {
                 return true;
@@ -242,6 +237,11 @@ public abstract class NotificationService<Account> {
 
             @Override
             public void close() throws IOException {}
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                throw new IllegalStateException("Unsupported operation");
+            }
         };
     }
 }

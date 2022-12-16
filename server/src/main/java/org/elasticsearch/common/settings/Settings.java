@@ -1523,8 +1523,8 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
 
         @Override
-        public String name() {
-            return delegate.name();
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new IllegalStateException("Unsupported operation");
         }
     }
 

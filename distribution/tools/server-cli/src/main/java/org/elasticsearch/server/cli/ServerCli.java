@@ -23,9 +23,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.SecureSettingsUtilities;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
@@ -33,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * The main CLI for running Elasticsearch.
@@ -77,20 +76,17 @@ class ServerCli extends EnvironmentAwareCommand {
 
         validateConfig(options, env);
 
-        try (SecureSettings secrets = secureSettingsUtilities().load(env.settings(), env.configFile())) {
-            // setup security
-            final SecureString credentials = readOptionalSecureSettingsCredentials(secrets, terminal);
-            env = autoConfigureSecurity(terminal, options, processInfo, env, credentials);
-
-            if (secrets != null && secrets.requiresCredentials()) {
-                secrets.openWithCredentials(credentials);
-            }
-
+        final var envWithSecurity = new AtomicReference<>(env);
+        try (SecureSettings secrets = secureSettingsLoader(env).load(env.settings(), env.configFile(), terminal, (s, c) -> {
+            // Auto-configure security.
+            // TODO: The current auto-configure command is KeyStoreWrapper specific, we need to make that depend on the configuration
+            envWithSecurity.set(autoConfigureSecurity(terminal, options, processInfo, envWithSecurity.get(), c));
+        })) {
             // install/remove plugins from elasticsearch-plugins.yml
             syncPlugins(terminal, env, processInfo);
 
-            ServerArgs args = createArgs(options, env, credentials, processInfo);
-            this.server = startServer(terminal, processInfo, args, secrets);
+            ServerArgs args = createArgs(options, envWithSecurity.get(), secrets, processInfo);
+            this.server = startServer(terminal, processInfo, args);
         }
 
         if (options.has(daemonizeOption)) {
@@ -103,11 +99,6 @@ class ServerCli extends EnvironmentAwareCommand {
         if (exitCode != ExitCodes.OK) {
             throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
         }
-    }
-
-    // package private for testing
-    SecureSettingsUtilities secureSettingsUtilities() {
-        return new SecureSettingsUtilities();
     }
 
     private void printVersion(Terminal terminal) {
@@ -131,14 +122,6 @@ class ServerCli extends EnvironmentAwareCommand {
         Path log4jConfig = env.configFile().resolve("log4j2.properties");
         if (Files.exists(log4jConfig) == false) {
             throw new UserException(ExitCodes.CONFIG, "Missing logging config file at " + log4jConfig);
-        }
-    }
-
-    private static SecureString readOptionalSecureSettingsCredentials(SecureSettings secrets, Terminal terminal) {
-        if (secrets != null && secrets.requiresCredentials()) {
-            return new SecureString(terminal.readSecret(Strings.format("Enter password for the elasticsearch %s : ", secrets.name())));
-        } else {
-            return new SecureString(new char[0]);
         }
     }
 
@@ -208,7 +191,7 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword, ProcessInfo processInfo)
+    private ServerArgs createArgs(OptionSet options, Environment env, SecureSettings secrets, ProcessInfo processInfo)
         throws UserException {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
@@ -220,7 +203,7 @@ class ServerCli extends EnvironmentAwareCommand {
             }
             validatePidFile(pidFile);
         }
-        return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
+        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configFile());
     }
 
     @Override
@@ -236,8 +219,7 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, SecureSettings keystore)
-        throws UserException {
-        return ServerProcess.start(terminal, processInfo, args, keystore);
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
+        return ServerProcess.start(terminal, processInfo, args);
     }
 }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.watcher.notification;
 
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -276,8 +277,8 @@ public class NotificationServiceTests extends ESTestCase {
             public void close() throws IOException {}
 
             @Override
-            public String name() {
-                return "NotificationServiceTests secure settings";
+            public void writeTo(StreamOutput out) throws IOException {
+                throw new IllegalStateException("Not supported");
             }
         };
     }

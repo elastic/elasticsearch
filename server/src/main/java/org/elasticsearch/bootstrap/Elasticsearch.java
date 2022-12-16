@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.SecureSettingsUtilities;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.IOUtils;
@@ -143,12 +142,7 @@ class Elasticsearch {
      */
     private static void initPhase2(Bootstrap bootstrap) throws IOException {
         final ServerArgs args = bootstrap.args();
-        final SecureSettings secrets;
-        try {
-            secrets = (new SecureSettingsUtilities()).bootstrap(args.nodeSettings(), args.configDir(), args.credentials());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        final SecureSettings secrets = args.secrets();
         bootstrap.setSecureSettings(secrets);
         Environment nodeEnv = createEnvironment(args.configDir(), args.nodeSettings(), secrets);
         bootstrap.setEnvironment(nodeEnv);

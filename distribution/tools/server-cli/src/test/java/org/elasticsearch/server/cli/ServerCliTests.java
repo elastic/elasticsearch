@@ -16,16 +16,12 @@ import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
-import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.SecureSettingsUtilities;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -33,13 +29,9 @@ import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -51,14 +43,6 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 public class ServerCliTests extends CommandTestCase {
 
@@ -293,7 +277,7 @@ public class ServerCliTests extends CommandTestCase {
             }
         }
         String expectedPassword = password == null ? "" : password;
-        argsValidator = args -> assertThat(args.credentials().toString(), equalTo(expectedPassword));
+        argsValidator = args -> assertThat(args.secrets().isLoaded(), equalTo(true));
         autoConfigCallback = (t, options, env, processInfo) -> {
             char[] gotPassword = t.readSecret("");
             assertThat(gotPassword, equalTo(expectedPassword.toCharArray()));
@@ -328,46 +312,6 @@ public class ServerCliTests extends CommandTestCase {
         mockServerExitCode = 140;
         int exitCode = executeMain();
         assertThat(exitCode, equalTo(140));
-    }
-
-    public void testOpenStoreWithCredentials() throws Exception {
-        var secureSettingsWithCredentials = spy(new SecureSettingsWithCredentials());
-        var secureSettingsWithoutCredentials = spy(new SecureSettingsWithoutCredentials());
-
-        ServerCli command = serverCliCommandWithCustomSecureSettings(
-            Map.of("keystore", secureSettingsWithCredentials, "stateless", secureSettingsWithoutCredentials)
-        );
-
-        MockTerminal spiedTerminal = spy(terminal);
-        doReturn("password".toCharArray()).when(spiedTerminal).readSecret(any());
-
-        spiedTerminal.reset();
-        command.main(new String[] { "-E", "secrets=keystore" }, spiedTerminal, new ProcessInfo(sysprops, envVars, esHomeDir));
-        command.close();
-        verify(secureSettingsWithCredentials, atLeastOnce()).requiresCredentials();
-        verify(secureSettingsWithCredentials, times(1)).openWithCredentials(any());
-        verify(spiedTerminal).readSecret(argThat(prompt -> {
-            assertEquals("Enter password for the elasticsearch secrets store with credentials : ", prompt);
-            return true;
-        }));
-
-        command = serverCliCommandWithCustomSecureSettings(
-            Map.of("keystore", secureSettingsWithCredentials, "stateless", secureSettingsWithoutCredentials)
-        );
-        command.main(new String[] { "-E", "secrets=stateless" }, spiedTerminal, new ProcessInfo(sysprops, envVars, esHomeDir));
-        command.close();
-        verify(secureSettingsWithoutCredentials, atLeastOnce()).requiresCredentials();
-        verify(secureSettingsWithoutCredentials, times(0)).openWithCredentials(any());
-    }
-
-    private ServerCli serverCliCommandWithCustomSecureSettings(Map<String, SecureSettings> settingsMap) throws Exception {
-        ServerCli command = spy((ServerCli) newCommand());
-        SecureSettingsUtilities secureSettingsUtilities = spy(new SecureSettingsUtilities());
-
-        doAnswer(i -> settingsMap.get(((Settings) i.getArgument(0)).get("secrets"))).when(secureSettingsUtilities).load(any(), any());
-
-        doReturn(secureSettingsUtilities).when(command).secureSettingsUtilities();
-        return command;
     }
 
     interface AutoConfigMethod {
@@ -492,7 +436,7 @@ public class ServerCliTests extends CommandTestCase {
             }
 
             @Override
-            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, SecureSettings secrets) {
+            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) {
                 if (argsValidator != null) {
                     argsValidator.accept(args);
                 }
@@ -500,65 +444,5 @@ public class ServerCliTests extends CommandTestCase {
                 return mockServer;
             }
         };
-    }
-
-    class SecureSettingsWithCredentials implements SecureSettings {
-        @Override
-        public String name() {
-            return "secrets store with credentials";
-        }
-
-        @Override
-        public boolean isLoaded() {
-            return true;
-        }
-
-        @Override
-        public boolean requiresCredentials() {
-            return true;
-        }
-
-        @Override
-        public void openWithCredentials(SecureString credentials) throws Exception {}
-
-        @Override
-        public Set<String> getSettingNames() {
-            return Set.of();
-        }
-
-        @Override
-        public SecureString getString(String setting) {
-            return new SecureString(new char[0]);
-        }
-
-        @Override
-        public InputStream getFile(String setting) throws GeneralSecurityException {
-            return null;
-        }
-
-        @Override
-        public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
-            return new byte[0];
-        }
-
-        @Override
-        public void close() throws IOException {}
-    }
-
-    class SecureSettingsWithoutCredentials extends SecureSettingsWithCredentials {
-        @Override
-        public String name() {
-            return "secrets store without credentials";
-        }
-
-        @Override
-        public boolean requiresCredentials() {
-            return false;
-        }
-
-        @Override
-        public void openWithCredentials(SecureString credentials) throws Exception {
-            throw new IllegalStateException("Shouldn't be called");
-        }
     }
 }

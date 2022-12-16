@@ -28,8 +28,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
@@ -129,6 +129,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         @Override
         public ClusterState execute(ClusterState currentState) {
             SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+            var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
 
             String id = request.getLifecycleId();
             final SnapshotLifecycleMetadata lifecycleMetadata;
@@ -140,7 +141,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
                     .build();
                 lifecycleMetadata = new SnapshotLifecycleMetadata(
                     Collections.singletonMap(id, meta),
-                    OperationMode.RUNNING,
+                    currentMode,
                     new SnapshotLifecycleStats()
                 );
                 logger.info("adding new snapshot lifecycle [{}]", id);
@@ -154,7 +155,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
                     .setModifiedDate(Instant.now().toEpochMilli())
                     .build();
                 snapLifecycles.put(id, newLifecycle);
-                lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, snapMeta.getOperationMode(), snapMeta.getStats());
+                lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats());
                 if (oldLifecycle == null) {
                     logger.info("adding new snapshot lifecycle [{}]", id);
                 } else {

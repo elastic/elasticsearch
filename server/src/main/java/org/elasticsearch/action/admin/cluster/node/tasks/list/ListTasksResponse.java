@@ -32,10 +32,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -166,9 +164,9 @@ public class ListTasksResponse extends BaseTasksResponse {
                 toXContentCommon(builder, params);
                 builder.startObject("nodes");
                 return builder;
-            }), getPerNodeTasks().entrySet().stream().flatMap(entry -> {
+            }), Iterators.flatMap(getPerNodeTasks().entrySet().iterator(), entry -> {
                 DiscoveryNode node = discoveryNodes.get(entry.getKey());
-                return Stream.<Stream<ToXContent>>of(Stream.of((builder, params) -> {
+                return Iterators.concat(Iterators.single((builder, params) -> {
                     builder.startObject(entry.getKey());
                     if (node != null) {
                         // If the node is no longer part of the cluster, oh well, we'll just skip its useful information.
@@ -193,17 +191,17 @@ public class ListTasksResponse extends BaseTasksResponse {
                     }
                     builder.startObject(TASKS);
                     return builder;
-                }), entry.getValue().stream().<ToXContent>map(task -> (builder, params) -> {
+                }), Iterators.flatMap(entry.getValue().iterator(), task -> Iterators.<ToXContent>single((builder, params) -> {
                     builder.startObject(task.taskId().toString());
                     task.toXContent(builder, params);
                     builder.endObject();
                     return builder;
-                }), Stream.of((builder, params) -> {
+                })), Iterators.<ToXContent>single((builder, params) -> {
                     builder.endObject();
                     builder.endObject();
                     return builder;
-                })).flatMap(Function.identity());
-            }).iterator(), Iterators.single((builder, params) -> {
+                }));
+            }), Iterators.<ToXContent>single((builder, params) -> {
                 builder.endObject();
                 builder.endObject();
                 return builder;

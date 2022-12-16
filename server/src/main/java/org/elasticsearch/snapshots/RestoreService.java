@@ -525,19 +525,22 @@ public class RestoreService implements ClusterStateApplier {
             "refreshing repository UUIDs for repositories [{}]",
             repositories.stream().map(repository -> repository.getMetadata().name()).collect(Collectors.joining(","))
         );
-        final ActionListener<RepositoryData> groupListener = new GroupedActionListener<>(new ActionListener<Collection<Void>>() {
-            @Override
-            public void onResponse(Collection<Void> ignored) {
-                logger.debug("repository UUID refresh completed");
-                refreshListener.onResponse(null);
-            }
+        final ActionListener<RepositoryData> groupListener = new GroupedActionListener<>(
+            repositories.size(),
+            new ActionListener<Collection<Void>>() {
+                @Override
+                public void onResponse(Collection<Void> ignored) {
+                    logger.debug("repository UUID refresh completed");
+                    refreshListener.onResponse(null);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug("repository UUID refresh failed", e);
-                refreshListener.onResponse(null); // this refresh is best-effort, the restore should proceed either way
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug("repository UUID refresh failed", e);
+                    refreshListener.onResponse(null); // this refresh is best-effort, the restore should proceed either way
+                }
             }
-        }, repositories.size()).map(repositoryData -> null /* don't collect the RepositoryData */);
+        ).map(repositoryData -> null /* don't collect the RepositoryData */);
 
         for (Repository repository : repositories) {
             repository.getRepositoryData(groupListener);

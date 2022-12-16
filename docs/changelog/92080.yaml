@@ -1,0 +1,5 @@
+pr: 92080
+summary: Fix time unit for connection request timeout of JWKs reload
+area: Authentication
+type: bug
+issues: []

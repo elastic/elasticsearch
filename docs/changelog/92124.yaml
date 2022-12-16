@@ -1,0 +1,5 @@
+pr: 92124
+summary: Check reserved state in Metadata.isGlobalStateEquals
+area: Infra/Core
+type: bug
+issues: []

@@ -193,6 +193,17 @@ The API returns the following result:
               "debug": {
                 "fast_path": 5
               }
+            },
+            {
+              "type": "StoredFieldsPhase",
+              "description": "",
+              "time_in_nanos": 5310,
+              "breakdown": {
+                "next_reader": 745,
+                "next_reader_count": 1,
+                "process": 4445,
+                "process_count": 5
+              }
             }
           ]
         }
@@ -1010,6 +1021,17 @@ And here is the fetch profile:
               },
               "debug": {
                 "fast_path": 4
+              }
+            },
+            {
+              "type": "StoredFieldsPhase",
+              "description": "",
+              "time_in_nanos": 5310,
+              "breakdown": {
+                "next_reader": 745,
+                "next_reader_count": 1,
+                "process": 4445,
+                "process_count": 5
               }
             }
           ]

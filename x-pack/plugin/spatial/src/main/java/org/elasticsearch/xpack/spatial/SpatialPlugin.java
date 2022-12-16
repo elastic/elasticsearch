@@ -62,11 +62,15 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoSha
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.InternalGeoHexGrid;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianBoundsAggregationBuilder;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianCentroidAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianCentroidAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.CartesianShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianBounds;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianCentroid;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
@@ -172,7 +176,12 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
                     SpatialStatsAction.Item.CARTESIANCENTROID,
                     checkLicense(CartesianCentroidAggregationBuilder.PARSER, GEO_CENTROID_AGG_FEATURE)
                 )
-            ).addResultReader(InternalCartesianCentroid::new).setAggregatorRegistrar(this::registerCartesianCentroidAggregator)
+            ).addResultReader(InternalCartesianCentroid::new).setAggregatorRegistrar(this::registerCartesianCentroidAggregator),
+            new AggregationSpec(
+                CartesianBoundsAggregationBuilder.NAME,
+                CartesianBoundsAggregationBuilder::new,
+                usage.track(SpatialStatsAction.Item.CARTESIANBOUNDS, CartesianBoundsAggregationBuilder.PARSER)
+            ).addResultReader(InternalCartesianBounds::new).setAggregatorRegistrar(SpatialPlugin::registerCartesianBoundsAggregators)
         );
     }
 
@@ -186,6 +195,21 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
             GeoBoundsAggregationBuilder.REGISTRY_KEY,
             GeoShapeValuesSourceType.instance(),
             GeoShapeBoundsAggregator::new,
+            true
+        );
+    }
+
+    private static void registerCartesianBoundsAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            CartesianBoundsAggregationBuilder.REGISTRY_KEY,
+            CartesianShapeValuesSourceType.instance(),
+            CartesianShapeBoundsAggregator::new,
+            true
+        );
+        builder.register(
+            CartesianBoundsAggregationBuilder.REGISTRY_KEY,
+            CartesianPointValuesSourceType.instance(),
+            CartesianBoundsAggregator::new,
             true
         );
     }

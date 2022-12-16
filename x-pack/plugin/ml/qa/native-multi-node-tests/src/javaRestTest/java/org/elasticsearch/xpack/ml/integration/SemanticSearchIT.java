@@ -15,7 +15,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * This test uses a tiny text embedding model to simulate an trained
@@ -93,7 +97,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testModel() throws IOException {
+    public void testSemanticSearch() throws IOException {
         String modelId = "semantic-search-test";
         String indexName = modelId + "-index";
 
@@ -114,6 +118,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
             "the octopus comforter is leaking",
             "washing machine smells"
         );
+        List<String> filters = List.of("foo", "bar", "baz", "foo", "bar", "baz", "foo");
         List<List<Double>> embeddings = new ArrayList<>();
 
         // Generate the text embeddings via the inference API
@@ -128,7 +133,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
 
         // index dense vectors
         createVectorSearchIndex(indexName);
-        bulkIndexDocs(inputs, embeddings, indexName);
+        bulkIndexDocs(inputs, filters, embeddings, indexName);
         forceMergeIndex(indexName);
 
         // Test semantic search against the indexed vectors
@@ -143,6 +148,133 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
             String sourceText = (String) MapHelper.dig("_source.source_text", topHit);
             assertEquals(inputs.get(randomInput), sourceText);
         }
+
+        // Test semantic search with filters
+        {
+            var semanticSearchResponse = semanticSearchWithTermsFilter(indexName, inputs.get(0), "foo", modelId, "embedding");
+            assertOkWithErrorMessage(semanticSearchResponse);
+
+            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+            assertThat(hits, hasSize(3));
+            for (var hit : hits) {
+                String filter = (String) MapHelper.dig("_source.filter_field", hit);
+                assertEquals("foo", filter);
+            }
+        }
+        {
+            var semanticSearchResponse = semanticSearchWithTermsFilter(indexName, inputs.get(2), "baz", modelId, "embedding");
+            assertOkWithErrorMessage(semanticSearchResponse);
+
+            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+            assertThat(hits, hasSize(2));
+            for (var hit : hits) {
+                String filter = (String) MapHelper.dig("_source.filter_field", hit);
+                assertEquals("baz", filter);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testHybridSearch() throws IOException {
+        String modelId = "hybrid-semantic-search-test";
+        String indexName = modelId + "-index";
+
+        createTextEmbeddingModel(modelId);
+        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE);
+        putVocabulary(
+            List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
+            modelId
+        );
+        startDeployment(modelId);
+
+        List<String> inputs = List.of(
+            "my words",
+            "the machine is leaking",
+            "washing machine",
+            "these are my words",
+            "the octopus comforter smells",
+            "the octopus comforter is leaking",
+            "washing machine smells"
+        );
+        List<String> filters = List.of("foo", "bar", "baz", "foo", "bar", "baz", "foo");
+        List<List<Double>> embeddings = new ArrayList<>();
+
+        // Generate the text embeddings via the inference API
+        // then index them for search
+        for (var input : inputs) {
+            Response inference = infer(input, modelId);
+            List<Map<String, Object>> responseMap = (List<Map<String, Object>>) entityAsMap(inference).get("inference_results");
+            Map<String, Object> inferenceResult = responseMap.get(0);
+            List<Double> embedding = (List<Double>) inferenceResult.get("predicted_value");
+            embeddings.add(embedding);
+        }
+
+        // index dense vectors
+        createVectorSearchIndex(indexName);
+        bulkIndexDocs(inputs, filters, embeddings, indexName);
+        forceMergeIndex(indexName);
+
+        String queryTemplate = """
+            {"match": {"source_text": {"query": "%s"}}}
+            """;
+
+        {
+            // combined query should return size documents where size > k
+            Request request = new Request("GET", indexName + "/_semantic_search");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "model_id": "%s",
+                  "query_string": "my words",
+                  "knn": {
+                      "field": "embedding",
+                      "k": 3,
+                      "num_candidates": 10,
+                      "boost": 10.0
+                  },
+                  "query": {"match_all": {}},
+                  "size": 7
+                }""", modelId));
+            var semanticSearchResponse = client().performRequest(request);
+            assertOkWithErrorMessage(semanticSearchResponse);
+
+            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+            int hitCount = (Integer) MapHelper.dig("hits.total.value", responseMap);
+            assertEquals(7, hitCount);
+        }
+        {
+            // boost the knn score, as the query is an exact match the unboosted
+            // score should be close to 1.0. Use an unrelated query so scores are
+            // not combined
+            Request request = new Request("GET", indexName + "/_semantic_search");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "model_id": "%s",
+                  "query_string": "my words",
+                  "knn": {
+                      "field": "embedding",
+                      "k": 3,
+                      "num_candidates": 10,
+                      "boost": 10.0
+                  },
+                  "query": {"match": {"source_text": {"query": "apricot unrelated"}}}
+                }""", modelId));
+            var semanticSearchResponse = client().performRequest(request);
+            assertOkWithErrorMessage(semanticSearchResponse);
+
+            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+            boolean found = false;
+            for (var hit : hits) {
+                String source = (String) MapHelper.dig("_source.source_text", hit);
+                if (source.equals("my words")) {
+                    assertThat((Double) MapHelper.dig("_score", hit), closeTo(10.0, 0.01));
+                    found = true;
+                }
+            }
+            assertTrue("should have found hit for string 'my words'", found);
+        }
     }
 
     private void createVectorSearchIndex(String indexName) throws IOException {
@@ -153,6 +285,9 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
                 "properties": {
                   "source_text": {
                     "type": "text"
+                  },
+                  "filter_field": {
+                    "type": "keyword"
                   },
                   "embedding": {
                     "type": "dense_vector",
@@ -167,15 +302,18 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
         assertOkWithErrorMessage(response);
     }
 
-    private void bulkIndexDocs(List<String> inputs, List<List<Double>> embeddings, String indexName) throws IOException {
+    private void bulkIndexDocs(List<String> sourceText, List<String> filters, List<List<Double>> embeddings, String indexName)
+        throws IOException {
         String createAction = "{\"create\": {\"_index\": \"" + indexName + "\"}}\n";
 
         StringBuilder bulkBuilder = new StringBuilder();
 
-        for (int i = 0; i < inputs.size(); i++) {
+        for (int i = 0; i < sourceText.size(); i++) {
             bulkBuilder.append(createAction);
             bulkBuilder.append("{\"source_text\": \"")
-                .append(inputs.get(i))
+                .append(sourceText.get(i))
+                .append("\", \"filter_field\":\"")
+                .append(filters.get(i))
                 .append("\", \"embedding\":")
                 .append(embeddings.get(i))
                 .append("}\n");

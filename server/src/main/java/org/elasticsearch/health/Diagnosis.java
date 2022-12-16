@@ -9,15 +9,19 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
-import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.health.HealthService.HEALTH_API_ID_PREFIX;
 
@@ -27,13 +31,13 @@ import static org.elasticsearch.health.HealthService.HEALTH_API_ID_PREFIX;
  * @param definition The definition of the diagnosis (e.g. message, helpURL)
  * @param affectedResources Optional list of "things" that are affected by this condition (e.g. shards, indices, or policies).
  */
-public record Diagnosis(Definition definition, @Nullable List<Resource> affectedResources) implements ToXContentObject {
+public record Diagnosis(Definition definition, @Nullable List<Resource> affectedResources) implements ChunkedToXContent {
 
     /**
      * Represents a type of affected resource, together with the resources/abstractions that
      * are affected.
      */
-    public static class Resource implements ToXContentFragment {
+    public static class Resource implements ChunkedToXContent {
 
         public static final String ID_FIELD = "id";
         public static final String NAME_FIELD = "name";
@@ -73,23 +77,26 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public Iterator<? extends ToXContent> toXContentChunked() {
+            Iterator<? extends ToXContent> valuesIterator;
             if (nodes != null) {
-                // we report both node ids and names so we need a bit of structure
-                builder.startArray(type.displayValue);
-                for (DiscoveryNode node : nodes) {
+                valuesIterator = nodes.stream().map(node -> (ToXContent) (builder, params) -> {
                     builder.startObject();
                     builder.field(ID_FIELD, node.getId());
                     if (node.getName() != null) {
                         builder.field(NAME_FIELD, node.getName());
                     }
                     builder.endObject();
-                }
-                builder.endArray();
+                    return builder;
+                }).iterator();
             } else {
-                builder.field(type.displayValue, values);
+                valuesIterator = values.stream().map(value -> (ToXContent) (builder, params) -> builder.value(value)).iterator();
             }
-            return builder;
+            return Iterators.concat(
+                Iterators.single((ToXContent) (builder, params) -> builder.startArray(type.displayValue)),
+                valuesIterator,
+                Iterators.single((builder, params) -> builder.endArray())
+            );
         }
 
         @Override
@@ -136,21 +143,30 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
     public record Definition(String indicatorName, String id, String cause, String action, String helpURL) {}
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("id", HEALTH_API_ID_PREFIX + definition.indicatorName + ":diagnosis:" + definition.id);
-        builder.field("cause", definition.cause);
-        builder.field("action", definition.action);
-
+    public Iterator<? extends ToXContent> toXContentChunked() {
+        Iterator<? extends ToXContent> resourcesIterator = Collections.emptyIterator();
         if (affectedResources != null && affectedResources.size() > 0) {
-            builder.startObject("affected_resources");
-            for (Resource affectedResource : affectedResources) {
-                affectedResource.toXContent(builder, params);
+            resourcesIterator = affectedResources.stream()
+                .flatMap(s -> StreamSupport.stream(Spliterators.spliteratorUnknownSize(s.toXContentChunked(), Spliterator.ORDERED), false))
+                .iterator();
+        }
+        return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
+            builder.startObject();
+            builder.field("id", HEALTH_API_ID_PREFIX + definition.indicatorName + ":diagnosis:" + definition.id);
+            builder.field("cause", definition.cause);
+            builder.field("action", definition.action);
+            builder.field("help_url", definition.helpURL);
+
+            if (affectedResources != null && affectedResources.size() > 0) {
+                builder.startObject("affected_resources");
+            }
+            return builder;
+        }), resourcesIterator, Iterators.single((builder, params) -> {
+            if (affectedResources != null && affectedResources.size() > 0) {
+                builder.endObject();
             }
             builder.endObject();
-        }
-
-        builder.field("help_url", definition.helpURL);
-        return builder.endObject();
+            return builder;
+        }));
     }
 }

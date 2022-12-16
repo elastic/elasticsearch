@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -640,6 +641,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             rollupIndexName,
             rollupIndexName
         ).settings(builder.build()).mappings(mapping);
+        var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         clusterService.submitStateUpdateTask("create-rollup-index [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -648,7 +650,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     createIndexClusterStateUpdateRequest,
                     true,
                     // Copy index metadata from source index to rollup index
-                    (builder, rollupIndexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata))
+                    (builder, rollupIndexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata)),
+                    delegate.reroute()
                 );
             }
         }, ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()), STATE_UPDATE_TASK_EXECUTOR);

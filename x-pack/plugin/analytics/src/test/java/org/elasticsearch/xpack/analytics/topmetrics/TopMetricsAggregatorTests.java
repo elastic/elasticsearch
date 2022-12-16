@@ -537,7 +537,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType textFieldType(String name) {
-        return new TextFieldMapper.TextFieldType(name);
+        return new TextFieldMapper.TextFieldType(name, randomBoolean());
     }
 
     private MappedFieldType geoPointFieldType(String name) {

@@ -139,12 +139,12 @@ public class GetHealthActionIT extends ESIntegTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+        public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
             var status = clusterService.getClusterSettings().get(statusSetting);
             return createIndicator(
                 status,
                 "Health is set to [" + status + "] by test plugin",
-                new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                new SimpleHealthIndicatorDetails(Map.of("verbose", verbose)),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -219,9 +219,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
         HealthStatus ilmIndicatorStatus,
         HealthStatus slmIndicatorStatus,
         HealthStatus clusterCoordinationIndicatorStatus,
-        boolean explain
+        boolean verbose
     ) throws Exception {
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(explain)).get();
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(verbose)).get();
 
         assertThat(
             response.getStatus(),
@@ -235,7 +235,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     ILM_INDICATOR_NAME,
                     ilmIndicatorStatus,
                     "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                    new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                    new SimpleHealthIndicatorDetails(Map.of("verbose", verbose)),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )
@@ -248,7 +248,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     INSTANCE_HAS_MASTER_INDICATOR_NAME,
                     clusterCoordinationIndicatorStatus,
                     "Health is set to [" + clusterCoordinationIndicatorStatus + "] by test plugin",
-                    new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                    new SimpleHealthIndicatorDetails(Map.of("verbose", verbose)),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )
@@ -256,8 +256,8 @@ public class GetHealthActionIT extends ESIntegTestCase {
         );
     }
 
-    private void testIndicator(Client client, HealthStatus ilmIndicatorStatus, boolean explain) throws Exception {
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(ILM_INDICATOR_NAME, explain)).get();
+    private void testIndicator(Client client, HealthStatus ilmIndicatorStatus, boolean verbose) throws Exception {
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(ILM_INDICATOR_NAME, verbose)).get();
         assertNull(response.getStatus());
         assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
         assertThat(
@@ -267,7 +267,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     ILM_INDICATOR_NAME,
                     ilmIndicatorStatus,
                     "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                    new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
+                    new SimpleHealthIndicatorDetails(Map.of("verbose", verbose)),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )

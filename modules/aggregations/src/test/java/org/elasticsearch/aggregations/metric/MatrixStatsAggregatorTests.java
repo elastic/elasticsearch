@@ -16,17 +16,14 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.aggregations.bucket.AggregationTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
-public class MatrixStatsAggregatorTests extends AggregatorTestCase {
+public class MatrixStatsAggregatorTests extends AggregationTestCase {
 
     public void testNoData() throws Exception {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
@@ -99,10 +96,5 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 assertTrue(MatrixAggregationInspectionHelper.hasValue(stats));
             }
         }
-    }
-
-    @Override
-    protected List<SearchPlugin> getSearchPlugins() {
-        return Collections.singletonList(new AggregationsPlugin());
     }
 }

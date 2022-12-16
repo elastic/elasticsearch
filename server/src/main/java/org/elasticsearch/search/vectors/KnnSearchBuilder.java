@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -69,31 +68,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     public static KnnSearchBuilder fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    public static List<KnnSearchBuilder> fromXContentList(XContentParser parser) throws IOException {
-        List<KnnSearchBuilder> knnSearchBuilders = new ArrayList<>();
-        XContentParser.Token token = parser.currentToken();
-        if (token == XContentParser.Token.START_ARRAY) {
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                if (token == XContentParser.Token.START_OBJECT) {
-                    knnSearchBuilders.add(fromXContent(parser));
-                } else {
-                    throw new XContentParseException(
-                        parser.getTokenLocation(),
-                        "malformed knn format, within the knn search array only objects are allowed; found " + token
-                    );
-                }
-            }
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            knnSearchBuilders.add(fromXContent(parser));
-        } else {
-            throw new XContentParseException(
-                parser.getTokenLocation(),
-                "malformed knn format, either start with array or object; found " + token
-            );
-        }
-        return knnSearchBuilders;
     }
 
     final String field;

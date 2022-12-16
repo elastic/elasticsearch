@@ -435,7 +435,9 @@ POST image-index/_search
     "k": 5,
     "num_candidates": 50,
     "boost": 0.1
-  },{"field": "title-vector",
+  },
+  {
+    "field": "title-vector",
     "query_vector": [1, 20, -52, 23, 10],
     "k": 10,
     "num_candidates": 10,

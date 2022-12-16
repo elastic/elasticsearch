@@ -50,6 +50,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -1434,7 +1435,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     searchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
                     searchUsage.trackSectionUsage(SEARCH_AFTER.getPreferredName());
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    knnSearch = KnnSearchBuilder.fromXContentList(parser);
+                    knnSearch = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            knnSearch.add(KnnSearchBuilder.fromXContent(parser));
+                        } else {
+                            throw new XContentParseException(
+                                parser.getTokenLocation(),
+                                "malformed knn format, within the knn search array only objects are allowed; found " + token
+                            );
+                        }
+                    }
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else {
                     throw new ParsingException(

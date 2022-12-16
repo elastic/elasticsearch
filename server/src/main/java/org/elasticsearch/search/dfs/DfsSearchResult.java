@@ -57,11 +57,11 @@ public class DfsSearchResult extends SearchPhaseResult {
             setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         }
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-            if (in.getVersion().before(Version.V_8_7_0)) {
+            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+                knnResults = in.readOptionalList(DfsKnnResults::new);
+            } else {
                 DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
                 knnResults = results != null ? List.of(results) : List.of();
-            } else {
-                knnResults = in.readOptionalList(DfsKnnResults::new);
             }
         }
         if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
@@ -139,7 +139,9 @@ public class DfsSearchResult extends SearchPhaseResult {
             out.writeOptionalWriteable(getShardSearchRequest());
         }
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-            if (out.getVersion().before(Version.V_8_7_0)) {
+            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+                out.writeOptionalCollection(knnResults);
+            } else {
                 if (knnResults != null && knnResults.size() > 1) {
                     throw new IllegalArgumentException(
                         "Versions before 8.7.0 don't support multiple [knn] search clauses and search was sent to ["
@@ -148,8 +150,6 @@ public class DfsSearchResult extends SearchPhaseResult {
                     );
                 }
                 out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
-            } else {
-                out.writeOptionalCollection(knnResults);
             }
         }
         if (out.getVersion().onOrAfter(Version.V_8_6_0)) {

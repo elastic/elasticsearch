@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -35,17 +36,12 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class ShardSearchFailure extends ShardOperationFailedException {
 
-    public static class ShardUnavailableException extends ElasticsearchException {
+    public static class ShardUnavailableException extends ElasticsearchStatusException {
 
         private static final StackTraceElement[] EMPTY_STACK_TRACE = new StackTraceElement[0];
 
         public ShardUnavailableException(String msg) {
-            super(msg, (Throwable) null);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.SERVICE_UNAVAILABLE;
+            super(msg, RestStatus.SERVICE_UNAVAILABLE);
         }
 
         public ShardUnavailableException(StreamInput in) throws IOException {

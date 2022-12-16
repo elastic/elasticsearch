@@ -81,7 +81,7 @@ public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
                 throw new RuntimeException(e);
             }
         };
-        healthService.getHealth(internalCluster().client(node), DiskHealthIndicatorService.NAME, true, listener);
+        healthService.getHealth(internalCluster().client(node), DiskHealthIndicatorService.NAME, true, 1000, listener);
         assertBusy(() -> assertNotNull(resultListReference.get()));
         return resultListReference.get();
     }

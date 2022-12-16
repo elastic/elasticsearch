@@ -461,14 +461,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             name = restPath;
         }
 
-        Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
+        final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
         req.getHeaders().forEach((key, values) -> {
             final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
-            final String value = switch (lowerKey) {
-                case "authorization", "cookie", "secret", "session", "set_cookie", "token", "x_elastic_app_auth" -> "[REDACTED]";
-                default -> String.join("; ", values);
-            };
-            attributes.put("http.request.headers." + lowerKey, value);
+            attributes.put("http.request.headers." + lowerKey, values.size() == 1 ? values.get(0) : String.join("; ", values));
         });
         attributes.put("http.method", method);
         attributes.put("http.url", req.uri());

@@ -566,16 +566,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     );
                     shardRequests.add(new BulkItemRequest(i, docWriteRequest));
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException | ResourceNotFoundException e) {
-                    Exception causeException = e;
-                    if (e instanceof IndexNotFoundException
-                        && ((IndexNotFoundException) e).getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
-                        causeException = new IllegalArgumentException(
-                            "only write ops with an op_type of create are allowed in data streams",
-                            e
-                        );
-                    }
                     String name = ia != null ? ia.getName() : docWriteRequest.index();
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), causeException);
+                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), e);
                     BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
                     // make sure the request gets never processed again
@@ -763,10 +755,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         IndexAbstraction resolveIfAbsent(DocWriteRequest<?> request) {
-            return indexAbstractions.computeIfAbsent(
-                request.index(),
-                key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
-            );
+            try {
+                return indexAbstractions.computeIfAbsent(
+                    request.index(),
+                    key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
+                );
+            } catch (IndexNotFoundException e) {
+                if (e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                    throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams", e);
+                } else {
+                    throw e;
+                }
+            }
         }
 
         IndexRouting routing(Index index) {

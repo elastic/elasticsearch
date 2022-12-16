@@ -312,8 +312,8 @@ public final class ThreadContext implements Writeable {
 
     /**
      * Just like {@link #stashContext()} but no default context is set. Instead, the {@code transientHeadersToClear} argument can be used
-     * to clear specific transient headers in the new context and {@code requestHeadersToClear} can be used to clear specific request headers.
-     * All original headers (without the {@code responseHeaders}) are restored by closing the returned {@link StoredContext}.
+     * to clear specific transient headers in the new context and {@code requestHeadersToClear} can be used to clear specific request
+     * headers. All original headers (without the {@code responseHeaders}) are restored by closing the returned {@link StoredContext}.
      */
     public StoredContext newStoredContext(Collection<String> transientHeadersToClear, Collection<String> requestHeadersToClear) {
         return newStoredContext(false, transientHeadersToClear, requestHeadersToClear);

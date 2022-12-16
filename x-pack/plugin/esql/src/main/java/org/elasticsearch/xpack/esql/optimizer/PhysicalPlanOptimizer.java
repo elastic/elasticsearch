@@ -12,17 +12,18 @@ import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
-import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalPlanExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -39,14 +40,16 @@ import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 
 @Experimental
 public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
 
-    private static Setting<Boolean> ADD_TASK_PARALLELISM_ABOVE_QUERY = Setting.boolSetting("add_task_parallelism_above_query", false);
+    static Setting<Boolean> ADD_TASK_PARALLELISM_ABOVE_QUERY = Setting.boolSetting("add_task_parallelism_above_query", false);
     private static final QlTranslatorHandler TRANSLATOR_HANDLER = new QlTranslatorHandler();
 
     private final EsqlConfiguration configuration;
@@ -56,95 +59,53 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
     }
 
     public PhysicalPlan optimize(PhysicalPlan plan) {
-        plan = execute(plan);
-        // ensure we always have single node at the end
-        if (plan.singleNode() == false) {
-            return new ExchangeExec(plan.source(), plan, ExchangeExec.Type.GATHER, ExchangeExec.Partitioning.SINGLE_DISTRIBUTION);
-        }
-        return plan;
+        return execute(plan);
     }
 
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
         List<Batch> batches = new ArrayList<>();
-        batches.add(new Batch("Create topN", Limiter.ONCE, new CreateTopN()));
-
         // keep filters pushing before field extraction insertion
-        batches.add(new Batch("Push filters to source", Limiter.ONCE, new PushFiltersToSource()));
-        batches.add(new Batch("Lazy field extraction", Limiter.ONCE, new InsertFieldExtraction()));
-
-        batches.add(new Batch("Split nodes", Limiter.ONCE, new SplitAggregate(), new SplitTopN(), new SplitLimit()));
-        batches.add(new Batch("Add exchange", Limiter.ONCE, new AddExchangeOnSingleNodeSplit()));
+        batches.add(new Batch("Global plan", Limiter.ONCE, new PushFiltersToSource()));
+        batches.add(new Batch("Data flow", Limiter.ONCE, new AddExchangeOnSingleNodeSplit()));
 
         if (ADD_TASK_PARALLELISM_ABOVE_QUERY.get(configuration.pragmas())) {
-            batches.add(new Batch("Add task parallelization above query", new AddTaskParallelismAboveQuery()));
+            batches.add(new Batch("Add task parallelization above query", Limiter.ONCE, new AddTaskParallelismAboveQuery()));
         }
+
+        batches.add(new Batch("Gather data flow", Limiter.ONCE, new EnsureSingleGatheringNode()));
+
+        // local optimizations
+        batches.add(
+            new Batch(
+                "Local Plan",
+                Limiter.ONCE,
+                new MarkLocalPlan(),
+                new LocalToGlobalLimit(),
+                new InsertFieldExtraction(),
+                new LocalOptimizations(),
+                new RemoveLocalPlanMarker()
+            )
+        );
 
         return batches;
     }
 
-    //
-    // Materialize the concrete fields that need to be extracted from the storage until the last possible moment
-    // 0. field extraction is one per EsQueryExec
-    // 1. add the materialization right before usage
-    // 2. prune meta fields once all fields were loaded
-    static class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
+    private static class MarkLocalPlan extends Rule<PhysicalPlan, PhysicalPlan> {
 
-        @Override
         public PhysicalPlan apply(PhysicalPlan plan) {
-            // 1. add the extractors before each node that requires extra columns
-            var lastNodeWithExtraction = new Holder<UnaryExec>();
-
-            // start bottom -> up
-
-            // TODO: look into supporting nary nodes
-            plan = plan.transformUp(UnaryExec.class, p -> {
-                var missing = new LinkedHashSet<Attribute>();
-                var input = p.inputSet();
-
-                // collect field attributes used inside expressions
-                p.forEachExpression(FieldAttribute.class, f -> {
-                    if (input.contains(f) == false) {
-                        missing.add(f);
-                    }
-                });
-
-                // don't extract grouping fields the hash aggregator will do the extraction by itself
-                if (p instanceof AggregateExec agg) {
-                    missing.removeAll(Expressions.references(agg.groupings()));
-                }
-
-                // add extractor
-                if (missing.isEmpty() == false) {
-                    // collect source attributes
-                    var extractor = new FieldExtractExec(p.source(), p.child(), missing);
-                    p = p.replaceChild(extractor);
-                    lastNodeWithExtraction.set(p);
-                }
-
-                // any existing agg / projection projects away the source attributes
-                if (p instanceof AggregateExec || p instanceof ProjectExec) {
-                    lastNodeWithExtraction.set(null);
+            var found = new Holder<Boolean>(Boolean.FALSE);
+            plan = plan.transformDown(ExchangeExec.class, e -> {
+                PhysicalPlan p = e;
+                if (found.get() == false) {
+                    found.set(Boolean.TRUE);
+                    p = new LocalPlanExec(e.source(), e);
                 }
                 return p;
             });
-
-            // 2. check the last field extractor that was introduced and project the source attributes away
-            var pruneNode = lastNodeWithExtraction.get();
-
-            if (pruneNode != null) {
-                plan = plan.transformUp(pruneNode.getClass(), p -> {
-                    PhysicalPlan pl = p;
-                    // instance equality should work
-                    if (pruneNode == p) {
-                        var withoutSourceAttribute = new ArrayList<>(p.output());
-                        withoutSourceAttribute.removeIf(EsQueryExec::isSourceAttribute);
-                        pl = new ProjectExec(p.source(), p, withoutSourceAttribute);
-                    }
-                    return pl;
-                });
+            if (found.get() == Boolean.FALSE) {
+                plan = new LocalPlanExec(plan.source(), plan);
             }
-
             return plan;
         }
 
@@ -154,59 +115,187 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private static class SplitAggregate extends OptimizerRule<AggregateExec> {
+    private static class RemoveLocalPlanMarker extends OptimizerRule<LocalPlanExec> {
 
         @Override
-        protected PhysicalPlan rule(AggregateExec aggregateExec) {
-            if (aggregateExec.getMode() == AggregateExec.Mode.SINGLE) {
-                return new AggregateExec(
-                    aggregateExec.source(),
-                    new AggregateExec(
-                        aggregateExec.source(),
-                        aggregateExec.child(),
-                        aggregateExec.groupings(),
-                        aggregateExec.aggregates(),
-                        AggregateExec.Mode.PARTIAL
-                    ),
-                    aggregateExec.groupings(),
-                    aggregateExec.aggregates(),
-                    AggregateExec.Mode.FINAL
-                );
-            }
-            return aggregateExec;
+        protected PhysicalPlan rule(LocalPlanExec plan) {
+            return plan.child();
         }
     }
 
-    private static class SplitTopN extends OptimizerRule<TopNExec> {
+    /**
+     * Copy any limit in the local plan (before the exchange) after it so after gathering the data,
+     * the limit still applies.
+     */
+    private static class LocalToGlobalLimit extends Rule<PhysicalPlan, PhysicalPlan> {
+
+        public PhysicalPlan apply(PhysicalPlan plan) {
+            PhysicalPlan pl = plan;
+            if (plan instanceof UnaryExec unary && unary.child()instanceof ExchangeExec exchange) {
+                var localLimit = findLocalLimit(exchange);
+                if (localLimit != null) {
+                    pl = new LimitExec(localLimit.source(), plan, localLimit.limit());
+                }
+            }
+            return pl;
+        }
 
         @Override
-        protected PhysicalPlan rule(TopNExec topNExec) {
-            if (topNExec.getMode() == TopNExec.Mode.SINGLE) {
-                return new TopNExec(
-                    topNExec.source(),
-                    new TopNExec(topNExec.source(), topNExec.child(), topNExec.order(), topNExec.getLimit(), TopNExec.Mode.PARTIAL),
-                    topNExec.order(),
-                    topNExec.getLimit(),
-                    TopNExec.Mode.FINAL
-                );
+        protected PhysicalPlan rule(PhysicalPlan plan) {
+            return plan;
+        }
+
+        private LimitExec findLocalLimit(UnaryExec localPlan) {
+            for (var plan = localPlan.child();;) {
+                if (plan instanceof LimitExec localLimit) {
+                    return localLimit;
+                }
+                // possible to go deeper
+                if (plan instanceof ProjectExec || plan instanceof EvalExec) {
+                    plan = ((UnaryExec) plan).child();
+                } else {
+                    // no limit specified
+                    return null;
+                }
             }
-            return topNExec;
         }
     }
 
-    private static class SplitLimit extends OptimizerRule<LimitExec> {
+    // Execute local rules (only once) - should be a separate step
+    static class LocalOptimizations extends OptimizerRule<LocalPlanExec> {
+
+        private final class LocalRules extends RuleExecutor<PhysicalPlan> {
+
+            @Override
+            protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
+                return emptyList();
+            }
+
+            @Override
+            public PhysicalPlan execute(PhysicalPlan plan) {
+                return super.execute(plan);
+            }
+        }
+
+        private final LocalRules localRules = new LocalRules();
 
         @Override
-        protected PhysicalPlan rule(LimitExec limitExec) {
-            if (limitExec.child().singleNode() == false && limitExec.mode() == LimitExec.Mode.SINGLE) {
-                return new LimitExec(
-                    limitExec.source(),
-                    new LimitExec(limitExec.source(), limitExec.child(), limitExec.limit(), LimitExec.Mode.PARTIAL),
-                    limitExec.limit(),
-                    LimitExec.Mode.FINAL
-                );
+        // use the rule method to apply the local optimizations
+        protected PhysicalPlan rule(LocalPlanExec plan) {
+            return localRules.execute(plan);
+        }
+    }
+
+    //
+    // Materialize the concrete fields that need to be extracted from the storage until the last possible moment
+    // 0. collect all fields necessary going down the tree
+    // 1. once the local plan is found (segment-level), start adding field extractors
+    // 2. add the materialization right before usage inside the local plan
+    // 3. optionally prune meta fields once all fields were loaded (not needed if a project already exists)
+    // 4. materialize any missing fields needed further up the chain
+    static class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
+
+        @Override
+        public PhysicalPlan apply(PhysicalPlan plan) {
+            var globalMissing = new LinkedHashSet<Attribute>();
+            var keepCollecting = new Holder<>(Boolean.TRUE);
+
+            // collect all field extraction
+            plan = plan.transformDown(UnaryExec.class, p -> {
+                PhysicalPlan pl = p;
+                if (p instanceof LocalPlanExec localPlan) {
+                    // stop collecting
+                    keepCollecting.set(Boolean.FALSE);
+                    pl = insertExtract(localPlan, globalMissing);
+                }
+                // keep collecting global attributes
+                else if (keepCollecting.get()) {
+                    var input = p.inputSet();
+                    p.forEachExpression(FieldAttribute.class, f -> {
+                        if (input.contains(f) == false) {
+                            globalMissing.add(f);
+                        }
+                    });
+                }
+                return pl;
+            });
+            return plan;
+        }
+
+        private PhysicalPlan insertExtract(LocalPlanExec localPlan, Set<Attribute> missingUpstream) {
+            PhysicalPlan plan = localPlan;
+            // 1. add the extractors before each node that requires extra columns
+            var isProjectionNeeded = new Holder<Boolean>(Boolean.TRUE);
+            var lastFieldExtractorParent = new Holder<UnaryExec>();
+
+            // apply the plan locally, adding a field extractor right before data is loaded
+            plan = plan.transformUp(UnaryExec.class, p -> {
+                var missing = missingAttributes(p);
+
+                // don't extract grouping fields the hash aggregator will do the extraction by itself
+                if (p instanceof AggregateExec agg) {
+                    missing.removeAll(Expressions.references(agg.groupings()));
+                }
+
+                // add extractor
+                if (missing.isEmpty() == false) {
+                    // collect source attributes and add the extractor
+                    var extractor = new FieldExtractExec(p.source(), p.child(), missing);
+                    p = p.replaceChild(extractor);
+                    lastFieldExtractorParent.set(p);
+                }
+
+                // any existing agg / projection projects away the source attributes
+                if (p instanceof AggregateExec || p instanceof ProjectExec) {
+                    isProjectionNeeded.set(Boolean.FALSE);
+                }
+                return p;
+            });
+
+            // 2. check if there's a need to add any non-extracted attributes from the local plan to the last field extractor
+            // optionally project away the source attributes if no other projection is found locally
+            var lastParent = lastFieldExtractorParent.get();
+            if (lastParent != null) {
+                missingUpstream.removeAll(lastParent.inputSet());
+                if (missingUpstream.size() > 0) {
+                    plan = plan.transformDown(UnaryExec.class, p -> {
+                        PhysicalPlan pl = p;
+                        if (p == lastParent) {
+                            var extractor = (FieldExtractExec) p.child();
+                            var combined = new AttributeSet(extractor.attributesToExtract()).combine(new AttributeSet(missingUpstream));
+                            PhysicalPlan child = new FieldExtractExec(p.source(), extractor.child(), combined);
+                            // prune away the source attributes is necessary
+                            if (isProjectionNeeded.get()) {
+                                var withoutSourceAttribute = new ArrayList<>(combined);
+                                withoutSourceAttribute.removeIf(EsQueryExec::isSourceAttribute);
+                                child = new ProjectExec(p.source(), child, withoutSourceAttribute);
+                            }
+                            pl = p.replaceChild(child);
+                        }
+                        return pl;
+                    });
+                }
             }
-            return limitExec;
+
+            return plan;
+        }
+
+        private static Set<Attribute> missingAttributes(PhysicalPlan p) {
+            var missing = new LinkedHashSet<Attribute>();
+            var input = p.inputSet();
+
+            // collect field attributes used inside expressions
+            p.forEachExpression(FieldAttribute.class, f -> {
+                if (input.contains(f) == false) {
+                    missing.add(f);
+                }
+            });
+            return missing;
+        }
+
+        @Override
+        protected PhysicalPlan rule(PhysicalPlan physicalPlan) {
+            return physicalPlan;
         }
     }
 
@@ -216,6 +305,7 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
         protected PhysicalPlan rule(UnaryExec parent) {
             if (parent.singleNode() && parent.child().singleNode() == false) {
                 if (parent instanceof ExchangeExec exchangeExec
+                    // TODO: this check might not be needed
                     && exchangeExec.getType() == ExchangeExec.Type.GATHER
                     && exchangeExec.getPartitioning() == ExchangeExec.Partitioning.SINGLE_DISTRIBUTION) {
                     return parent;
@@ -233,31 +323,36 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private static class CreateTopN extends OptimizerRule<LimitExec> {
+    private static class AddTaskParallelismAboveQuery extends OptimizerRule<EsQueryExec> {
+
+        protected AddTaskParallelismAboveQuery() {
+            super(OptimizerRules.TransformDirection.UP);
+        }
 
         @Override
-        protected PhysicalPlan rule(LimitExec limitExec) {
-            if (limitExec.child()instanceof OrderExec orderExec) {
-                return new TopNExec(limitExec.source(), orderExec.child(), orderExec.order(), limitExec.limit());
-            }
-            return limitExec;
+        protected PhysicalPlan rule(EsQueryExec plan) {
+            return new ExchangeExec(
+                plan.source(),
+                plan,
+                ExchangeExec.Type.REPARTITION,
+                ExchangeExec.Partitioning.FIXED_ARBITRARY_DISTRIBUTION
+            );
         }
     }
 
-    private static class AddTaskParallelismAboveQuery extends OptimizerRule<UnaryExec> {
+    private static class EnsureSingleGatheringNode extends Rule<PhysicalPlan, PhysicalPlan> {
 
         @Override
-        protected PhysicalPlan rule(UnaryExec plan) {
-            if (plan instanceof ExchangeExec == false && plan.child()instanceof EsQueryExec esQueryExec) {
-                return plan.replaceChild(
-                    new ExchangeExec(
-                        esQueryExec.source(),
-                        esQueryExec,
-                        ExchangeExec.Type.REPARTITION,
-                        ExchangeExec.Partitioning.FIXED_ARBITRARY_DISTRIBUTION
-                    )
-                );
+        public PhysicalPlan apply(PhysicalPlan plan) {
+            // ensure we always have single node at the end
+            if (plan.singleNode() == false) {
+                plan = new ExchangeExec(plan.source(), plan, ExchangeExec.Type.GATHER, ExchangeExec.Partitioning.SINGLE_DISTRIBUTION);
             }
+            return plan;
+        }
+
+        @Override
+        protected PhysicalPlan rule(PhysicalPlan plan) {
             return plan;
         }
     }

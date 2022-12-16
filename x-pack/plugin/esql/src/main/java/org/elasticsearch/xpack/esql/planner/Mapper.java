@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -49,11 +50,11 @@ public class Mapper {
         }
 
         if (p instanceof Limit limit) {
-            return new LimitExec(limit.source(), map(limit.child()), limit.limit());
+            return map(limit, map(limit.child()));
         }
 
         if (p instanceof Aggregate aggregate) {
-            return new AggregateExec(aggregate.source(), map(aggregate.child()), aggregate.groupings(), aggregate.aggregates());
+            return map(aggregate, map(aggregate.child()));
         }
 
         if (p instanceof Eval eval) {
@@ -65,5 +66,28 @@ public class Mapper {
         }
 
         throw new UnsupportedOperationException(p.nodeName());
+    }
+
+    private PhysicalPlan map(Aggregate aggregate, PhysicalPlan child) {
+        var partial = new AggregateExec(
+            aggregate.source(),
+            child,
+            aggregate.groupings(),
+            aggregate.aggregates(),
+            AggregateExec.Mode.PARTIAL
+        );
+
+        return new AggregateExec(aggregate.source(), partial, aggregate.groupings(), aggregate.aggregates(), AggregateExec.Mode.FINAL);
+    }
+
+    private PhysicalPlan map(Limit limit, PhysicalPlan child) {
+        // typically this would be done in the optimizer however this complicates matching a bit due to limit being in two nodes
+        // since it's a simple match, handle this case directly in the mapper
+        if (child instanceof OrderExec order) {
+            var partial = new TopNExec(limit.source(), order.child(), order.order(), limit.limit(), TopNExec.Mode.PARTIAL);
+            return new TopNExec(limit.source(), partial, order.order(), limit.limit(), TopNExec.Mode.FINAL);
+        }
+
+        return new LimitExec(limit.source(), child, limit.limit());
     }
 }

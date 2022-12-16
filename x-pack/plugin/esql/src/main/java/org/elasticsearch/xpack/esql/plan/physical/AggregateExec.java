@@ -36,15 +36,6 @@ public class AggregateExec extends UnaryExec {
         Source source,
         PhysicalPlan child,
         List<? extends Expression> groupings,
-        List<? extends NamedExpression> aggregates
-    ) {
-        this(source, child, groupings, aggregates, Mode.SINGLE);
-    }
-
-    public AggregateExec(
-        Source source,
-        PhysicalPlan child,
-        List<? extends Expression> groupings,
         List<? extends NamedExpression> aggregates,
         Mode mode
     ) {

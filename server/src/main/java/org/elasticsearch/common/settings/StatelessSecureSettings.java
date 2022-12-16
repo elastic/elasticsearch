@@ -62,7 +62,7 @@ public class StatelessSecureSettings implements SecureSettings {
     }
 
     @Override
-    public SecureString getString(String setting) throws GeneralSecurityException {
+    public SecureString getString(String setting) {
         return new SecureString(STATELESS_SECURE_SETTINGS.getConcreteSetting(PREFIX + setting).get(settings).toCharArray());
     }
 
@@ -74,7 +74,7 @@ public class StatelessSecureSettings implements SecureSettings {
     }
 
     @Override
-    public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
+    public byte[] getSHA256Digest(String setting) {
         return MessageDigests.sha256()
             .digest(STATELESS_SECURE_SETTINGS.getConcreteSetting(PREFIX + setting).get(settings).getBytes(StandardCharsets.UTF_8));
     }

@@ -27,12 +27,12 @@ tasks.named('internalClusterTestTestingConventions').configure {
 }
 
 dependencies {
-  implementation('com.maxmind.geoip2:geoip2:3.0.0')
+  implementation('com.maxmind.geoip2:geoip2:3.0.2')
   // geoip2 dependencies:
-  runtimeOnly("com.fasterxml.jackson.core:jackson-annotations:2.13.1")
-  runtimeOnly("com.fasterxml.jackson.core:jackson-databind:2.13.1")
-  runtimeOnly("com.fasterxml.jackson.core:jackson-core:2.13.1")
-  implementation('com.maxmind.db:maxmind-db:2.0.0')
+  runtimeOnly("com.fasterxml.jackson.core:jackson-annotations:2.13.4")
+  runtimeOnly("com.fasterxml.jackson.core:jackson-databind:2.13.4.2")
+  runtimeOnly("com.fasterxml.jackson.core:jackson-core:2.13.4")
+  implementation('com.maxmind.db:maxmind-db:2.1.0')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
   internalClusterTestImplementation project(path: ":modules:reindex")

@@ -21,6 +21,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -87,8 +88,9 @@ public class Stateless extends Plugin implements EnginePlugin {
         Tracer tracer,
         AllocationDeciders allocationDeciders
     ) {
-        objectStoreService.set(new ObjectStoreService(settings, environment, repositoriesServiceSupplier));
-        return List.of(objectStoreService.get());
+        var objectStoreService = new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool);
+        this.objectStoreService.set(objectStoreService);
+        return List.of(objectStoreService);
     }
 
     @Override
@@ -98,7 +100,8 @@ public class Stateless extends Plugin implements EnginePlugin {
             ObjectStoreService.TYPE,
             ObjectStoreService.BUCKET,
             ObjectStoreService.CLIENT,
-            StatelessEngine.INDEX_FLUSH_INTERVAL_SETTING
+            StatelessEngine.INDEX_FLUSH_INTERVAL_SETTING,
+            ObjectStoreService.OBJECT_STORE_SHUTDOWN_TIMEOUT
         );
     }
 
@@ -122,7 +125,44 @@ public class Stateless extends Plugin implements EnginePlugin {
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        return Optional.of(StatelessEngine::new);
+        return Optional.of(config -> {
+            if (config.isRecoveringAsPrimary()) {
+                return new StatelessEngine(config);
+            } else {
+                // TODO Replace this once ES-4857 https://github.com/elastic/elasticsearch-stateless/pull/38 is merged
+                // override the EngineConfig to nullify the IndexCommitListener so that replica do not upload files to the object store
+                return new StatelessEngine(
+                    new EngineConfig(
+                        config.getShardId(),
+                        config.getThreadPool(),
+                        config.getIndexSettings(),
+                        config.getWarmer(),
+                        config.getStore(),
+                        config.getMergePolicy(),
+                        config.getAnalyzer(),
+                        config.getSimilarity(),
+                        config.getCodecService(),
+                        config.getEventListener(),
+                        config.getQueryCache(),
+                        config.getQueryCachingPolicy(),
+                        config.getTranslogConfig(),
+                        config.getFlushMergesAfter(),
+                        config.getExternalRefreshListener(),
+                        config.getInternalRefreshListener(),
+                        config.getIndexSort(),
+                        config.getCircuitBreakerService(),
+                        config.getGlobalCheckpointSupplier(),
+                        config.retentionLeasesSupplier(),
+                        config.getPrimaryTermSupplier(),
+                        config.getSnapshotCommitSupplier(),
+                        config.getLeafSorter(),
+                        config.getRelativeTimeInNanosSupplier(),
+                        null, // here
+                        false
+                    )
+                );
+            }
+        });
     }
 
     /**
@@ -136,7 +176,7 @@ public class Stateless extends Plugin implements EnginePlugin {
         return new Engine.IndexCommitListener() {
             @Override
             public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef, Set<String> additionalFiles) {
-                service.onCommitCreation(new StatelessCommitRef(shardId, indexCommitRef));
+                service.onCommitCreation(new StatelessCommitRef(shardId, indexCommitRef, additionalFiles, primaryTerm));
             }
 
             @Override

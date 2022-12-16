@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.stream.LongStream;
 
 import static java.util.stream.Collectors.toCollection;
-import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -154,7 +153,6 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 // tests control flushes
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                 .build()

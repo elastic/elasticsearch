@@ -21,7 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats {
+public class ParsedMatrixStats extends ParsedAggregation {
 
     private final Map<String, Long> counts = new LinkedHashMap<>();
     private final Map<String, Double> means = new HashMap<>();
@@ -42,12 +42,10 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
         this.docCount = docCount;
     }
 
-    @Override
     public long getDocCount() {
         return docCount;
     }
 
-    @Override
     public long getFieldCount(String field) {
         if (counts.containsKey(field) == false) {
             return 0;
@@ -55,27 +53,22 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
         return counts.get(field);
     }
 
-    @Override
     public double getMean(String field) {
         return checkedGet(means, field);
     }
 
-    @Override
     public double getVariance(String field) {
         return checkedGet(variances, field);
     }
 
-    @Override
     public double getSkewness(String field) {
         return checkedGet(skewness, field);
     }
 
-    @Override
     public double getKurtosis(String field) {
         return checkedGet(kurtosis, field);
     }
 
-    @Override
     public double getCovariance(String fieldX, String fieldY) {
         if (fieldX.equals(fieldY)) {
             return checkedGet(variances, fieldX);
@@ -83,7 +76,6 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
         return MatrixStatsResults.getValFromUpperTriangularMatrix(covariances, fieldX, fieldY);
     }
 
-    @Override
     public double getCorrelation(String fieldX, String fieldY) {
         if (fieldX.equals(fieldY)) {
             return 1.0;

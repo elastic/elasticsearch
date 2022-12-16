@@ -195,27 +195,23 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             }
         }
 
-        final String unknownField = randomAlphaOfLength(3);
-        final String other = randomValueOtherThan(unknownField, () -> randomAlphaOfLength(3));
+        String unknownField = randomAlphaOfLength(3);
+        String other = randomValueOtherThan(unknownField, () -> randomAlphaOfLength(3));
+        // getFieldCount returns 0 for unknown fields
+        assertEquals(0.0, actual.getFieldCount(unknownField), 0.0);
 
-        for (MatrixStats matrix : Arrays.asList(actual)) {
+        expectThrows(IllegalArgumentException.class, () -> actual.getMean(unknownField));
+        expectThrows(IllegalArgumentException.class, () -> actual.getVariance(unknownField));
+        expectThrows(IllegalArgumentException.class, () -> actual.getSkewness(unknownField));
+        expectThrows(IllegalArgumentException.class, () -> actual.getKurtosis(unknownField));
 
-            // getFieldCount returns 0 for unknown fields
-            assertEquals(0.0, matrix.getFieldCount(unknownField), 0.0);
+        expectThrows(IllegalArgumentException.class, () -> actual.getCovariance(unknownField, unknownField));
+        expectThrows(IllegalArgumentException.class, () -> actual.getCovariance(unknownField, other));
+        expectThrows(IllegalArgumentException.class, () -> actual.getCovariance(other, unknownField));
 
-            expectThrows(IllegalArgumentException.class, () -> matrix.getMean(unknownField));
-            expectThrows(IllegalArgumentException.class, () -> matrix.getVariance(unknownField));
-            expectThrows(IllegalArgumentException.class, () -> matrix.getSkewness(unknownField));
-            expectThrows(IllegalArgumentException.class, () -> matrix.getKurtosis(unknownField));
-
-            expectThrows(IllegalArgumentException.class, () -> matrix.getCovariance(unknownField, unknownField));
-            expectThrows(IllegalArgumentException.class, () -> matrix.getCovariance(unknownField, other));
-            expectThrows(IllegalArgumentException.class, () -> matrix.getCovariance(other, unknownField));
-
-            assertEquals(1.0, matrix.getCorrelation(unknownField, unknownField), 0.0);
-            expectThrows(IllegalArgumentException.class, () -> matrix.getCorrelation(unknownField, other));
-            expectThrows(IllegalArgumentException.class, () -> matrix.getCorrelation(other, unknownField));
-        }
+        assertEquals(1.0, actual.getCorrelation(unknownField, unknownField), 0.0);
+        expectThrows(IllegalArgumentException.class, () -> actual.getCorrelation(unknownField, other));
+        expectThrows(IllegalArgumentException.class, () -> actual.getCorrelation(other, unknownField));
     }
 
     @Override

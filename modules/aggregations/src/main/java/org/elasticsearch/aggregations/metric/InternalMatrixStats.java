@@ -27,7 +27,7 @@ import static java.util.Collections.emptyMap;
 /**
  * Computes distribution statistics over multiple fields
  */
-public class InternalMatrixStats extends InternalAggregation implements MatrixStats {
+public class InternalMatrixStats extends InternalAggregation {
     /** per shard stats needed to compute stats */
     private final RunningStats stats;
     /** final result */
@@ -67,8 +67,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return MatrixStatsAggregationBuilder.NAME;
     }
 
-    /** get the number of documents */
-    @Override
+    /** return the total document count */
     public long getDocCount() {
         if (results != null) {
             return results.getDocCount();
@@ -79,8 +78,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return stats.docCount;
     }
 
-    /** get the number of samples for the given field. == docCount - numMissing */
-    @Override
+    /** return total field count (differs from docCount if there are missing values) */
     public long getFieldCount(String field) {
         if (results == null) {
             return 0;
@@ -88,8 +86,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return results.getFieldCount(field);
     }
 
-    /** get the mean for the given field */
-    @Override
+    /** return the field mean */
     public double getMean(String field) {
         if (results == null) {
             return Double.NaN;
@@ -97,8 +94,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return results.getMean(field);
     }
 
-    /** get the variance for the given field */
-    @Override
+    /** return the field variance */
     public double getVariance(String field) {
         if (results == null) {
             return Double.NaN;
@@ -106,8 +102,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return results.getVariance(field);
     }
 
-    /** get the distribution skewness for the given field */
-    @Override
+    /** return the skewness of the distribution */
     public double getSkewness(String field) {
         if (results == null) {
             return Double.NaN;
@@ -115,8 +110,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return results.getSkewness(field);
     }
 
-    /** get the distribution shape for the given field */
-    @Override
+    /** return the kurtosis of the distribution */
     public double getKurtosis(String field) {
         if (results == null) {
             return Double.NaN;
@@ -124,8 +118,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return results.getKurtosis(field);
     }
 
-    /** get the covariance between the two fields */
-    @Override
+    /** return the covariance between field x and field y */
     public double getCovariance(String fieldX, String fieldY) {
         if (results == null) {
             return Double.NaN;
@@ -133,8 +126,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return results.getCovariance(fieldX, fieldY);
     }
 
-    /** get the correlation between the two fields */
-    @Override
+    /** return the correlation coefficient of field x and field y */
     public double getCorrelation(String fieldX, String fieldY) {
         if (results == null) {
             return Double.NaN;

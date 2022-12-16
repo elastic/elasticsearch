@@ -704,7 +704,7 @@ public interface AuthorizationEngine {
      */
     record ParentActionAuthorization(String action) implements Writeable, ToXContent {
 
-        public static final String THREAD_CONTEXT_KEY = "_xpack_security_authorization";
+        public static final String THREAD_CONTEXT_KEY = "_xpack_security_parent_action_authz";
         private static final ParseField ACTION = new ParseField("action");
 
         private static final ConstructingObjectParser<ParentActionAuthorization, String> PARSER = new ConstructingObjectParser<>(

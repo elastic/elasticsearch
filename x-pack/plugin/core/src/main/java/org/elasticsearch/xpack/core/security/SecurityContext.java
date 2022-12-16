@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -87,16 +89,16 @@ public class SecurityContext {
     }
 
     @Nullable
-    public AuthorizationEngine.ParentActionAuthorization getParentAuthorization() {
+    public ParentActionAuthorization getParentAuthorization() {
         try {
-            return AuthorizationEngine.ParentActionAuthorization.readFromThreadContext(threadContext);
+            return ParentActionAuthorization.readFromThreadContext(threadContext);
         } catch (IOException e) {
             logger.error("failed to read parent authorization from thread context", e);
             throw new UncheckedIOException(e);
         }
     }
 
-    public void setParentAuthorization(AuthorizationEngine.ParentActionAuthorization parentAuthorization) {
+    public void setParentAuthorization(ParentActionAuthorization parentAuthorization) {
         try {
             parentAuthorization.writeToThreadContext(threadContext);
         } catch (IOException e) {
@@ -205,25 +207,17 @@ public class SecurityContext {
     }
 
     /**
-     * Executes consumer in a new thread context after removing {@link AuthorizationEngine.ParentActionAuthorization}.
-     * The original context is provided to the consumer. When this method returns, the original context is restored.
+     * Executes consumer in a new thread context after removing {@link ParentActionAuthorization}.
+     * The original context is provided to the consumer. When this method returns,
+     * the original context is restored preserving response headers.
      */
     public void executeAfterRemovingParentAuthorization(Consumer<StoredContext> consumer) {
-        final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
-        final Map<String, Object> existingTransientHeaders = threadContext.getTransientHeaders();
-        final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            existingRequestHeaders.forEach((k, v) -> {
-                if (AuthorizationEngine.ParentActionAuthorization.THREAD_CONTEXT_KEY.equals(k) == false
-                    && threadContext.getHeader(k) == null) {
-                    threadContext.putHeader(k, v);
-                }
-            });
-            existingTransientHeaders.forEach((k, v) -> {
-                if (threadContext.getTransient(k) == null) {
-                    threadContext.putTransient(k, v);
-                }
-            });
+        try (
+            ThreadContext.StoredContext original = threadContext.newStoredContextPreservingResponseHeaders(
+                List.of(),
+                List.of(ParentActionAuthorization.THREAD_CONTEXT_KEY)
+            )
+        ) {
             consumer.accept(original);
         }
     }

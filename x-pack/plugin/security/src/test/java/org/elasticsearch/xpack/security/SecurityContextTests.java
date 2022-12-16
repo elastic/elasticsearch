@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityContextTests extends ESTestCase {
@@ -278,21 +279,59 @@ public class SecurityContextTests extends ESTestCase {
         );
         transientHeaders.forEach((k, v) -> threadContext.putTransient(k, v));
 
+        final Map<String, String> responseHeaders = Map.ofEntries(
+            Map.entry(randomAlphaOfLengthBetween(3, 6), randomAlphaOfLengthBetween(3, 8)),
+            Map.entry("_response_message", "All good."),
+            Map.entry("Warning", "Some warning!")
+        );
+        responseHeaders.forEach((k, v) -> threadContext.addResponseHeader(k, v));
+
+        // mark as system context
+        boolean setSystemContext = randomBoolean();
+        if (setSystemContext) {
+            threadContext.markAsSystemContext();
+        }
+
         final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization("indices:data/read/search");
         securityContext.setParentAuthorization(parentAuthorization);
 
         securityContext.executeAfterRemovingParentAuthorization(original -> {
             // parent authorization header should be removed within execute method
             assertThat(securityContext.getParentAuthorization(), nullValue());
+            // system context boolean should be preserved
+            assertThat(threadContext.isSystemContext(), equalTo(setSystemContext));
             // other request and transient headers should be preserved
+            assertThat(threadContext.getHeaders().size(), equalTo(requestHeaders.size()));
+            assertThat(threadContext.getResponseHeaders().size(), equalTo(responseHeaders.size()));
+            assertThat(threadContext.getTransientHeaders().size(), equalTo(transientHeaders.size()));
             requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
             transientHeaders.forEach((k, v) -> assertThat(threadContext.getTransient(k), equalTo(v)));
+            responseHeaders.forEach((k, v) -> assertThat(threadContext.getResponseHeaders().get(k).get(0), equalTo(v)));
+            // warning header count is still equal to 1
+            assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(1));
+            // add new headers
+            threadContext.addResponseHeader("_new_response_header", randomAlphaOfLengthBetween(3, 8));
+            threadContext.putTransient("_new_transient_header", randomAlphaOfLengthBetween(3, 8));
+            threadContext.putHeader("_new_request_header", randomAlphaOfLengthBetween(3, 8));
+            threadContext.addResponseHeader("Warning", randomAlphaOfLengthBetween(3, 8));
+            // warning header is now equal to 2
+            assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(2));
         });
 
-        // and restored after execution
+        // parent authorization should be restored after execution
         assertThat(securityContext.getParentAuthorization(), equalTo(parentAuthorization));
+        // system context boolean is unchanged
+        assertThat(threadContext.isSystemContext(), equalTo(setSystemContext));
         // other request and transient headers should still be there
+        assertThat(threadContext.getTransientHeaders().size(), equalTo(transientHeaders.size()));
         requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
         transientHeaders.forEach((k, v) -> assertThat(threadContext.getTransient(k), equalTo(v)));
+        responseHeaders.forEach((k, v) -> assertThat(threadContext.getResponseHeaders().get(k).get(0), equalTo(v)));
+        // newly added transient and request headers should be removed
+        assertThat(threadContext.getTransient("_new_transient_header"), nullValue());
+        assertThat(threadContext.getHeader("_new_request_header"), nullValue());
+        // response headers should be preserved and retain newly added ones
+        assertThat(threadContext.getResponseHeaders().get("_new_response_header"), notNullValue());
+        assertThat(threadContext.getResponseHeaders().get("Warning").size(), equalTo(2));
     }
 }

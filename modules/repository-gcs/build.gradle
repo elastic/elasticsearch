@@ -114,6 +114,7 @@ tasks.named("thirdPartyAudit").configure {
 
   ignoreMissingClasses(
     'com.google.api.client.http.apache.v2.ApacheHttpTransport',
+    'com.google.api.services.storage.model.Bucket$CustomPlacementConfig',
     'com.google.appengine.api.datastore.Blob',
     'com.google.appengine.api.datastore.DatastoreService',
     'com.google.appengine.api.datastore.DatastoreServiceFactory',

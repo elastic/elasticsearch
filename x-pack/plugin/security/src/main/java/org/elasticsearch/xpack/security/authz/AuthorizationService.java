@@ -829,7 +829,7 @@ public class AuthorizationService {
                 listener::onFailure
             );
             final ActionListener<Tuple<String, IndexAuthorizationResult>> groupedActionListener = wrapPreservingContext(
-                new GroupedActionListener<>(bulkAuthzListener, actionToIndicesMap.size()),
+                new GroupedActionListener<>(actionToIndicesMap.size(), bulkAuthzListener),
                 threadContext
             );
 

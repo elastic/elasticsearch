@@ -92,6 +92,12 @@ for health status set `verbose` to `false` to disable the more expensive analysi
     These details include additional troubleshooting metrics and sometimes a root cause analysis of a health status.
     Defaults to `true`.
 
+`size`::
+    (Optional, integer) The maximum number of affected resources to return.
+    As a diagnosis can return multiple types of affected resources this parameter will limit the number of resources returned for each type to the configured value (e.g. a diagnosis could return
+    `1000` affected indices and `1000` affected nodes).
+    Defaults to `1000`.
+
 [role="child_attributes"]
 [[health-api-response-body]]
 ==== {api-response-body-title}

@@ -331,10 +331,10 @@ public class InternalEngine extends Engine {
             var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
             return new CombinedDeletionPolicy.CommitsListener() {
                 @Override
-                public void onNewAcquiredCommit(final IndexCommit commit) {
+                public void onNewAcquiredCommit(final IndexCommit commit, final Set<String> additionalFiles) {
                     final IndexCommitRef indexCommitRef = acquireIndexCommitRef(() -> commit);
                     assert indexCommitRef.getIndexCommit() == commit;
-                    listener.onNewCommit(shardId, primaryTerm, indexCommitRef);
+                    listener.onNewCommit(shardId, primaryTerm, indexCommitRef, additionalFiles);
                 }
 
                 @Override
@@ -1952,10 +1952,9 @@ public class InternalEngine extends Engine {
                 // newly created commit points to a different translog generation (can free translog),
                 // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
                 boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
-                boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (hasUncommittedChanges
                     || force
-                    || shouldPeriodicallyFlush
+                    || shouldPeriodicallyFlush()
                     || getProcessedLocalCheckpoint() > Long.parseLong(
                         lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
                     )) {
@@ -1965,15 +1964,6 @@ public class InternalEngine extends Engine {
                         logger.trace("starting commit for flush; commitTranslog=true");
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
-
-                        // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
-                        logger.debug(
-                            "new commit on flush, hasUncommittedChanges:{}, force:{}, shouldPeriodicallyFlush:{}",
-                            hasUncommittedChanges,
-                            force,
-                            shouldPeriodicallyFlush
-                        );
-
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush", SearcherScope.INTERNAL, true);
                         translog.trimUnreferencedReaders();

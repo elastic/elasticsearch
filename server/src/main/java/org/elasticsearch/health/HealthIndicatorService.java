@@ -22,7 +22,11 @@ public interface HealthIndicatorService {
 
     String name();
 
-    HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo);
+    default HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+        return calculate(verbose, 1000, healthInfo);
+    }
+
+    HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo);
 
     /**
      * This method creates a HealthIndicatorResult with the given information. Note that it sorts the impacts by severity (the lower the

@@ -76,20 +76,25 @@ public class HealthService {
      *
      * @param client        A client to be used to fetch the health data from the health node
      * @param indicatorName If not null, the returned results will only have this indicator
-     * @param explain       Whether to compute the details portion of the results
+     * @param verbose       Whether to compute the details portion of the results
      * @param listener      A listener to be notified of the list of all HealthIndicatorResult if indicatorName is null, or one
      *                      HealthIndicatorResult if indicatorName is not null
+     * @param maxAffectedResourcesCount The maximum number of affected resources to return per each type.
      * @throws ResourceNotFoundException if an indicator name is given and the indicator is not found
      */
     public void getHealth(
         Client client,
         @Nullable String indicatorName,
-        boolean explain,
+        boolean verbose,
+        int maxAffectedResourcesCount,
         ActionListener<List<HealthIndicatorResult>> listener
     ) {
+        if (maxAffectedResourcesCount < 0) {
+            throw new IllegalArgumentException("The max number of resources must be a positive integer");
+        }
         // Determine if cluster is stable enough to calculate health before running other indicators
         List<HealthIndicatorResult> preflightResults = preflightHealthIndicatorServices.stream()
-            .map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
+            .map(service -> service.calculate(verbose, maxAffectedResourcesCount, HealthInfo.EMPTY_HEALTH_INFO))
             .toList();
 
         // If any of these are not GREEN, then we cannot obtain health from other indicators
@@ -113,7 +118,7 @@ public class HealthService {
                     ActionRunnable<List<HealthIndicatorResult>> calculateFilteredIndicatorsRunnable = calculateFilteredIndicatorsRunnable(
                         indicatorName,
                         healthInfo,
-                        explain,
+                        verbose,
                         listener
                     );
 
@@ -131,7 +136,7 @@ public class HealthService {
                     ActionRunnable<List<HealthIndicatorResult>> calculateFilteredIndicatorsRunnable = calculateFilteredIndicatorsRunnable(
                         indicatorName,
                         HealthInfo.EMPTY_HEALTH_INFO,
-                        explain,
+                        verbose,
                         listener
                     );
                     try {
@@ -150,7 +155,7 @@ public class HealthService {
                     return ActionRunnable.wrap(listener, l -> {
                         List<HealthIndicatorResult> results = Stream.concat(
                             filteredPreflightResults,
-                            filteredIndicators.map(service -> service.calculate(explain, healthInfo))
+                            filteredIndicators.map(service -> service.calculate(explain, maxAffectedResourcesCount, healthInfo))
                         ).toList();
 
                         validateResultsAndNotifyListener(indicatorName, results, l);
@@ -160,7 +165,7 @@ public class HealthService {
 
         } else {
             // Mark remaining indicators as UNKNOWN
-            HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, explain);
+            HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, verbose);
             Stream<HealthIndicatorResult> filteredIndicatorResults = filteredIndicators.map(
                 service -> generateUnknownResult(service, UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED, unknownDetails)
             );

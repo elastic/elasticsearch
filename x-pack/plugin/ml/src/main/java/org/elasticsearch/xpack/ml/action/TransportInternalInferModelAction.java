@@ -282,7 +282,6 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         int startPos = 0;
         for (var node : nodes) {
-
             InferTrainedModelDeploymentAction.Request deploymentRequest;
             if (request.getTextInput() == null) {
                 deploymentRequest = InferTrainedModelDeploymentAction.Request.forDocs(

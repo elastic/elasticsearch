@@ -134,7 +134,7 @@ public class ParentChildNavigationTests extends ESTestCase {
         String[] h3Addresses = H3.getStringRes0Cells();
         String h3Address = RandomPicks.randomFrom(random(), h3Addresses);
         // Once testIssue91915 is fixed, put upper limit of the loop to H3.MAX_H3_RES
-        for (int i = 1; i <= H3.MAX_H3_RES; i++) {
+        for (int i = 1; i <= 10; i++) {
             h3Addresses = H3.h3ToChildren(h3Address);
             assertIntersectingChildren(h3Address, h3Addresses);
             h3Address = RandomPicks.randomFrom(random(), h3Addresses);

@@ -989,8 +989,9 @@ public class ApiKeyService {
             Authenticator.extractCredentialFromHeader(
                 threadContext,
                 // TODO does not belong here
-                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER,
-                "ApiKey"
+                SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
+                "ApiKey",
+                true
             )
         );
     }

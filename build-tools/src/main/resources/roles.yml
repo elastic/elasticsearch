@@ -11,3 +11,11 @@ _es_test_root:
     - application: "*"
       privileges: [ "*" ]
       resources: [ "*" ]
+
+_ccs_admin:
+  cluster: [ "ALL" ]
+  remote_indices:
+    - names: [ "my-index-*" ]
+      privileges: [ "READ", "READ_CROSS_CLUSTER" ]
+      clusters: [ "*remote*" ]
+

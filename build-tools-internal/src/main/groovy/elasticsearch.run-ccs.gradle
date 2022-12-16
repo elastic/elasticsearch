@@ -40,7 +40,9 @@ def queryingCluster = testClusters.register('querying-cluster') {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'cluster.remote.connections_per_cluster', "1"
+
   user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+  user username: 'ccs-admin', password: 'elastic-password', role: '_ccs_admin'
 }
 
 

@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 /**
@@ -62,7 +64,13 @@ public interface Authenticator {
     }
 
     static SecureString extractCredentialFromHeader(ThreadContext threadContext, String headerKey, String prefix) {
-        final String header = threadContext.getHeader(headerKey);
+        return extractCredentialFromHeader(threadContext, headerKey, prefix, false);
+    }
+
+    static SecureString extractCredentialFromHeader(ThreadContext threadContext, String headerKey, String prefix, boolean isBase64Encoded) {
+        final String header = isBase64Encoded
+            ? new String(Base64.getDecoder().decode(threadContext.getHeader(headerKey)), StandardCharsets.UTF_8)
+            : threadContext.getHeader(headerKey);
         final String prefixWithSpace = prefix + " ";
         if (Strings.hasText(header)
             && header.regionMatches(true, 0, prefixWithSpace, 0, prefixWithSpace.length())

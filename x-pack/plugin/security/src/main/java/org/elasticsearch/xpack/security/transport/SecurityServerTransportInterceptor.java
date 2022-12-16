@@ -11,7 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -20,7 +22,9 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
@@ -322,9 +326,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // QuerySearchRequest
 
                 // all good to skip: ShardFetchSearchRequest, SearchFreeContextRequest
-                return request instanceof ShardSearchRequest || request instanceof ShardFetchRequest || request instanceof SearchRequest
-                // || request instanceof QuerySearchRequest
-                // || request instanceof CanMatchNodeRequest
+                return request instanceof ShardSearchRequest
+                    || request instanceof ShardFetchRequest
+                    || request instanceof SearchRequest
+                    || request instanceof QuerySearchRequest
+                    || request instanceof CanMatchNodeRequest
+                    || request instanceof SearchTransportService.ScrollFreeContextRequest
+                    || request instanceof InternalScrollSearchRequest
                     || request instanceof ClusterSearchShardsRequest;
             }
 

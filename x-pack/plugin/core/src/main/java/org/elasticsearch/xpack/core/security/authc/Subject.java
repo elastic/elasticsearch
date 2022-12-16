@@ -130,6 +130,7 @@ public class Subject {
                 // an API Key cannot access resources created by non-API Keys or vice-versa
                 return false;
             } else {
+                // TODO proper REMOTE_ACCESS handling
                 if (false == getUser().principal().equals(resourceCreatorSubject.getUser().principal())) {
                     return false;
                 }

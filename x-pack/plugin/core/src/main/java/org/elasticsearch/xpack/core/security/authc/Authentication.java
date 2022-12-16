@@ -517,7 +517,8 @@ public final class Authentication implements ToXContentObject {
             Authentication.AuthenticationType.API_KEY,
             Authentication.AuthenticationType.TOKEN,
             Authentication.AuthenticationType.ANONYMOUS,
-            Authentication.AuthenticationType.INTERNAL
+            Authentication.AuthenticationType.INTERNAL,
+            Authentication.AuthenticationType.REMOTE_ACCESS
         ).containsAll(EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
             : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
                 + EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType());

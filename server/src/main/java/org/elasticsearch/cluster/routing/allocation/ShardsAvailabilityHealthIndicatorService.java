@@ -441,9 +441,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
             case NO_VALID_SHARD_COPY:
-                if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {
-                    diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
-                }
+                diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
                 break;
             case NO_ATTEMPT:
                 if (shardRouting.unassignedInfo().isDelayed()) {

@@ -214,6 +214,32 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    public interface IndexCommitListener {
+
+        /**
+         * This method is invoked each time a new Lucene commit is created through this engine. There is no guarantee that a listener will
+         * be notified of the commits in order, ie newer commits may appear before older ones. The {@link IndexCommitRef} prevents the
+         * {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such, the listener must close the
+         * reference as soon as it is done with it.
+         *
+         * @param shardId         the {@link ShardId} of shard
+         * @param primaryTerm     the shard's primary term value
+         * @param indexCommitRef  a reference on the newly created index commit
+         * @param additionalFiles the set of filenames that are added by the new commit
+         */
+        void onNewCommit(ShardId shardId, long primaryTerm, IndexCommitRef indexCommitRef, Set<String> additionalFiles);
+
+        /**
+         * This method is invoked after the policy deleted the given {@link IndexCommit}. A listener is never notified of a deleted commit
+         * until the corresponding {@link Engine.IndexCommitRef} received through
+         * {@link #onNewCommit(ShardId, long, IndexCommitRef, Set)} has been closed; closing which in turn can call this method directly.
+         *
+         * @param shardId the {@link ShardId} of shard
+         * @param deletedCommit the deleted {@link IndexCommit}
+         */
+        void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit);
+    }
+
     /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling

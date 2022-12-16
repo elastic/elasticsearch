@@ -105,6 +105,9 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
+        //we expect that a Fake namedcomponent scanner used in this test will be passed a filename to be created
+        File namedComponents = file("build/generated-named-components/named_components.json")
+        namedComponents.exists() == true
     }
 
     Map<String, String> getPluginProperties() {

@@ -8,11 +8,13 @@
 
 package org.elasticsearch.plugin.scanner;
 
+import org.elasticsearch.plugin.api.Extensible;
+import org.elasticsearch.plugin.api.NamedComponent;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,39 +25,37 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class NamedComponentScanner {
-    // private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
     // main method to be used by gradle build plugin
     public static void main(String[] args) throws IOException {
         List<ClassReader> classReaders = ClassReaders.ofClassPath().collect(Collectors.toList());
 
         NamedComponentScanner scanner = new NamedComponentScanner();
         Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
-        scanner.writeToFile(namedComponentsMap,args[0]);
+        Path outputFile = Path.of(args[0]);
+        scanner.writeToFile(namedComponentsMap, outputFile);
     }
 
-    private void writeToFile(Map<String, Map<String, String>> namedComponentsMap, String arg) {
-         try {
-        // String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
-         File file = new File(arg);
-         Path of = Path.of(file.getAbsolutePath());
-         Files.writeString(of, namedComponentsMap.toString());
-         } catch (Exception e) {
-         e.printStackTrace();
-         }
+    private void writeToFile(Map<String, Map<String, String>> namedComponentsMap, Path outputFile) {
+        try {
+            // String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
+            Files.createDirectories(outputFile.getParent());
+            Files.createFile(outputFile);
+            Files.writeString(outputFile, namedComponentsMap.toString());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     // returns a Map<String, Map<String,String> - extensible interface -> map{ namedName -> className }
     public Map<String, Map<String, String>> scanForNamedClasses(Collection<ClassReader> classReaderStream) {
-        // TODO I don't have access to stable-plugin-api here so I have to hardcode class descriptors
-        ClassScanner extensibleClassScanner = new ClassScanner("Lorg/elasticsearch/plugin/api/Extensible;", (classname, map) -> {
+        ClassScanner extensibleClassScanner = new ClassScanner(Type.getDescriptor(Extensible.class), (classname, map) -> {
             map.put(classname, classname);
             return null;
         });
         extensibleClassScanner.visit(classReaderStream.stream());
 
         ClassScanner namedComponentsScanner = new ClassScanner(
-            "Lorg/elasticsearch/plugin/api/NamedComponent;"/*NamedComponent.class*/,
+            Type.getDescriptor(NamedComponent.class),
             (classname, map) -> new AnnotationVisitor(Opcodes.ASM9) {
                 @Override
                 public void visit(String key, Object value) {

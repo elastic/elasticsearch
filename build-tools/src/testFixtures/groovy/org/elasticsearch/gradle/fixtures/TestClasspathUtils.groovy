@@ -18,17 +18,15 @@ import net.bytebuddy.implementation.FixedValue
 import net.bytebuddy.implementation.Implementation
 import net.bytebuddy.implementation.MethodDelegation
 
-import org.elasticsearch.gradle.FakeNamedComponent
+import org.elasticsearch.gradle.NamedComponentScannerMock
 
 import static org.junit.Assert.fail
 
 class TestClasspathUtils {
 
+    // we cannot access real NamedComponentScanner in libs:plugin-api-scanner so we create a fake class
     static void setupNamedComponentScanner(File projectRoot, String version) {
-        def value = MethodDelegation.to(FakeNamedComponent.class)
-//        generateJarWithClass(projectRoot, "org.elasticsearch.plugin.scanner.NamedComponentScanner","elasticsearch-plugin-scanner",
-//            version, value
-//        )
+        def value = MethodDelegation.to(NamedComponentScannerMock.class)
 
         DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
             .name("org.elasticsearch.plugin.scanner.NamedComponentScanner")
@@ -36,11 +34,10 @@ class TestClasspathUtils {
             .withParameters(String[].class)
             .intercept(value)
             .make()
-            .include(new ByteBuddy().redefine(FakeNamedComponent.class).make())
+            .include(new ByteBuddy().redefine(NamedComponentScannerMock.class).make())
 
         try {
             dynamicType.toJar(targetFile(projectRoot, "elasticsearch-plugin-scanner", version))
-
         } catch (IOException e) {
             e.printStackTrace()
             fail("Cannot setup jdk jar hell classpath")
@@ -79,7 +76,6 @@ class TestClasspathUtils {
 
         try {
             dynamicType.toJar(targetFile(targetDir, artifactName, version))
-
         } catch (IOException e) {
             e.printStackTrace()
             fail("Cannot setup jdk jar hell classpath")

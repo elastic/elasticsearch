@@ -1,5 +1,0 @@
-pr: 88031
-summary: Removing `BouncyCastle` dependencies from ingest-attachment plugin
-area: Ingest
-type: enhancement
-issues: []

@@ -27,6 +27,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -52,7 +53,14 @@ public class RestTermsEnumActionTests extends ESTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
+    private static RestController controller = new RestController(
+        emptySet(),
+        null,
+        client,
+        new NoneCircuitBreakerService(),
+        usageService,
+        Tracer.NOOP
+    );
     private static RestTermsEnumAction action = new RestTermsEnumAction();
 
     /**

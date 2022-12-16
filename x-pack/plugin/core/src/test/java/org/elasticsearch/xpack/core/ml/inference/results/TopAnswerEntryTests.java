@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class TopAnswerEntryTests extends AbstractSerializingTestCase<QuestionAnsweringInferenceResults.TopAnswerEntry> {
+public class TopAnswerEntryTests extends AbstractXContentSerializingTestCase<QuestionAnsweringInferenceResults.TopAnswerEntry> {
 
     public static QuestionAnsweringInferenceResults.TopAnswerEntry createRandomTopAnswerEntry() {
         return new QuestionAnsweringInferenceResults.TopAnswerEntry(randomAlphaOfLength(10), randomDouble(), randomInt(10), randomInt(400));

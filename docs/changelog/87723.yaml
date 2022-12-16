@@ -1,5 +1,0 @@
-pr: 87723 
-summary: Optimize log cluster health performance.
-area: Allocation
-type: enhancement
-issues: []

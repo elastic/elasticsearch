@@ -30,7 +30,6 @@ import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.set.Sets;
@@ -43,6 +42,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -179,7 +179,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
                 if (bitsetCache.get(bitsetKey) == null) {
                     // key is no longer in the cache, make sure it is no longer in the lookup map either.
-                    keysByIndex.getOrDefault(indexKey, Set.of()).remove(bitsetKey);
+                    Optional.ofNullable(keysByIndex.get(indexKey)).ifPresent(set -> set.remove(bitsetKey));
                 }
             }
         });
@@ -319,7 +319,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     }
 
     public Map<String, Object> usageStats() {
-        final ByteSizeValue ram = new ByteSizeValue(ramBytesUsed(), ByteSizeUnit.BYTES);
+        final ByteSizeValue ram = ByteSizeValue.ofBytes(ramBytesUsed());
         return Map.of("count", entryCount(), "memory", ram.toString(), "memory_in_bytes", ram.getBytes());
     }
 

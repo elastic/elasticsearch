@@ -339,7 +339,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         // fail a random shard
         ShardRouting failedShard = randomFrom(
-            clusterService().state().getRoutingNodes().node(nonMasterNodeId).shardsWithState(ShardRoutingState.STARTED)
+            clusterService().state().getRoutingNodes().node(nonMasterNodeId).shardsWithState(ShardRoutingState.STARTED).toList()
         );
         ShardStateAction service = internalCluster().getInstance(ShardStateAction.class, nonMasterNode);
         CountDownLatch latch = new CountDownLatch(1);
@@ -442,7 +442,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                     .isTimedOut()
             );
         }, 30, TimeUnit.SECONDS);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode)); // otherwise we will fail during clean-up
+        internalCluster().stopNode(dataNode); // otherwise we will fail during clean-up
     }
 
     /**
@@ -530,7 +530,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             IndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
             Set<String> docs = IndexShardTestCase.getShardDocUIDs(shard);
             assertThat(
-                "shard [" + shard.routingEntry() + "] docIds [" + docs + "] vs " + " acked docIds [" + ackedDocs + "]",
+                "shard [" + shard.routingEntry() + "] docIds [" + docs + "] vs  acked docIds [" + ackedDocs + "]",
                 ackedDocs,
                 everyItem(is(in(docs)))
             );

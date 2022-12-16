@@ -58,21 +58,18 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                 final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();
                 for (String index : requestIndices(indicesRequest)) {
                     IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
-                    if (indexAccessControl != null) {
-                        final boolean flsEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                        final boolean dlsEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                        if ((flsEnabled || dlsEnabled) && isDlsLicensed) {
-                            logger.trace(
-                                "intercepted request for index [{}] with field level access controls [{}] "
-                                    + "document level access controls [{}]. disabling conflicting features",
-                                index,
-                                flsEnabled,
-                                dlsEnabled
-                            );
-                            accessControlByIndex.put(index, indexAccessControl);
-                        }
-                    } else {
-                        logger.trace("intercepted request for index [{}] without field or document level access controls", index);
+                    if (indexAccessControl != null
+                        && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
+                            || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())
+                        && isDlsLicensed) {
+                        logger.trace(
+                            "intercepted request for index [{}] with field level access controls [{}] "
+                                + "document level access controls [{}]. disabling conflicting features",
+                            index,
+                            indexAccessControl.getFieldPermissions().hasFieldLevelSecurity(),
+                            indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()
+                        );
+                        accessControlByIndex.put(index, indexAccessControl);
                     }
                 }
                 if (false == accessControlByIndex.isEmpty()) {

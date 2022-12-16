@@ -92,7 +92,13 @@ public class DesiredNodesSettingsValidator {
             int minProcessors = node.roundedDownMinProcessors();
             Integer roundedUpMaxProcessors = node.roundedUpMaxProcessors();
             int maxProcessors = roundedUpMaxProcessors == null ? minProcessors : roundedUpMaxProcessors;
-            Setting.intSetting(NODE_PROCESSORS_SETTING.getKey(), minProcessors, 1, maxProcessors, Setting.Property.NodeScope).get(settings);
+            Setting.doubleSetting(
+                NODE_PROCESSORS_SETTING.getKey(),
+                minProcessors,
+                Double.MIN_VALUE,
+                maxProcessors,
+                Setting.Property.NodeScope
+            ).get(settings);
             final Settings.Builder updatedSettings = Settings.builder().put(settings);
             updatedSettings.remove(NODE_PROCESSORS_SETTING.getKey());
             settings = updatedSettings.build();

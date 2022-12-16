@@ -108,7 +108,27 @@ public final class EngineConfig {
         }
     }, Property.IndexScope, Property.NodeScope);
 
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting(
+        "index.optimize_auto_generated_id",
+        true,
+        Property.IndexScope,
+        Property.Dynamic,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
+
     private final TranslogConfig translogConfig;
+
+    private final LongSupplier relativeTimeInNanosSupplier;
+
+    @Nullable
+    private final Engine.IndexCommitListener indexCommitListener;
+
+    private final boolean recoveringAsPrimary;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
@@ -136,7 +156,10 @@ public final class EngineConfig {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Comparator<LeafReader> leafSorter
+        Comparator<LeafReader> leafSorter,
+        LongSupplier relativeTimeInNanosSupplier,
+        Engine.IndexCommitListener indexCommitListener,
+        boolean recoveringAsPrimary
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -176,6 +199,9 @@ public final class EngineConfig {
         this.primaryTermSupplier = primaryTermSupplier;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
         this.leafSorter = leafSorter;
+        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.indexCommitListener = indexCommitListener;
+        this.recoveringAsPrimary = recoveringAsPrimary;
     }
 
     /**
@@ -373,5 +399,22 @@ public final class EngineConfig {
     @Nullable
     public Comparator<LeafReader> getLeafSorter() {
         return leafSorter;
+    }
+
+    public LongSupplier getRelativeTimeInNanosSupplier() {
+        return relativeTimeInNanosSupplier;
+    }
+
+    @Nullable
+    public Engine.IndexCommitListener getIndexCommitListener() {
+        return indexCommitListener;
+    }
+
+    /**
+     * Represents the primary state only in case when a recovery starts.
+     * IMPORTANT: The flag is a temporary solution and should NOT be used outside of Stateless.
+     */
+    public boolean isRecoveringAsPrimary() {
+        return recoveringAsPrimary;
     }
 }

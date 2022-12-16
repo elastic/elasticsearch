@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -45,6 +46,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -124,6 +126,28 @@ public final class SearchPhaseController {
             aggMaxDoc += lEntry.maxDoc();
         }
         return new AggregatedDfs(termStatistics, fieldStatistics, aggMaxDoc);
+    }
+
+    public static DfsKnnResults mergeKnnResults(SearchRequest request, List<DfsSearchResult> dfsSearchResults) {
+        if (request.hasKnnSearch() == false) {
+            return null;
+        }
+
+        List<TopDocs> topDocs = new ArrayList<>();
+        for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
+            if (dfsSearchResult.knnResults() != null) {
+                ScoreDoc[] scoreDocs = dfsSearchResult.knnResults().scoreDocs();
+                TotalHits totalHits = new TotalHits(scoreDocs.length, Relation.EQUAL_TO);
+
+                TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
+                setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
+                topDocs.add(shardTopDocs);
+            }
+        }
+
+        KnnSearchBuilder knnSearch = request.source().knnSearch();
+        TopDocs mergedTopDocs = TopDocs.merge(knnSearch.k(), topDocs.toArray(new TopDocs[0]));
+        return new DfsKnnResults(mergedTopDocs.scoreDocs);
     }
 
     /**

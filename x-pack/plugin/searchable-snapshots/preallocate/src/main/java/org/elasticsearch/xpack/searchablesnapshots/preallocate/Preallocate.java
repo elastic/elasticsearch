@@ -44,7 +44,7 @@ public class Preallocate {
                 try (FileOutputStream fileChannel = new FileOutputStream(cacheFile.toFile())) {
                     long currentSize = fileChannel.getChannel().size();
                     if (currentSize < fileSize) {
-                        logger.info("pre-allocating cache file [{}] ({}) using native methods", cacheFile, new ByteSizeValue(fileSize));
+                        logger.info("pre-allocating cache file [{}] ({}) using native methods", cacheFile, ByteSizeValue.ofBytes(fileSize));
                         final Field field = AccessController.doPrivileged(new FileDescriptorFieldAction(fileChannel));
                         final int errno = prealloactor.preallocate(
                             (int) field.get(fileChannel.getFD()),
@@ -70,7 +70,7 @@ public class Preallocate {
             // even if allocation was successful above, verify again here
             try (RandomAccessFile raf = new RandomAccessFile(cacheFile.toFile(), "rw")) {
                 if (raf.length() != fileSize) {
-                    logger.info("pre-allocating cache file [{}] ({}) using setLength method", cacheFile, new ByteSizeValue(fileSize));
+                    logger.info("pre-allocating cache file [{}] ({}) using setLength method", cacheFile, ByteSizeValue.ofBytes(fileSize));
                     raf.setLength(fileSize);
                     logger.debug("pre-allocated cache file [{}] using setLength method", cacheFile);
                 }

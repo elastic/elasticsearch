@@ -98,8 +98,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
 
         final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-            ActionListener.wrap(onCompletion),
-            discoveryNodes.getSize()
+            discoveryNodes.getSize(),
+            ActionListener.wrap(onCompletion)
         );
 
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
@@ -160,8 +160,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             } else {
                 logger.trace("ensureConnections: {}", targetsByNode);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                    ActionListener.wrap(onCompletion),
-                    connectionTargets.size()
+                    connectionTargets.size(),
+                    ActionListener.wrap(onCompletion)
                 );
                 for (final ConnectionTarget connectionTarget : connectionTargets) {
                     runnables.add(connectionTarget.connect(listener));

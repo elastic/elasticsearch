@@ -23,7 +23,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction.Request;
@@ -31,6 +30,8 @@ import org.elasticsearch.xpack.core.ml.action.InferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -98,7 +100,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         Response.Builder responseBuilder = Response.builder();
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
-        if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
+        if (MachineLearning.INFERENCE_AGG_FEATURE.check(licenseState)) {
             responseBuilder.setLicensed(true);
             doInfer(task, request, responseBuilder, parentTaskId, listener);
         } else {
@@ -128,8 +130,11 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         TaskId parentTaskId,
         ActionListener<Response> listener
     ) {
-        if (isAllocatedModel(request.getModelId())) {
-            inferAgainstAllocatedModel(request, responseBuilder, parentTaskId, listener);
+        String concreteModelId = Optional.ofNullable(ModelAliasMetadata.fromState(clusterService.state()).getModelId(request.getModelId()))
+            .orElse(request.getModelId());
+        if (isAllocatedModel(concreteModelId)) {
+            // It is important to use the resolved model ID here as the alias could change between transport calls.
+            inferAgainstAllocatedModel(request, concreteModelId, responseBuilder, parentTaskId, listener);
         } else {
             getModelAndInfer(request, responseBuilder, parentTaskId, (CancellableTask) task, listener);
         }
@@ -176,6 +181,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
     private void inferAgainstAllocatedModel(
         Request request,
+        String concreteModelId,
         Response.Builder responseBuilder,
         TaskId parentTaskId,
         ActionListener<Response> listener
@@ -191,7 +197,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             .forEach(
                 stringObjectMap -> typedChainTaskExecutor.add(
                     chainedTask -> inferSingleDocAgainstAllocatedModel(
-                        request.getModelId(),
+                        concreteModelId,
                         request.getTimeout(),
                         request.getUpdate(),
                         stringObjectMap,
@@ -204,7 +210,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         typedChainTaskExecutor.execute(
             ActionListener.wrap(
                 inferenceResults -> listener.onResponse(
-                    responseBuilder.setInferenceResults(inferenceResults).setModelId(request.getModelId()).build()
+                    responseBuilder.setInferenceResults(inferenceResults).setModelId(concreteModelId).build()
                 ),
                 listener::onFailure
             )

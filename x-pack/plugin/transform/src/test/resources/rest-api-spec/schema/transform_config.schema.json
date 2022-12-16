@@ -208,6 +208,13 @@
           "$id": "#root/settings/num_failure_retries",
           "title": "num failure retries",
           "type": "integer"
+        },
+        "unattended": {
+          "$id": "#root/settings/unattended",
+          "title": "unattended",
+          "type": "boolean",
+          "description": "run this transform in unattended mode",
+          "default": false
         }
       }
     },

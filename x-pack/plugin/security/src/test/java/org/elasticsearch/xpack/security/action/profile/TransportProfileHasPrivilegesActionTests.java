@@ -20,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.common.ResultsAndErrors;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.profile.ProfileService;
-import org.elasticsearch.xpack.security.profile.ProfileService.MultiProfileSubjectResponse;
 import org.junit.After;
 import org.junit.Before;
 
@@ -45,6 +45,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.action.profile.ProfileHasPrivilegesRequestTests.randomValidPrivilegesToCheckRequest;
@@ -53,6 +55,7 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Pr
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -117,9 +120,8 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
             for (String uid : uidsArg) {
                 profileUidToSubject.put(uid, new Subject(new User("user_for_profile_" + uid), mock(Authentication.RealmRef.class)));
             }
-            final ActionListener<MultiProfileSubjectResponse> listener = (ActionListener<MultiProfileSubjectResponse>) invocation
-                .getArguments()[1];
-            listener.onResponse(new MultiProfileSubjectResponse(profileUidToSubject, Set.of()));
+            final var listener = (ActionListener<ResultsAndErrors<Map.Entry<String, Subject>>>) invocation.getArguments()[1];
+            listener.onResponse(new ResultsAndErrors<>(profileUidToSubject.entrySet(), Map.of()));
             return null;
         }).when(profileService).getProfileSubjects(anyCollection(), anyActionListener());
 
@@ -152,7 +154,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
         transportProfileHasPrivilegesAction.doExecute(mock(CancellableTask.class), request, listener);
 
         ProfileHasPrivilegesResponse response = listener.get();
-        assertThat(response.errorUids(), is(errorProfileUids));
+        assertThat(response.errors().keySet(), equalTo(errorProfileUids));
         Set<String> hasPrivilegeUids = new HashSet<>(allProfileUids);
         hasPrivilegeUids.removeAll(errorProfileUids);
         hasPrivilegeUids.removeAll(noPrivilegesProfileUids);
@@ -170,9 +172,13 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
         );
 
         doAnswer(invocation -> {
-            final ActionListener<MultiProfileSubjectResponse> listener = (ActionListener<MultiProfileSubjectResponse>) invocation
-                .getArguments()[1];
-            listener.onResponse(new MultiProfileSubjectResponse(Map.of(), errorProfileUids));
+            final var listener = (ActionListener<ResultsAndErrors<Map.Entry<String, Subject>>>) invocation.getArguments()[1];
+            listener.onResponse(
+                new ResultsAndErrors<>(
+                    List.of(),
+                    errorProfileUids.stream().collect(Collectors.toMap(Function.identity(), uid -> mock(Exception.class)))
+                )
+            );
             return null;
         }).when(profileService).getProfileSubjects(anyCollection(), anyActionListener());
 
@@ -195,7 +201,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
 
         ProfileHasPrivilegesResponse response = listener.get();
         assertThat(response.hasPrivilegeUids(), emptyIterable());
-        assertThat(response.errorUids(), is(errorProfileUids));
+        assertThat(response.errors().keySet(), equalTo(errorProfileUids));
     }
 
     public void testDLSQueryIndicesPrivilegesRequestValidation() {
@@ -236,9 +242,8 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
             for (String uid : uidsArg) {
                 profileUidToSubject.put(uid, new Subject(new User("user_for_profile_" + uid), mock(Authentication.RealmRef.class)));
             }
-            final ActionListener<MultiProfileSubjectResponse> listener = (ActionListener<MultiProfileSubjectResponse>) invocation
-                .getArguments()[1];
-            listener.onResponse(new MultiProfileSubjectResponse(profileUidToSubject, Set.of()));
+            final var listener = (ActionListener<ResultsAndErrors<Map.Entry<String, Subject>>>) invocation.getArguments()[1];
+            listener.onResponse(new ResultsAndErrors<>(profileUidToSubject.entrySet(), Map.of()));
             return null;
         }).when(profileService).getProfileSubjects(anyCollection(), anyActionListener());
 

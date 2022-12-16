@@ -59,6 +59,11 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
     }
@@ -179,7 +184,7 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
         throw new AssumptionViolatedException("not supported");
     }
 

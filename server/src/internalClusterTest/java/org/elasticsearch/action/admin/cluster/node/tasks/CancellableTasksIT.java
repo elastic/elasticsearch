@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -42,12 +43,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 
@@ -294,7 +292,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         client(nodeWithRootTask).execute(TransportTestAction.ACTION, rootRequest);
         allowPartialRequest(rootRequest);
         try {
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithRootTask));
+            internalCluster().stopNode(nodeWithRootTask);
             assertBusy(() -> {
                 for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
                     for (CancellableTask task : transportService.getTaskManager().getCancellableTasks().values()) {
@@ -510,8 +508,8 @@ public class CancellableTasksIT extends ESIntegTestCase {
             arrivedLatches.get(request).countDown();
             List<TestRequest> subRequests = request.subRequests;
             GroupedActionListener<TestResponse> groupedListener = new GroupedActionListener<>(
-                listener.map(r -> new TestResponse()),
-                subRequests.size() + 1
+                subRequests.size() + 1,
+                listener.map(r -> new TestResponse())
             );
             transportService.getThreadPool().generic().execute(ActionRunnable.supply(groupedListener, () -> {
                 assertTrue(beforeExecuteLatches.get(request).await(60, TimeUnit.SECONDS));
@@ -548,22 +546,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                             subRequest.node,
                             ACTION.name(),
                             subRequest,
-                            new TransportResponseHandler<TestResponse>() {
-                                @Override
-                                public void handleResponse(TestResponse response) {
-                                    latchedListener.onResponse(response);
-                                }
-
-                                @Override
-                                public void handleException(TransportException exp) {
-                                    latchedListener.onFailure(exp);
-                                }
-
-                                @Override
-                                public TestResponse read(StreamInput in) throws IOException {
-                                    return new TestResponse(in);
-                                }
-                            }
+                            new ActionListenerResponseHandler<TestResponse>(latchedListener, TestResponse::new)
                         );
                     }
                 }

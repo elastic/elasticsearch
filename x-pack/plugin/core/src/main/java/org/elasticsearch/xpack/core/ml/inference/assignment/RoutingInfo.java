@@ -95,6 +95,10 @@ public class RoutingInfo implements ToXContentObject, Writeable {
         return reason;
     }
 
+    public boolean isOutdated() {
+        return currentAllocations == 0 && targetAllocations == 0;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {

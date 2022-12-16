@@ -18,6 +18,9 @@ import java.util.Objects;
 
 public enum LuceneFilesExtensions {
 
+    // Elasticsearch BloomFilterPostingsFormat
+    BFI("bfi", "BloomFilter Index", false, true),
+    BFM("bfm", "BloomFilter Metadata", true, false),
     CFE("cfe", "Compound Files Entries", true, false),
     // Compound files are tricky because they store all the information for the segment. Benchmarks
     // suggested that not mapping them hurts performance.

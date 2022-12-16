@@ -35,9 +35,9 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
 
     private static void setupDataAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {  "indices" : [    { "names": ["%s"], "privileges": ["read"] }  ]}
-            """.formatted(index));
+            """, index));
         client().performRequest(request);
     }
 
@@ -45,9 +45,9 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             { "password" : "%s",  "roles" : [ %s ]}
-            """.formatted(password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
+            """, password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
         client().performRequest(request);
     }
 
@@ -79,7 +79,7 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
 
     private static Request buildRegressionEval(String index, String primaryHeader, String secondaryHeader) {
         Request evaluateRequest = new Request("POST", "_ml/data_frame/_evaluate");
-        evaluateRequest.setJsonEntity("""
+        evaluateRequest.setJsonEntity(formatted("""
             {
               "index": "%s",
               "evaluation": {
@@ -89,7 +89,7 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
                 }
               }
             }
-            """.formatted(index));
+            """, index));
         RequestOptions.Builder options = evaluateRequest.getOptions().toBuilder();
         options.addHeader("Authorization", primaryHeader);
         options.addHeader("es-secondary-authorization", secondaryHeader);

@@ -4,8 +4,6 @@
 <titleabbrev>Set up a TSDS</titleabbrev>
 ++++
 
-preview::[]
-
 To set up a <<tsds,time series data stream (TSDS)>>, follow these steps:
 
 . Check the <<tsds-prereqs,prerequisites>>.
@@ -279,8 +277,9 @@ To automatically create your TSDS, submit an indexing request that
 targets the TSDS's name. This name must match one of your index template's
 index patterns.
 
-To test the following example, update the timestamps to within the 24 hours after
-your current time.
+IMPORTANT: To test the following example, update the timestamps to within three hours of
+your current time. Data added to a TSDS must always fall within an
+<<tsds-accepted-time-range,accepted time range>>.
 
 [source,console]
 ----

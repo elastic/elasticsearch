@@ -127,7 +127,10 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType);
+                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(
+                    indexSearcher,
+                    new AggTestConfig(aggregationBuilder, keywordFieldType).withQuery(query)
+                );
                 verify.accept(rareTerms);
             }
         }

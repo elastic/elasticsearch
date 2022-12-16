@@ -28,13 +28,14 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Request class to swap index under an alias or increment data stream generation upon satisfying conditions
- *
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should also go to that client class.
  */
@@ -49,6 +50,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
     private static final ParseField MAX_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
     private static final ParseField MAX_PRIMARY_SHARD_DOCS_CONDITION = new ParseField(MaxPrimaryShardDocsCondition.NAME);
+    private static final ParseField MIN_AGE_CONDITION = new ParseField(MinAgeCondition.NAME);
+    private static final ParseField MIN_DOCS_CONDITION = new ParseField(MinDocsCondition.NAME);
+    private static final ParseField MIN_SIZE_CONDITION = new ParseField(MinSizeCondition.NAME);
+    private static final ParseField MIN_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MinPrimaryShardSizeCondition.NAME);
+    private static final ParseField MIN_PRIMARY_SHARD_DOCS_CONDITION = new ParseField(MinPrimaryShardDocsCondition.NAME);
 
     static {
         CONDITION_PARSER.declareString(
@@ -76,6 +82,32 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         CONDITION_PARSER.declareLong(
             (conditions, value) -> conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(value)),
             MAX_PRIMARY_SHARD_DOCS_CONDITION
+        );
+        CONDITION_PARSER.declareString(
+            (conditions, s) -> conditions.put(MinAgeCondition.NAME, new MinAgeCondition(TimeValue.parseTimeValue(s, MinAgeCondition.NAME))),
+            MIN_AGE_CONDITION
+        );
+        CONDITION_PARSER.declareLong(
+            (conditions, value) -> conditions.put(MinDocsCondition.NAME, new MinDocsCondition(value)),
+            MIN_DOCS_CONDITION
+        );
+        CONDITION_PARSER.declareString(
+            (conditions, s) -> conditions.put(
+                MinSizeCondition.NAME,
+                new MinSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MinSizeCondition.NAME))
+            ),
+            MIN_SIZE_CONDITION
+        );
+        CONDITION_PARSER.declareString(
+            (conditions, s) -> conditions.put(
+                MinPrimaryShardSizeCondition.NAME,
+                new MinPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MinPrimaryShardSizeCondition.NAME))
+            ),
+            MIN_PRIMARY_SHARD_SIZE_CONDITION
+        );
+        CONDITION_PARSER.declareLong(
+            (conditions, value) -> conditions.put(MinPrimaryShardDocsCondition.NAME, new MinPrimaryShardDocsCondition(value)),
+            MIN_PRIMARY_SHARD_DOCS_CONDITION
         );
 
         PARSER.declareField(
@@ -160,6 +192,16 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         if (rolloverTarget == null) {
             validationException = addValidationError("rollover target is missing", validationException);
         }
+
+        // if the request has any conditions, then at least one condition must be a max_* condition
+        boolean noMaxConditions = conditions.values().stream().noneMatch(c -> Condition.Type.MAX == c.type());
+        if (conditions.size() > 0 && noMaxConditions) {
+            validationException = addValidationError(
+                "at least one max_* rollover condition must be set when using min_* conditions",
+                validationException
+            );
+        }
+
         return validationException;
     }
 
@@ -274,12 +316,67 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         this.conditions.put(maxPrimaryShardDocsCondition.name, maxPrimaryShardDocsCondition);
     }
 
+    /**
+     * Adds required condition to check if the index is at least <code>age</code> old
+     */
+    public void addMinIndexAgeCondition(TimeValue age) {
+        MinAgeCondition minAgeCondition = new MinAgeCondition(age);
+        if (this.conditions.containsKey(minAgeCondition.name)) {
+            throw new IllegalArgumentException(minAgeCondition.name + " condition is already set");
+        }
+        this.conditions.put(minAgeCondition.name, minAgeCondition);
+    }
+
+    /**
+     * Adds required condition to check if the index has at least <code>numDocs</code>
+     */
+    public void addMinIndexDocsCondition(long numDocs) {
+        MinDocsCondition minDocsCondition = new MinDocsCondition(numDocs);
+        if (this.conditions.containsKey(minDocsCondition.name)) {
+            throw new IllegalArgumentException(minDocsCondition.name + " condition is already set");
+        }
+        this.conditions.put(minDocsCondition.name, minDocsCondition);
+    }
+
+    /**
+     * Adds a size-based required condition to check if the index size is at least <code>size</code>.
+     */
+    public void addMinIndexSizeCondition(ByteSizeValue size) {
+        MinSizeCondition minSizeCondition = new MinSizeCondition(size);
+        if (this.conditions.containsKey(minSizeCondition.name)) {
+            throw new IllegalArgumentException(minSizeCondition + " condition is already set");
+        }
+        this.conditions.put(minSizeCondition.name, minSizeCondition);
+    }
+
+    /**
+     * Adds a size-based required condition to check if the size of the largest primary shard is at least <code>size</code>.
+     */
+    public void addMinPrimaryShardSizeCondition(ByteSizeValue size) {
+        MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(size);
+        if (this.conditions.containsKey(minPrimaryShardSizeCondition.name)) {
+            throw new IllegalArgumentException(minPrimaryShardSizeCondition + " condition is already set");
+        }
+        this.conditions.put(minPrimaryShardSizeCondition.name, minPrimaryShardSizeCondition);
+    }
+
+    /**
+     * Adds a size-based required condition to check if the docs of the largest primary shard has at least <code>numDocs</code>
+     */
+    public void addMinPrimaryShardDocsCondition(long numDocs) {
+        MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(numDocs);
+        if (this.conditions.containsKey(minPrimaryShardDocsCondition.name)) {
+            throw new IllegalArgumentException(minPrimaryShardDocsCondition.name + " condition is already set");
+        }
+        this.conditions.put(minPrimaryShardDocsCondition.name, minPrimaryShardDocsCondition);
+    }
+
     public boolean isDryRun() {
         return dryRun;
     }
 
     public Map<String, Condition<?>> getConditions() {
-        return conditions;
+        return Collections.unmodifiableMap(conditions);
     }
 
     public String getRolloverTarget() {
@@ -288,6 +385,32 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     public String getNewIndexName() {
         return newIndexName;
+    }
+
+    /**
+     * Given the results of evaluating each individual condition, determine whether the rollover request should proceed -- that is,
+     * whether the conditions are met.
+     *
+     * If there are no conditions at all, then the request is unconditional (i.e. a command), and the conditions are met.
+     *
+     * If the request has conditions, then all min_* conditions and at least one max_* condition must have a true result.
+     *
+     * @param conditionResults a map of individual conditions and their associated evaluation results
+     *
+     * @return where the conditions for rollover are satisfied or not
+     */
+    public boolean areConditionsMet(Map<String, Boolean> conditionResults) {
+        boolean allMinConditionsMet = conditions.values()
+            .stream()
+            .filter(c -> Condition.Type.MIN == c.type())
+            .allMatch(c -> conditionResults.getOrDefault(c.toString(), false));
+
+        boolean anyMaxConditionsMet = conditions.values()
+            .stream()
+            .filter(c -> Condition.Type.MAX == c.type())
+            .anyMatch(c -> conditionResults.getOrDefault(c.toString(), false));
+
+        return conditionResults.size() == 0 || (allMinConditionsMet && anyMaxConditionsMet);
     }
 
     /**

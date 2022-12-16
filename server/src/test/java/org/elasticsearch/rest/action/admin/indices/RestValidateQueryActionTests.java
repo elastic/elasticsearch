@@ -31,6 +31,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentType;
@@ -54,7 +55,14 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private UsageService usageService = new UsageService();
-    private RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
+    private RestController controller = new RestController(
+        emptySet(),
+        null,
+        client,
+        new NoneCircuitBreakerService(),
+        usageService,
+        Tracer.NOOP
+    );
     private RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**

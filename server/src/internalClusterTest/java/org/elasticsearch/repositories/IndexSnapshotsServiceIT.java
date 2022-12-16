@@ -59,7 +59,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 assertThat(repositoryException, is(notNullValue()));
                 assertThat(
                     repositoryException.getMessage(),
-                    equalTo(String.format(Locale.ROOT, "[%s] Unable to find the latest snapshot for shard [[idx][0]]", repository))
+                    equalTo(formatted("[%s] Unable to find the latest snapshot for shard [[idx][0]]", repository))
                 );
             }
         } else {
@@ -133,7 +133,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 indexRandomDocs(indexName2, 10);
             }
             final List<String> snapshotIndices = randomSubsetOf(indices);
-            final SnapshotInfo snapshotInfo = createSnapshot(repoName, String.format(Locale.ROOT, "snap-%03d", i), snapshotIndices);
+            final SnapshotInfo snapshotInfo = createSnapshot(repoName, formatted("snap-%03d", i), snapshotIndices);
             if (snapshotInfo.indices().contains(indexName)) {
                 lastSnapshot = snapshotInfo;
                 ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().execute().actionGet();
@@ -206,10 +206,10 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithContent(indexName);
 
         int snapshotIdx = 0;
-        createSnapshot(failingRepoName, String.format(Locale.ROOT, "snap-%03d", snapshotIdx++), Collections.singletonList(indexName));
+        createSnapshot(failingRepoName, formatted("snap-%03d", snapshotIdx++), Collections.singletonList(indexName));
         SnapshotInfo latestSnapshot = null;
         for (String workingRepoName : workingRepoNames) {
-            String snapshot = String.format(Locale.ROOT, "snap-%03d", snapshotIdx++);
+            String snapshot = formatted("snap-%03d", snapshotIdx++);
             latestSnapshot = createSnapshot(workingRepoName, snapshot, Collections.singletonList(indexName));
         }
 
@@ -264,7 +264,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         int snapshotIdx = 0;
         SnapshotInfo expectedLatestSnapshot = null;
         for (String repository : repositories) {
-            String snapshot = String.format(Locale.ROOT, "snap-%03d", snapshotIdx++);
+            String snapshot = formatted("snap-%03d", snapshotIdx++);
             expectedLatestSnapshot = createSnapshot(repository, snapshot, Collections.singletonList(indexName));
         }
 

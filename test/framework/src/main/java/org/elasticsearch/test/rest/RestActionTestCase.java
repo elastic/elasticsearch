@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
@@ -39,7 +40,14 @@ public abstract class RestActionTestCase extends ESTestCase {
     @Before
     public void setUpController() {
         verifyingClient = new VerifyingClient(this.getTestName());
-        controller = new RestController(Collections.emptySet(), null, verifyingClient, new NoneCircuitBreakerService(), new UsageService());
+        controller = new RestController(
+            Collections.emptySet(),
+            null,
+            verifyingClient,
+            new NoneCircuitBreakerService(),
+            new UsageService(),
+            Tracer.NOOP
+        );
     }
 
     @After

@@ -21,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -71,7 +72,8 @@ public class MockTransport extends StubbableTransport {
             localNodeFactory,
             clusterSettings,
             connectionManager,
-            new TaskManager(settings, threadPool, taskHeaders)
+            new TaskManager(settings, threadPool, taskHeaders),
+            Tracer.NOOP
         );
     }
 
@@ -87,8 +89,7 @@ public class MockTransport extends StubbableTransport {
      */
     @SuppressWarnings("unchecked")
     public <Response extends TransportResponse> void handleResponse(final long requestId, final Response response) {
-        final TransportResponseHandler<Response> transportResponseHandler = (TransportResponseHandler<Response>) getResponseHandlers()
-            .onResponseReceived(requestId, listener);
+        final TransportResponseHandler<Response> transportResponseHandler = getTransportResponseHandler(requestId);
         if (transportResponseHandler != null) {
             final Response deliveredResponse;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -98,8 +99,14 @@ public class MockTransport extends StubbableTransport {
                 );
             } catch (IOException | UnsupportedOperationException e) {
                 throw new AssertionError("failed to serialize/deserialize response " + response, e);
+            } finally {
+                response.decRef();
             }
-            transportResponseHandler.handleResponse(deliveredResponse);
+            try {
+                transportResponseHandler.handleResponse(deliveredResponse);
+            } finally {
+                deliveredResponse.decRef();
+            }
         }
     }
 
@@ -152,10 +159,15 @@ public class MockTransport extends StubbableTransport {
      * @param e         the failure
      */
     public void handleError(final long requestId, final TransportException e) {
-        final TransportResponseHandler<?> transportResponseHandler = getResponseHandlers().onResponseReceived(requestId, listener);
+        final TransportResponseHandler<?> transportResponseHandler = getTransportResponseHandler(requestId);
         if (transportResponseHandler != null) {
             transportResponseHandler.handleException(e);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends TransportResponse> TransportResponseHandler<T> getTransportResponseHandler(long requestId) {
+        return (TransportResponseHandler<T>) getResponseHandlers().onResponseReceived(requestId, listener);
     }
 
     public Connection createConnection(DiscoveryNode node) {

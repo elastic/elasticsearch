@@ -85,7 +85,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 .build(false);
             authentication.writeToContext(threadContext);
             IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
-            threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+            when(indicesAccessControl.isGranted()).thenReturn(true);
+            new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(indicesAccessControl);
 
             SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
             listener.onNewScrollContext(readerContext);
@@ -128,7 +129,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 
             SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
-            try (StoredContext ignore = threadContext.newStoredContext(false)) {
+            try (StoredContext ignore = threadContext.newStoredContext()) {
                 Authentication authentication = AuthenticationTestHelper.builder()
                     .user(new User("test", "role"))
                     .realmRef(new RealmRef("realm", "file", "node"))
@@ -139,7 +140,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 verifyNoMoreInteractions(auditTrail);
             }
 
-            try (StoredContext ignore = threadContext.newStoredContext(false)) {
+            try (StoredContext ignore = threadContext.newStoredContext()) {
                 final String nodeName = randomAlphaOfLengthBetween(1, 8);
                 final String realmName = randomAlphaOfLengthBetween(1, 16);
                 Authentication authentication = AuthenticationTestHelper.builder()
@@ -152,7 +153,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 verifyNoMoreInteractions(auditTrail);
             }
 
-            try (StoredContext ignore = threadContext.newStoredContext(false)) {
+            try (StoredContext ignore = threadContext.newStoredContext()) {
                 final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
                 final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
                 final String type = randomAlphaOfLengthBetween(5, 16);
@@ -164,7 +165,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
                 threadContext.putTransient(
                     AUTHORIZATION_INFO_KEY,
-                    (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles())
+                    (AuthorizationInfo) () -> Collections.singletonMap(
+                        PRINCIPAL_ROLES_FIELD_NAME,
+                        authentication.getEffectiveSubject().getUser().roles()
+                    )
                 );
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
                 SearchContextMissingException expected = expectThrows(
@@ -178,12 +182,12 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     eq(authentication),
                     eq("action"),
                     eq(request),
-                    authzInfoRoles(authentication.getUser().roles())
+                    authzInfoRoles(authentication.getEffectiveSubject().getUser().roles())
                 );
             }
 
             // another user running as the original user
-            try (StoredContext ignore = threadContext.newStoredContext(false)) {
+            try (StoredContext ignore = threadContext.newStoredContext()) {
                 final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
                 final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
                 final String type = randomAlphaOfLengthBetween(5, 16);
@@ -203,7 +207,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             }
 
             // the user that authenticated for the run as request
-            try (StoredContext ignore = threadContext.newStoredContext(false)) {
+            try (StoredContext ignore = threadContext.newStoredContext()) {
                 final String nodeName = randomBoolean() ? "node" : randomAlphaOfLengthBetween(1, 8);
                 final String realmName = randomBoolean() ? "realm" : randomAlphaOfLengthBetween(1, 16);
                 final String type = randomAlphaOfLengthBetween(5, 16);
@@ -215,7 +219,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
                 threadContext.putTransient(
                     AUTHORIZATION_INFO_KEY,
-                    (AuthorizationInfo) () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getUser().roles())
+                    (AuthorizationInfo) () -> Collections.singletonMap(
+                        PRINCIPAL_ROLES_FIELD_NAME,
+                        authentication.getEffectiveSubject().getUser().roles()
+                    )
                 );
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
                 SearchContextMissingException expected = expectThrows(
@@ -229,7 +236,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     eq(authentication),
                     eq("action"),
                     eq(request),
-                    authzInfoRoles(authentication.getUser().roles())
+                    authzInfoRoles(authentication.getEffectiveSubject().getUser().roles())
                 );
             }
         }

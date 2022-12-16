@@ -21,6 +21,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(project(path: xpackModule('core')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  compileOnly project(path: xpackModule('ilm'))
 }
 
 testClusters.configureEach {

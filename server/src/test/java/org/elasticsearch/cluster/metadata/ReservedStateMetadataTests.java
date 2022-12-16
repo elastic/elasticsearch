@@ -75,6 +75,11 @@ public class ReservedStateMetadataTests extends ESTestCase {
         xContentTest(false, false);
     }
 
+    public void testReservedStateVersionWithError() {
+        final ReservedStateMetadata meta = createRandom(false, true);
+        assertEquals(-1L, meta.version().longValue());
+    }
+
     private static ReservedStateMetadata createRandom(boolean addHandlers, boolean addErrors) {
         List<ReservedStateHandlerMetadata> handlers = randomList(
             0,

@@ -10,7 +10,7 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene93.Lucene93Codec;
+import org.apache.lucene.codecs.lucene94.Lucene94Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -19,6 +19,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -41,21 +42,21 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene93Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene94Codec.class));
     }
 
     public void testDefault() throws Exception {
         Codec codec = createCodecService().codec("default");
-        assertStoredFieldsCompressionEquals(Lucene93Codec.Mode.BEST_SPEED, codec);
+        assertStoredFieldsCompressionEquals(Lucene94Codec.Mode.BEST_SPEED, codec);
     }
 
     public void testBestCompression() throws Exception {
         Codec codec = createCodecService().codec("best_compression");
-        assertStoredFieldsCompressionEquals(Lucene93Codec.Mode.BEST_COMPRESSION, codec);
+        assertStoredFieldsCompressionEquals(Lucene94Codec.Mode.BEST_COMPRESSION, codec);
     }
 
     // write some docs with it, inspect .si to see this was the used compression
-    private void assertStoredFieldsCompressionEquals(Lucene93Codec.Mode expected, Codec actual) throws Exception {
+    private void assertStoredFieldsCompressionEquals(Lucene94Codec.Mode expected, Codec actual) throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(null);
         iwc.setCodec(actual);
@@ -67,7 +68,7 @@ public class CodecTests extends ESTestCase {
         SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
         String v = sr.getSegmentInfo().info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
-        assertEquals(expected, Lucene93Codec.Mode.valueOf(v));
+        assertEquals(expected, Lucene94Codec.Mode.valueOf(v));
         ir.close();
         dir.close();
     }
@@ -90,10 +91,10 @@ public class CodecTests extends ESTestCase {
             similarityService,
             mapperRegistry,
             () -> null,
-            settings.getMode().buildNoFieldDataIdFieldMapper(),
+            settings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE
         );
-        return new CodecService(service);
+        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
 }

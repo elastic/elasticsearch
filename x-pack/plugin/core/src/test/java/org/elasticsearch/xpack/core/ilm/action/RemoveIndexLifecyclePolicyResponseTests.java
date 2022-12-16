@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ilm.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction.Response;
 
@@ -18,7 +18,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class RemoveIndexLifecyclePolicyResponseTests extends AbstractSerializingTestCase<Response> {
+public class RemoveIndexLifecyclePolicyResponseTests extends AbstractXContentSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {

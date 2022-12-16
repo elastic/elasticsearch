@@ -75,7 +75,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     @Override
     protected String configRoles() {
         // The definition of TEST_ROLE here is intentionally different than the definition in the superclass.
-        return """
+        return formatted("""
             %s:
               cluster: [ all ]
               indices:
@@ -105,7 +105,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
               indices:
                 - names: 'b'
                   privileges: [all]
-            """.formatted(SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
+            """, SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
     }
 
     @Override

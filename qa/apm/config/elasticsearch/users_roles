@@ -1,0 +1,13 @@
+apm_server:apm_server_user
+apm_system:apm_server_user
+apm_user:apm_server_user,apm_user_ro
+beats:beats_user
+beats_system:beats_user,filebeat_user,heartbeat_user,metricbeat_user
+filebeat:filebeat_user
+heartbeat:heartbeat_user
+ingest_admin:apm_server_user
+kibana_system:kibana_system_user
+kibana_user:apm_server_user,apm_user_ro,beats_user,filebeat_user,heartbeat_user,metricbeat_user,opbeans_user
+metricbeat:metricbeat_user
+opbeans:opbeans_user
+superuser:admin

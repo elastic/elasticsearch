@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health.metadata;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -18,22 +19,23 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.core.Tuple;
 
 import java.util.List;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
 import static org.elasticsearch.health.node.selection.HealthNodeTaskExecutor.ENABLED_SETTING;
 
@@ -57,11 +59,20 @@ public class HealthMetadataService {
     // us from checking the cluster state before the cluster state is initialized
     private volatile boolean isMaster = false;
 
-    public HealthMetadataService(ClusterService clusterService, Settings settings) {
+    private HealthMetadataService(ClusterService clusterService, Settings settings) {
         this.clusterService = clusterService;
         this.settings = settings;
         this.clusterStateListener = this::updateOnClusterStateChange;
         this.enabled = ENABLED_SETTING.get(settings);
+    }
+
+    public static HealthMetadataService create(ClusterService clusterService, Settings settings) {
+        HealthMetadataService healthMetadataService = new HealthMetadataService(clusterService, settings);
+        healthMetadataService.registerListeners();
+        return healthMetadataService;
+    }
+
+    private void registerListeners() {
         if (this.enabled) {
             this.clusterService.addListener(clusterStateListener);
         }
@@ -69,15 +80,18 @@ public class HealthMetadataService {
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
-            value -> updateOnSettingsUpdated(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), value)
+            value -> updateOnSettingsUpdated(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), value.getStringRep())
         );
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
-            value -> updateOnSettingsUpdated(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), value)
+            value -> updateOnSettingsUpdated(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), value.getStringRep())
         );
         clusterSettings.addSettingsUpdateConsumer(
-            CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING,
-            value -> updateOnSettingsUpdated(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.getKey(), value.getStringRep())
+            CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING,
+            value -> updateOnSettingsUpdated(
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey(),
+                value.getStringRep()
+            )
         );
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
@@ -87,6 +101,17 @@ public class HealthMetadataService {
             )
         );
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING,
+            value -> updateOnSettingsUpdated(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), value.getStringRep())
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING,
+            value -> updateOnSettingsUpdated(
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(),
+                value.getStringRep()
+            )
+        );
     }
 
     private void enable(boolean enabled) {
@@ -108,8 +133,8 @@ public class HealthMetadataService {
         } else if (isMaster == false) {
             readyToPublish = false;
         }
-        // Wait until every node in the cluster is upgraded to 8.4.0 or later
-        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
+        // Wait until every node in the cluster is upgraded to 8.5.0 or later
+        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
             if (readyToPublish) {
                 resetHealthMetadata("health-metadata-update-master-election");
                 readyToPublish = false;
@@ -121,7 +146,7 @@ public class HealthMetadataService {
         // We do not use the cluster state to check if this is the master node because the cluster state might not have been initialized
         if (isMaster && enabled) {
             ClusterState clusterState = clusterService.state();
-            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
+            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
                 var task = new UpdateHealthMetadata(setting, value);
                 var config = ClusterStateTaskConfig.build(Priority.NORMAL);
                 clusterService.submitStateUpdateTask("health-metadata-update", task, config, executor);
@@ -135,15 +160,9 @@ public class HealthMetadataService {
         clusterService.submitStateUpdateTask(source, task, config, executor);
     }
 
-    public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
-        return List.of(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(HealthMetadata.TYPE), HealthMetadata::fromXContent)
-        );
-    }
-
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, HealthMetadata.TYPE, HealthMetadata::new),
+            new NamedWriteableRegistry.Entry(ClusterState.Custom.class, HealthMetadata.TYPE, HealthMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, HealthMetadata.TYPE, HealthMetadata::readDiffFrom)
         );
     }
@@ -154,29 +173,25 @@ public class HealthMetadataService {
     abstract static class UpsertHealthMetadataTask implements ClusterStateTaskListener {
 
         @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "never called";
-        }
-
-        @Override
         public void onFailure(@Nullable Exception e) {
-            logger.error("failure during health metadata update", e);
+            logger.log(
+                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                () -> "failure during health metadata update",
+                e
+            );
         }
 
         abstract ClusterState execute(ClusterState currentState);
 
-        static class Executor implements ClusterStateTaskExecutor<UpsertHealthMetadataTask> {
+        static class Executor extends SimpleBatchedExecutor<UpsertHealthMetadataTask, Void> {
 
             @Override
-            public ClusterState execute(ClusterState currentState, List<TaskContext<UpsertHealthMetadataTask>> taskContexts)
-                throws Exception {
-                ClusterState updatedState = currentState;
-                for (TaskContext<UpsertHealthMetadataTask> taskContext : taskContexts) {
-                    updatedState = taskContext.getTask().execute(updatedState);
-                    taskContext.success(() -> {});
-                }
-                return updatedState;
+            public Tuple<ClusterState, Void> executeTask(UpsertHealthMetadataTask task, ClusterState clusterState) {
+                return Tuple.tuple(task.execute(clusterState), null);
             }
+
+            @Override
+            public void taskSucceeded(UpsertHealthMetadataTask task, Void unused) {}
         }
     }
 
@@ -194,7 +209,7 @@ public class HealthMetadataService {
 
         @Override
         ClusterState execute(ClusterState clusterState) {
-            HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
+            HealthMetadata initialHealthMetadata = HealthMetadata.getFromClusterState(clusterState);
             assert initialHealthMetadata != null : "health metadata should have been initialized";
             HealthMetadata.Disk.Builder builder = HealthMetadata.Disk.newBuilder(initialHealthMetadata.getDiskMetadata());
             if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey().equals(setting)) {
@@ -203,16 +218,22 @@ public class HealthMetadataService {
             if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey().equals(setting)) {
                 builder.floodStageWatermark(value, setting);
             }
-            if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey().equals(setting)) {
+            if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey().equals(setting)) {
                 builder.frozenFloodStageWatermark(value, setting);
             }
             if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey().equals(setting)) {
                 builder.frozenFloodStageMaxHeadroom(value, setting);
             }
+            if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey().equals(setting)) {
+                builder.highMaxHeadroom(value, setting);
+            }
+            if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey().equals(setting)) {
+                builder.floodStageMaxHeadroom(value, setting);
+            }
             final var finalHealthMetadata = new HealthMetadata(builder.build());
             return finalHealthMetadata.equals(initialHealthMetadata)
                 ? clusterState
-                : clusterState.copyAndUpdateMetadata(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
+                : clusterState.copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
         }
     }
 
@@ -230,24 +251,20 @@ public class HealthMetadataService {
 
         @Override
         ClusterState execute(ClusterState clusterState) {
-            HealthMetadata initialHealthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
+            HealthMetadata initialHealthMetadata = HealthMetadata.getFromClusterState(clusterState);
             final var finalHealthMetadata = new HealthMetadata(
                 new HealthMetadata.Disk(
-                    RelativeByteSizeValue.parseRelativeByteSizeValue(
-                        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
-                        CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
-                    ),
-                    RelativeByteSizeValue.parseRelativeByteSizeValue(
-                        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings),
-                        CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()
-                    ),
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.get(settings),
+                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings),
+                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.get(settings),
+                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings),
+                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.get(settings),
+                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.get(settings),
                     CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings)
                 )
             );
             return finalHealthMetadata.equals(initialHealthMetadata)
                 ? clusterState
-                : clusterState.copyAndUpdateMetadata(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
+                : clusterState.copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, finalHealthMetadata));
         }
     }
 }

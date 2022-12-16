@@ -177,10 +177,14 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             public void collect(int doc, long bucket) throws IOException {
                 if (dvs.advanceExact(doc)) {
                     int num = dvs.docValueCount();
+                    long previous = Long.MAX_VALUE;
                     for (int i = 0; i < num; i++) {
                         currentValue = dvs.nextValue();
                         missingCurrentValue = false;
-                        next.collect(doc, bucket);
+                        if (i == 0 || previous != currentValue) {
+                            next.collect(doc, bucket);
+                            previous = currentValue;
+                        }
                     }
                 } else if (missingBucket) {
                     missingCurrentValue = true;

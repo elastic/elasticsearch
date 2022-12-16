@@ -25,6 +25,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ProcrunCommandTests extends WindowsServiceCliTestCase {
 
+    public ProcrunCommandTests(boolean spaceInPath) {
+        super(spaceInPath);
+    }
+
     PreExecuteHook preExecuteHook;
     boolean includeLogArgs;
     String additionalArgs;

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -83,7 +84,7 @@ public class ReloadAnalyzersResponse extends BroadcastResponse {
         "reload_analyzer",
         true,
         arg -> {
-            BroadcastResponse response = (BroadcastResponse) arg[0];
+            BaseBroadcastResponse response = (BaseBroadcastResponse) arg[0];
             List<ReloadDetails> results = (List<ReloadDetails>) arg[1];
             Map<String, ReloadDetails> reloadedNodeIds = new HashMap<>();
             for (ReloadDetails result : results) {

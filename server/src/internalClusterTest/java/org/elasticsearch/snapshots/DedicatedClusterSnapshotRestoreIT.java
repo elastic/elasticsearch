@@ -1192,7 +1192,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(admin().indices().prepareDelete(indexName));
 
         for (Future<Void> future : futures) {
-            future.get();
+            future.get(30, TimeUnit.SECONDS);
         }
 
         logger.info("--> restore snapshot 1");

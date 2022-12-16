@@ -79,6 +79,10 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     'unsigned_long/50_script_values/script_score query',
     'unsigned_long/50_script_values/Script query',
     'data_stream/140_data_stream_aliases/Fix IndexNotFoundException error when handling remove alias action',
+    'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with time series mappings',
+    'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with wrong time series mappings',
+    'analytics/histogram/histogram with wrong time series mappings',
+    'analytics/histogram/histogram with time series mappings',
   ].join(',')
 }
 
@@ -105,6 +109,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     "roles/30_prohibited_role_query/Test use prohibited query inside role query",
     "put role request with a term lookup (deprecated) and type. Requires validation in REST layer"
   )
+  task.skipTest("ml/jobs_crud/Test update job", "Behaviour change #89824 - added limit filter to categorization analyzer")
   task.skipTest("ml/jobs_crud/Test create job with delimited format", "removing undocumented functionality")
   task.skipTest("ml/datafeeds_crud/Test update datafeed to point to missing job", "behaviour change #44752 - not allowing to update datafeed job_id")
   task.skipTest(
@@ -142,6 +147,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("indices.freeze/10_basic/Basic", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Test index options", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("sql/sql/Paging through results", "scrolling through search hit queries no longer produces empty last page in 8.2")
+  task.skipTest("sql/translate/Translate SQL", "query folding changed in v 8.5, added track_total_hits: -1")
   task.skipTest("service_accounts/10_basic/Test get service accounts", "new service accounts are added")
   task.skipTest("spatial/70_script_doc_values/diagonal length", "precision changed in 8.4.0")
 
@@ -155,6 +161,18 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     'bad_request',
     '/It is no longer possible to freeze indices, but existing frozen indices can still be unfrozen/',
     "Cannot freeze write index for data stream"
+  )
+
+  task.replaceValueInMatch(
+    "error.reason",
+    "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1] with effective roles [user_role], this action is granted by the cluster privileges [manage_api_key,manage_security,all]",
+    "Test invalidate api key by realm name"
+  )
+
+  task.replaceValueInMatch(
+    "error.reason",
+    "action [cluster:admin/xpack/security/api_key/invalidate] is unauthorized for user [api_key_user_1] with effective roles [user_role], this action is granted by the cluster privileges [manage_api_key,manage_security,all]",
+    "Test invalidate api key by username"
   )
 }
 

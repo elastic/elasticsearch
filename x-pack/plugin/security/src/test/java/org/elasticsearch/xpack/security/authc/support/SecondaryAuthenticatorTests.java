@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -64,6 +65,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -122,6 +124,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = ClusterState.EMPTY_STATE;
         when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD)));
 
         securityContext = new SecurityContext(settings, threadContext);
 
@@ -163,7 +166,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     }
 
     public void testAuthenticateTransportRequestIsANoOpIfHeaderIsMissing() throws Exception {
-        final TransportRequest request = new AuthenticateRequest();
+        final TransportRequest request = AuthenticateRequest.INSTANCE;
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
@@ -181,7 +184,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
     public void testAuthenticateTransportRequestFailsIfHeaderHasUnrecognizedCredentials() throws Exception {
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Fake " + randomAlphaOfLengthBetween(5, 30));
-        final TransportRequest request = new AuthenticateRequest();
+        final TransportRequest request = AuthenticateRequest.INSTANCE;
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
@@ -211,7 +214,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
     public void testAuthenticateTransportRequestSucceedsWithBasicAuthentication() throws Exception {
         assertAuthenticateWithBasicAuthentication(listener -> {
-            final TransportRequest request = new AuthenticateRequest();
+            final TransportRequest request = AuthenticateRequest.INSTANCE;
             authenticator.authenticate(AuthenticateAction.NAME, request, listener);
         });
     }
@@ -239,15 +242,15 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         final AtomicReference<ThreadContext.StoredContext> listenerContext = new AtomicReference<>();
         consumer.accept(ActionListener.wrap(result -> {
-            listenerContext.set(securityContext.getThreadContext().newStoredContext(false));
+            listenerContext.set(securityContext.getThreadContext().newStoredContext());
             future.onResponse(result);
         }, e -> future.onFailure(e)));
 
         final SecondaryAuthentication secondaryAuthentication = future.get(0, TimeUnit.MILLISECONDS);
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
-        assertThat(secondaryAuthentication.getAuthentication().getUser().principal(), equalTo(user));
-        assertThat(secondaryAuthentication.getAuthentication().getAuthenticatedBy().getName(), equalTo(realm.name()));
+        assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser().principal(), equalTo(user));
+        assertThat(secondaryAuthentication.getAuthentication().getAuthenticatingSubject().getRealm().getName(), equalTo(realm.name()));
 
         listenerContext.get().restore();
         return secondaryAuthentication;
@@ -255,7 +258,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
     public void testAuthenticateTransportRequestFailsWithIncorrectPassword() throws Exception {
         assertAuthenticateWithIncorrectPassword(listener -> {
-            final TransportRequest request = new AuthenticateRequest();
+            final TransportRequest request = AuthenticateRequest.INSTANCE;
             authenticator.authenticate(AuthenticateAction.NAME, request, listener);
         });
     }
@@ -282,7 +285,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         final AtomicReference<ThreadContext.StoredContext> listenerContext = new AtomicReference<>();
         consumer.accept(ActionListener.wrap(future::onResponse, e -> {
-            listenerContext.set(securityContext.getThreadContext().newStoredContext(false));
+            listenerContext.set(securityContext.getThreadContext().newStoredContext());
             future.onFailure(e);
         }));
 
@@ -319,14 +322,14 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         SecurityMocks.mockGetRequest(client, SecuritySystemIndices.SECURITY_TOKENS_ALIAS, tokenDocId.get(), tokenSource.get());
 
-        final TransportRequest request = new AuthenticateRequest();
+        final TransportRequest request = AuthenticateRequest.INSTANCE;
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
         final SecondaryAuthentication secondaryAuthentication = future.actionGet(0, TimeUnit.MILLISECONDS);
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
-        assertThat(secondaryAuthentication.getAuthentication().getUser(), equalTo(user));
+        assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser(), equalTo(user));
         assertThat(secondaryAuthentication.getAuthentication().getAuthenticationType(), equalTo(AuthenticationType.TOKEN));
     }
 

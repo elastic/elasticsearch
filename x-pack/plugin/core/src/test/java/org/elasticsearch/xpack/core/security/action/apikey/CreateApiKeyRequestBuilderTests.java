@@ -27,7 +27,7 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
 
     public void testParserAndCreateApiRequestBuilder() throws IOException {
         boolean withExpiration = randomBoolean();
-        final String json = """
+        final String json = formatted("""
             {
               "name": "my-api-key",
               %s
@@ -51,7 +51,7 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
                   ]
                 }
               }
-            }""".formatted(withExpiration ? """
+            }""", withExpiration ? """
             "expiration": "1d",""" : "");
         final BytesArray source = new BytesArray(json);
         final NodeClient mockClient = mock(NodeClient.class);

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -52,7 +53,6 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
 
     protected abstract ClusterState doExecute(ClusterState currentState) throws Exception;
 
-    @Override
     public final void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         listener.onResponse(null);
         if (executed) {
@@ -76,9 +76,9 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
     }
 
     /**
-     * This method is functionally the same as {@link ClusterStateTaskListener#clusterStateProcessed(ClusterState, ClusterState)}
+     * This method is functionally the same as {@link ClusterStateUpdateTask#clusterStateProcessed}
      * and implementations can override it as they would override {@code ClusterStateUpdateTask#clusterStateProcessed}.
-     * The only difference to  {@code ClusterStateUpdateTask#clusterStateProcessed} is that if the {@link #execute(ClusterState)}
+     * The only difference to  {@link ClusterStateUpdateTask#clusterStateProcessed} is that if the {@link #execute(ClusterState)}
      * implementation was a noop and returned the input cluster state, then this method will not be invoked.
      */
     protected void onClusterStateProcessed(ClusterState newState) {}

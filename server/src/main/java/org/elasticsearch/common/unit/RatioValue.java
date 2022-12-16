@@ -65,12 +65,10 @@ public class RatioValue {
     }
 
     /**
-     * Formats the input to a string with no trailing zeros and the '%' suffix.
-     * Note: this is not converting a ratio to a percentage. The input 0.75 will
-     * be formatted as 0.75%.
+     * Returns the percent as a string with no trailing zeros and the '%' suffix.
      */
-    public static String formatNoTrailingZerosPercent(double percent) {
-        String value = String.valueOf(percent);
+    public String formatNoTrailingZerosPercent() {
+        String value = String.valueOf(getAsPercent());
         int i = value.length() - 1;
         while (i >= 0 && value.charAt(i) == '0') {
             i--;

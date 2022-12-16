@@ -281,7 +281,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 .or(containsString("Read timed out"))
                 .or(containsString("unexpected end of file from server"))
         );
-        assertThat(exception.getSuppressed().length, equalTo(maxRetries));
+        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries));
+    }
+
+    protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
+        return equalTo(maxRetries);
     }
 
     public void testReadBlobWithNoHttpResponse() {
@@ -330,7 +334,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 containsString("premature end of content-length delimited message body")
             ).or(containsString("connection closed prematurely"))
         );
-        assertThat(exception.getSuppressed().length, equalTo(Math.min(10, maxRetries)));
+        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(Math.min(10, maxRetries)));
     }
 
     protected static byte[] randomBlobContent() {

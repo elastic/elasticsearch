@@ -337,7 +337,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
-        blobContainer.writeBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
+        blobContainer.writeMetadataBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
             int outstanding = data.length;
             while (outstanding > 0) {
                 if (randomBoolean()) {

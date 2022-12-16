@@ -164,7 +164,7 @@ public class ServiceAccountService {
     // TODO: No production code usage
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert authentication.isAuthenticatedWithServiceAccount() : "authentication is not for service account: " + authentication;
-        final String principal = authentication.getUser().principal();
+        final String principal = authentication.getEffectiveSubject().getUser().principal();
         getRoleDescriptorForPrincipal(principal, listener);
     }
 

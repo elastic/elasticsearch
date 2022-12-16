@@ -59,16 +59,17 @@ public class QlStatusResponseTests extends AbstractWireSerializingTestCase<QlSta
     public void testToXContent() throws IOException {
         QlStatusResponse response = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            String expectedJson = """
-                {
-                  "id" : "%s",
-                  "is_running" : %s,
-                  "is_partial" : %s,
-                  %s
-                  "expiration_time_in_millis" : %s
-                  %s
-                }
-                """.formatted(
+            String expectedJson = formatted(
+                """
+                    {
+                      "id" : "%s",
+                      "is_running" : %s,
+                      "is_partial" : %s,
+                      %s
+                      "expiration_time_in_millis" : %s
+                      %s
+                    }
+                    """,
                 response.getId(),
                 response.isRunning(),
                 response.isPartial(),

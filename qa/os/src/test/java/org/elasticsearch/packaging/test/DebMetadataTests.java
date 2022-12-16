@@ -15,6 +15,7 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
@@ -41,7 +42,7 @@ public class DebMetadataTests extends PackagingTestCase {
                 extraArgs += " --suppress-tags malformed-override,mismatched-override";
             }
         }
-        sh.run("lintian %s %s".formatted(extraArgs, FileUtils.getDistributionFile(distribution())));
+        sh.run(String.format(Locale.ROOT, "lintian %s %s", extraArgs, FileUtils.getDistributionFile(distribution())));
     }
 
     public void test06Dependencies() {

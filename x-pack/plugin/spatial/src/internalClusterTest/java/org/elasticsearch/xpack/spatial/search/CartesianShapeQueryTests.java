@@ -19,4 +19,9 @@ public class CartesianShapeQueryTests extends CartesianShapeQueryTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singleton(LocalStateSpatialPlugin.class);
     }
+
+    @Override
+    public void testQueryRandomGeoCollection() throws Exception {
+        super.testQueryRandomGeoCollection();
+    }
 }

@@ -29,9 +29,7 @@ import org.elasticsearch.test.MockLogAppender;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystemException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
@@ -42,11 +40,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Create a simple "daemon controller", put it in the right place and check that it runs.
@@ -311,12 +306,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             spawner.spawnNativeControllers(environment);
         } else {
             // we do not ignore these files on non-macOS systems
-            final FileSystemException e = expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment));
-            if (Constants.WINDOWS) {
-                assertThat(e, instanceOf(NoSuchFileException.class));
-            } else {
-                assertThat(e, hasToString(containsString("Not a directory")));
-            }
+            var e = expectThrows(IllegalStateException.class, () -> spawner.spawnNativeControllers(environment));
+            assertThat(e.getMessage(), equalTo("Plugin [.DS_Store] is missing a descriptor properties file."));
         }
     }
 

@@ -18,9 +18,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -246,13 +244,14 @@ public class GoogleCloudStorageClientSettings {
      *         {@code null} if no service account is defined.
      */
     static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName) {
+        final var credentialsFileSetting = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName);
         try {
-            if (CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).exists(settings) == false) {
+            if (credentialsFileSetting.exists(settings) == false) {
                 // explicitly returning null here so that the default credential
                 // can be loaded later when creating the Storage client
                 return null;
             }
-            try (InputStream credStream = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).get(settings)) {
+            try (InputStream credStream = credentialsFileSetting.get(settings)) {
                 final Collection<String> scopes = Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL);
                 return SocketAccess.doPrivilegedIOException(() -> {
                     final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream);
@@ -262,8 +261,8 @@ public class GoogleCloudStorageClientSettings {
                     return credentials;
                 });
             }
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
+        } catch (final Exception e) {
+            throw new IllegalArgumentException("failed to load GCS client credentials from [" + credentialsFileSetting.getKey() + "]", e);
         }
     }
 

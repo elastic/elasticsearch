@@ -1,9 +1,9 @@
 // ensure branch scenario is listed first as this is the gradle version that will picked for inspecting the build
-default-scenarios = ["precommit_branch", "precommit_master"]
+default-scenarios = ["precommit_branch", "precommit_main"]
 
-precommit_master {
-    title = "precommit (master)"
-    versions = ["@masterWrapper@"]
+precommit_main {
+    title = "precommit (main)"
+    versions = ["@mainWrapper@"]
     cleanup-tasks = ["clean"]
     tasks = ["precommit"]
     gradle-args = ["--no-scan", "--no-build-cache", "--stacktrace"]
@@ -15,7 +15,7 @@ precommit_master {
         "BUILD_PERFORMANCE_TEST" = "true"
     }
     git-checkout = {
-        build = "master"
+        build = "main"
     }
 }
 

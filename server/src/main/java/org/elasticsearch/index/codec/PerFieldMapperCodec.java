@@ -13,8 +13,13 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene93.Lucene93Codec;
+import org.apache.lucene.codecs.lucene94.Lucene94Codec;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -27,28 +32,52 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * per index in real time via the mapping API. If no specific postings format or vector format is
  * configured for a specific field the default postings or vector format is used.
  */
-public class PerFieldMapperCodec extends Lucene93Codec {
-    private final MapperService mapperService;
+public class PerFieldMapperCodec extends Lucene94Codec {
 
+    private final MapperService mapperService;
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
+    private final ES85BloomFilterPostingsFormat bloomFilterPostingsFormat;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
-            : "PerFieldMapperCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
+            : "PerFieldMapperCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService) {
+    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
         super(compressionMode);
         this.mapperService = mapperService;
+        this.bloomFilterPostingsFormat = new ES85BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
     }
 
     @Override
     public PostingsFormat getPostingsFormatForField(String field) {
-        PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
-        if (format == null) {
-            return super.getPostingsFormatForField(field);
+        if (useBloomFilter(field)) {
+            return bloomFilterPostingsFormat;
         }
-        return format;
+        return internalGetPostingsFormatForField(field);
+    }
+
+    private PostingsFormat internalGetPostingsFormatForField(String field) {
+        final PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
+        if (format != null) {
+            return format;
+        }
+        return super.getPostingsFormatForField(field);
+    }
+
+    boolean useBloomFilter(String field) {
+        IndexSettings indexSettings = mapperService.getIndexSettings();
+        if (mapperService.mappingLookup().isDataStreamTimestampFieldEnabled()) {
+            // In case for time series indices, they _id isn't randomly generated,
+            // but based on dimension fields and timestamp field, so during indexing
+            // version/seq_no/term needs to be looked up and having a bloom filter
+            // can speed this up significantly.
+            return indexSettings.getMode() == IndexMode.TIME_SERIES
+                && IdFieldMapper.NAME.equals(field)
+                && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
+        } else {
+            return IdFieldMapper.NAME.equals(field) && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
+        }
     }
 
     @Override

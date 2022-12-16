@@ -91,9 +91,6 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public boolean hasMetric(String name) {
-        if (size != 1) {
-            throw new IllegalArgumentException("[top_metrics] can only the be target if [size] is [1] but was [" + size + "]");
-        }
         for (MetricValues values : metrics.values) {
             if (values.name.equals(name)) {
                 return true;
@@ -104,14 +101,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public double metric(String name, long owningBucketOrd) {
-        assert size == 1;
-        /*
-         * Since size is always 1 we know that the index into the values
-         * array is same same as the bucket ordinal. Also, this will always
-         * be called after we've collected a bucket, so it won't just fetch
-         * garbage.
-         */
-        return metrics.metric(name, owningBucketOrd);
+        return metrics.metric(name, owningBucketOrd * size);
     }
 
     @Override

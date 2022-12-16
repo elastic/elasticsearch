@@ -27,7 +27,11 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -58,10 +62,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
-import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -72,6 +74,7 @@ import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -83,6 +86,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -91,10 +95,11 @@ import java.util.function.Supplier;
  */
 public class ClusterModule extends AbstractModule {
 
-    public static final String BALANCED_ALLOCATOR = "balanced"; // default
+    public static final String BALANCED_ALLOCATOR = "balanced";
+    public static final String DESIRED_BALANCE_ALLOCATOR = "desired_balance"; // default
     public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING = new Setting<>(
         "cluster.routing.allocation.type",
-        BALANCED_ALLOCATOR,
+        DESIRED_BALANCE_ALLOCATOR,
         Function.identity(),
         Property.NodeScope
     );
@@ -115,17 +120,30 @@ public class ClusterModule extends AbstractModule {
         List<ClusterPlugin> clusterPlugins,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        ThreadContext threadContext,
-        SystemIndices systemIndices
+        ThreadPool threadPool,
+        SystemIndices systemIndices,
+        WriteLoadForecaster writeLoadForecaster
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
-        this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
+        this.shardsAllocator = createShardsAllocator(
+            settings,
+            clusterService.getClusterSettings(),
+            threadPool,
+            clusterPlugins,
+            clusterService,
+            this::reconcile,
+            writeLoadForecaster
+        );
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
         this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
+    }
+
+    private ClusterState reconcile(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationConsumer) {
+        return allocationService.executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationConsumer);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -176,10 +194,9 @@ public class ClusterModule extends AbstractModule {
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
 
-        if (HealthNode.isEnabled()) {
-            entries.addAll(HealthNodeTaskExecutor.getNamedWriteables());
-            entries.addAll(HealthMetadataService.getNamedWriteables());
-        }
+        // Health API
+        entries.addAll(HealthNodeTaskExecutor.getNamedWriteables());
+        entries.addAll(HealthMetadataService.getNamedWriteables());
         return entries;
     }
 
@@ -325,10 +342,25 @@ public class ClusterModule extends AbstractModule {
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,
-        List<ClusterPlugin> clusterPlugins
+        ThreadPool threadPool,
+        List<ClusterPlugin> clusterPlugins,
+        ClusterService clusterService,
+        DesiredBalanceReconcilerAction reconciler,
+        WriteLoadForecaster writeLoadForecaster
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
-        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings));
+        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings, writeLoadForecaster));
+        allocators.put(
+            DESIRED_BALANCE_ALLOCATOR,
+            () -> new DesiredBalanceShardsAllocator(
+                settings,
+                clusterSettings,
+                new BalancedShardsAllocator(settings, clusterSettings, writeLoadForecaster),
+                threadPool,
+                clusterService,
+                reconciler
+            )
+        );
 
         for (ClusterPlugin plugin : clusterPlugins) {
             plugin.getShardsAllocators(settings, clusterSettings).forEach((k, v) -> {

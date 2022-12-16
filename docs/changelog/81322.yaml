@@ -1,5 +1,0 @@
-pr: 81322
-summary: Speed counting filters/range/date_histogram aggs
-area: Aggregations
-type: enhancement
-issues: []

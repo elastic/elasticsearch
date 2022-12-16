@@ -60,6 +60,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -71,7 +72,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -944,6 +944,10 @@ public class PersistedClusterStateService {
             assert previouslyWrittenMetadata.coordinationMetadata().term() == metadata.coordinationMetadata().term();
             logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only", metadata.coordinationMetadata().term());
 
+            if (previouslyWrittenMetadata == metadata) {
+                // breakout early if nothing changed
+                return new WriterStats(false, false, metadata.getMappingsByHash().size(), 0, 0, metadata.size(), 0, 0, 0);
+            }
             final boolean updateGlobalMeta = Metadata.isGlobalStateEquals(previouslyWrittenMetadata, metadata) == false;
             if (updateGlobalMeta) {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
@@ -1078,7 +1082,7 @@ public class PersistedClusterStateService {
 
         private void addGlobalMetadataDocuments(Metadata metadata) throws IOException {
             logger.trace("updating global metadata doc");
-            writePages(metadata, (bytesRef, pageIndex, isLastPage) -> {
+            writePages(ChunkedToXContent.wrapAsXContentObject(metadata), (bytesRef, pageIndex, isLastPage) -> {
                 final Document document = new Document();
                 document.add(new StringField(TYPE_FIELD_NAME, GLOBAL_TYPE_NAME, Field.Store.NO));
                 document.add(new StoredField(PAGE_FIELD_NAME, pageIndex));
@@ -1090,7 +1094,7 @@ public class PersistedClusterStateService {
             });
         }
 
-        private void writePages(ToXContentFragment metadata, PageWriter pageWriter) throws IOException {
+        private void writePages(ToXContent metadata, PageWriter pageWriter) throws IOException {
             try (
                 PageWriterOutputStream paginatedStream = new PageWriterOutputStream(documentBuffer, pageWriter);
                 OutputStream compressedStream = CompressorFactory.COMPRESSOR.threadLocalOutputStream(paginatedStream);

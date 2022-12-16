@@ -40,7 +40,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -49,14 +48,15 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemoteScrollableHitSource;
+import org.elasticsearch.script.CtxMap;
+import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -65,13 +65,12 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
-import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 public class Reindexer {
@@ -229,7 +228,7 @@ public class Reindexer {
                 scriptService,
                 sslConfig
             );
-            this.destinationIndexIdMapper = destinationIndexMode(state).buildNoFieldDataIdFieldMapper();
+            this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
         }
 
         private IndexMode destinationIndexMode(ClusterState state) {
@@ -289,7 +288,7 @@ public class Reindexer {
             Script script = mainRequest.getScript();
             if (script != null) {
                 assert scriptService != null : "Script service must be set";
-                return new ReindexScriptApplier(worker, scriptService, script, script.getParams());
+                return new ReindexScriptApplier(worker, scriptService, script, script.getParams(), threadPool::absoluteTimeInMillis);
             }
             return super.buildScriptApplier();
         }
@@ -323,8 +322,7 @@ public class Reindexer {
                 // we need to convert
                 try (
                     InputStream stream = doc.getSource().streamInput();
-                    XContentParser parser = sourceXContentType.xContent()
-                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream);
+                    XContentParser parser = sourceXContentType.xContent().createParser(XContentParserConfiguration.EMPTY, stream);
                     XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())
                 ) {
                     parser.nextToken();
@@ -374,75 +372,62 @@ public class Reindexer {
             }
         }
 
-        class ReindexScriptApplier extends ScriptApplier {
+        static class ReindexScriptApplier extends ScriptApplier<ReindexMetadata> {
             private ReindexScript.Factory reindex;
 
             ReindexScriptApplier(
                 WorkerBulkByScrollTaskState taskWorker,
                 ScriptService scriptService,
                 Script script,
-                Map<String, Object> params
+                Map<String, Object> params,
+                LongSupplier nowInMillisSupplier
             ) {
-                super(taskWorker, scriptService, script, params);
+                super(taskWorker, scriptService, script, params, nowInMillisSupplier);
             }
 
             @Override
-            protected void execute(Map<String, Object> ctx) {
+            protected CtxMap<ReindexMetadata> execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
                 if (reindex == null) {
                     reindex = scriptService.compile(script, ReindexScript.CONTEXT);
                 }
-                reindex.newInstance(params, ctx).execute();
-            }
-
-            /*
-             * Methods below here handle script updating the index request. They try
-             * to be pretty liberal with regards to types because script are often
-             * dynamically typed.
-             */
-
-            @Override
-            protected void scriptChangedIndex(RequestWrapper<?> request, Object to) {
-                requireNonNull(to, "Can't reindex without a destination index!");
-                request.setIndex(to.toString());
-            }
-
-            @Override
-            protected void scriptChangedId(RequestWrapper<?> request, Object to) {
-                request.setId(Objects.toString(to, null));
+                CtxMap<ReindexMetadata> ctxMap = new CtxMap<>(
+                    source,
+                    new ReindexMetadata(
+                        doc.getIndex(),
+                        doc.getId(),
+                        doc.getVersion(),
+                        doc.getRouting(),
+                        INDEX,
+                        nowInMillisSupplier.getAsLong()
+                    )
+                );
+                reindex.newInstance(params, ctxMap).execute();
+                return ctxMap;
             }
 
             @Override
-            protected void scriptChangedVersion(RequestWrapper<?> request, Object to) {
-                if (to == null) {
-                    request.setVersion(Versions.MATCH_ANY);
-                    request.setVersionType(INTERNAL);
-                } else {
-                    request.setVersion(asLong(to, VersionFieldMapper.NAME));
+            protected void updateRequest(RequestWrapper<?> request, ReindexMetadata metadata) {
+                if (metadata.indexChanged()) {
+                    request.setIndex(metadata.getIndex());
                 }
-            }
-
-            @Override
-            protected void scriptChangedRouting(RequestWrapper<?> request, Object to) {
-                request.setRouting(Objects.toString(to, null));
-            }
-
-            private long asLong(Object from, String name) {
+                if (metadata.idChanged()) {
+                    request.setId(metadata.getId());
+                }
+                if (metadata.versionChanged()) {
+                    if (metadata.isVersionInternal()) {
+                        request.setVersion(Versions.MATCH_ANY);
+                        request.setVersionType(INTERNAL);
+                    } else {
+                        request.setVersion(metadata.getVersion());
+                    }
+                }
                 /*
-                 * Stuffing a number into the map will have converted it to
-                 * some Number.
-                 * */
-                Number fromNumber;
-                try {
-                    fromNumber = (Number) from;
-                } catch (ClassCastException e) {
-                    throw new IllegalArgumentException(name + " may only be set to an int or a long but was [" + from + "]", e);
+                 * Its important that routing comes after parent in case you want to
+                 * change them both.
+                 */
+                if (metadata.routingChanged()) {
+                    request.setRouting(metadata.getRouting());
                 }
-                long l = fromNumber.longValue();
-                // Check that we didn't round when we fetched the value.
-                if (fromNumber.doubleValue() != l) {
-                    throw new IllegalArgumentException(name + " may only be set to an int or a long but was [" + from + "]");
-                }
-                return l;
             }
         }
     }

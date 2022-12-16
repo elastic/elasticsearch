@@ -38,30 +38,30 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
 
     public static class Request extends BaseTasksRequest<GetDeploymentStatsAction.Request> {
 
-        private final String deploymentId;
+        private final String modelId;
         // used internally this should not be set by the REST request
         private List<String> expandedIds;
 
-        public Request(String deploymentId) {
-            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
-            this.expandedIds = Collections.singletonList(deploymentId);
+        public Request(String modelId) {
+            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
+            this.expandedIds = Collections.singletonList(modelId);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.deploymentId = in.readString();
+            this.modelId = in.readString();
             this.expandedIds = in.readStringList();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(deploymentId);
+            out.writeString(modelId);
             out.writeStringCollection(expandedIds);
         }
 
-        public String getDeploymentId() {
-            return deploymentId;
+        public String getModelId() {
+            return modelId;
         }
 
         public void setExpandedIds(List<String> expandedIds) {
@@ -78,12 +78,12 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(deploymentId, request.deploymentId) && Objects.equals(expandedIds, request.expandedIds);
+            return Objects.equals(modelId, request.modelId) && Objects.equals(expandedIds, request.expandedIds);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, expandedIds);
+            return Objects.hash(modelId, expandedIds);
         }
     }
 

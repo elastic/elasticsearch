@@ -766,7 +766,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
                 IndexShardStats shardStats = new IndexShardStats(shardId, new ShardStats[] { shardStat });
                 indexStats.computeIfAbsent(shardId.getIndex(), k -> new ArrayList<>()).add(shardStats);
             }
-            NodeIndicesStats nodeIndexStats = new NodeIndicesStats(new CommonStats(), indexStats);
+            NodeIndicesStats nodeIndexStats = new NodeIndicesStats(new CommonStats(), Collections.emptyMap(), indexStats);
             nodeStatsList.add(mockNodeStats(node, nodeIndexStats));
         }
         return nodeStatsList;

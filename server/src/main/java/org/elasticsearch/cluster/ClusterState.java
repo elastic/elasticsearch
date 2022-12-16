@@ -43,7 +43,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,9 +53,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -104,7 +108,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
-    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
+    public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
 
         /**
          * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be send to a client.
@@ -120,7 +124,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
          * the more faithful it is the more useful it is for diagnostics.
          */
         @Override
-        XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
+        Iterator<? extends ToXContent> toXContentChunked(Params params);
     }
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
@@ -319,11 +323,22 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      * Returns a built (on demand) routing nodes view of the routing table.
      */
     public RoutingNodes getRoutingNodes() {
-        if (routingNodes != null) {
-            return routingNodes;
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
         }
-        routingNodes = RoutingNodes.immutable(routingTable, nodes);
-        return routingNodes;
+        r = buildRoutingNodes();
+        return r;
+    }
+
+    private synchronized RoutingNodes buildRoutingNodes() {
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
+        }
+        r = RoutingNodes.immutable(routingTable, nodes);
+        routingNodes = r;
+        return r;
     }
 
     /**
@@ -338,6 +353,39 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         // we don't have any routing nodes for this state, likely because it's a temporary state in the reroute logic, don't compute an
         // immutable copy that will never be used and instead directly build a mutable copy
         return RoutingNodes.mutable(routingTable, this.nodes);
+    }
+
+    /**
+     * Initialize data structures that lazy computed for this instance in the background by using the giving executor.
+     * @param executor executor to run initialization tasks on
+     */
+    public void initializeAsync(Executor executor) {
+        if (routingNodes == null) {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    getRoutingNodes();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of routing nodes for cluster state " + version();
+                }
+            });
+        }
+        if (metadata.indicesLookupInitialized() == false) {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    metadata.getIndicesLookup();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of indices lookup for cluster state " + version();
+                }
+            });
+        }
     }
 
     @Override
@@ -525,7 +573,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         // meta data
         if (metrics.contains(Metric.METADATA)) {
-            metadata.toXContent(builder, params);
+            ChunkedToXContent.wrapAsXContentObject(metadata).toXContent(builder, params);
         }
 
         // routing table
@@ -574,7 +622,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (metrics.contains(Metric.CUSTOMS)) {
             for (Map.Entry<String, Custom> cursor : customs.entrySet()) {
                 builder.startObject(cursor.getKey());
-                cursor.getValue().toXContent(builder, params);
+                ChunkedToXContent.wrapAsXContentObject(cursor.getValue()).toXContent(builder, params);
                 builder.endObject();
             }
         }
@@ -704,8 +752,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder fromDiff(boolean fromDiff) {
-            this.fromDiff = fromDiff;
+        // set previous cluster state that this builder is created from during diff application
+        private Builder fromDiff(ClusterState previous) {
+            this.fromDiff = true;
+            this.previous = previous;
             return this;
         }
 
@@ -876,7 +926,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));
-            builder.fromDiff(true);
+            builder.fromDiff(state);
             return builder.build();
         }
     }

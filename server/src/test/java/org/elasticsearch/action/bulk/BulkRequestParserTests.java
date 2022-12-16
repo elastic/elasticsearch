@@ -279,4 +279,34 @@ public class BulkRequestParserTests extends ESTestCase {
         assertSame(first.getPipeline(), second.getPipeline());
         assertSame(first.routing(), second.routing());
     }
+
+    public void testFailOnInvalidAction() {
+        BytesArray request = new BytesArray("""
+            { "invalidaction":{ } }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), randomFrom(RestApiVersion.values()));
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> parser.parse(
+                request,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                XContentType.JSON,
+                (req, type) -> fail(),
+                req -> fail(),
+                req -> fail()
+            )
+        );
+        assertEquals(
+            "Malformed action/metadata line [1], expected field [create], [delete], [index] or [update] but found [invalidaction]",
+            ex.getMessage()
+        );
+    }
+
 }

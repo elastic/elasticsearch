@@ -39,7 +39,16 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
 
     public static ByteSizeValue ofBytes(long size) {
-        return new ByteSizeValue(size);
+        if (size == 0) {
+            return ZERO;
+        }
+        if (size == 1) {
+            return ONE;
+        }
+        if (size == -1) {
+            return MINUS_ONE;
+        }
+        return new ByteSizeValue(size, ByteSizeUnit.BYTES);
     }
 
     public static ByteSizeValue ofKb(long size) {
@@ -65,19 +74,19 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     private final long size;
     private final ByteSizeUnit unit;
 
-    public ByteSizeValue(StreamInput in) throws IOException {
-        size = in.readZLong();
-        unit = ByteSizeUnit.readFrom(in);
+    public static ByteSizeValue readFrom(StreamInput in) throws IOException {
+        long size = in.readZLong();
+        ByteSizeUnit unit = ByteSizeUnit.readFrom(in);
+        if (unit == ByteSizeUnit.BYTES) {
+            return ofBytes(size);
+        }
+        return new ByteSizeValue(size, unit);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeZLong(size);
         unit.writeTo(out);
-    }
-
-    public ByteSizeValue(long bytes) {
-        this(bytes, ByteSizeUnit.BYTES);
     }
 
     public ByteSizeValue(long size, ByteSizeUnit unit) {
@@ -255,7 +264,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     private static ByteSizeValue parseBytes(String lowerSValue, String settingName, String initialInput) {
         String s = lowerSValue.substring(0, lowerSValue.length() - 1).trim();
         try {
-            return new ByteSizeValue(Long.parseLong(s), ByteSizeUnit.BYTES);
+            return ByteSizeValue.ofBytes(Long.parseLong(s));
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
         } catch (IllegalArgumentException e) {
@@ -289,7 +298,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                         initialInput,
                         settingName
                     );
-                    return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
+                    return ByteSizeValue.ofBytes((long) (doubleValue * unit.toBytes(1)));
                 } catch (final NumberFormatException ignored) {
                     throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
                 }
@@ -323,13 +332,51 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public int compareTo(ByteSizeValue other) {
-        long thisValue = size * unit.toBytes(1);
-        long otherValue = other.size * other.unit.toBytes(1);
-        return Long.compare(thisValue, otherValue);
+        return Long.compare(getBytes(), other.getBytes());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
+    }
+
+    /**
+     * @return Constructs a {@link ByteSizeValue} with the bytes resulting from the addition of the arguments' bytes. Note that the
+     *         resulting {@link ByteSizeUnit} is bytes.
+     * @throws IllegalArgumentException if any of the arguments have -1 bytes
+     */
+    public static ByteSizeValue add(ByteSizeValue x, ByteSizeValue y) {
+        if (x.equals(ByteSizeValue.MINUS_ONE) || y.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("one of the arguments has -1 bytes");
+        }
+        return ByteSizeValue.ofBytes(Math.addExact(x.getBytes(), y.getBytes()));
+    }
+
+    /**
+     * @return Constructs a {@link ByteSizeValue} with the bytes resulting from the difference of the arguments' bytes. Note that the
+     *         resulting {@link ByteSizeUnit} is bytes.
+     * @throws IllegalArgumentException if any of the arguments or the result have -1 bytes
+     */
+    public static ByteSizeValue subtract(ByteSizeValue x, ByteSizeValue y) {
+        if (x.equals(ByteSizeValue.MINUS_ONE) || y.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("one of the arguments has -1 bytes");
+        }
+        // No need to use Math.subtractExact here, since we know both arguments are >= 0.
+        ByteSizeValue res = ByteSizeValue.ofBytes(x.getBytes() - y.getBytes());
+        if (res.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("subtraction result has -1 bytes");
+        }
+        return res;
+    }
+
+    /**
+     * @return Returns the lesser of the two given {@link ByteSizeValue} arguments. In case of equality, the first argument is returned.
+     * @throws IllegalArgumentException if any of the arguments have -1 bytes
+     */
+    public static ByteSizeValue min(ByteSizeValue x, ByteSizeValue y) {
+        if (x.equals(ByteSizeValue.MINUS_ONE) || y.equals(ByteSizeValue.MINUS_ONE)) {
+            throw new IllegalArgumentException("one of the arguments has -1 bytes");
+        }
+        return x.compareTo(y) <= 0 ? x : y;
     }
 }

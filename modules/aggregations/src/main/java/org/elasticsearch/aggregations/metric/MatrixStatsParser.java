@@ -8,7 +8,6 @@
 package org.elasticsearch.aggregations.metric;
 
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -43,7 +42,6 @@ public class MatrixStatsParser extends ArrayValuesSourceParser.NumericValuesSour
     protected MatrixStatsAggregationBuilder createFactory(
         String aggregationName,
         ValuesSourceType valuesSourceType,
-        ValueType targetValueType,
         Map<ParseField, Object> otherOptions
     ) {
         MatrixStatsAggregationBuilder builder = new MatrixStatsAggregationBuilder(aggregationName);

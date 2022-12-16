@@ -13,7 +13,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder.CommonFields;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -32,31 +31,29 @@ public abstract class ArrayValuesSourceParser implements Aggregator.Parser {
     public abstract static class NumericValuesSourceParser extends ArrayValuesSourceParser {
 
         protected NumericValuesSourceParser(boolean formattable) {
-            super(formattable, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+            super(formattable, CoreValuesSourceType.NUMERIC);
         }
     }
 
     public abstract static class BytesValuesSourceParser extends ArrayValuesSourceParser {
 
         protected BytesValuesSourceParser(boolean formattable) {
-            super(formattable, CoreValuesSourceType.KEYWORD, ValueType.STRING);
+            super(formattable, CoreValuesSourceType.KEYWORD);
         }
     }
 
     public abstract static class GeoPointValuesSourceParser extends ArrayValuesSourceParser {
 
         protected GeoPointValuesSourceParser(boolean formattable) {
-            super(formattable, CoreValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+            super(formattable, CoreValuesSourceType.GEOPOINT);
         }
     }
 
-    private boolean formattable = false;
-    private ValuesSourceType valuesSourceType = null;
-    private ValueType targetValueType = null;
+    private final boolean formattable;
+    private final ValuesSourceType valuesSourceType;
 
-    private ArrayValuesSourceParser(boolean formattable, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+    private ArrayValuesSourceParser(boolean formattable, ValuesSourceType valuesSourceType) {
         this.valuesSourceType = valuesSourceType;
-        this.targetValueType = targetValueType;
         this.formattable = formattable;
     }
 
@@ -159,12 +156,7 @@ public abstract class ArrayValuesSourceParser implements Aggregator.Parser {
             }
         }
 
-        ArrayValuesSourceAggregationBuilder<?> factory = createFactory(
-            aggregationName,
-            this.valuesSourceType,
-            this.targetValueType,
-            otherOptions
-        );
+        ArrayValuesSourceAggregationBuilder<?> factory = createFactory(aggregationName, this.valuesSourceType, otherOptions);
         if (fields != null) {
             factory.fields(fields);
         }
@@ -216,8 +208,6 @@ public abstract class ArrayValuesSourceParser implements Aggregator.Parser {
      *            the name of the aggregation
      * @param valuesSourceType
      *            the type of the {@link ValuesSource}
-     * @param targetValueType
-     *            the target type of the final value output by the aggregation
      * @param otherOptions
      *            a {@link Map} containing the extra options parsed by the
      *            {@link #token(String, String, XContentParser.Token, XContentParser, Map)}
@@ -227,14 +217,13 @@ public abstract class ArrayValuesSourceParser implements Aggregator.Parser {
     protected abstract ArrayValuesSourceAggregationBuilder<?> createFactory(
         String aggregationName,
         ValuesSourceType valuesSourceType,
-        ValueType targetValueType,
         Map<ParseField, Object> otherOptions
     );
 
     /**
      * Allows subclasses of {@link ArrayValuesSourceParser} to parse extra
      * parameters and store them in a {@link Map} which will later be passed to
-     * {@link #createFactory(String, ValuesSourceType, ValueType, Map)}.
+     * {@link #createFactory(String, ValuesSourceType, Map)}.
      *
      * @param aggregationName
      *            the name of the aggregation
@@ -247,7 +236,7 @@ public abstract class ArrayValuesSourceParser implements Aggregator.Parser {
      * @param otherOptions
      *            a {@link Map} of options to be populated by successive calls
      *            to this method which will then be passed to the
-     *            {@link #createFactory(String, ValuesSourceType, ValueType, Map)}
+     *            {@link #createFactory(String, ValuesSourceType, Map)}
      *            method
      * @return <code>true</code> if the current token was correctly parsed,
      *         <code>false</code> otherwise

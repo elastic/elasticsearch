@@ -227,6 +227,16 @@ with `params._source` (such as `params._source.day_of_week`). For simplicity,
 defining a runtime field in the mapping definition without a script is the
 recommended option, whenever possible.
 
+[[runtime-errorhandling]]
+==== Ignoring script errors on runtime fields
+
+Scripts can throw errors at runtime, e.g. on accessing missing or invalid values
+in documents or because of performing invalid operations. The `on_script_error`
+parameter can be used to control error behaviour when this happens. Setting this
+parameter to `continue` will have the effect or silently ignoring all errors on
+this runtime field. The default setting of `fail` will fail the whole shard request
+and is visible in the shard failures in the response.
+
 [[runtime-updating-scripts]]
 ==== Updating and removing runtime fields
 

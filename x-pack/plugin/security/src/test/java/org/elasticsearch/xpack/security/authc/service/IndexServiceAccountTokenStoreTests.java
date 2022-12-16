@@ -218,8 +218,8 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         assertThat(creatorMap.get("full_name"), equalTo(authentication.getEffectiveSubject().getUser().fullName()));
         assertThat(creatorMap.get("email"), equalTo(authentication.getEffectiveSubject().getUser().email()));
         assertThat(creatorMap.get("metadata"), equalTo(authentication.getEffectiveSubject().getUser().metadata()));
-        assertThat(creatorMap.get("realm"), equalTo(authentication.getSourceRealm().getName()));
-        assertThat(creatorMap.get("realm_type"), equalTo(authentication.getSourceRealm().getType()));
+        assertThat(creatorMap.get("realm"), equalTo(authentication.getEffectiveSubject().getRealm().getName()));
+        assertThat(creatorMap.get("realm_type"), equalTo(authentication.getEffectiveSubject().getRealm().getType()));
 
         final CreateServiceAccountTokenResponse createServiceAccountTokenResponse1 = future1.get();
         assertNotNull(createServiceAccountTokenResponse1);

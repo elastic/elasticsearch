@@ -97,22 +97,13 @@ public final class PreAuthorizationUtils {
 
         final ParentActionAuthorization existingParentAuthorization = securityContext.getParentAuthorization();
         if (existingParentAuthorization != null) {
-            if (existingParentAuthorization.action().equals(parentAction)) {
-                // This can happen if authorization is executed more than once for the same parent action.
-                // At the moment of writing, SecurityActionFilter can be executed twice for the same action
-                // when the action receiving and the action executing node is the same "local node".
-                if (logger.isDebugEnabled()) {
-                    logger.debug("authorization for parent action [" + parentAction + "] is already set in the thread context");
-                }
-            } else {
-                throw new AssertionError(
-                    "found parent authorization for action ["
-                        + existingParentAuthorization.action()
-                        + "] while attempting to set authorization for new parent action ["
-                        + parentAction
-                        + "]"
-                );
-            }
+            throw new AssertionError(
+                "found parent authorization for action ["
+                    + existingParentAuthorization.action()
+                    + "] while attempting to set authorization for new parent action ["
+                    + parentAction
+                    + "]"
+            );
         } else {
             if (logger.isDebugEnabled()) {
                 logger.debug("adding authorization for parent action [" + parentAction + "] to the thread context");

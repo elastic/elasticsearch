@@ -92,7 +92,7 @@ public class HealthServiceIT extends ESIntegTestCase {
                         throw new RuntimeException(e);
                     }
                 };
-                healthService.getHealth(internalCluster.client(node), TestHealthIndicatorService.NAME, true, listener);
+                healthService.getHealth(internalCluster.client(node), TestHealthIndicatorService.NAME, true, 1000, listener);
                 assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
             }
         }
@@ -158,7 +158,7 @@ public class HealthServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+        public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
             assertThat(healthInfo.diskInfoByNode().size(), equalTo(internalCluster().getNodeNames().length));
             for (DiskHealthInfo diskHealthInfo : healthInfo.diskInfoByNode().values()) {
                 assertThat(diskHealthInfo.healthStatus(), equalTo(HealthStatus.GREEN));

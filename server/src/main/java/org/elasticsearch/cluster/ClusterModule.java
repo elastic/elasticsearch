@@ -353,6 +353,8 @@ public class ClusterModule extends AbstractModule {
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
+                settings,
+                clusterSettings,
                 new BalancedShardsAllocator(settings, clusterSettings, writeLoadForecaster),
                 threadPool,
                 clusterService,

@@ -125,6 +125,11 @@ public final class EngineConfig {
 
     private final LongSupplier relativeTimeInNanosSupplier;
 
+    @Nullable
+    private final Engine.IndexCommitListener indexCommitListener;
+
+    private final boolean recoveringAsPrimary;
+
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
@@ -152,7 +157,9 @@ public final class EngineConfig {
         LongSupplier primaryTermSupplier,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Comparator<LeafReader> leafSorter,
-        LongSupplier relativeTimeInNanosSupplier
+        LongSupplier relativeTimeInNanosSupplier,
+        Engine.IndexCommitListener indexCommitListener,
+        boolean recoveringAsPrimary
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -193,6 +200,8 @@ public final class EngineConfig {
         this.snapshotCommitSupplier = snapshotCommitSupplier;
         this.leafSorter = leafSorter;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.indexCommitListener = indexCommitListener;
+        this.recoveringAsPrimary = recoveringAsPrimary;
     }
 
     /**
@@ -234,6 +243,13 @@ public final class EngineConfig {
      */
     public Codec getCodec() {
         return codecService.codec(codecName);
+    }
+
+    /**
+     * @return the {@link CodecService}
+     */
+    public CodecService getCodecService() {
+        return codecService;
     }
 
     /**
@@ -394,5 +410,18 @@ public final class EngineConfig {
 
     public LongSupplier getRelativeTimeInNanosSupplier() {
         return relativeTimeInNanosSupplier;
+    }
+
+    @Nullable
+    public Engine.IndexCommitListener getIndexCommitListener() {
+        return indexCommitListener;
+    }
+
+    /**
+     * Represents the primary state only in case when a recovery starts.
+     * IMPORTANT: The flag is a temporary solution and should NOT be used outside of Stateless.
+     */
+    public boolean isRecoveringAsPrimary() {
+        return recoveringAsPrimary;
     }
 }

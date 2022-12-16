@@ -556,27 +556,18 @@ public class CoordinationState {
          * marked as committed.
          */
         default void markLastAcceptedStateAsCommitted() {
-            final ClusterState lastAcceptedState = getLastAcceptedState();
-            Metadata.Builder metadataBuilder = null;
-            if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
-                final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(lastAcceptedState.coordinationMetadata())
-                    .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
-                    .build();
-                metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
-                metadataBuilder.coordinationMetadata(coordinationMetadata);
-            }
+            final var lastAcceptedState = getLastAcceptedState();
             assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
                 : "received cluster state with empty cluster uuid: " + lastAcceptedState;
-            if (lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
-                && lastAcceptedState.metadata().clusterUUIDCommitted() == false) {
-                if (metadataBuilder == null) {
-                    metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
-                }
-                metadataBuilder.clusterUUIDCommitted(true);
+
+            if (lastAcceptedState.metadata().clusterUUIDCommitted() == false) {
                 logger.info("cluster UUID set to [{}]", lastAcceptedState.metadata().clusterUUID());
             }
-            if (metadataBuilder != null) {
-                setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build());
+
+            final var adjustedMetadata = lastAcceptedState.metadata()
+                .withLastCommittedValues(true, lastAcceptedState.getLastAcceptedConfiguration());
+            if (adjustedMetadata != lastAcceptedState.metadata()) {
+                setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(adjustedMetadata).build());
             }
         }
 

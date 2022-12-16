@@ -143,6 +143,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
 
         public void start() {
             GroupedActionListener<GetCheckpointNodeAction.Response> groupedListener = new GroupedActionListener<>(
+                nodesAndShards.size(),
                 ActionListener.wrap(responses -> {
                     // the final list should be ordered by key
                     Map<String, long[]> checkpointsByIndexReduced = new TreeMap<>();
@@ -162,8 +163,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                     }
 
                     listener.onResponse(new Response(checkpointsByIndexReduced));
-                }, listener::onFailure),
-                nodesAndShards.size()
+                }, listener::onFailure)
             );
 
             for (Entry<String, Set<ShardId>> oneNodeAndItsShards : nodesAndShards.entrySet()) {

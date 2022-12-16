@@ -83,11 +83,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.userRoleMapper = userRoleMapper;
         this.userRoleMapper.refreshRealmOnChange(this);
         this.allowedClockSkew = realmConfig.getSetting(JwtRealmSettings.ALLOWED_CLOCK_SKEW);
-        this.claimParserPrincipal = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_PRINCIPAL, realmConfig, true);
-        this.claimParserGroups = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_GROUPS, realmConfig, false);
-        this.claimParserDn = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_DN, realmConfig, false);
-        this.claimParserMail = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_MAIL, realmConfig, false);
-        this.claimParserName = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_NAME, realmConfig, false);
+
         this.populateUserMetadata = realmConfig.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
         this.clientAuthenticationType = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
         final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
@@ -115,6 +111,20 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.jwtCacheHelper = null;
         }
         jwtAuthenticator = new JwtAuthenticator(realmConfig, sslService, this::expireAll);
+
+        final Map<String, String> fallbackClaimNames = jwtAuthenticator.getFallbackClaimNames();
+
+        this.claimParserPrincipal = ClaimParser.forSetting(
+            logger,
+            JwtRealmSettings.CLAIMS_PRINCIPAL,
+            fallbackClaimNames,
+            realmConfig,
+            true
+        );
+        this.claimParserGroups = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_GROUPS, fallbackClaimNames, realmConfig, false);
+        this.claimParserDn = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_DN, fallbackClaimNames, realmConfig, false);
+        this.claimParserMail = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_MAIL, fallbackClaimNames, realmConfig, false);
+        this.claimParserName = ClaimParser.forSetting(logger, JwtRealmSettings.CLAIMS_NAME, fallbackClaimNames, realmConfig, false);
     }
 
     /**

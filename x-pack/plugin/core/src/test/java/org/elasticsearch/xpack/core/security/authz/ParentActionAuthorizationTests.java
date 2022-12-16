@@ -7,13 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authz;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 
 import java.io.IOException;
@@ -30,16 +25,6 @@ public class ParentActionAuthorizationTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         authorization.writeTo(out);
         assertThat(ParentActionAuthorization.readFrom(out.bytes().streamInput()), equalTo(authorization));
-    }
-
-    public void testXContent() throws IOException {
-        ParentActionAuthorization authorization = createRandom();
-        final XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject();
-        authorization.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        assertThat(ParentActionAuthorization.fromXContent(parser), equalTo(authorization));
     }
 
     private static ParentActionAuthorization createRandom() {

@@ -19,11 +19,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -45,7 +40,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * <p>
@@ -702,29 +696,13 @@ public interface AuthorizationEngine {
      *
      *  @param action the parent action
      */
-    record ParentActionAuthorization(String action) implements Writeable, ToXContent {
+    record ParentActionAuthorization(String action) implements Writeable {
 
         public static final String THREAD_CONTEXT_KEY = "_xpack_security_parent_action_authz";
-        private static final ParseField ACTION = new ParseField("action");
-
-        private static final ConstructingObjectParser<ParentActionAuthorization, String> PARSER = new ConstructingObjectParser<>(
-            "authorization",
-            true,
-            (a) -> new ParentActionAuthorization((String) a[0])
-        );
-        static {
-            PARSER.declareString(constructorArg(), ACTION);
-        }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(action);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.field(ACTION.getPreferredName(), action);
-            return builder;
         }
 
         /**
@@ -737,17 +715,6 @@ public interface AuthorizationEngine {
         public static ParentActionAuthorization readFrom(StreamInput in) throws IOException {
             String action = in.readString();
             return new ParentActionAuthorization(action);
-        }
-
-        /**
-         * Reads {@link ParentActionAuthorization} from {@link XContentParser}
-         *
-         * @param parser {@link XContentParser}
-         * @return {@link ParentActionAuthorization}
-         * @throws IOException if I/O operation fails
-         */
-        public static ParentActionAuthorization fromXContent(final XContentParser parser) throws IOException {
-            return PARSER.apply(parser, null);
         }
 
         /**
@@ -774,16 +741,9 @@ public interface AuthorizationEngine {
          * {@link IllegalStateException} will be thrown.
          */
         public void writeToThreadContext(ThreadContext context) throws IOException {
-            ensureContextDoesNotContainAuthorization(context);
             String header = this.encode();
             assert header != null : "parent authorization object encoded to null";
             context.putHeader(THREAD_CONTEXT_KEY, header);
-        }
-
-        private void ensureContextDoesNotContainAuthorization(ThreadContext context) {
-            if (context.getHeader(THREAD_CONTEXT_KEY) != null) {
-                throw new IllegalStateException("parent authorization ([" + THREAD_CONTEXT_KEY + "]) is already present in the context");
-            }
         }
 
         private String encode() throws IOException {

@@ -124,15 +124,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.name(alias.child()), containsString("first_name"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/378")
     public void testCombineProjectionWithAggregation() {
         var plan = plan("""
             from test
             | stats avg(salary) by last_name, first_name
             """);
 
-        var agg = as(plan, Aggregate.class);
-        assertThat(Expressions.names(agg.aggregates()), contains("last_name"));
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("avg(salary)", "last_name", "first_name"));
         assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name"));
     }
 

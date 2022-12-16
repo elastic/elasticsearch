@@ -219,9 +219,6 @@ public class IndexNameExpressionResolver {
 
         if (expressions.size() == 1) {
             IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.iterator().next());
-            if (ia == null) {
-                throw new IndexNotFoundException(expressions.iterator().next());
-            }
             if (ia.getType() == Type.ALIAS) {
                 Index writeIndex = ia.getWriteIndex();
                 if (writeIndex == null) {
@@ -325,9 +322,6 @@ public class IndexNameExpressionResolver {
         final Set<Index> concreteIndicesResult = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         final Map<String, IndexAbstraction> indicesLookup = context.getState().metadata().getIndicesLookup();
         for (String expression : expressions) {
-            if (context.getOptions().ignoreUnavailable() == false) {
-                ensureAliasOrIndexExists(context, expression);
-            }
             final IndexAbstraction indexAbstraction = indicesLookup.get(expression);
             if (indexAbstraction == null) {
                 continue;
@@ -1122,6 +1116,11 @@ public class IndexNameExpressionResolver {
                 if (expressions.size() == 1 && expressions.get(0).equals(Metadata.ALL)) {
                     return List.of();
                 } else {
+                    if (context.getOptions().ignoreUnavailable() == false) {
+                        for (String expression : expressions) {
+                            ensureAliasOrIndexExists(context, expression);
+                        }
+                    }
                     return expressions;
                 }
             } else if (isEmptyOrTrivialWildcard(expressions)) {

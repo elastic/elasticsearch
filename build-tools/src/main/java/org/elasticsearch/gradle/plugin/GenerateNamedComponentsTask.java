@@ -58,12 +58,7 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
         var s = pluginScannerClasspath.getFiles();
         File outputFile = projectLayout.getBuildDirectory().file("generated-named-components/" + NAMED_COMPONENTS_FILE)
             .get().getAsFile();
-        try {
-            Files.writeString(projectLayout.getBuildDirectory().file("generated-named-components/debugfile")
-                .get().getAsFile().toPath(), "heee");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+
         System.out.println("ff" + s);
         System.out.println("ff2" +  pluginScannerClasspath.plus(getClasspath()).getAsPath());
         System.out.println(projectLayout.getBuildDirectory().file("generated-named-components/" + NAMED_COMPONENTS_FILE).get().getAsFile());

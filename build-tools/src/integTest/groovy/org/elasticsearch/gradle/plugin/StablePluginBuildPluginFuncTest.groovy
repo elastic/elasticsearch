@@ -101,7 +101,7 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = gradleRunner(":assemble").build()
+        def result = gradleRunner(":assemble", "-i").build()
 
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS

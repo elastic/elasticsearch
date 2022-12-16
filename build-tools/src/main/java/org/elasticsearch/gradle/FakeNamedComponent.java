@@ -10,7 +10,6 @@ package org.elasticsearch.gradle;
 
 public class FakeNamedComponent {
     public static void main(String[] args) {
-        System.out.println("heee");
-        System.exit(123);
+        System.out.println("fake hee");
     }
 }

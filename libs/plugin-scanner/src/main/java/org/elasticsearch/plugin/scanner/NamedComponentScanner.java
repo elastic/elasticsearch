@@ -8,22 +8,18 @@
 
 package org.elasticsearch.plugin.scanner;
 
-import org.elasticsearch.jdk.JarHell;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class NamedComponentScanner {
@@ -31,10 +27,7 @@ public class NamedComponentScanner {
 
     // main method to be used by gradle build plugin
     public static void main(String[] args) throws IOException {
-        Files.writeString(Path.of(args[0]),"yyyyy");
-        Files.createFile(Path.of(args[0]+"dd"));//,"heee");
-        Set<URL> classpathFiles = JarHell.parseClassPath(System.getProperty("java.class.path"));
-        List<ClassReader> classReaders = ClassReaders.ofPaths(classpathFiles).collect(Collectors.toList());
+        List<ClassReader> classReaders = ClassReaders.ofClassPath().collect(Collectors.toList());
 
         NamedComponentScanner scanner = new NamedComponentScanner();
         Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);

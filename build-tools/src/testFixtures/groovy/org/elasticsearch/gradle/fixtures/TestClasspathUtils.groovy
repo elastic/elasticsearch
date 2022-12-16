@@ -26,9 +26,25 @@ class TestClasspathUtils {
 
     static void setupNamedComponentScanner(File projectRoot, String version) {
         def value = MethodDelegation.to(FakeNamedComponent.class)
-        generateJarWithClass(projectRoot, "org.elasticsearch.plugin.scanner.NamedComponentScanner","elasticsearch-plugin-scanner",
-            version, value
-        )
+//        generateJarWithClass(projectRoot, "org.elasticsearch.plugin.scanner.NamedComponentScanner","elasticsearch-plugin-scanner",
+//            version, value
+//        )
+
+        DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
+            .name("org.elasticsearch.plugin.scanner.NamedComponentScanner")
+            .defineMethod("main", void.class, Visibility.PUBLIC, Ownership.STATIC)
+            .withParameters(String[].class)
+            .intercept(value)
+            .make()
+            .include(new ByteBuddy().redefine(FakeNamedComponent.class).make())
+
+        try {
+            dynamicType.toJar(targetFile(projectRoot, "elasticsearch-plugin-scanner", version))
+
+        } catch (IOException e) {
+            e.printStackTrace()
+            fail("Cannot setup jdk jar hell classpath")
+        }
     }
 
     static void setupJarHellJar(File projectRoot) {
@@ -60,8 +76,10 @@ class TestClasspathUtils {
             .withParameters(String[].class)
             .intercept(mainImplementation)
             .make()
+
         try {
             dynamicType.toJar(targetFile(targetDir, artifactName, version))
+
         } catch (IOException e) {
             e.printStackTrace()
             fail("Cannot setup jdk jar hell classpath")

@@ -382,7 +382,7 @@ watermark threshold>>.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health
+GET _health
 --------------------------------------------------
 
 The API returns a response with all the indicators regardless
@@ -390,14 +390,14 @@ of current status.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health/shards_availability
+GET _health/shards_availability
 --------------------------------------------------
 
 The API returns a response for just the shard availability indicator.
 
 [source,console]
 --------------------------------------------------
-GET _internal/_health?verbose=false
+GET _health?verbose=false
 --------------------------------------------------
 
 The API returns a response with all health indicators but will

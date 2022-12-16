@@ -42,6 +42,11 @@
         "type":"boolean",
         "description":"Opt in for more information about the health of the system",
         "default":true
+      },
+      "size": {
+        "type": "int",
+        "description": "Limit the number of affected resources the health API returns",
+        "default": 1000
       }
     }
   }

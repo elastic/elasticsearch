@@ -211,11 +211,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
 
-        if (securityContext.getParentAuthorization() != null) {
-            if (remoteClusterAliasResolver.apply(connection).isPresent()) {
-                assert false : "parent authorization header should not be set for remote cluster requests";
-            }
-        }
+        assert securityContext.getParentAuthorization() == null || remoteClusterAliasResolver.apply(connection).isPresent() == false
+            : "parent authorization header should not be set for remote cluster requests";
 
         try {
             sender.sendRequest(connection, action, request, options, handler);

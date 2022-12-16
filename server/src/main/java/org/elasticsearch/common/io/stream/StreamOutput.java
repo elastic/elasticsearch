@@ -561,7 +561,7 @@ public abstract class StreamOutput extends OutputStream {
             .iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            if (this.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (this.getVersion().onOrAfter(Version.V_8_7_0)) {
                 this.writeGenericValue(next.getKey());
             } else {
                 this.writeString(next.getKey());
@@ -692,7 +692,7 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 o.writeByte((byte) 10);
             }
-            if (o.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (o.getVersion().onOrAfter(Version.V_8_7_0)) {
                 @SuppressWarnings("unchecked")
                 final Map<Object, Object> map = (Map<Object, Object>) v;
                 o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);

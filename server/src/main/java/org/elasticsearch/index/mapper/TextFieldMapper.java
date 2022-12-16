@@ -951,7 +951,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query exactQuery(Object value, SearchExecutionContext context) {
-            return new TextFieldExactQuery(this, context.getForField(this, FielddataOperation.SCRIPT), value.toString());
+            return new TextFieldExactQuery(this, context.getForField(this, FielddataOperation.SOURCE), value.toString());
         }
 
         @Override

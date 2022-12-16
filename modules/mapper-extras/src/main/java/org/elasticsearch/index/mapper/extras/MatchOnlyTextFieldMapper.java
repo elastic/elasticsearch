@@ -249,7 +249,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public Query exactQuery(Object value, SearchExecutionContext context) {
-            return new TextFieldExactQuery(this, context.getForField(this, FielddataOperation.SCRIPT), value.toString());
+            return new TextFieldExactQuery(this, context.getForField(this, FielddataOperation.SOURCE), value.toString());
         }
 
         @Override
@@ -325,7 +325,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            if (fieldDataContext.fielddataOperation() != FielddataOperation.SCRIPT) {
+            if (fieldDataContext.fielddataOperation() == FielddataOperation.SEARCH) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
             }
             if (textFieldType.isSyntheticSource()) {

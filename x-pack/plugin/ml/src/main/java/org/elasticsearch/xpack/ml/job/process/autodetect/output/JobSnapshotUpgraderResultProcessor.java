@@ -249,7 +249,7 @@ public class JobSnapshotUpgraderResultProcessor {
             }
 
             // These lines ensure that the "completion" we're awaiting includes making the results searchable
-            persister.commitStateWrites(jobId);
+            persister.commitWrites(jobId, JobResultsPersister.CommitType.STATE);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

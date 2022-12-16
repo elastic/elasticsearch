@@ -58,6 +58,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -84,7 +85,6 @@ public class AutodetectResultProcessorTests extends ESTestCase {
     private static final long BUCKET_SPAN_MS = 1000;
     private static final Instant CURRENT_TIME = Instant.ofEpochMilli(2000000000);
 
-    private ThreadPool threadPool;
     private Client client;
     private AnomalyDetectionAuditor auditor;
     private Renormalizer renormalizer;
@@ -101,7 +101,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
     public void setUpMocks() {
         executor = new Scheduler.SafeScheduledThreadPoolExecutor(1);
         client = mock(Client.class);
-        threadPool = mock(ThreadPool.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         auditor = mock(AnomalyDetectionAuditor.class);
@@ -148,9 +148,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(renormalizer).waitUntilIdle();
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
-        verify(persister).commitResultWrites(JOB_ID);
-        verify(persister).commitAnnotationWrites();
-        verify(persister).commitStateWrites(JOB_ID);
+        verify(persister).commitWrites(JOB_ID, EnumSet.allOf(JobResultsPersister.CommitType.class));
     }
 
     public void testProcessResult_bucket() {
@@ -163,10 +161,10 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);
 
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(bulkResultsPersister).persistTimingStats(any(TimingStats.class));
         verify(bulkResultsPersister).persistBucket(bucket);
-        verify(bulkResultsPersister).executeRequest();
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
+        verify(bulkResultsPersister, never()).executeRequest();
         verify(persister, never()).deleteInterimResults(JOB_ID);
     }
 
@@ -247,9 +245,9 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);
 
-        verify(bulkResultsPersister, never()).executeRequest();
-        verify(persister).persistCategoryDefinition(eq(categoryDefinition), any());
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
+        verify(bulkResultsPersister).persistCategoryDefinition(eq(categoryDefinition));
+        verify(bulkResultsPersister, never()).executeRequest();
     }
 
     public void testProcessResult_flushAcknowledgement() {
@@ -264,15 +262,17 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
-        verify(persister).commitResultWrites(JOB_ID);
-        verify(persister).commitAnnotationWrites();
+        verify(persister).commitWrites(
+            JOB_ID,
+            EnumSet.of(JobResultsPersister.CommitType.RESULTS, JobResultsPersister.CommitType.ANNOTATIONS)
+        );
         verify(bulkResultsPersister).executeRequest();
     }
 
     public void testProcessResult_flushAcknowledgementMustBeProcessedLast() {
         AutodetectResult result = mock(AutodetectResult.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
-        when(flushAcknowledgement.getId()).thenReturn(JOB_ID);
+        when(flushAcknowledgement.getId()).thenReturn(Integer.valueOf(randomInt(100)).toString());
         when(result.getFlushAcknowledgement()).thenReturn(flushAcknowledgement);
         CategoryDefinition categoryDefinition = mock(CategoryDefinition.class);
         when(categoryDefinition.getCategoryId()).thenReturn(1L);
@@ -284,10 +284,12 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         InOrder inOrder = inOrder(persister, bulkResultsPersister, flushListener);
         inOrder.verify(persister).bulkPersisterBuilder(eq(JOB_ID));
-        inOrder.verify(persister).persistCategoryDefinition(eq(categoryDefinition), any());
+        inOrder.verify(bulkResultsPersister).persistCategoryDefinition(eq(categoryDefinition));
         inOrder.verify(bulkResultsPersister).executeRequest();
-        inOrder.verify(persister).commitResultWrites(JOB_ID);
-        inOrder.verify(persister).commitAnnotationWrites();
+        verify(persister).commitWrites(
+            JOB_ID,
+            EnumSet.of(JobResultsPersister.CommitType.RESULTS, JobResultsPersister.CommitType.ANNOTATIONS)
+        );
         inOrder.verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
     }
 
@@ -327,7 +329,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         assertThat(processorUnderTest.modelSizeStats(), is(equalTo(modelSizeStats)));
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
-        verify(persister).persistModelSizeStats(eq(modelSizeStats), any());
+        verify(bulkResultsPersister).persistModelSizeStats(eq(modelSizeStats));
     }
 
     public void testProcessResult_modelSizeStatsWithMemoryStatusChanges() {
@@ -358,7 +360,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         processorUnderTest.processResult(result);
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
-        verify(persister, times(4)).persistModelSizeStats(any(ModelSizeStats.class), any());
+        verify(bulkResultsPersister, times(4)).persistModelSizeStats(any(ModelSizeStats.class));
         // We should have only fired two notifications: one for soft_limit and one for hard_limit
         verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT));
         verify(auditor).error(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT, "512mb", "1kb"));
@@ -436,10 +438,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).persistQuantiles(eq(quantiles), any());
-        verify(bulkResultsPersister).executeRequest();
-        verify(persister).commitResultWrites(JOB_ID);
         verify(renormalizer).isEnabled();
-        verify(renormalizer).renormalize(quantiles);
+        verify(renormalizer).renormalize(eq(quantiles), any(Runnable.class));
     }
 
     public void testProcessResult_quantiles_givenRenormalizationIsDisabled() {
@@ -453,7 +453,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).persistQuantiles(eq(quantiles), any());
-        verify(bulkResultsPersister).executeRequest();
+        verify(bulkResultsPersister, never()).executeRequest();
         verify(renormalizer).isEnabled();
     }
 
@@ -467,9 +467,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         assertThat(processorUnderTest.updateModelSnapshotSemaphore.availablePermits(), is(equalTo(1)));
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
-        verify(persister).commitResultWrites(JOB_ID);
-        verify(persister).commitAnnotationWrites();
-        verify(persister).commitStateWrites(JOB_ID);
+        verify(persister).commitWrites(JOB_ID, EnumSet.allOf(JobResultsPersister.CommitType.class));
         verify(renormalizer).waitUntilIdle();
     }
 
@@ -521,10 +519,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         assertThat(processorUnderTest.updateModelSnapshotSemaphore.availablePermits(), is(equalTo(1)));
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
-        verify(persister).commitResultWrites(JOB_ID);
-        verify(persister).commitAnnotationWrites();
-        verify(persister).commitStateWrites(JOB_ID);
-        verify(renormalizer, never()).renormalize(any());
+        verify(persister).commitWrites(JOB_ID, EnumSet.allOf(JobResultsPersister.CommitType.class));
+        verify(renormalizer, never()).renormalize(any(), any());
         verify(renormalizer).shutdown();
         verify(renormalizer).waitUntilIdle();
         verify(flushListener).clear();

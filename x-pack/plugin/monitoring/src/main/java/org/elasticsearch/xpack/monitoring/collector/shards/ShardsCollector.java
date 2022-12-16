@@ -22,7 +22,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Collector for shards.
@@ -54,8 +56,9 @@ public class ShardsCollector extends Collector {
 
                 final String[] indicesToMonitor = getCollectionIndices();
                 final boolean isAllIndices = IndexNameExpressionResolver.isAllIndices(Arrays.asList(indicesToMonitor));
-                final String[] allIndices = routingTable.indicesRouting().keySet().toArray(new String[0]);
-                final String[] indices = isAllIndices ? allIndices : expandIndexPattern(indicesToMonitor, allIndices);
+                final String[] indices = isAllIndices
+                    ? routingTable.indicesRouting().keySet().toArray(new String[0])
+                    : expandIndexPattern(indicesToMonitor, routingTable.indicesRouting().keySet().toArray(new String[0]));
 
                 for (String index : indices) {
                     IndexRoutingTable indexRoutingTable = routingTable.index(index);
@@ -96,7 +99,7 @@ public class ShardsCollector extends Collector {
     }
 
     private String[] expandIndexPattern(String[] indicesToMonitor, String[] indices) {
-        final List<String> expandedIndices = new ArrayList<>();
+        final Set<String> expandedIndices = new HashSet<>();
 
         for (String indexOrPattern : indicesToMonitor) {
             if (indexOrPattern.contains("*")) {

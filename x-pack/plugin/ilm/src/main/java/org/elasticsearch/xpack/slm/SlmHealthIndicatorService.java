@@ -99,7 +99,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         final ClusterState currentState = clusterService.state();
         var slmMetadata = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         final OperationMode currentMode = currentSLMMode(currentState);
@@ -181,7 +181,10 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                             List.of(
                                 new Diagnosis.Resource(
                                     Diagnosis.Resource.Type.SLM_POLICY,
-                                    unhealthyPolicies.stream().map(SnapshotLifecyclePolicyMetadata::getName).toList()
+                                    unhealthyPolicies.stream()
+                                        .map(SnapshotLifecyclePolicyMetadata::getName)
+                                        .limit(Math.min(unhealthyPolicies.size(), maxAffectedResourcesCount))
+                                        .toList()
                                 )
                             )
                         )

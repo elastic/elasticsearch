@@ -882,6 +882,87 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    public void testLimitNumberOfAffectedResources() {
+        Set<DiscoveryNodeRole> otherRoles = new HashSet<>(randomNonEmptySubsetOf(OTHER_ROLES));
+        Set<DiscoveryNodeRole> dataRoles = new HashSet<>(randomNonEmptySubsetOf(DATA_ROLES));
+        Set<DiscoveryNodeRole> masterRole = Set.of(DiscoveryNodeRole.MASTER_ROLE);
+        Set<DiscoveryNode> dataNodes = createNodes(30, dataRoles);
+        Set<DiscoveryNode> masterNodes = createNodes(20, masterRole);
+        Set<DiscoveryNode> otherNodes = createNodes(10, otherRoles);
+        ClusterService clusterService = createClusterService(Sets.union(Sets.union(dataNodes, masterNodes), otherNodes), true);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
+        int numberOfRedMasterNodes = masterNodes.size();
+        int numberOfRedOtherNodes = otherNodes.size();
+        int numberOfYellowDataNodes = dataNodes.size();
+        HealthInfo healthInfo = createHealthInfo(
+            List.of(
+                new HealthInfoConfig(HealthStatus.YELLOW, numberOfYellowDataNodes, dataNodes),
+                new HealthInfoConfig(HealthStatus.RED, numberOfRedMasterNodes, masterNodes),
+                new HealthInfoConfig(HealthStatus.RED, numberOfRedOtherNodes, otherNodes)
+            )
+        );
+        {
+            HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, 0, healthInfo);
+            List<Diagnosis> diagnosisList = result.diagnosisList();
+            assertThat(diagnosisList.size(), equalTo(3));
+            {
+                Diagnosis diagnosis = diagnosisList.get(0);
+                List<Diagnosis.Resource> dataAffectedResources = diagnosis.affectedResources();
+                assertThat(dataAffectedResources.size(), equalTo(2));
+                assertThat(dataAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(dataAffectedResources.get(0).getNodes().size(), is(0));
+                assertThat(dataAffectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
+                assertThat(dataAffectedResources.get(1).getValues().size(), is(0));
+            }
+            {
+                Diagnosis diagnosis = diagnosisList.get(1);
+                List<Diagnosis.Resource> masterAffectedResources = diagnosis.affectedResources();
+                assertThat(masterAffectedResources.size(), equalTo(1));
+                assertThat(masterAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(masterAffectedResources.get(0).getNodes().size(), is(0));
+            }
+
+            {
+                Diagnosis diagnosis = diagnosisList.get(2);
+                List<Diagnosis.Resource> nonDataNonMasterAffectedResources = diagnosis.affectedResources();
+                assertThat(nonDataNonMasterAffectedResources.size(), equalTo(1));
+                assertThat(nonDataNonMasterAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(nonDataNonMasterAffectedResources.get(0).getNodes().size(), is(0));
+            }
+        }
+
+        {
+            HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, 10, healthInfo);
+            List<Diagnosis> diagnosisList = result.diagnosisList();
+            assertThat(diagnosisList.size(), equalTo(3));
+            {
+                Diagnosis diagnosis = diagnosisList.get(0);
+                List<Diagnosis.Resource> dataAffectedResources = diagnosis.affectedResources();
+                assertThat(dataAffectedResources.size(), equalTo(2));
+                assertThat(dataAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(dataAffectedResources.get(0).getNodes().size(), is(10));
+                assertThat(dataAffectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
+                assertThat(dataAffectedResources.get(1).getValues().size(), is(1));
+            }
+            {
+                Diagnosis diagnosis = diagnosisList.get(1);
+                List<Diagnosis.Resource> masterAffectedResources = diagnosis.affectedResources();
+                assertThat(masterAffectedResources.size(), equalTo(1));
+                assertThat(masterAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(masterAffectedResources.get(0).getNodes().size(), is(10));
+            }
+
+            {
+                Diagnosis diagnosis = diagnosisList.get(2);
+                List<Diagnosis.Resource> nonDataNonMasterAffectedResources = diagnosis.affectedResources();
+                assertThat(nonDataNonMasterAffectedResources.size(), equalTo(1));
+                assertThat(nonDataNonMasterAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(nonDataNonMasterAffectedResources.get(0).getNodes().size(), is(10));
+            }
+        }
+
+    }
+
     private Set<DiscoveryNode> createNodesWithAllRoles() {
         return createNodes(DiscoveryNodeRole.roles());
     }

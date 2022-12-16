@@ -144,7 +144,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+        public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
             var status = clusterService.getClusterSettings().get(statusSetting);
             return createIndicator(
                 status,
@@ -203,8 +203,10 @@ public class GetHealthActionIT extends ESIntegTestCase {
             {
                 ExecutionException exception = expectThrows(
                     ExecutionException.class,
-                    () -> client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(NONEXISTENT_INDICATOR_NAME, randomBoolean()))
-                        .get()
+                    () -> client.execute(
+                        GetHealthAction.INSTANCE,
+                        new GetHealthAction.Request(NONEXISTENT_INDICATOR_NAME, randomBoolean(), 1000)
+                    ).get()
                 );
                 assertThat(exception.getCause(), instanceOf(ResourceNotFoundException.class));
             }
@@ -258,7 +260,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
         HealthStatus clusterCoordinationIndicatorStatus,
         boolean verbose
     ) throws Exception {
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(verbose)).get();
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(verbose, 1000)).get();
 
         assertThat(
             response.getStatus(),
@@ -294,7 +296,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
     }
 
     private void testIndicator(Client client, HealthStatus ilmIndicatorStatus, boolean verbose) throws Exception {
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(ILM_INDICATOR_NAME, verbose)).get();
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(ILM_INDICATOR_NAME, verbose, 1000)).get();
         assertNull(response.getStatus());
         assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
         assertThat(

@@ -246,6 +246,13 @@ public final class EngineConfig {
     }
 
     /**
+     * @return the {@link CodecService}
+     */
+    public CodecService getCodecService() {
+        return codecService;
+    }
+
+    /**
      * Returns a thread-pool mainly used to get estimated time stamps from
      * {@link org.elasticsearch.threadpool.ThreadPool#relativeTimeInMillis()} and to schedule
      * async force merge calls on the {@link org.elasticsearch.threadpool.ThreadPool.Names#FORCE_MERGE} thread-pool

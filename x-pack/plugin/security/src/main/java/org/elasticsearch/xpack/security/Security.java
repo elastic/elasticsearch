@@ -1108,6 +1108,7 @@ public class Security extends Plugin
         settingsList.add(ApiKeyService.PASSWORD_HASHING_ALGORITHM);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);
         settingsList.add(ApiKeyService.DELETE_INTERVAL);
+        settingsList.add(ApiKeyService.DELETE_RETENTION_PERIOD);
         settingsList.add(ApiKeyService.CACHE_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.CACHE_MAX_KEYS_SETTING);
         settingsList.add(ApiKeyService.CACHE_TTL_SETTING);

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.ParseException;
@@ -41,8 +40,8 @@ public class JwtTypeValidatorTests extends ESTestCase {
             Map.of("typ", randomAlphaOfLengthBetween(4, 8), "alg", randomAlphaOfLengthBetween(3, 8))
         );
 
-        final ElasticsearchSecurityException e = expectThrows(
-            ElasticsearchSecurityException.class,
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> JwtTypeValidator.INSTANCE.validate(jwsHeader, JWTClaimsSet.parse(Map.of()))
         );
         assertThat(e.getMessage(), containsString("invalid jwt typ header"));

@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -53,7 +54,6 @@ public class TransformLatestRestIT extends TransformRestTestCase {
     public void testLatestWithAggregateMetricDouble() throws Exception {
         String transformId = "aggregate_metric_double_latest_transform";
         String transformIndex = "aggregate_metric_double_latest_reviews";
-        String statsField = "stars_stats";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
         String config = formatted("""
@@ -101,5 +101,49 @@ public class TransformLatestRestIT extends TransformRestTestCase {
         assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_stats.min", searchResult)).get(0), is(equalTo(1)));
         assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_stats.max", searchResult)).get(0), is(equalTo(3)));
         assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stars_stats.sum", searchResult)).get(0), is(equalTo(20)));
+    }
+
+    public void testLatestWithAggregateMetricDoubleAsUniqueKey() throws Exception {
+        String transformId = "aggregate_metric_double_latest_transform";
+        String transformIndex = "aggregate_metric_double_latest_reviews";
+        String statsField = "stars_stats";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        String config = formatted("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "latest": {
+                "unique_key": [ "%s" ],
+                "sort": "@timestamp"
+              }
+            }""", REVIEWS_INDEX_NAME, transformIndex, statsField);
+
+        {
+            final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
+            createPreviewRequest.setJsonEntity(config);
+            Exception e = expectThrows(Exception.class, () -> client().performRequest(createPreviewRequest));
+            assertThat(
+                e.getMessage(),
+                containsString("Field [stars_stats] of type [aggregate_metric_double] is not supported for aggregation [terms]")
+            );
+        }
+        {
+            final Request createTransformRequest = createRequestWithAuth(
+                "PUT",
+                getTransformEndpoint() + transformId,
+                BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+            );
+            createTransformRequest.setJsonEntity(config);
+            Exception e = expectThrows(Exception.class, () -> client().performRequest(createTransformRequest));
+            assertThat(
+                e.getMessage(),
+                containsString("Field [stars_stats] of type [aggregate_metric_double] is not supported for aggregation [terms]")
+            );
+        }
     }
 }

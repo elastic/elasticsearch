@@ -27,23 +27,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implements Aggregator.Parser {
+public abstract class ArrayValuesSourceParser implements Aggregator.Parser {
 
-    public abstract static class NumericValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.Numeric> {
+    public abstract static class NumericValuesSourceParser extends ArrayValuesSourceParser {
 
         protected NumericValuesSourceParser(boolean formattable) {
             super(formattable, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
     }
 
-    public abstract static class BytesValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.Bytes> {
+    public abstract static class BytesValuesSourceParser extends ArrayValuesSourceParser {
 
         protected BytesValuesSourceParser(boolean formattable) {
             super(formattable, CoreValuesSourceType.KEYWORD, ValueType.STRING);
         }
     }
 
-    public abstract static class GeoPointValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.GeoPoint> {
+    public abstract static class GeoPointValuesSourceParser extends ArrayValuesSourceParser {
 
         protected GeoPointValuesSourceParser(boolean formattable) {
             super(formattable, CoreValuesSourceType.GEOPOINT, ValueType.GEOPOINT);

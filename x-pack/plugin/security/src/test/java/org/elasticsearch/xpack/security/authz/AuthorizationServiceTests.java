@@ -1177,7 +1177,10 @@ public class AuthorizationServiceTests extends ESTestCase {
                 verify(rolesStore, times(2)).getRoles(Mockito.same(authentication), Mockito.any());
                 // But it does not create a new IndicesAccessControl
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), sameInstance(iac));
-                assertThat(securityContext.getParentAuthorization().action(), equalTo(SearchAction.NAME));
+                // The parent authorization header should only be present for direct child actions
+                // and not be carried over for a child of a child actions.
+                // Meaning, only query phase action should be pre-authorized in this case and potential sub-actions should not.
+                assertThat(securityContext.getParentAuthorization(), nullValue());
             });
         });
         verify(auditTrail).accessGranted(

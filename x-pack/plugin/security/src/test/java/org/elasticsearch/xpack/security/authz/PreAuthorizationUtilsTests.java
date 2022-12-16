@@ -143,7 +143,7 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
         Role role = Role.builder(RESTRICTED_INDICES, "role1").add(IndexPrivilege.READ, "test-*").build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        assertThat(PreAuthorizationUtils.shouldPreAuthorizeChildByParentAction(requestInfo, authzInfo), equalTo(true));
+        assertThat(PreAuthorizationUtils.shouldPreAuthorizeChildByParentAction(requestInfo, authzInfo), equalTo(false));
     }
 
     private String randomWhitelistedChildAction(String parentAction) {

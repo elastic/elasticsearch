@@ -84,7 +84,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         );
     }
 
-    public SecurityServerTransportInterceptor(
+    SecurityServerTransportInterceptor(
         Settings settings,
         ThreadPool threadPool,
         AuthenticationService authcService,

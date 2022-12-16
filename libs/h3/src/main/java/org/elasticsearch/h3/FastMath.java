@@ -26,7 +26,7 @@
  * =============================================================================
  *
  * This code sourced from:
- * https://github.com/yannrichet/jmathplot/blob/f25426e0ab0e68647ad2b75f577c7be050ecac86/src/main/java/org/math/plot/utils/FastMath.java
+ * https://github.com/jeffhain/jafama/blob/d7d2a7659e96e148d827acc24cf385b872cda365/src/main/java/net/jafama/FastMath.java
  */
 
 package org.elasticsearch.h3;

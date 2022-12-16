@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -206,7 +208,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
         builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5), false));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5), false));
-        builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, 10, TimeValue.timeValueMinutes(5), false));
+        ByteSizeValue maxHeapSize = ByteSizeValue.ofBytes(Runtime.getRuntime().maxMemory());
+        final int maxSnapshotCores = getMaxSnapshotCores(allocatedProcessors, maxHeapSize);
+        builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, maxSnapshotCores, TimeValue.timeValueMinutes(5), false));
         builders.put(
             Names.SNAPSHOT_META,
             new ScalingExecutorBuilder(
@@ -562,6 +566,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public static int searchOrGetThreadPoolSize(final int allocatedProcessors) {
         return ((allocatedProcessors * 3) / 2) + 1;
+    }
+
+    static int getMaxSnapshotCores(int allocatedProcessors, final ByteSizeValue maxHeapSize) {
+        // While on larger data nodes, larger snapshot threadpool size improves snapshotting on high latency blob stores,
+        // smaller instances can run into OOM issues and need a smaller snapshot threadpool size.
+        if (maxHeapSize.compareTo(new ByteSizeValue(750, ByteSizeUnit.MB)) < 0) {
+            return halfAllocatedProcessorsMaxFive(allocatedProcessors);
+        }
+        return 10;
     }
 
     static class ThreadedRunnable implements Runnable {

@@ -20,7 +20,7 @@ import java.util.Map;
 public interface SettingsProvider {
 
     /**
-     * Returns a collection of settings to apply to a Elasticsearch cluster node. This method is called when the cluster is started so
+     * Returns a collection of settings to apply to an Elasticsearch cluster node. This method is called when the cluster is started so
      * implementors can return dynamic setting values that may or may not be based on the given node spec.
      *
      * @param nodeSpec the specification for the given node to apply settings to

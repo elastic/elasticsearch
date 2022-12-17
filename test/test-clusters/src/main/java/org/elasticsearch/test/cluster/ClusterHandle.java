@@ -28,8 +28,8 @@ public interface ClusterHandle extends Closeable {
     void stop(boolean forcibly);
 
     /**
-     * Whether the cluster is started or not. Like {@link #start()}, this method makes not guarantees on cluster availability, only that the
-     * node processes have been started.
+     * Whether the cluster is started or not. This method makes no guarantees on cluster availability, only that the node processes have
+     * been started.
      *
      * @return whether the cluster has been started
      */

@@ -352,14 +352,15 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     .map(p -> p.toUri().toString())
                     .toList();
 
+                Path pluginCommand = OS.conditional(
+                    c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-plugin.bat"))
+                        .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-plugin"))
+                );
                 if (spec.getVersion().onOrAfter("7.6.0")) {
                     try {
                         ProcessUtils.exec(
                             workingDir,
-                            OS.conditional(
-                                c -> c.onWindows(() -> distributionDir.resolve("bin").resolve("elasticsearch-plugin.bat"))
-                                    .onUnix(() -> distributionDir.resolve("bin").resolve("elasticsearch-plugin"))
-                            ),
+                            pluginCommand,
                             getEnvironmentVariables(),
                             false,
                             Stream.concat(Stream.of("install", "--batch"), toInstall.stream()).toArray(String[]::new)
@@ -367,6 +368,15 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     } catch (InterruptedException e) {
                         throw new RuntimeException(e);
                     }
+                } else {
+                    toInstall.forEach(plugin -> {
+                        try {
+                            ProcessUtils.exec(workingDir, pluginCommand, getEnvironmentVariables(), false, "install", "--batch", plugin)
+                                .waitFor();
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
                 }
             }
         }

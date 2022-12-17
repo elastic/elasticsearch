@@ -20,7 +20,7 @@ import java.util.Map;
 public interface EnvironmentProvider {
 
     /**
-     * Returns a collection of environment variables to apply to a Elasticsearch cluster node. This method is called when the cluster is
+     * Returns a collection of environment variables to apply to an Elasticsearch cluster node. This method is called when the cluster is
      * started so implementors can return dynamic environment values that may or may not be based on the given node spec.
      *
      * @param nodeSpec the specification for the given node to apply settings to

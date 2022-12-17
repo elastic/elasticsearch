@@ -10,6 +10,10 @@ package org.elasticsearch.test.cluster;
 
 import org.elasticsearch.test.cluster.util.Version;
 
+/**
+ * Elasticsearch feature flags. Used in conjunction with {@link org.elasticsearch.test.cluster.local.LocalSpecBuilder#feature(FeatureFlag)}
+ * to indicate that this feature is required and should be enabled when appropriate.
+ */
 public enum FeatureFlag {
     TIME_SERIES_MODE("es.index_mode_feature_flag_registered=true", Version.fromString("8.0.0"), null);
 

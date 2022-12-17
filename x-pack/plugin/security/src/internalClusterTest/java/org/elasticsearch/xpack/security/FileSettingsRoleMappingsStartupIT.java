@@ -68,7 +68,7 @@ public class FileSettingsRoleMappingsStartupIT extends ESIntegTestCase {
         Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
-    public void testFailsOnStartWithError() throws Exception {
+    public void testFailsOnStartMasterNodeWithError() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));

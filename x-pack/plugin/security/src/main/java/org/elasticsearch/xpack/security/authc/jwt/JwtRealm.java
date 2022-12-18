@@ -220,10 +220,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             throw new IllegalArgumentException("Failed to parse JWT claims set", e);
         }
 
-        // If Issuer is not found, throw an error because it does not have fallback and no other realm can work with it.
+        // If Issuer is not found, still return a JWT token since it is after still a JWT, authentication
+        // will fail later because issuer is mandated
         final String issuer = jwtClaimsSet.getIssuer();
         if (Strings.hasText(issuer) == false) {
-            throw new IllegalArgumentException("Issuer claim 'iss' is missing.");
+            logger.warn("Issuer claim 'iss' is missing.");
+            return new JwtAuthenticationToken("<unrecognized-jwt>", signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
         }
 
         // Try all known extraction functions to build the token principal
@@ -241,12 +243,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // Token principal cannot be extracted even after trying all functions, but this is
         // still a JWT token so that we should return as one.
-        return new JwtAuthenticationToken(
-            issuer + "/unknown/unknown/unknown",
-            signedJWT,
-            JwtUtil.sha256(userCredentials),
-            clientCredentials
-        );
+        return new JwtAuthenticationToken("<unrecognized-jwt> by " + issuer, signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
     }
 
     @Override

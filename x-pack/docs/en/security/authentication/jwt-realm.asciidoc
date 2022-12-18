@@ -23,7 +23,7 @@ Flow, and then accesses {es} for itself.
 In both scenarios, the application should present a JWT to {es} that represents either the user (scenario 1)
 or itself (scenario 2). {es} categorizes the JWT into two types, ID Token and Access token,
 and validates them accordingly. The ID Token type basically follows the OIDC specification.
-The access token type is similar to the ID Token type but with more relax rules which makes it
+The access token type is similar to the ID Token type, but with more relaxed rules which makes it
 suitable for loosely-defined JWTs, including self-signed ones.
 Tokens of both types must contain the following 5 pieces of information. While ID Tokens follow
 strict rules on which claim should provide each piece of the information,
@@ -40,7 +40,7 @@ h| Information     | ID Token   | Access Token
  | Expiration Time | `exp`      | `exp`
 |====
 
-In addition, {es} also validates `nbf` and `auth_time` claims for ID Tokens if these claims present.
+In addition, {es} also validates `nbf` and `auth_time` claims for ID Tokens if these claims are present.
 But these claims are ignored for access tokens.
 
 A single JWT realm can only work with a single token type. The default token
@@ -161,22 +161,23 @@ Instructs the realm to treat and validate incoming JWTs as access tokens (`acces
 `allowed_subjects`::
 Specifies a list of JWT subjects that the realm will allow.
 These values are typically URLs, UUIDs, or other case-sensitive string values.
-NOTE this setting is mandatory for when `token_type` is `access_token`.
+
+NOTE: This setting is mandatory for when `token_type` is `access_token`.
 
 `required_claims`::
 Specifies a list of key/value pairs for additional verifications to be performed
-against a JWT. The values are either string or array of strings.
+against a JWT. The values are either a string or an array of strings.
 
 `fallback_claims.sub`::
 The name of the JWT claim to extract the subject information if the `sub` claim does not exist.
-THis setting is only available when `token_type` is `access_token`.
+This setting is only available when `token_type` is `access_token`.
 The fallback is applied everywhere the `sub` claim is used.
 In the above snippet, it means the `claims.principal` will also fallback to `client_id`
 if `sub` does not exist.
 
 `fallback_claims.aud`::
 The name of the JWT claim to extract the audiences information if the `aud` claim does not exist.
-THis setting is only available when `token_type` is `access_token`.
+This setting is only available when `token_type` is `access_token`.
 The fallback is applied everywhere the `aud` claim is used.
 
 --

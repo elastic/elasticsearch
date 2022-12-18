@@ -2088,8 +2088,8 @@ The fallback is applied everywhere the `aud` claim is used.
 `required_claims` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Additional claims and associated values that {es} should verify.
-This is a group setting that takes key/value pairs, where the key is string
-and the value must be either string or an array of strings.
+This is a group setting that takes key/value pairs, where the key is a string
+and the value must be either a string or an array of strings.
 
 For example:
 

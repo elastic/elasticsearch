@@ -135,6 +135,21 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         }
     }
 
+    protected abstract void prepareExecute();
+
+    /**
+     * Execute the script for the provided {@code docId}.
+     */
+    public final void runForDoc(int docId) {
+        prepareExecute();
+        setDocument(docId);
+        try {
+            execute();
+        } catch (RuntimeException e) {
+            exceptionHandler.handleError(e, fieldName);
+        }
+    }
+
     public abstract void execute();
 
 }

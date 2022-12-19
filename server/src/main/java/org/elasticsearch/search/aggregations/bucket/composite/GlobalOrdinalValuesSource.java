@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.function.BiConsumer;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
@@ -57,6 +58,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private Long highestCompetitiveValueGlobalOrd;
     private boolean isTopValueInsertionPoint;
     private volatile CompetitiveIterator currentCompetitiveIterator;
+    private int dynamicPruningInitialized;
 
     private long lastLookupOrd = -1;
     private BytesRef lastLookupValue;
@@ -278,6 +280,10 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         }
     }
 
+    void collectDebugInfo(BiConsumer<String, Object> add) {
+        add.accept("num_global_ordinal_dynamic_pruning_initialized", currentCompetitiveIterator == null ? 0 : dynamicPruningInitialized);
+    }
+
     private record PostingsEnumAndOrd(PostingsEnum postings, long ord) {}
 
     private class CompetitiveIterator extends DocIdSetIterator {
@@ -377,6 +383,8 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
          * out of them.
          */
         private void init(long minOrd, long maxOrd) throws IOException {
+            dynamicPruningInitialized++;
+
             final int size = (int) Math.max(0, maxOrd - minOrd + 1);
             postings = new ArrayDeque<>(size);
             if (size > 0) {

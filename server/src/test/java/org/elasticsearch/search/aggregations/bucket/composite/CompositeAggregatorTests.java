@@ -124,7 +124,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class CompositeAggregatorTests extends AggregatorTestCase {
@@ -3285,7 +3284,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=a_10}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
-                assertMap(debug, matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", equalTo(100))));
+                assertMap(
+                    debug,
+                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(0)))
+                );
             },
             keywordMapping,
             fooMapping
@@ -3313,7 +3315,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(result.getBuckets(), hasSize(13));
                 assertEquals(CompositeAggregator.class, impl);
-                assertMap(debug, matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", equalTo(100))));
+                assertMap(
+                    debug,
+                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(0)))
+                );
             },
             keywordMapping,
             fooMapping
@@ -3348,7 +3353,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", lessThanOrEqualTo(20)))
+                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(1)))
                 );
             },
             keywordMapping,
@@ -3373,7 +3378,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", lessThanOrEqualTo(20)))
+                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(1)))
                 );
             },
             keywordMapping,
@@ -3409,7 +3414,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", lessThanOrEqualTo(50)))
+                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(1)))
                 );
             },
             keywordMapping,
@@ -3434,7 +3439,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_docs_visited_no_index_sorting", lessThanOrEqualTo(50)))
+                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(1)))
                 );
             },
             keywordMapping,

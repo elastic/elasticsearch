@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Types.forciblyCast;
 
@@ -399,5 +400,11 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     @Override
     public void close() {
         Releasables.close(docCounts);
+    }
+
+    void collectDebugInfo(BiConsumer<String, Object> add) {
+        if (arrays[0]instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
+            globalOrdinalValuesSource.collectDebugInfo(add);
+        }
     }
 }

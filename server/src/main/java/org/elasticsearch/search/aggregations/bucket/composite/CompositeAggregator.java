@@ -86,8 +86,6 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
     private boolean earlyTerminated;
 
-    private int numDocsVisitedNoIndexSorting;
-
     CompositeAggregator(
         String name,
         AggregatorFactories factories,
@@ -503,7 +501,6 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                     public void collect(int doc, long zeroBucket) throws IOException {
                         assert zeroBucket == 0L;
                         inner.collect(doc);
-                        numDocsVisitedNoIndexSorting++;
                     }
 
                     @Override
@@ -632,7 +629,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        add.accept("num_docs_visited_no_index_sorting", numDocsVisitedNoIndexSorting);
+        queue.collectDebugInfo(add);
     }
 
     private static class Entry {

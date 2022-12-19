@@ -33,7 +33,6 @@ import java.util.StringTokenizer;
 import java.util.zip.GZIPInputStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class CellBoundaryTests extends ESTestCase {
 
@@ -205,7 +204,7 @@ public class CellBoundaryTests extends ESTestCase {
             } else {
                 // the cell crosses the edges of the icosahedron triangle,
                 // therefore it can share more than one edge
-                assertThat("For cell " + H3.h3ToString(h3), count, greaterThan(0));
+                assertThat("For cell " + H3.h3ToString(h3), count, equalTo(2));
             }
         }
     }

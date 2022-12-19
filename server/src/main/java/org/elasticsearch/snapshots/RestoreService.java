@@ -14,7 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -525,11 +525,11 @@ public class RestoreService implements ClusterStateApplier {
             "refreshing repository UUIDs for repositories [{}]",
             repositories.stream().map(repository -> repository.getMetadata().name()).collect(Collectors.joining(","))
         );
-        final ActionListener<RepositoryData> groupListener = new GroupedActionListener<>(
+        final ActionListener<RepositoryData> countDownListener = new CountDownActionListener(
             repositories.size(),
-            new ActionListener<Collection<Void>>() {
+            new ActionListener<Void>() {
                 @Override
-                public void onResponse(Collection<Void> ignored) {
+                public void onResponse(Void ignored) {
                     logger.debug("repository UUID refresh completed");
                     refreshListener.onResponse(null);
                 }
@@ -543,7 +543,7 @@ public class RestoreService implements ClusterStateApplier {
         ).map(repositoryData -> null /* don't collect the RepositoryData */);
 
         for (Repository repository : repositories) {
-            repository.getRepositoryData(groupListener);
+            repository.getRepositoryData(countDownListener);
         }
 
     }

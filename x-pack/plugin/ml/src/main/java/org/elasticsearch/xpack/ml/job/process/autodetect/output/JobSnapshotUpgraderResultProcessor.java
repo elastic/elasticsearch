@@ -69,7 +69,7 @@ public class JobSnapshotUpgraderResultProcessor {
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.persister = Objects.requireNonNull(persister);
         this.process = Objects.requireNonNull(autodetectProcess);
-        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId).shouldRetry(this::isAlive);
+        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, this::isAlive);
         this.flushListener = new FlushListener();
     }
 

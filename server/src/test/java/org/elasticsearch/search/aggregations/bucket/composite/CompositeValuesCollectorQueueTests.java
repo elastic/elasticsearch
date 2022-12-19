@@ -324,7 +324,8 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         BigArrays.NON_RECYCLING_INSTANCE,
                         sources,
                         size,
-                        indexReader);
+                        indexReader
+                    );
                     if (last != null) {
                         queue.setAfterKey(last);
                     }

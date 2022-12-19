@@ -32,6 +32,8 @@ final class Vec2d {
     /** sin(60') */
     private static final double M_SIN60 = Constants.M_SQRT3_2;
 
+    private static final double VEC2D_RESOLUTION = 1e-7;
+
     /**
      * icosahedron face centers in lat/lng radians
      */
@@ -257,6 +259,10 @@ final class Vec2d {
         return coordIJK;
     }
 
+    public boolean numericallyIdentical(Vec2d vec2d) {
+        return Math.abs(vec2d.x - x) < VEC2D_RESOLUTION && Math.abs(vec2d.y - y) < VEC2D_RESOLUTION;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -280,16 +286,14 @@ final class Vec2d {
      * @param p3 The second endpoint of the second line.
      */
     public static Vec2d v2dIntersect(Vec2d p0, Vec2d p1, Vec2d p2, Vec2d p3) {
-        double[] s1 = new double[2], s2 = new double[2];
-        s1[0] = p1.x - p0.x;
-        s1[1] = p1.y - p0.y;
-        s2[0] = p3.x - p2.x;
-        s2[1] = p3.y - p2.y;
+        final double s1x = p1.x - p0.x;
+        final double s1y = p1.y - p0.y;
+        final double s2x = p3.x - p2.x;
+        final double s2y = p3.y - p2.y;
 
-        float t;
-        t = (float) ((s2[0] * (p0.y - p2.y) - s2[1] * (p0.x - p2.x)) / (-s2[0] * s1[1] + s1[0] * s2[1]));
+        final double t = ((s2x * (p0.y - p2.y) - s2y * (p0.x - p2.x)) / (-s2x * s1y + s1x * s2y));
 
-        return new Vec2d(p0.x + (t * s1[0]), p0.y + (t * s1[1]));
+        return new Vec2d(p0.x + (t * s1x), p0.y + (t * s1y));
     }
 
     /**

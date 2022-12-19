@@ -339,7 +339,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             return;
         }
 
-        GroupedActionListener<Void> listener = new GroupedActionListener<>(future, enabledClusters.size());
+        GroupedActionListener<Void> listener = new GroupedActionListener<>(enabledClusters.size(), future);
         for (String clusterAlias : enabledClusters) {
             updateRemoteCluster(clusterAlias, settings, listener);
         }

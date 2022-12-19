@@ -1,0 +1,5 @@
+pr: 92074
+summary: Improve performance for role mapping with DNs
+area: Authentication
+type: bug
+issues: []

@@ -31,12 +31,13 @@ import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 
 /**
  * {@code SnapshotLifecycleService} manages snapshot policy scheduling and triggering of the
@@ -121,20 +122,16 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      * Returns true if SLM is in the stopping or stopped state
      */
     static boolean slmStoppedOrStopping(ClusterState state) {
-        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().custom(SnapshotLifecycleMetadata.TYPE))
-            .map(SnapshotLifecycleMetadata::getOperationMode)
-            .map(mode -> OperationMode.STOPPING == mode || OperationMode.STOPPED == mode)
-            .orElse(false);
+        OperationMode mode = currentSLMMode(state);
+        return OperationMode.STOPPING == mode || OperationMode.STOPPED == mode;
     }
 
     /**
      * Returns true if SLM is in the stopping state
      */
     static boolean slmStopping(ClusterState state) {
-        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().custom(SnapshotLifecycleMetadata.TYPE))
-            .map(SnapshotLifecycleMetadata::getOperationMode)
-            .map(mode -> OperationMode.STOPPING == mode)
-            .orElse(false);
+        OperationMode mode = currentSLMMode(state);
+        return OperationMode.STOPPING == mode;
     }
 
     /**

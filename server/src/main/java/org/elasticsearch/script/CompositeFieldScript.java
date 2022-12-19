@@ -47,17 +47,19 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
      */
     public final List<Object> getValues(String field) {
         // TODO for now we re-run the script every time a leaf field is accessed, but we could cache the values?
-        fieldValues.clear();
+        prepareExecute();
         execute();
         List<Object> values = fieldValues.get(field);
         fieldValues.clear();    // don't hold on to values unnecessarily
         return values;
     }
 
-    public final Map<String, List<Object>> runForDoc(int doc) {
-        setDocument(doc);
+    @Override
+    protected void prepareExecute() {
         fieldValues.clear();
-        execute();
+    }
+
+    public final Map<String, List<Object>> getFieldValues() {
         return fieldValues;
     }
 

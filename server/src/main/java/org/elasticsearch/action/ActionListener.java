@@ -16,6 +16,7 @@ import org.elasticsearch.core.CheckedRunnable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -418,17 +419,48 @@ public interface ActionListener<Response> {
      * and {@link #onFailure(Exception)} of the provided listener will be called at most once.
      */
     static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> delegate) {
-        return new NotifyOnceListener<Response>() {
+        final var delegateRef = new AtomicReference<>(delegate);
+        return new ActionListener<>() {
             @Override
-            protected void innerOnResponse(Response response) {
-                delegate.onResponse(response);
+            public void onResponse(Response response) {
+                final var acquired = delegateRef.getAndSet(null);
+                if (acquired != null) {
+                    acquired.onResponse(response);
+                }
             }
 
             @Override
-            protected void innerOnFailure(Exception e) {
-                delegate.onFailure(e);
+            public void onFailure(Exception e) {
+                final var acquired = delegateRef.getAndSet(null);
+                if (acquired != null) {
+                    acquired.onFailure(e);
+                }
             }
         };
+    }
+
+    final class NotifyOnceAndReleaseListener<T> implements ActionListener<T> {
+        final AtomicReference<ActionListener<T>> delegateRef;
+
+        NotifyOnceAndReleaseListener(ActionListener<T> delegate) {
+            delegateRef = new AtomicReference<>(delegate);
+        }
+
+        @Override
+        public void onResponse(T response) {
+            final var acquired = delegateRef.getAndSet(null);
+            if (acquired != null) {
+                acquired.onResponse(response);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            final var acquired = delegateRef.getAndSet(null);
+            if (acquired != null) {
+                acquired.onFailure(e);
+            }
+        }
     }
 
     /**

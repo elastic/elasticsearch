@@ -132,7 +132,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             }
         }
         this.innerSizedBucketAggregators = dateHistogramValuesSources.toArray(new DateHistogramValuesSource[0]);
-        this.queue = new CompositeValuesCollectorQueue(aggCtx.bigArrays(), sources, size);
+        this.queue = new CompositeValuesCollectorQueue(aggCtx.bigArrays(), sources, size, aggCtx.searcher().getIndexReader());
         if (rawAfterKey != null) {
             try {
                 this.queue.setAfterKey(rawAfterKey);

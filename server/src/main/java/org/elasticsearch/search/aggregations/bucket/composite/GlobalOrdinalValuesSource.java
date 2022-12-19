@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.logging.LogManager;
@@ -35,6 +34,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
@@ -92,11 +92,32 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     /**
      * Return whether the source can be used for dynamic pruning.
      */
-    boolean mayDynamicallyPrune() {
+    boolean mayDynamicallyPrune(IndexReader indexReader) {
         // If missing bucket is requested we have no way to tell lucene to efficiently match
         // buckets in a range AND missing values.
-        // If the field type is IP, we cannot compare them as keywords.
-        return missingBucket == false && fieldType instanceof IpFieldMapper.IpFieldType == false;
+        if (missingBucket) {
+            return false;
+        }
+        // We also need to check if there are terms for the field in question.
+        // Some field types do not despite being global ordinals (e.g. IP addresses).
+        return hasTerms(indexReader);
+    }
+
+    private boolean hasTerms(IndexReader indexReader) {
+        List<LeafReaderContext> leaves = indexReader.leaves();
+        for (LeafReaderContext leaf : leaves) {
+            Terms terms;
+            try {
+                terms = leaf.reader().terms(fieldType.name());
+            } catch (IOException e) {
+                logger.error("failed to read terms; dynamic pruning is disabled", e);
+                return false;
+            }
+            if (terms != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

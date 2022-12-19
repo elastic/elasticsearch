@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.util.PriorityQueue;
@@ -16,8 +17,6 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
@@ -56,8 +55,6 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         void boundsChanged(int topSlot) throws IOException;
     }
 
-    private static final Logger logger = LogManager.getLogger(CompositeValuesCollectorQueue.class);
-
     // the slot for the current candidate
     private static final int CANDIDATE_SLOT = Integer.MAX_VALUE;
 
@@ -73,10 +70,11 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     /**
      * Constructs a composite queue with the specified size and sources.
      *
-     * @param sources The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
-     * @param size The number of composite buckets to keep.
+     * @param sources     The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
+     * @param size        The number of composite buckets to keep.
+     * @param indexReader
      */
-    CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size) {
+    CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size, IndexReader indexReader) {
         super(size);
         this.bigArrays = bigArrays;
         this.maxSize = size;
@@ -85,7 +83,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         // If the leading source is a GlobalOrdinalValuesSource we can apply an optimization which requires
         // tracking the highest competitive value.
         if (arrays[0]instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
-            if (shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(sources, size)) {
+            if (shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(sources, size, indexReader)) {
                 competitiveBoundsChangedListener = topSlot -> globalOrdinalValuesSource.updateHighestCompetitiveValue(topSlot);
             } else {
                 competitiveBoundsChangedListener = null;
@@ -98,12 +96,16 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         this.docCounts = bigArrays.newLongArray(1, false);
     }
 
-    private static boolean shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(SingleDimensionValuesSource<?>[] sources, int size) {
+    private static boolean shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(
+        SingleDimensionValuesSource<?>[] sources,
+        int size,
+        IndexReader indexReader
+    ) {
         if (sources.length == 0) {
             return false;
         }
         if (sources[0]instanceof GlobalOrdinalValuesSource firstSource) {
-            if (firstSource.mayDynamicallyPrune() == false) {
+            if (firstSource.mayDynamicallyPrune(indexReader) == false) {
                 return false;
             }
 

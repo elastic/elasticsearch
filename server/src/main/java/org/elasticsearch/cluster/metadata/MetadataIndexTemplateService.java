@@ -511,7 +511,8 @@ public class MetadataIndexTemplateService {
             .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
             .toList();
 
-        if (missingComponentTemplates.size() > 0) {
+        // Validates that all component templates exist in case ignore_missing_component_templates is not set
+        if (template.getIgnoreMissingComponentTemplates() == false && missingComponentTemplates.size() > 0) {
             throw new InvalidIndexTemplateException(
                 name,
                 "index template [" + name + "] specifies component templates " + missingComponentTemplates + " that do not exist"
@@ -580,7 +581,8 @@ public class MetadataIndexTemplateService {
                 template.version(),
                 template.metadata(),
                 template.getDataStreamTemplate(),
-                template.getAllowAutoCreate()
+                template.getAllowAutoCreate(),
+                template.getIgnoreMissingComponentTemplates()
             );
         }
 
@@ -680,7 +682,8 @@ public class MetadataIndexTemplateService {
             indexTemplate.version(),
             indexTemplate.metadata(),
             indexTemplate.getDataStreamTemplate(),
-            indexTemplate.getAllowAutoCreate()
+            indexTemplate.getAllowAutoCreate(),
+            indexTemplate.getIgnoreMissingComponentTemplates()
         );
 
         validate(name, templateToValidate);

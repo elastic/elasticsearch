@@ -46,6 +46,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private static final ParseField METADATA = new ParseField("_meta");
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
+    private static final ParseField IGNORE_MISSING_COMPONENT_TEMPLATES = new ParseField("ignore_missing_component_templates");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>(
@@ -59,7 +60,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             (Long) a[4],
             (Map<String, Object>) a[5],
             (DataStreamTemplate) a[6],
-            (Boolean) a[7]
+            (Boolean) a[7],
+            (Boolean) a[8]
         )
     );
 
@@ -72,6 +74,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), DataStreamTemplate.PARSER, DATA_STREAM);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_AUTO_CREATE);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IGNORE_MISSING_COMPONENT_TEMPLATES);
     }
 
     private final List<String> indexPatterns;
@@ -89,6 +92,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private final DataStreamTemplate dataStreamTemplate;
     @Nullable
     private final Boolean allowAutoCreate;
+    @Nullable
+    private final Boolean ignoreMissingComponentTemplates;
 
     static Diff<ComposableIndexTemplate> readITV2DiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
@@ -106,7 +111,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable Long version,
         @Nullable Map<String, Object> metadata
     ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, null, null);
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, null, null, false);
     }
 
     public ComposableIndexTemplate(
@@ -118,7 +123,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamTemplate dataStreamTemplate
     ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null);
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null, false);
     }
 
     public ComposableIndexTemplate(
@@ -129,7 +134,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable Long version,
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamTemplate dataStreamTemplate,
-        @Nullable Boolean allowAutoCreate
+        @Nullable Boolean allowAutoCreate,
+        @Nullable Boolean ignoreMissingComponentTemplates
     ) {
         this.indexPatterns = indexPatterns;
         this.template = template;
@@ -139,6 +145,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.metadata = metadata;
         this.dataStreamTemplate = dataStreamTemplate;
         this.allowAutoCreate = allowAutoCreate;
+        this.ignoreMissingComponentTemplates = ignoreMissingComponentTemplates;
     }
 
     public ComposableIndexTemplate(StreamInput in) throws IOException {
@@ -154,6 +161,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.metadata = in.readMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
+        this.ignoreMissingComponentTemplates = in.readOptionalBoolean();
     }
 
     public List<String> indexPatterns() {
@@ -204,6 +212,15 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return this.allowAutoCreate;
     }
 
+    @Nullable
+    public Boolean getIgnoreMissingComponentTemplates() {
+        // If value is not set, ignore_missing_component_templates is disabled
+        if (this.ignoreMissingComponentTemplates == null) {
+            return false;
+        }
+        return this.ignoreMissingComponentTemplates;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(this.indexPatterns);
@@ -219,6 +236,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         out.writeGenericMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
+        out.writeOptionalBoolean(ignoreMissingComponentTemplates);
     }
 
     @Override
@@ -246,6 +264,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (this.allowAutoCreate != null) {
             builder.field(ALLOW_AUTO_CREATE.getPreferredName(), allowAutoCreate);
         }
+        if (this.ignoreMissingComponentTemplates != null) {
+            builder.field(IGNORE_MISSING_COMPONENT_TEMPLATES.getPreferredName(), ignoreMissingComponentTemplates);
+        }
         builder.endObject();
         return builder;
     }
@@ -260,7 +281,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.version,
             this.metadata,
             this.dataStreamTemplate,
-            this.allowAutoCreate
+            this.allowAutoCreate,
+            this.ignoreMissingComponentTemplates
         );
     }
 
@@ -280,7 +302,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             && Objects.equals(this.version, other.version)
             && Objects.equals(this.metadata, other.metadata)
             && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
-            && Objects.equals(this.allowAutoCreate, other.allowAutoCreate);
+            && Objects.equals(this.allowAutoCreate, other.allowAutoCreate)
+            && Objects.equals(this.ignoreMissingComponentTemplates, other.ignoreMissingComponentTemplates);
     }
 
     static boolean componentTemplatesEquals(List<String> c1, List<String> c2) {
@@ -420,6 +443,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private Map<String, Object> metadata;
         private DataStreamTemplate dataStreamTemplate;
         private Boolean allowAutoCreate;
+        private Boolean ignoreMissingComponentTemplates;
 
         public Builder() {}
 
@@ -463,6 +487,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return this;
         }
 
+        public Builder ignoreMissingComponentTemplates(Boolean ignoreMissingComponentTemplates) {
+            this.ignoreMissingComponentTemplates = ignoreMissingComponentTemplates;
+            return this;
+        }
+
         public ComposableIndexTemplate build() {
             return new ComposableIndexTemplate(
                 this.indexPatterns,
@@ -472,7 +501,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 this.version,
                 this.metadata,
                 this.dataStreamTemplate,
-                this.allowAutoCreate
+                this.allowAutoCreate,
+                this.ignoreMissingComponentTemplates
             );
         }
     }

@@ -68,6 +68,33 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testAggsExpressionsInStatsAggs() {
+        assertEquals(
+            "1:44: expected an aggregate function or group but got [salary] of type [FieldAttribute]",
+            error("from test | eval z = 2 | stats x = avg(z), salary by emp_no")
+        );
+        assertEquals(
+            "1:19: expected an aggregate function or group but got [length(gender)] of type [Length]",
+            error("from test | stats length(gender), count(1) by gender")
+        );
+        assertEquals(
+            "1:19: aggregate function's parameters must be an attribute or literal; found [emp_no / 2] of type [Div]",
+            error("from test | stats x = avg(emp_no / 2) by emp_no")
+        );
+        assertEquals(
+            "1:19: aggregate function's parameters must be an attribute or literal; found [avg(gender)] of type [Avg]",
+            error("from test | stats count(avg(gender)) by gender")
+        );
+        assertEquals(
+            "1:19: aggregate function's parameters must be an attribute or literal; found [length(gender)] of type [Length]",
+            error("from test | stats count(length(gender)) by gender")
+        );
+        assertEquals(
+            "1:23: expected an aggregate function or group but got [emp_no + avg(emp_no)] of type [Add]",
+            error("from test | stats x = emp_no + avg(emp_no) by emp_no")
+        );
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }

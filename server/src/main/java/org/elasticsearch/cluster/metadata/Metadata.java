@@ -2258,21 +2258,18 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 validateAlias(entry.getKey(), aliasIndices);
             }
             SortedMap<String, IndexAbstraction> indicesLookup = null;
+            DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
             if (previousIndicesLookup != null) {
                 // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
                 assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
                 indicesLookup = previousIndicesLookup;
             } else if (skipNameCollisionChecks == false) {
                 // we have changes to the entity names so we ensure we have no naming collisions
-                DataStreamMetadata dataStreamMetadata = dataStreamMetadata();
-                DataStreamMetadata updatedDataStreamMetadata = ensureNoNameCollisions(
-                    aliasedIndices.keySet(),
-                    indicesMap,
-                    dataStreamMetadata()
-                );
-                if (dataStreamMetadata.equals(updatedDataStreamMetadata) == false) {
-                    this.customs.put(DataStreamMetadata.TYPE, updatedDataStreamMetadata);
-                }
+                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata);
+            }
+            DataStreamMetadata updatedDataStreamMetadata = updateDenormalizedDataStreamAliases(dataStreamMetadata);
+            if (updatedDataStreamMetadata != null) {
+                this.customs.put(DataStreamMetadata.TYPE, updatedDataStreamMetadata);
             }
             assert assertDataStreams(indicesMap, dataStreamMetadata());
 
@@ -2318,7 +2315,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             );
         }
 
-        private static DataStreamMetadata ensureNoNameCollisions(
+        private static void ensureNoNameCollisions(
             Set<String> indexAliases,
             ImmutableOpenMap<String, IndexMetadata> indicesMap,
             DataStreamMetadata dataStreamMetadata
@@ -2367,7 +2364,20 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                         + "]"
                 );
             }
+        }
+
+        private static DataStreamMetadata updateDenormalizedDataStreamAliases(DataStreamMetadata dataStreamMetadata) {
+            /*
+             * DataStreamAliases are denormalized -- each DataStream keeps its own copy, which is supposed to differ only by filter. If
+             * multiple DataStreams are added to a DataStreamAlias in a single request, each will only have a copy of the DataStreamAlias
+             * as it existed when that DataStream was added to it. This method treats the top-level DataStreamAlias (the one from
+             * DataStreamMetadata#getDataStreamAliases) as the reference DataStreamAlias, and makes sure that all denormalized copies of
+             * the DataStreamAlias on each DataStream have the same list of DataStreams and the same write DataStream. This method
+             * returns null if no changes were required, or a new DataStreamMetadata if any changes were required.
+             */
+            Map<String, DataStreamAlias> allDataStreamAliases = dataStreamMetadata.getDataStreamAliases();
             Map<String, DataStream> updatedDataStreams = new HashMap<>();
+            boolean madeUpdate = false;
             for (Map.Entry<String, DataStream> dataStreamEntry : dataStreamMetadata.dataStreams().entrySet()) {
                 DataStream currentDataStream = dataStreamEntry.getValue();
                 Map<String, DataStreamAlias> currentDataStreamAliases = currentDataStream.getAliases();
@@ -2389,6 +2399,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     DataStreamAlias referenceDataAtreamAlias = allDataStreamAliases.get(aliasEntry.getKey());
                     if (referenceDataAtreamAlias != null) {
                         DataStreamAlias currentDataStreamAlias = aliasEntry.getValue();
+                        // We're only checking the two fields that could be out of sync here:
                         if (Objects.equals(
                             referenceDataAtreamAlias.getWriteDataStream(),
                             currentDataStreamAlias.getWriteDataStream()
@@ -2398,17 +2409,21 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                                 referenceDataAtreamAlias.getWriteDataStream()
                             );
                             updatedDataStreamAliases.put(aliasEntry.getKey(), updatedDataStreamAlias);
+                            madeUpdate = true;
                         } else {
                             updatedDataStreamAliases.put(aliasEntry.getKey(), currentDataStreamAlias);
                         }
                     }
                 }
             }
-            DataStreamMetadata updatedDataStreamMetadata = new DataStreamMetadata(
-                new ImmutableOpenMap.Builder<String, DataStream>().putAllFromMap(updatedDataStreams).build(),
-                new ImmutableOpenMap.Builder<String, DataStreamAlias>().putAllFromMap(allDataStreamAliases).build()
-            );
-            return updatedDataStreamMetadata;
+            if (madeUpdate) {
+                return new DataStreamMetadata(
+                    new ImmutableOpenMap.Builder<String, DataStream>().putAllFromMap(updatedDataStreams).build(),
+                    new ImmutableOpenMap.Builder<String, DataStreamAlias>().putAllFromMap(allDataStreamAliases).build()
+                );
+            } else {
+                return null;
+            }
         }
 
         /**

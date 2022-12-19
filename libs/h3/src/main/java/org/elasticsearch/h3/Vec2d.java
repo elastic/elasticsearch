@@ -32,6 +32,8 @@ final class Vec2d {
     /** sin(60') */
     private static final double M_SIN60 = Constants.M_SQRT3_2;
 
+    private static final double VEC2D_RESOLUTION = 1e-7;
+
     /**
      * icosahedron face centers in lat/lng radians
      */
@@ -255,6 +257,10 @@ final class Vec2d {
         final CoordIJK coordIJK = new CoordIJK(i, j, k);
         coordIJK.ijkNormalize();
         return coordIJK;
+    }
+
+    public boolean numericallyIdentical(Vec2d vec2d) {
+        return Math.abs(vec2d.x - x) < VEC2D_RESOLUTION && Math.abs(vec2d.y - y) < VEC2D_RESOLUTION;
     }
 
     @Override

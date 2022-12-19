@@ -171,8 +171,8 @@ public class CellBoundaryTests extends ESTestCase {
         CellBoundary boundary = H3.h3ToGeoBoundary(h3Address);
         assert boundary.numPoints() == points.size();
         for (int i = 0; i < boundary.numPoints(); i++) {
-            assertEquals(h3Address, points.get(i)[0], boundary.getLatLon(i).getLatDeg(), 1e-8);
-            assertEquals(h3Address, points.get(i)[1], boundary.getLatLon(i).getLonDeg(), 1e-8);
+            assertEquals(h3Address, points.get(i)[0], boundary.getLatLon(i).getLatDeg(), 5e-7);
+            assertEquals(h3Address, points.get(i)[1], boundary.getLatLon(i).getLonDeg(), 5e-7);
         }
     }
 }

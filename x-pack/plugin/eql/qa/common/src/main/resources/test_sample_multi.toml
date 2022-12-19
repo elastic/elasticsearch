@@ -33,9 +33,48 @@ query = '''
 '''
 # non-deterministic, can return any of the following
 expected_event_ids  = [
-    [7, 6, 1, 3],  [7, 6, 2, 3], [7, 6, 4, 3]
+    [7, 6,
+     1, 3],
+    [7, 6,
+     2, 3],
+    [7, 6,
+     4, 3]
 ]
-join_keys = ["redhat", "win10"]
+join_keys = ["redhat",
+             "win10"]
+
+[[queries]]
+name = "oneSamplePerKey_optional"
+max_samples_per_key = 1
+query = '''
+  sample by ?os
+    [alert_1 where true]
+    [alert_2 where true]
+'''
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [8, 9,
+    7, 6,
+    1, 3],
+    [8, 9,
+    7, 6,
+    2, 3],
+    [8, 9,
+    7, 6,
+    4, 3],
+    [10, 9,
+    7, 6,
+    1, 3],
+    [10, 9,
+    7, 6,
+    2, 3],
+    [10, 9,
+    7, 6,
+    4, 3]
+]
+join_keys = ["null",
+             "redhat",
+             "win10"]
 
 
 [[queries]]
@@ -48,14 +87,107 @@ query = '''
 '''
 # non-deterministic, can return any of the following
 expected_event_ids  = [
-    [7, 6, 1, 3, 2, 3],
-    [7, 6, 1, 3, 4, 3],
-    [7, 6, 2, 3, 1, 3],
-    [7, 6, 2, 3, 4, 3],
-    [7, 6, 4, 3, 1, 3],
-    [7, 6, 4, 3, 2, 3]
+    [7, 6,
+     1, 3,
+     2, 3],
+    [7, 6,
+     1, 3,
+     4, 3],
+    [7, 6,
+     2, 3,
+     1, 3],
+    [7, 6,
+     2, 3,
+     4, 3],
+    [7, 6,
+     4, 3,
+     1, 3],
+    [7, 6,
+     4, 3,
+     2, 3]
 ]
-join_keys = ["redhat", "win10", "win10"]
+join_keys = ["redhat",
+             "win10",
+             "win10"]
+
+
+
+[[queries]]
+name = "twoSamplesPerKeyOutOfThree_optional"
+max_samples_per_key = 2
+query = '''
+  sample by ?os
+    [alert_1 where true]
+    [alert_2 where true]
+'''
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [8, 9,
+     10, 9,
+     7, 6,
+     1, 3,
+     2, 3],
+    [8, 9,
+     10, 9,
+     7, 6,
+     1, 3,
+     4, 3],
+    [8, 9,
+     10, 9,
+     7, 6,
+     2, 3,
+     1, 3],
+    [8, 9,
+     10, 9,
+     7, 6,
+     2, 3,
+     4, 3],
+    [8, 9,
+     10, 9,
+     7, 6,
+     4, 3,
+     1, 3],
+    [8, 9,
+     10, 9,
+     7, 6,
+     4, 3,
+     2, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     1, 3,
+     2, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     1, 3,
+     4, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     2, 3,
+     1, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     2, 3,
+     4, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     4, 3,
+     1, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     4, 3,
+     2, 3]
+]
+join_keys = ["null",
+             "null",
+             "redhat",
+             "win10",
+             "win10"]
 
 
 [[queries]]
@@ -68,14 +200,21 @@ query = '''
 '''
 # non-deterministic, can return any of the following
 expected_event_ids  = [
-    [1, 3, 2, 3],
-    [1, 3, 4, 3],
-    [2, 3, 1, 3],
-    [2, 3, 4, 3],
-    [4, 3, 1, 3],
-    [4, 3, 2, 3]
+    [1, 3,
+     2, 3],
+    [1, 3,
+     4, 3],
+    [2, 3,
+     1, 3],
+    [2, 3,
+     4, 3],
+    [4, 3,
+     1, 3],
+    [4, 3,
+     2, 3]
 ]
-join_keys = ["win10", "win10"]
+join_keys = ["win10",
+             "win10"]
 
 
 [[queries]]
@@ -88,14 +227,28 @@ query = '''
 '''
 # non-deterministic, can return any of the following
 expected_event_ids  = [
-    [6, 7, 3, 1, 3, 2],
-    [6, 7, 3, 1, 3, 4],
-    [6, 7, 3, 2, 3, 1],
-    [6, 7, 3, 2, 3, 4],
-    [6, 7, 3, 4, 3, 1],
-    [6, 7, 3, 4, 3, 2]
+    [6, 7,
+     3, 1,
+     3, 2],
+    [6, 7,
+     3, 1,
+     3, 4],
+    [6, 7,
+     3, 2,
+     3, 1],
+    [6, 7,
+     3, 2,
+     3, 4],
+    [6, 7,
+     3, 4,
+     3, 1],
+    [6, 7,
+     3, 4,
+     3, 2]
 ]
-join_keys = ["redhat", "win10", "win10"]
+join_keys = ["redhat",
+             "win10",
+             "win10"]
 
 
 [[queries]]
@@ -108,14 +261,35 @@ query = '''
 '''
 # non-deterministic, can return any of the following
 expected_event_ids  = [
-    [7, 6, 1, 3, 2, 3, 4, 3],
-    [7, 6, 1, 3, 4, 3, 2, 3],
-    [7, 6, 2, 3, 1, 3, 4, 3],
-    [7, 6, 2, 3, 4, 3, 1, 3],
-    [7, 6, 4, 3, 1, 3, 2, 3],
-    [7, 6, 4, 3, 2, 3, 1, 3]
+    [7, 6,
+     1, 3,
+     2, 3,
+     4, 3],
+    [7, 6,
+     1, 3,
+     4, 3,
+     2, 3],
+    [7, 6,
+     2, 3,
+     1, 3,
+     4, 3],
+    [7, 6,
+     2, 3,
+     4, 3,
+     1, 3],
+    [7, 6,
+     4, 3,
+     1, 3,
+     2, 3],
+    [7, 6,
+     4, 3,
+     2, 3,
+     1, 3]
 ]
-join_keys = ["redhat", "win10", "win10", "win10"]
+join_keys = ["redhat",
+             "win10",
+             "win10",
+             "win10"]
 
 
 [[queries]]
@@ -128,14 +302,35 @@ query = '''
 '''
 # non-deterministic, can return any of the following
 expected_event_ids  = [
-    [7, 6, 1, 3, 2, 3, 4, 3],
-    [7, 6, 1, 3, 4, 3, 2, 3],
-    [7, 6, 2, 3, 1, 3, 4, 3],
-    [7, 6, 2, 3, 4, 3, 1, 3],
-    [7, 6, 4, 3, 1, 3, 2, 3],
-    [7, 6, 4, 3, 2, 3, 1, 3]
+    [7, 6,
+     1, 3,
+     2, 3,
+     4, 3],
+    [7, 6,
+     1, 3,
+     4, 3,
+     2, 3],
+    [7, 6,
+     2, 3,
+     1, 3,
+     4, 3],
+    [7, 6,
+     2, 3,
+     4, 3,
+     1, 3],
+    [7, 6,
+     4, 3,
+     1, 3,
+     2, 3],
+    [7, 6,
+     4, 3,
+     2, 3,
+     1, 3]
 ]
-join_keys = ["redhat", "win10", "win10", "win10"]
+join_keys = ["redhat",
+             "win10",
+             "win10",
+             "win10"]
 
 
 [[queries]]
@@ -148,11 +343,25 @@ query = '''
 '''
 # non-deterministic, can return any of the following
 expected_event_ids  = [
-    [7, 6, 1, 3, 2, 3],
-    [7, 6, 1, 3, 4, 3],
-    [7, 6, 2, 3, 1, 3],
-    [7, 6, 2, 3, 4, 3],
-    [7, 6, 4, 3, 1, 3],
-    [7, 6, 4, 3, 2, 3]
+    [7, 6,
+     1, 3,
+     2, 3],
+    [7, 6,
+     1, 3,
+     4, 3],
+    [7, 6,
+     2, 3,
+     1, 3],
+    [7, 6,
+     2, 3,
+     4, 3],
+    [7, 6,
+     4, 3,
+     1, 3],
+    [7, 6,
+     4, 3,
+     2, 3]
 ]
-join_keys = ["redhat", "win10", "win10"]
+join_keys = ["redhat",
+             "win10",
+             "win10"]

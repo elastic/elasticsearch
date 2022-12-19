@@ -169,9 +169,10 @@ public class SampleQueryRequest implements QueryRequest {
 
         SearchSourceBuilder newSource = copySource(searchSource);
         RuntimeUtils.replaceFilter(singleKeyPairFilters, newFilters, newSource);
-        newSource.size(maxStages + maxSamplesPerKey - 1) // ask for the minimum needed to get at least N samplese per key
-            .terminateAfter(maxStages + maxSamplesPerKey - 1) // no need to ask for more from each shard since we don't need sorting or more
-                                                              // docs
+        // ask for the minimum needed to get at least N samplese per key
+        int minResultsNeeded = maxStages + maxSamplesPerKey - 1;
+        newSource.size(minResultsNeeded)
+            .terminateAfter(minResultsNeeded) // no need to ask for more from each shard since we don't need sorting or more docs
             .fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE) // we'll get the source in a separate step
             .trackTotalHits(false)
             .trackScores(false);

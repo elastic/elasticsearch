@@ -383,7 +383,7 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter rule2 = keyedFilter(basicFilter(new IsNull(EMPTY, TRUE)));
 
         Sequence seq = sequence(rule1, rule2);
-        Sample sample = sample(randomIntBetween(1, 10), rule1, rule2);
+        Sample sample = sample(rule1, rule2);
         AbstractJoin random = randomFrom(seq, sample);
         Filter filter = new Filter(EMPTY, random, left);
 
@@ -418,7 +418,7 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter rule2 = keyedFilter(basicFilter(filter), b);
 
         Sequence seq = sequence(rule1, rule2);
-        Sample sample = sample(randomIntBetween(1, 10), rule1, rule2);
+        Sample sample = sample(rule1, rule2);
         AbstractJoin random = randomFrom(seq, sample);
         boolean isSequence = random instanceof Sequence;
 
@@ -703,7 +703,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSampleOptimizations() {
         String q = "sample by user_name [any where true] by bool [any where true] by bool";
-        LogicalPlan plan = sample(randomIntBetween(1, 10), accept(q));
+        LogicalPlan plan = sample(accept(q));
         assertTrue(plan instanceof Sample);
         List<LogicalPlan> projects = plan.collectFirstChildren(x -> x instanceof Project);
         assertEquals(2, projects.size());
@@ -723,7 +723,7 @@ public class OptimizerTests extends ESTestCase {
 
     private AbstractJoin randomSequenceOrSample(KeyedFilter rule1, KeyedFilter rule2) {
         Sequence seq = sequence(rule1, rule2);
-        Sample sample = sample(randomIntBetween(1, 10), rule1, rule2);
+        Sample sample = sample(rule1, rule2);
         AbstractJoin random = randomFrom(seq, sample);
         boolean isSequence = random instanceof Sequence;
 
@@ -794,7 +794,7 @@ public class OptimizerTests extends ESTestCase {
         return new Sequence(EMPTY, collect, keyedFilter(rel()), TimeValue.MINUS_ONE, timestamp(), tiebreaker(), OrderDirection.ASC);
     }
 
-    private static Sample sample(int maxSamplesPerKey, LogicalPlan... rules) {
+    private static Sample sample(LogicalPlan... rules) {
         List<KeyedFilter> collect = Stream.of(rules)
             .map(r -> r instanceof KeyedFilter ? (KeyedFilter) r : keyedFilter(r))
             .collect(toList());

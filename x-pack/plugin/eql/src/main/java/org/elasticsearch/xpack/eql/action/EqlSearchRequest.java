@@ -62,7 +62,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private String resultPosition = "tail";
     private List<FieldAndFormat> fetchFields;
     private Map<String, Object> runtimeMappings = emptyMap();
-    private int maxSamplesPerKey = 1;
+    private int maxSamplesPerKey = RequestDefaults.MAX_SAMPLES_PER_KEY;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -185,6 +185,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
         if (runtimeMappings != null) {
             validationException = validateRuntimeMappings(runtimeMappings, validationException);
+        }
+
+        if (maxSamplesPerKey < 1) {
+            validationException = addValidationError("max_samples_per_key must be greater than 0", validationException);
         }
 
         return validationException;
@@ -491,7 +495,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             && Objects.equals(keepAlive, that.keepAlive)
             && Objects.equals(resultPosition, that.resultPosition)
             && Objects.equals(fetchFields, that.fetchFields)
-            && Objects.equals(runtimeMappings, that.runtimeMappings);
+            && Objects.equals(runtimeMappings, that.runtimeMappings)
+            && Objects.equals(maxSamplesPerKey, that.maxSamplesPerKey);
     }
 
     @Override
@@ -511,7 +516,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             keepAlive,
             resultPosition,
             fetchFields,
-            runtimeMappings
+            runtimeMappings,
+            maxSamplesPerKey
         );
     }
 

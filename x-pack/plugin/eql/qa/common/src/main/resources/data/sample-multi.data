@@ -48,5 +48,26 @@
     "bool": true,
     "os": "redhat",
     "id": 7
+  },
+  {
+    "event_type": "alert_1",
+    "host": "farcry",
+    "bool": true,
+    "os": null,
+    "id": 8
+  },
+  {
+    "event_type": "alert_2",
+    "host": "farcry",
+    "bool": true,
+    "os": null,
+    "id": 9
+  },
+  {
+    "event_type": "alert_1",
+    "host": "GTA",
+    "bool": true,
+    "id": 10
   }
+
 ]

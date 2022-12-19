@@ -38,15 +38,33 @@ public class SampleIteratorTests extends ESTestCase {
         assertTrue(matchSamples(asList(asSearchHitsList(1, 1, 1), asSearchHitsList(1, 1, 1), asSearchHitsList(1, 1, 3)), 3, 1).isEmpty());
 
         // multiple matches per key
+        List<List<SearchHit>> combinations = List.of(
+            asSearchHitsList(1, 3, 4),
+            asSearchHitsList(1, 4, 3),
+            asSearchHitsList(2, 1, 3),
+            asSearchHitsList(2, 1, 4),
+            asSearchHitsList(2, 3, 1),
+            asSearchHitsList(2, 3, 4),
+            asSearchHitsList(2, 4, 1),
+            asSearchHitsList(2, 4, 3),
+            asSearchHitsList(3, 1, 4),
+            asSearchHitsList(3, 4, 1)
+        );
+        for (int i = 1; i <= combinations.size(); i++) {
+            assertEquals(
+                combinations.subList(0, i),
+                matchSamples(asList(asSearchHitsList(1, 2, 3), asSearchHitsList(1, 3, 4), asSearchHitsList(1, 3, 4)), 3, i)
+            );
+        }
         assertEquals(
-            List.of(asSearchHitsList(1, 3, 4), asSearchHitsList(1, 4, 3)),
-            matchSamples(asList(asSearchHitsList(1, 2, 3), asSearchHitsList(1, 3, 4), asSearchHitsList(1, 3, 4)), 3, 2)
+            combinations,
+            matchSamples(
+                asList(asSearchHitsList(1, 2, 3), asSearchHitsList(1, 3, 4), asSearchHitsList(1, 3, 4)),
+                3,
+                combinations.size() + 1
+            )
         );
 
-        assertEquals(
-            List.of(asSearchHitsList(1, 3, 4), asSearchHitsList(1, 4, 3), asSearchHitsList(2, 1, 3)),
-            matchSamples(asList(asSearchHitsList(1, 2, 3), asSearchHitsList(1, 3, 4), asSearchHitsList(1, 3, 4)), 3, 3)
-        );
     }
 
     private List<SearchHit> asSearchHitsList(Integer... docIds) {

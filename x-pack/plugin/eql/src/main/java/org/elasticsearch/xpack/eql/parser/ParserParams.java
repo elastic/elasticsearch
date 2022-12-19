@@ -16,7 +16,6 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FETCH_SIZE;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.MAX_SAMPLES_PER_KEY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.SIZE;
 
 public class ParserParams {
@@ -28,7 +27,6 @@ public class ParserParams {
     private OrderDirection resultPosition = OrderDirection.ASC;
     private int size = SIZE;
     private int fetchSize = FETCH_SIZE;
-    private int maxSamplesPerKey = MAX_SAMPLES_PER_KEY;
     private List<Object> queryParams = emptyList();
 
     public ParserParams(ZoneId zoneId) {
@@ -86,15 +84,6 @@ public class ParserParams {
 
     public ParserParams fetchSize(int fetchSize) {
         this.fetchSize = fetchSize;
-        return this;
-    }
-
-    public int maxSamplesPerKey() {
-        return maxSamplesPerKey;
-    }
-
-    public ParserParams maxSamplesPerKey(int maxSamplesPerKey) {
-        this.maxSamplesPerKey = maxSamplesPerKey;
         return this;
     }
 

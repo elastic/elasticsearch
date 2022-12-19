@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.h3;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -174,5 +177,50 @@ public class CellBoundaryTests extends ESTestCase {
             assertEquals(h3Address, points.get(i)[0], boundary.getLatLon(i).getLatDeg(), 5e-7);
             assertEquals(h3Address, points.get(i)[1], boundary.getLatLon(i).getLonDeg(), 5e-7);
         }
+    }
+
+    public void testNumericEquivalentSharedBoundary() {
+        // we consider boundaries numerical equivalent if after encoded them using lucene, they resolve to the same number.
+        long h3 = H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(0, 15));
+        CellBoundary boundary = H3.h3ToGeoBoundary(h3);
+        for (long r : H3.hexRing(h3)) {
+            int count = 0;
+            CellBoundary ringBoundary = H3.h3ToGeoBoundary(r);
+            for (int i = 0; i < boundary.numPoints(); i++) {
+                LatLng latLng1 = boundary.getLatLon(getIndex(i, boundary.numPoints()));
+                LatLng latLng2 = boundary.getLatLon(getIndex(i + 1, boundary.numPoints()));
+                int lon1 = GeoEncodingUtils.encodeLongitude(latLng1.getLonDeg());
+                int lat1 = GeoEncodingUtils.encodeLatitude(latLng1.getLatDeg());
+                int lon2 = GeoEncodingUtils.encodeLongitude(latLng2.getLonDeg());
+                int lat2 = GeoEncodingUtils.encodeLatitude(latLng2.getLatDeg());
+                if (isSharedBoundary(lon1, lat1, lon2, lat2, ringBoundary)) {
+                    count++;
+                }
+            }
+            assertThat(count, Matchers.greaterThan(0));
+        }
+    }
+
+    private boolean isSharedBoundary(int clon1, int clat1, int clon2, int clat2, CellBoundary boundary) {
+        for (int i = 0; i < boundary.numPoints(); i++) {
+            LatLng latLng1 = boundary.getLatLon(getIndex(i, boundary.numPoints()));
+            LatLng latLng2 = boundary.getLatLon(getIndex(i + 1, boundary.numPoints()));
+            int lon1 = GeoEncodingUtils.encodeLongitude(latLng1.getLonDeg());
+            int lat1 = GeoEncodingUtils.encodeLatitude(latLng1.getLatDeg());
+            int lon2 = GeoEncodingUtils.encodeLongitude(latLng2.getLonDeg());
+            int lat2 = GeoEncodingUtils.encodeLatitude(latLng2.getLatDeg());
+            // edges are in opposite directions.
+            if (clon1 == lon2 & clat1 == lat2 && clon2 == lon1 && clat2 == lat1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int getIndex(int i, int numPoints) {
+        if (i < numPoints) {
+            return i;
+        }
+        return i - numPoints;
     }
 }

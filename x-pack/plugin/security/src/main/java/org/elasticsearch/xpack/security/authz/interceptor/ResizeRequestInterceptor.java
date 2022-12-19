@@ -47,23 +47,26 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
         AuthorizationInfo authorizationInfo,
         ActionListener<Void> listener
     ) {
-        if (requestInfo.getRequest() instanceof ResizeRequest) {
-            final ResizeRequest request = (ResizeRequest) requestInfo.getRequest();
+        if (requestInfo.getRequest()instanceof ResizeRequest request) {
             final AuditTrail auditTrail = auditTrailService.get();
-            IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(request.getSourceIndex());
-            if (indexAccessControl != null
-                && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
-                    || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())
-                && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
-                listener.onFailure(
-                    new ElasticsearchSecurityException(
-                        "Resize requests are not allowed for users when "
-                            + "field or document level security is enabled on the source index",
-                        RestStatus.BAD_REQUEST
-                    )
+            final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            if (isDlsLicensed) {
+                IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(
+                    request.getSourceIndex()
                 );
-                return;
+                if (indexAccessControl != null
+                    && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
+                        || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())) {
+                    listener.onFailure(
+                        new ElasticsearchSecurityException(
+                            "Resize requests are not allowed for users when "
+                                + "field or document level security is enabled on the source index",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
             }
 
             authorizationEngine.validateIndexPermissionsAreSubset(

@@ -48,6 +48,11 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
         ActionListener<Void> listener
     ) {
         if (requestInfo.getRequest()instanceof BulkShardRequest bulkShardRequest) {
+            final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            if (isDlsLicensed == false) {
+                listener.onResponse(null);
+                return;
+            }
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             // this uses the {@code BulkShardRequest#index()} because the {@code bulkItemRequest#index()}
             // can still be an unresolved date math expression
@@ -55,10 +60,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
             // TODO replace if condition with assertion
             if (indexAccessControl != null
                 && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
-                    || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())
-                && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) // the feature usage checker is a "last-ditch"
-                                                                                      // verification, it doesn't have practical importance
-            ) {
+                    || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())) {
                 for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
                     boolean found = false;
                     if (bulkItemRequest.request() instanceof UpdateRequest) {

@@ -69,7 +69,11 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
 
     @Override
     public boolean supports(IndicesRequest request) {
-        return request instanceof SearchRequest;
+        if (request instanceof SearchRequest searchRequest) {
+            return searchRequest.source() != null && (searchRequest.source().suggest() != null || searchRequest.source().profile());
+        } else {
+            return false;
+        }
     }
 
     // package private for test

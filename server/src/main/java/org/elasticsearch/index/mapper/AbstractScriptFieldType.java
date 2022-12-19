@@ -307,7 +307,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             return script.get();
         }
 
-        protected boolean onErrorContinue() {
+        protected final boolean onErrorContinue() {
             return onScriptError.get().equals("continue");
         }
     }

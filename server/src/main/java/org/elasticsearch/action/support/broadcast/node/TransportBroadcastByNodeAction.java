@@ -118,11 +118,10 @@ public abstract class TransportBroadcastByNodeAction<
     }
 
     private Response newResponse(
-        Request request,
         NodeResponseTracker nodeResponseTracker,
         int unavailableShardCount,
         Map<String, List<ShardRouting>> nodes,
-        ClusterState clusterState
+        ResponseFactory<Response, ShardOperationResult> responseFactory
     ) throws NodeResponseTracker.DiscardedResponsesException {
         int totalShards = 0;
         int successfulShards = 0;
@@ -156,7 +155,7 @@ public abstract class TransportBroadcastByNodeAction<
         }
         totalShards += unavailableShardCount;
         int failedShards = exceptions.size();
-        return newResponse(request, totalShards, successfulShards, failedShards, broadcastByNodeResponses, exceptions, clusterState);
+        return responseFactory.newResponse(totalShards, successfulShards, failedShards, broadcastByNodeResponses, exceptions);
     }
 
     /**
@@ -167,27 +166,31 @@ public abstract class TransportBroadcastByNodeAction<
      */
     protected abstract ShardOperationResult readShardResult(StreamInput in) throws IOException;
 
+    public interface ResponseFactory<Response, ShardOperationResult> {
+        /**
+         * Creates a new response to the underlying request.
+         *
+         * @param totalShards      the total number of shards considered for execution of the operation
+         * @param successfulShards the total number of shards for which execution of the operation was successful
+         * @param failedShards     the total number of shards for which execution of the operation failed
+         * @param results          the per-node aggregated shard-level results
+         * @param shardFailures    the exceptions corresponding to shard operation failures
+         * @return the response
+         */
+        Response newResponse(
+            int totalShards,
+            int successfulShards,
+            int failedShards,
+            List<ShardOperationResult> results,
+            List<DefaultShardOperationFailedException> shardFailures
+        );
+    }
+
     /**
-     * Creates a new response to the underlying request.
-     *
-     * @param request          the underlying request
-     * @param totalShards      the total number of shards considered for execution of the operation
-     * @param successfulShards the total number of shards for which execution of the operation was successful
-     * @param failedShards     the total number of shards for which execution of the operation failed
-     * @param results          the per-node aggregated shard-level results
-     * @param shardFailures    the exceptions corresponding to shard operation failures
-     * @param clusterState     the cluster state
-     * @return the response
+     * Create a response factory based on the requst and the cluster state captured at the time the request was handled. Implementations
+     * must avoid capturing the full cluster state if possible.
      */
-    protected abstract Response newResponse(
-        Request request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<ShardOperationResult> results,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
-    );
+    protected abstract ResponseFactory<Response, ShardOperationResult> getResponseFactory(Request request, ClusterState clusterState);
 
     /**
      * Deserialize a request from an input stream
@@ -255,25 +258,33 @@ public abstract class TransportBroadcastByNodeAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        new AsyncAction(task, request, listener).start();
+        final var clusterState = clusterService.state();
+        final var responseFactory = getResponseFactory(request, clusterState);
+        new AsyncAction(task, request, clusterState, responseFactory, listener).start();
     }
 
     protected class AsyncAction implements CancellableTask.CancellationListener {
         private final Task task;
         private final Request request;
         private final ActionListener<Response> listener;
-        private final ClusterState clusterState;
         private final DiscoveryNodes nodes;
         private final Map<String, List<ShardRouting>> nodeIds;
         private final int unavailableShardCount;
         private final NodeResponseTracker nodeResponseTracker;
+        private final ResponseFactory<Response, ShardOperationResult> responseFactory;
 
-        protected AsyncAction(Task task, Request request, ActionListener<Response> listener) {
+        protected AsyncAction(
+            Task task,
+            Request request,
+            ClusterState clusterState,
+            ResponseFactory<Response, ShardOperationResult> responseFactory,
+            ActionListener<Response> listener
+        ) {
             this.task = task;
             this.request = request;
             this.listener = listener;
+            this.responseFactory = responseFactory;
 
-            clusterState = clusterService.state();
             nodes = clusterState.nodes();
 
             ClusterBlockException globalBlockException = checkGlobalBlock(clusterState, request);
@@ -400,7 +411,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             Response response = null;
             try {
-                response = newResponse(request, nodeResponseTracker, unavailableShardCount, nodeIds, clusterState);
+                response = newResponse(nodeResponseTracker, unavailableShardCount, nodeIds, responseFactory);
             } catch (NodeResponseTracker.DiscardedResponsesException e) {
                 // We propagate the reason that the results, in this case the task cancellation, in case the listener needs to take
                 // follow-up actions

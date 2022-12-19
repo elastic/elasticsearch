@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.StringTokenizer;
 import java.util.zip.GZIPInputStream;
 
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CellBoundaryTests extends ESTestCase {
@@ -198,14 +199,7 @@ public class CellBoundaryTests extends ESTestCase {
                     count++;
                 }
             }
-            if (boundary.numPoints() <= 6) {
-                // it is either a pentagon or a hexagon
-                assertThat("For cell " + H3.h3ToString(h3), count, equalTo(1));
-            } else {
-                // the cell crosses the edges of the icosahedron triangle,
-                // therefore it can share more than one edge
-                assertThat("For cell " + H3.h3ToString(h3), count, equalTo(2));
-            }
+            assertThat("For cell " + H3.h3ToString(h3), count, either(equalTo(1)).or(equalTo(2)));
         }
     }
 

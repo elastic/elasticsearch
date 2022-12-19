@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.geo.Component2D;
-import org.apache.lucene.index.PointValues;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.h3.H3;
@@ -27,12 +25,14 @@ import java.io.IOException;
 public class BoundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
     private final GeoBoundingBox inflatedBbox;
     private final GeoBoundingBox bbox;
+    private final GeoHexVisitor visitor;
     private final int precision;
     private static final double FACTOR = 0.5;
 
     public BoundedGeoHexGridTiler(int precision, GeoBoundingBox bbox) {
         super(precision);
         this.bbox = bbox;
+        this.visitor = new GeoHexVisitor();
         this.precision = precision;
         final double height = bbox.top() - bbox.bottom();
         final double minY = Math.max(bbox.bottom() - FACTOR * height, -90d);
@@ -58,33 +58,38 @@ public class BoundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
 
     @Override
     protected boolean validH3(long h3) {
-        final Component2D component2D = H3CartesianUtil.getComponent(h3);
+        visitor.reset(h3);
         final int resolution = H3.getResolution(h3);
         if (resolution != precision) {
-            return cellIntersectsBounds(component2D, inflatedBbox);
+            return cellIntersectsBounds(visitor, inflatedBbox);
         }
-        return cellIntersectsBounds(component2D, bbox);
+        return cellIntersectsBounds(visitor, bbox);
     }
 
     @Override
     protected GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, long h3) throws IOException {
-        final Component2D component2D = H3CartesianUtil.getComponent(h3);
+        visitor.reset(h3);
         final int resolution = H3.getResolution(h3);
         if (resolution != precision) {
-            if (cellIntersectsBounds(component2D, inflatedBbox)) {
+            if (cellIntersectsBounds(visitor, inflatedBbox)) {
                 // close to the poles, the properties of the H3 grid are lost because of the equirectangular projection,
                 // therefore we cannot ensure that the relationship at this level make any sense in the next level.
                 // Therefore, we just return CROSSES which just mean keep recursing.
-                if (component2D.getMaxY() > H3CartesianUtil.getNorthPolarBound(resolution)
-                    || component2D.getMinY() < H3CartesianUtil.getSouthPolarBound(resolution)) {
+                if (visitor.getMaxY() > H3CartesianUtil.getNorthPolarBound(resolution)
+                    || visitor.getMinY() < H3CartesianUtil.getSouthPolarBound(resolution)) {
                     return GeoRelation.QUERY_CROSSES;
                 }
-                return geoValue.relate(component2D);
+                geoValue.visit(visitor);
+                return visitor.relation();
             } else {
                 return GeoRelation.QUERY_DISJOINT;
             }
         }
-        return cellIntersectsBounds(component2D, bbox) ? geoValue.relate(component2D) : GeoRelation.QUERY_DISJOINT;
+        if (cellIntersectsBounds(visitor, bbox)) {
+            geoValue.visit(visitor);
+            return visitor.relation();
+        }
+        return GeoRelation.QUERY_DISJOINT;
     }
 
     @Override
@@ -99,14 +104,7 @@ public class BoundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
         return false;
     }
 
-    private static boolean cellIntersectsBounds(Component2D component, GeoBoundingBox bbox) {
-        if (bbox.right() < bbox.left()) {
-            PointValues.Relation a = component.relate(bbox.left(), 180, bbox.bottom(), bbox.top());
-            PointValues.Relation b = component.relate(-180, bbox.right(), bbox.bottom(), bbox.top());
-            return a != PointValues.Relation.CELL_OUTSIDE_QUERY || b != PointValues.Relation.CELL_OUTSIDE_QUERY;
-        } else {
-            PointValues.Relation a = component.relate(bbox.left(), bbox.right(), bbox.bottom(), bbox.top());
-            return a != PointValues.Relation.CELL_OUTSIDE_QUERY;
-        }
+    private static boolean cellIntersectsBounds(GeoHexVisitor visitor, GeoBoundingBox bbox) {
+        return visitor.intersectsBbox(bbox.left(), bbox.right(), bbox.bottom(), bbox.top());
     }
 }

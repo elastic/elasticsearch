@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -31,12 +32,13 @@ public class GeoShapeGeoHexGridAggregatorTests extends GeoShapeGeoGridTestCase<I
 
     @Override
     protected String hashAsString(double lng, double lat, int precision) {
+        // TODO: In theory we can have more than one hash per point?
         final long h3 = H3.geoToH3(lat, lng, precision);
-        if (H3CartesianUtil.getComponent(h3).contains(lng, lat)) {
+        if (LatLonGeometry.create(H3CartesianUtil.getLatLonGeometry(h3)).contains(lng, lat)) {
             return H3.h3ToString(h3);
         }
         for (long n : H3.hexRing(h3)) {
-            if (H3CartesianUtil.getComponent(n).contains(lng, lat)) {
+            if (LatLonGeometry.create(H3CartesianUtil.getLatLonGeometry(n)).contains(lng, lat)) {
                 return H3.h3ToString(n);
             }
         }

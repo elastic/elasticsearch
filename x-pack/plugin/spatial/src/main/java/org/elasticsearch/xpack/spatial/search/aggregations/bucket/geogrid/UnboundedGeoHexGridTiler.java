@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.geo.Component2D;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
@@ -22,8 +21,11 @@ public class UnboundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
 
     private final long maxAddresses;
 
+    private final GeoHexVisitor visitor;
+
     public UnboundedGeoHexGridTiler(int precision) {
         super(precision);
+        this.visitor = new GeoHexVisitor();
         maxAddresses = calcMaxAddresses(precision);
     }
 
@@ -34,17 +36,18 @@ public class UnboundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
 
     @Override
     protected GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, long h3) throws IOException {
+        visitor.reset(h3);
         final int resolution = H3.getResolution(h3);
-        final Component2D component2D = H3CartesianUtil.getComponent(h3);
         if (resolution != precision
-            && (component2D.getMaxY() > H3CartesianUtil.getNorthPolarBound(resolution)
-                || component2D.getMinY() < H3CartesianUtil.getSouthPolarBound(resolution))) {
+            && (visitor.getMaxY() > H3CartesianUtil.getNorthPolarBound(resolution)
+                || visitor.getMinY() < H3CartesianUtil.getSouthPolarBound(resolution))) {
             // close to the poles, the properties of the H3 grid are lost because of the equirectangular projection,
             // therefore we cannot ensure that the relationship at this level make any sense in the next level.
             // Therefore, we just return CROSSES which just mean keep recursing.
             return GeoRelation.QUERY_CROSSES;
         }
-        return geoValue.relate(component2D);
+        geoValue.visit(visitor);
+        return visitor.relation();
     }
 
     @Override

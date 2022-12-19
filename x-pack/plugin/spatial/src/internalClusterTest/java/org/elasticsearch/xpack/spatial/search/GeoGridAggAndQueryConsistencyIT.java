@@ -129,7 +129,6 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             }
             return points;
         },
-            // TODO: for point hex, there is some issues for h3 bins containing a pole?
             h3 -> H3.getResolution(h3) < 2 ? new Rectangle(-180d, 180d, 90d, -90d) : H3CartesianUtil.toBoundingBox(H3.stringToH3(h3)),
             GeoHexGridAggregationBuilder::new,
             (s1, s2) -> new GeoGridQueryBuilder(s1).setGridId(GeoGridQueryBuilder.Grid.GEOHEX, s2),

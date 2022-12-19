@@ -60,17 +60,27 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     }
 
     /**
-     * It calls {@link #maybeAdd(long, GeoShapeCellValues, GeoShapeValues.GeoShapeValue, int)}  for{@code h3} and the
-     * neighbour cells.
+     * It calls {@link #maybeAdd(long, GeoRelation, GeoShapeCellValues, int)} for {@code h3} and the neighbour cells if necessary.
      */
     private int setValuesFromPointResolution(long h3, GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
-        int valueIndex = maybeAdd(h3, values, geoValue, 0);
+        int valueIndex = 0;
+        {
+            final GeoRelation relation = relateTile(geoValue, h3);
+            valueIndex = maybeAdd(h3, relation, values, valueIndex);
+            if (relation == GeoRelation.QUERY_CONTAINS) {
+                return valueIndex;
+            }
+        }
         // Point resolution is done using H3 library which uses spherical geometry. It might happen that in cartesian, the
         // actual point value is in a neighbour cell as well.
-        // TODO: if the H3 bin fully contains the geoValue and it does not touch any edge then we can stop here.
-        // Earlier test shows a very important performance improvements for low resolutions.
-        for (long n : H3.hexRing(h3)) {
-            valueIndex = maybeAdd(n, values, geoValue, valueIndex);
+        {
+            for (long n : H3.hexRing(h3)) {
+                final GeoRelation relation = relateTile(geoValue, n);
+                valueIndex = maybeAdd(n, relation, values, valueIndex);
+                if (relation == GeoRelation.QUERY_CONTAINS) {
+                    return valueIndex;
+                }
+            }
         }
         return valueIndex;
     }
@@ -79,9 +89,8 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
      * Adds {@code h3} to {@link GeoShapeCellValues} if {@link #relateTile(GeoShapeValues.GeoShapeValue, long)} returns
      * a relation different to {@link GeoRelation#QUERY_DISJOINT}.
      */
-    // package private for testing
-    int maybeAdd(long h3, GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue, int valueIndex) throws IOException {
-        if (relateTile(geoValue, h3) != GeoRelation.QUERY_DISJOINT) {
+    private int maybeAdd(long h3, GeoRelation relation, GeoShapeCellValues values, int valueIndex) throws IOException {
+        if (relation != GeoRelation.QUERY_DISJOINT) {
             values.resizeCell(valueIndex + 1);
             values.add(valueIndex++, h3);
         }
@@ -100,17 +109,28 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
             final long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), 0);
             final long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), 0);
             if (minH3 == maxH3) {
-                valueIndex = setValuesByRecursion(values, geoValue, minH3, 0, valueIndex);
-                // TODO: if the H3 bin fully contains the geoValue and it does not touch any edge then we can stop here.
+                final GeoRelation relation = relateTile(geoValue, minH3);
+                valueIndex = setValuesByRecursion(values, geoValue, minH3, relation, 0, valueIndex);
+                if (relation == GeoRelation.QUERY_CONTAINS) {
+                    return valueIndex;
+                }
                 for (long n : H3.hexRing(minH3)) {
-                    valueIndex = setValuesByRecursion(values, geoValue, n, 0, valueIndex);
+                    final GeoRelation nRelation = relateTile(geoValue, n);
+                    valueIndex = setValuesByRecursion(values, geoValue, n, nRelation, 0, valueIndex);
+                    if (nRelation == GeoRelation.QUERY_CONTAINS) {
+                        return valueIndex;
+                    }
                 }
                 return valueIndex;
             }
             // TODO: specialize when they are neighbour cells.
         }
         for (long h3 : RES0CELLS) {
-            valueIndex = setValuesByRecursion(values, geoValue, h3, 0, valueIndex);
+            final GeoRelation relation = relateTile(geoValue, h3);
+            valueIndex = setValuesByRecursion(values, geoValue, h3, relation, 0, valueIndex);
+            if (relation == GeoRelation.QUERY_CONTAINS) {
+                return valueIndex;
+            }
         }
         return valueIndex;
     }
@@ -123,16 +143,16 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         GeoShapeCellValues values,
         GeoShapeValues.GeoShapeValue geoValue,
         long h3,
+        GeoRelation relation,
         int precision,
         int valueIndex
     ) throws IOException {
         if (precision == this.precision) {
-            // When we're at the desired level, we want to test against the exact H3 cell
-            valueIndex = maybeAdd(h3, values, geoValue, valueIndex);
+            // When we're at the desired level
+            return maybeAdd(h3, relation, values, valueIndex);
         } else {
             assert precision < this.precision;
-            // When we're at higher tree levels, we want to test against slightly larger cells, to be sure to cover all child cells.
-            final GeoRelation relation = relateTile(geoValue, h3);
+            // When we're at higher tree levels, check if we want to keep iterating.
             if (relation != GeoRelation.QUERY_DISJOINT) {
                 int i = 0;
                 if (relation == GeoRelation.QUERY_INSIDE) {
@@ -143,7 +163,12 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
                 }
                 final int numChildren = H3.h3ToChildrenSize(h3);
                 for (; i < numChildren; i++) {
-                    valueIndex = setValuesByRecursion(values, geoValue, H3.childPosToH3(h3, i), precision + 1, valueIndex);
+                    final long child = H3.childPosToH3(h3, i);
+                    final GeoRelation childRelation = relateTile(geoValue, child);
+                    valueIndex = setValuesByRecursion(values, geoValue, child, childRelation, precision + 1, valueIndex);
+                    if (childRelation == GeoRelation.QUERY_CONTAINS) {
+                        return valueIndex;
+                    }
                 }
                 // H3 cells do intersects with other cells that are not part of the children cells. If the parent cell of those
                 // cells is disjoint, they will not be visited, therefore visit them here.
@@ -151,7 +176,11 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
                 for (int j = 0; j < numNoChildren; j++) {
                     final long noChild = H3.noChildIntersectingPosToH3(h3, j);
                     if (relateTile(geoValue, H3.h3ToParent(noChild)) == GeoRelation.QUERY_DISJOINT) {
-                        valueIndex = setValuesByRecursion(values, geoValue, noChild, precision + 1, valueIndex);
+                        final GeoRelation noChildRelation = relateTile(geoValue, noChild);
+                        valueIndex = setValuesByRecursion(values, geoValue, noChild, noChildRelation, precision + 1, valueIndex);
+                        if (noChildRelation == GeoRelation.QUERY_CONTAINS) {
+                            return valueIndex;
+                        }
                     }
                 }
 

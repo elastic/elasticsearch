@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.geo.Component2D;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Geometry;
@@ -41,9 +40,7 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
 
     @Override
     protected Rectangle getCell(double lon, double lat, int precision) {
-        long h3 = H3.geoToH3(lat, lon, precision);
-        Component2D component = H3CartesianUtil.getComponent(h3);
-        return new Rectangle(component.getMinX(), component.getMaxX(), component.getMaxY(), component.getMinY());
+        return H3CartesianUtil.toBoundingBox(H3.geoToH3(lat, lon, precision));
     }
 
     /** The H3 tilers does not produce rectangular tiles, and some tests assume this */
@@ -107,7 +104,10 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         int valueIndex
     ) throws IOException {
         if (H3.getResolution(h3) == precision) {
-            valueIndex = tiler.maybeAdd(h3, values, geoValue, valueIndex);
+            if (tiler.relateTile(geoValue, h3) != GeoRelation.QUERY_DISJOINT) {
+                values.resizeCell(valueIndex + 1);
+                values.add(valueIndex++, h3);
+            }
         } else {
             for (long child : H3.h3ToChildren(h3)) {
                 valueIndex = addBruteForce(tiler, values, geoValue, child, precision, valueIndex);
@@ -118,14 +118,6 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
 
     @Override
     protected int expectedBuckets(GeoShapeValues.GeoShapeValue geoValue, int precision, GeoBoundingBox bbox) throws Exception {
-        GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
-        if (bounds.minX() == bounds.maxX() && bounds.minY() == bounds.maxY()) {
-            long address = H3.geoToH3(bounds.minX(), bounds.minY(), precision);
-            if (intersects(address, geoValue, bbox, precision)) {
-                return 1;
-            }
-            return 0;
-        }
         return computeBuckets(H3.getLongRes0Cells(), bbox, geoValue, precision);
     }
 
@@ -148,7 +140,8 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         if (addressIntersectsBounds(h3, bbox, finalPrecision) == false) {
             return false;
         }
-        return geoValue.relate(H3CartesianUtil.getComponent(h3)) != GeoRelation.QUERY_DISJOINT;
+        UnboundedGeoHexGridTiler predicate = new UnboundedGeoHexGridTiler(finalPrecision);
+        return predicate.relateTile(geoValue, h3) != GeoRelation.QUERY_DISJOINT;
     }
 
     private boolean addressIntersectsBounds(long h3, GeoBoundingBox bbox, int finalPrecision) {

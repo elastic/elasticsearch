@@ -11,7 +11,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -72,10 +72,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
                 finishedShardSnapshots.incrementAndGet();
             } else {
                 expectedFileSnapshotTasks.addAndGet(filesToUpload);
-                ActionListener<Void> uploadListener = new GroupedActionListener<>(
-                    filesToUpload,
-                    ActionListener.wrap(finishedShardSnapshots::incrementAndGet)
-                );
+                ActionListener<Void> uploadListener = new CountDownActionListener(filesToUpload, finishedShardSnapshots::incrementAndGet);
                 for (int i = 0; i < filesToUpload; i++) {
                     taskRunner.enqueueFileSnapshot(context, ShardSnapshotTaskRunnerTests::dummyFileInfo, uploadListener);
                 }

@@ -439,30 +439,6 @@ public interface ActionListener<Response> {
         };
     }
 
-    final class NotifyOnceAndReleaseListener<T> implements ActionListener<T> {
-        final AtomicReference<ActionListener<T>> delegateRef;
-
-        NotifyOnceAndReleaseListener(ActionListener<T> delegate) {
-            delegateRef = new AtomicReference<>(delegate);
-        }
-
-        @Override
-        public void onResponse(T response) {
-            final var acquired = delegateRef.getAndSet(null);
-            if (acquired != null) {
-                acquired.onResponse(response);
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            final var acquired = delegateRef.getAndSet(null);
-            if (acquired != null) {
-                acquired.onFailure(e);
-            }
-        }
-    }
-
     /**
      * Completes the given listener with the result from the provided supplier accordingly.
      * This method is mainly used to complete a listener with a block of synchronous code.

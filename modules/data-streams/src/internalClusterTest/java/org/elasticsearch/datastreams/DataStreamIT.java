@@ -104,6 +104,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -796,12 +797,11 @@ public class DataStreamIT extends ESIntegTestCase {
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);
             client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         }
-        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias)
-            .indices(dataStreams)
-            .filter(Map.of("term", Map.of("type", Map.of("value", "y"))));
+        Map<String, Object> indexFilters = Map.of("term", Map.of("type", Map.of("value", "y")));
+        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams).filter(indexFilters);
         assertAcked(client().admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet());
 
-        addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams[0]).writeIndex(true);
+        addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams[0]).filter(indexFilters).writeIndex(true);
         assertAcked(client().admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet());
 
         GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
@@ -812,16 +812,17 @@ public class DataStreamIT extends ESIntegTestCase {
             .flatMap(Collection::stream)
             .distinct()
             .collect(Collectors.toList());
-        assertThat(result, hasSize(2)); // Because one has a filter so it's not equal to the rest
+        assertThat(result, hasSize(1));
         assertThat(result.get(0).getName(), equalTo(alias));
         assertThat(result.get(0).getDataStreams(), containsInAnyOrder(dataStreams));
         assertThat(result.get(0).getWriteDataStream(), equalTo(dataStreams[0]));
         assertThat(
             result.stream()
                 .map(DataStreamAlias::getFilter)
-                .map(filter -> filter == null ? "" : filter.string())
+                .filter(Objects::nonNull)
+                .map(CompressedXContent::string)
                 .collect(Collectors.toSet()),
-            containsInAnyOrder("", "{\"term\":{\"type\":{\"value\":\"y\"}}}")
+            containsInAnyOrder("{\"term\":{\"type\":{\"value\":\"y\"}}}")
         );
     }
 

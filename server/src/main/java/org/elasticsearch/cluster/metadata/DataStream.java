@@ -712,8 +712,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexMode != null) {
             builder.field(INDEX_MODE.getPreferredName(), indexMode);
         }
-        builder.field(ALIASES.getPreferredName());
 
+        builder.field(ALIASES.getPreferredName());
         // DataStreamAlias's toXContent result needs to be wrapped in an object so that it can be put in a map:
         Map<String, ToXContent> transformedMap = dataStreamAliases.entrySet()
             .stream()

@@ -2398,7 +2398,6 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                                 referenceDataAtreamAlias.getWriteDataStream()
                             );
                             updatedDataStreamAliases.put(aliasEntry.getKey(), updatedDataStreamAlias);
-                            logger.info("We need to update this one");
                         } else {
                             updatedDataStreamAliases.put(aliasEntry.getKey(), currentDataStreamAlias);
                         }

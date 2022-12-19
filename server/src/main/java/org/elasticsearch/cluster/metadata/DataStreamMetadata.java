@@ -117,27 +117,33 @@ public class DataStreamMetadata implements Metadata.Custom {
             filterAsMap = null;
         }
 
+        // First, update the alias with the data stream:
         DataStreamAlias alias = dataStreamAliases.get(aliasName);
         if (alias == null) {
             String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStreamName : null;
             alias = new DataStreamAlias(aliasName, List.of(dataStreamName), writeDataStream, filterAsMap);
-            logger.info("--> adding new alias: {}", alias);
+            logger.debug("--> adding new alias: {}", alias);
         } else {
             DataStreamAlias copy = alias.update(dataStreamName, isWriteDataStream, filterAsMap);
-            logger.info("--> updating alias with new filter: {}, copy: {}", filterAsMap, copy);
+            logger.debug("--> updating alias with new filter: {}, copy: {}", filterAsMap, copy);
             if (copy == alias) {
                 return this;
             }
             alias = copy;
-            logger.info("--> updating alias: {}", alias);
+            logger.debug("--> updating alias: {}", alias);
         }
+        ImmutableOpenMap<String, DataStreamAlias> updatedDataStreamAliases = ImmutableOpenMap.builder(dataStreamAliases)
+            .fPut(aliasName, alias)
+            .build();
+
+        // Next, update the data stream with the alias:
         DataStream originalDataStream = dataStreams.get(dataStreamName);
         DataStream newDataStream = originalDataStream.addAlias(alias);
         ImmutableOpenMap<String, DataStream> updatedDataStreams = new ImmutableOpenMap.Builder<String, DataStream>().putAllFromMap(
             dataStreams
         ).fPut(dataStreamName, newDataStream).build();
-        // TODO: Do we want to always make sure the filter in the alias is nulled out here?
-        return new DataStreamMetadata(updatedDataStreams, ImmutableOpenMap.builder(dataStreamAliases).fPut(aliasName, alias).build());
+
+        return new DataStreamMetadata(updatedDataStreams, updatedDataStreamAliases);
     }
 
     public DataStreamMetadata withRemovedDataStream(String name) {

@@ -119,7 +119,6 @@ public class DataStreamMetadataTests extends AbstractChunkedSerializingTestCase<
         assertThat(aliasMap.size(), equalTo(1));
         DataStreamAlias alias1 = aliasMap.get("alias1");
         assertNotNull(alias1);
-        // assertNull(alias1.getFilter()); //TODO: Do we want to assert this?
         Map<String, DataStream> dataStreamMap = dataStreamMetadata.dataStreams();
         assertNotNull(dataStreamMap);
         assertThat(dataStreamMap.size(), equalTo(2));

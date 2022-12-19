@@ -1,0 +1,5 @@
+pr: 92456
+summary: Skip segments that don't document's timestamp
+area: TSDB
+type: enhancement
+issues: []

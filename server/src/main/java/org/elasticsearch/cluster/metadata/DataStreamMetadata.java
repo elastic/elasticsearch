@@ -119,6 +119,13 @@ public class DataStreamMetadata implements Metadata.Custom {
 
         // First, update the alias with the data stream:
         DataStreamAlias alias = dataStreamAliases.get(aliasName);
+        /*
+         * Note that we put the filterAsMap into this DataStreamAlias even though we're putting it in the top-level aliases map, and the
+         * filter is only meaningful within the context of a DataStream (since this DataStreamAlias might point to many DataStreams, each
+         * with its own filter). We could use a different DataStreamAlias object for this top-level map and for the alias added to the
+         * DataStream below. But we set the filter here on this top-level DataStreamAlias as a way to let the system know that the
+         * aliases within the cluster state have changed without having to loop through all DataStreams. See Metadata#equalsAliases.
+         */
         if (alias == null) {
             String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStreamName : null;
             alias = new DataStreamAlias(aliasName, List.of(dataStreamName), writeDataStream, filterAsMap);

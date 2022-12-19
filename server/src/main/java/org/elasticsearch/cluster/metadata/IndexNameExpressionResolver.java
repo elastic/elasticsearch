@@ -705,7 +705,7 @@ public class IndexNameExpressionResolver {
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
         if (ia.getParentDataStream() != null) {
             DataStream dataStream = ia.getParentDataStream().getDataStream();
-            Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreamAliases();
+            Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreams().get(dataStream.getName()).getAliases();
             Stream<DataStreamAlias> stream;
             if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
                 stream = dataStreamAliases.values()

@@ -1647,6 +1647,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(newInstance(dataStreamName2, List.of(backingIndex2.getIndex())));
         mdBuilder.put("logs_foo", dataStreamName1, null, "{ \"term\": \"foo\"}");
         mdBuilder.put("logs", dataStreamName1, null, "{ \"term\": \"logs\"}");
+        mdBuilder.put("logs", dataStreamName2, null, null);
         mdBuilder.put("logs_bar", dataStreamName1, null, null);
         mdBuilder.put("logs_baz", dataStreamName2, null, "{ \"term\": \"logs\"}");
         mdBuilder.put("logs_baz2", dataStreamName2, null, null);
@@ -1663,7 +1664,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
             String index = backingIndex2.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, x -> true, true, resolvedExpressions);
-            assertThat(result, arrayContainingInAnyOrder("logs_baz", "logs_baz2"));
+            assertThat(result, arrayContainingInAnyOrder("logs", "logs_baz", "logs_baz2"));
         }
         {
             // Null is returned, because skipping identity check and resolvedExpressions contains the backing index name
@@ -1671,6 +1672,21 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             String index = backingIndex2.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, x -> true, false, resolvedExpressions);
             assertThat(result, nullValue());
+        }
+
+        {
+            // Only resolve aliases with with that refer to dataStreamName1 where the filter is not null
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(
+                state,
+                index,
+                x -> true,
+                DataStreamAlias::filteringRequired,
+                true,
+                resolvedExpressions
+            );
+            assertThat(result, arrayContainingInAnyOrder("logs", "logs_foo"));
         }
     }
 

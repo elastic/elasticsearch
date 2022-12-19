@@ -269,10 +269,11 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
     private static String[] concreteDataStreamAliases(AliasActions action, Metadata metadata, String concreteDataStreamName) {
         if (action.expandAliasesWildcards()) {
             // for DELETE we expand the aliases
-            Stream<String> stream = metadata.dataStreamAliases()
+            Stream<String> stream = metadata.dataStreams()
+                .get(concreteDataStreamName)
+                .getAliases()
                 .values()
                 .stream()
-                .filter(alias -> alias.getDataStreams().contains(concreteDataStreamName))
                 .map(DataStreamAlias::getName);
 
             String[] aliasPatterns = action.aliases();

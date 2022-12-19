@@ -16,8 +16,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 
+import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
 
@@ -58,7 +63,9 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
     private static HealthMetadata.Disk randomDiskMetadata() {
         return new HealthMetadata.Disk(
             randomRelativeByteSizeValue(),
+            ByteSizeValue.ofGb(randomIntBetween(10, 999)),
             randomRelativeByteSizeValue(),
+            ByteSizeValue.ofGb(randomIntBetween(10, 999)),
             randomRelativeByteSizeValue(),
             ByteSizeValue.ofGb(randomIntBetween(10, 999))
         );
@@ -74,19 +81,47 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
 
     static HealthMetadata.Disk mutateDiskMetadata(HealthMetadata.Disk base) {
         RelativeByteSizeValue highWatermark = base.highWatermark();
+        ByteSizeValue highWatermarkMaxHeadRoom = base.highMaxHeadroom();
         RelativeByteSizeValue floodStageWatermark = base.floodStageWatermark();
+        ByteSizeValue floodStageWatermarkMaxHeadRoom = base.floodStageMaxHeadroom();
         RelativeByteSizeValue floodStageWatermarkFrozen = base.frozenFloodStageWatermark();
         ByteSizeValue floodStageWatermarkFrozenMaxHeadRoom = base.frozenFloodStageMaxHeadroom();
-        switch (randomInt(3)) {
+        switch (randomInt(5)) {
             case 0 -> highWatermark = randomRelativeByteSizeValue();
-            case 1 -> floodStageWatermark = randomRelativeByteSizeValue();
-            case 2 -> floodStageWatermarkFrozen = randomRelativeByteSizeValue();
-            case 3 -> ByteSizeValue.ofGb(randomIntBetween(10, 999));
+            case 1 -> highWatermarkMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
+            case 2 -> floodStageWatermark = randomRelativeByteSizeValue();
+            case 3 -> floodStageWatermarkMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
+            case 4 -> floodStageWatermarkFrozen = randomRelativeByteSizeValue();
+            case 5 -> floodStageWatermarkFrozenMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
         }
-        return new HealthMetadata.Disk(highWatermark, floodStageWatermark, floodStageWatermarkFrozen, floodStageWatermarkFrozenMaxHeadRoom);
+        return new HealthMetadata.Disk(
+            highWatermark,
+            highWatermarkMaxHeadRoom,
+            floodStageWatermark,
+            floodStageWatermarkMaxHeadRoom,
+            floodStageWatermarkFrozen,
+            floodStageWatermarkFrozenMaxHeadRoom
+        );
     }
 
     private HealthMetadata mutate(HealthMetadata base) {
         return new HealthMetadata(mutateDiskMetadata(base.getDiskMetadata()));
+    }
+
+    public void testToXContentChunking() throws IOException {
+        final var instance = createTestInstance();
+
+        int chunkCount = 0;
+        try (var builder = jsonBuilder()) {
+            builder.startObject();
+            final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
+            while (iterator.hasNext()) {
+                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                chunkCount += 1;
+            }
+            builder.endObject();
+        } // closing the builder verifies that the XContent is well-formed
+
+        assertEquals(1, chunkCount);
     }
 }

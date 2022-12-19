@@ -147,13 +147,13 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
             tokenizationUpdate == null ? zeroShotConfig.getTokenization() : tokenizationUpdate.apply(zeroShotConfig.getTokenization()),
             zeroShotConfig.getHypothesisTemplate(),
             Optional.ofNullable(isMultiLabel).orElse(zeroShotConfig.isMultiLabel()),
-            Optional.ofNullable(labels).orElse(zeroShotConfig.getLabels()),
+            Optional.ofNullable(labels).orElse(zeroShotConfig.getLabels().orElse(null)),
             Optional.ofNullable(resultsField).orElse(zeroShotConfig.getResultsField())
         );
     }
 
     boolean isNoop(ZeroShotClassificationConfig originalConfig) {
-        return (labels == null || labels.equals(originalConfig.getLabels()))
+        return (labels == null || labels.equals(originalConfig.getLabels().orElse(null)))
             && (isMultiLabel == null || isMultiLabel.equals(originalConfig.isMultiLabel()))
             && (resultsField == null || resultsField.equals(originalConfig.getResultsField()))
             && super.isNoop();

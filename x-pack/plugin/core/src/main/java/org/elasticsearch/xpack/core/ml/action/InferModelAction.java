@@ -66,10 +66,10 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             );
         }
 
-        public static Builder parseRequest(String deploymentId, XContentParser parser) {
+        public static Builder parseRequest(String modelId, XContentParser parser) {
             Builder builder = PARSER.apply(parser, null);
-            if (deploymentId != null) {
-                builder.setModelId(deploymentId);
+            if (modelId != null) {
+                builder.setModelId(modelId);
             }
             return builder;
         }
@@ -94,7 +94,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             boolean previouslyLicensed
         ) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
-            this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, "objects_to_infer"));
+            this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, DOCS.getPreferredName()));
             this.update = ExceptionsHelper.requireNonNull(inferenceConfig, "inference_config");
             this.previouslyLicensed = previouslyLicensed;
             this.timeout = timeout;
@@ -112,7 +112,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public Request(String modelId, Map<String, Object> objectToInfer, InferenceConfigUpdate update, boolean previouslyLicensed) {
             this(
                 modelId,
-                Collections.singletonList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
+                Collections.singletonList(ExceptionsHelper.requireNonNull(objectToInfer, DOCS.getPreferredName())),
                 update,
                 TimeValue.MAX_VALUE,
                 previouslyLicensed
@@ -122,7 +122,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.modelId = in.readString();
-            this.objectsToInfer = Collections.unmodifiableList(in.readList(StreamInput::readMap));
+            this.objectsToInfer = in.readImmutableList(StreamInput::readMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_8_3_0)) {

@@ -91,7 +91,7 @@ public class UpdateCtxMapTests extends ESTestCase {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> meta.put("_now", 1234));
         assertEquals("_now cannot be updated", err.getMessage());
         assertEquals(TS, meta.get("_now"));
-        ZonedDateTime zdt = meta.getTimestamp();
+        ZonedDateTime zdt = meta.getNow();
         assertEquals(4, zdt.getMonthValue());
         assertEquals(26, zdt.getDayOfMonth());
         assertEquals(1992, zdt.getYear());

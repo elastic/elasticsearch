@@ -16,6 +16,7 @@ import org.apache.lucene.spatial3d.geom.GeoAreaFactory;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
 import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
+import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
 import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
@@ -66,22 +67,42 @@ class H3LatLonGeometry extends LatLonGeometry {
 
     private static class H3Polygon2D implements Component2D {
 
+        // We want to make are edges a bit bigger because spatial3d and h3 edges do not fully agree in
+        // membership of points around he edges.
+        private static final double BBOX_EDGE_DELTA = 1e-4;
         private final long h3;
         private final int res;
         private final GeoPolygon hexagon;
+        private final double minX, maxX, minY, maxY;
 
         private H3Polygon2D(String h3Address) {
             h3 = H3.stringToH3(h3Address);
             res = H3.getResolution(h3Address);
-            hexagon = getGeoPolygon(h3Address);
-            // I tried to compute the bounding box to set min/max values, but it seems to fail
-            // due to numerical errors. For now, we just don't use it, this means we will not be
-            // using the optimization provided by lucene's ComponentPredicate.
+            final CellBoundary cellBoundary = H3.h3ToGeoBoundary(h3Address);
+            hexagon = getGeoPolygon(cellBoundary);
+            final LatLonBounds bounds = new LatLonBounds();
+            hexagon.getBounds(bounds);
+            final double minY = bounds.checkNoBottomLatitudeBound() ? GeoUtils.MIN_LAT_INCL : Math.toDegrees(bounds.getMinLatitude());
+            final double maxY = bounds.checkNoTopLatitudeBound() ? GeoUtils.MAX_LAT_INCL : Math.toDegrees(bounds.getMaxLatitude());
+            final double minX;
+            final double maxX;
+            if (bounds.checkNoLongitudeBound() || bounds.getLeftLongitude() > bounds.getRightLongitude()) {
+                minX = GeoUtils.MIN_LON_INCL;
+                maxX = GeoUtils.MAX_LON_INCL;
+            } else {
+                minX = Math.toDegrees(bounds.getLeftLongitude());
+                maxX = Math.toDegrees(bounds.getRightLongitude());
+            }
+            // Unfortunately, h3 bin edges are fuzzy and cannot be represented easily. We need to buffer
+            // the bounding boxes to make sure we don't reject valid points
+            this.minX = Math.max(GeoUtils.MIN_LON_INCL, minX - BBOX_EDGE_DELTA);
+            this.maxX = Math.min(GeoUtils.MAX_LON_INCL, maxX + BBOX_EDGE_DELTA);
+            this.minY = Math.max(GeoUtils.MIN_LAT_INCL, minY - BBOX_EDGE_DELTA);
+            this.maxY = Math.min(GeoUtils.MAX_LAT_INCL, maxY + BBOX_EDGE_DELTA);
 
         }
 
-        private GeoPolygon getGeoPolygon(String h3Address) {
-            final CellBoundary cellBoundary = H3.h3ToGeoBoundary(h3Address);
+        private GeoPolygon getGeoPolygon(CellBoundary cellBoundary) {
             final List<GeoPoint> points = new ArrayList<>(cellBoundary.numPoints());
             for (int i = 0; i < cellBoundary.numPoints(); i++) {
                 final LatLng latLng = cellBoundary.getLatLon(i);
@@ -92,22 +113,22 @@ class H3LatLonGeometry extends LatLonGeometry {
 
         @Override
         public double getMinX() {
-            return GeoUtils.MIN_LON_INCL;
+            return minX;
         }
 
         @Override
         public double getMaxX() {
-            return GeoUtils.MAX_LON_INCL;
+            return maxX;
         }
 
         @Override
         public double getMinY() {
-            return GeoUtils.MIN_LAT_INCL;
+            return minY;
         }
 
         @Override
         public double getMaxY() {
-            return GeoUtils.MAX_LAT_INCL;
+            return maxY;
         }
 
         @Override
@@ -117,12 +138,18 @@ class H3LatLonGeometry extends LatLonGeometry {
 
         @Override
         public PointValues.Relation relate(double minX, double maxX, double minY, double maxY) {
-            GeoArea box = GeoAreaFactory.makeGeoArea(
+            if (minX > this.maxX || maxX < this.minX || maxY < this.minY || minY > this.maxY) {
+                return PointValues.Relation.CELL_OUTSIDE_QUERY;
+            }
+            // h3 edges are fuzzy, therefore to avoid issues when bounding box are around the edges,
+            // we just buffer slightly the bounding box to check if it is inside the h3 bin, otherwise
+            // return crosses.
+            final GeoArea box = GeoAreaFactory.makeGeoArea(
                 PlanetModel.SPHERE,
-                Math.toRadians(maxY),
-                Math.toRadians(minY),
-                Math.toRadians(minX),
-                Math.toRadians(maxX)
+                Math.toRadians(Math.min(GeoUtils.MAX_LAT_INCL, maxY + BBOX_EDGE_DELTA)),
+                Math.toRadians(Math.max(GeoUtils.MIN_LAT_INCL, minY - BBOX_EDGE_DELTA)),
+                Math.toRadians(Math.max(GeoUtils.MIN_LON_INCL, minX - BBOX_EDGE_DELTA)),
+                Math.toRadians(Math.min(GeoUtils.MAX_LON_INCL, maxX + BBOX_EDGE_DELTA))
             );
             return switch (box.getRelationship(hexagon)) {
                 case GeoArea.CONTAINS -> PointValues.Relation.CELL_INSIDE_QUERY;

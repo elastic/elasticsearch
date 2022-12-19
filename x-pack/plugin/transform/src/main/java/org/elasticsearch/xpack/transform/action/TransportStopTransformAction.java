@@ -242,8 +242,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     } catch (ElasticsearchException ex) {
                         listener.onFailure(ex);
                     }
-                },
-                    e -> listener.onFailure(
+                }, e -> {
+                    logger.debug("failure setting should_stop_at_checkpoint", e);
+                    listener.onFailure(
                         new ElasticsearchStatusException(
                             "Failed to update transform task [{}] state value should_stop_at_checkpoint from [{}] to [{}]",
                             RestStatus.CONFLICT,
@@ -252,8 +253,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                             transformTask.getState().shouldStopAtNextCheckpoint(),
                             request.isWaitForCheckpoint()
                         )
-                    )
-                ));
+                    );
+                }));
             });
         } else {
             listener.onFailure(
@@ -295,6 +296,12 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             // If there were failures attempting to stop the tasks, we don't know if they will actually stop.
             // It is better to respond to the user now than allow for the persistent task waiting to timeout
             if (response.getTaskFailures().isEmpty() == false || response.getNodeFailures().isEmpty() == false) {
+                logger.debug(
+                    "[{}] Failure when waiting for transform to stop, task failures: [{}], node failures: [{}]",
+                    request.getId(),
+                    response.getTaskFailures(),
+                    response.getNodeFailures()
+                );
                 RestStatus status = firstNotOKStatus(response.getTaskFailures(), response.getNodeFailures());
                 listener.onFailure(buildException(response.getTaskFailures(), response.getNodeFailures(), status));
                 return;
@@ -476,8 +483,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     ) {
         final ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
             GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
-                ActionListener.wrap(r -> { finalListener.onResponse(response); }, finalListener::onFailure),
-                transformNodeAssignments.getWaitingForAssignment().size()
+                transformNodeAssignments.getWaitingForAssignment().size(),
+                ActionListener.wrap(r -> { finalListener.onResponse(response); }, finalListener::onFailure)
             );
 
             for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {
@@ -486,8 +493,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
         }, e -> {
             GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
-                ActionListener.wrap(r -> { finalListener.onFailure(e); }, finalListener::onFailure),
-                transformNodeAssignments.getWaitingForAssignment().size()
+                transformNodeAssignments.getWaitingForAssignment().size(),
+                ActionListener.wrap(r -> { finalListener.onFailure(e); }, finalListener::onFailure)
             );
 
             for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {

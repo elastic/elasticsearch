@@ -136,9 +136,9 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
         String location = """
             "location" : {"type":"polygon", "coordinates":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}""";
 
-        client().prepareIndex(indexName).setId("1").setSource("""
+        client().prepareIndex(indexName).setId("1").setSource(formatted("""
             { %s, "1" : { %s, "2" : { %s, "3" : { %s } }} }
-            """.formatted(location, location, location, location), XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+            """, location, location, location, location), XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex(searchIndex)
             .setId("1")
             .setSource(
@@ -230,13 +230,13 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
      * Test that the indexed shape routing can be provided if it is required
      */
     public void testIndexShapeRouting() {
-        String source = """
+        String source = formatted("""
             {
                 "shape" : {
                     "type" : "bbox",
                     "coordinates" : [[%s,%s], [%s, %s]]
                 }
-            }""".formatted(-Float.MAX_VALUE, Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE);
+            }""", -Float.MAX_VALUE, Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE);
 
         client().prepareIndex(INDEX).setId("0").setSource(source, XContentType.JSON).setRouting("ABC").get();
         client().admin().indices().prepareRefresh(INDEX).get();

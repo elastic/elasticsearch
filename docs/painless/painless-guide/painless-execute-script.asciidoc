@@ -631,8 +631,8 @@ results that are formatted as `coordinates`.
   "result" : [
     {
       "coordinates" : [
-        -71.34000004269183,
-        41.1199999647215
+        -71.34,
+        41.12
       ],
       "type" : "Point"
     }

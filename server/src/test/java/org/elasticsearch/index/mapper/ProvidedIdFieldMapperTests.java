@@ -18,6 +18,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +50,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testEnableFieldData() throws IOException {
-
         boolean[] enabled = new boolean[1];
 
         MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
@@ -75,7 +75,11 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
             mapperService,
             iw -> { iw.addDocument(mapperService.documentMapper().parse(source(id, b -> b.field("field", "value"), null)).rootDoc()); },
             iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+                SearchLookup lookup = new SearchLookup(
+                    mapperService::fieldType,
+                    fieldDataLookup(mapperService),
+                    new SourceLookup.ReaderSourceProvider()
+                );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.fieldType("_id");
@@ -84,7 +88,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);
                 valueFetcher.setNextReader(context);
-                assertEquals(List.of(id), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+                assertEquals(List.of(id), valueFetcher.fetchValues(lookup.source(), 0, new ArrayList<>()));
             }
         );
     }

@@ -19,6 +19,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class CountDown {
 
     private final AtomicInteger countDown;
+
+    // Track originalCount because new CountDown(0) never reports completion which can be a leak if not handled specially
+    // TODO fix the places that create an empty CountDown and then drop this, see #92196
     private final int originalCount;
 
     public CountDown(int count) {
@@ -35,16 +38,10 @@ public final class CountDown {
      */
     public boolean countDown() {
         assert originalCount > 0;
-        for (;;) {
-            final int current = countDown.get();
+        return countDown.getAndUpdate(current -> {
             assert current >= 0;
-            if (current == 0) {
-                return false;
-            }
-            if (countDown.compareAndSet(current, current - 1)) {
-                return current == 1;
-            }
-        }
+            return current == 0 ? 0 : current - 1;
+        }) == 1;
     }
 
     /**

@@ -12,11 +12,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
@@ -45,7 +46,7 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
 
     public TokenMetadata(StreamInput input) throws IOException {
         currentKeyHash = input.readByteArray();
-        keys = Collections.unmodifiableList(input.readList(KeyAndTimestamp::new));
+        keys = input.readImmutableList(KeyAndTimestamp::new);
     }
 
     @Override
@@ -64,9 +65,9 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         // never render this to the user
-        return builder;
+        return Collections.emptyIterator();
     }
 
     @Override

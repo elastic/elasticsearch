@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -59,6 +60,7 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
     private final double minimumSupport;
     private final int minimumSetSize;
     private final int size;
+    private final QueryBuilder filter;
 
     public FrequentItemSetsAggregatorFactory(
         String name,
@@ -69,13 +71,15 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
         List<MultiValuesSourceFieldConfig> fields,
         double minimumSupport,
         int minimumSetSize,
-        int size
+        int size,
+        QueryBuilder filter
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.fields = fields;
         this.minimumSupport = minimumSupport;
         this.minimumSetSize = minimumSetSize;
         this.size = size;
+        this.filter = filter;
     }
 
     @Override
@@ -109,7 +113,8 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
                 parent,
                 metadata,
                 new EclatMapReducer(FrequentItemSetsAggregationBuilder.NAME, minimumSupport, minimumSetSize, size, context.profiling()),
-                configs
+                configs,
+                filter
             ) {
         };
     }

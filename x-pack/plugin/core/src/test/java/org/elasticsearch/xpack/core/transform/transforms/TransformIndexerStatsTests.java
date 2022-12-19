@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -18,7 +18,7 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransformIndexerStatsTests extends AbstractSerializingTestCase<TransformIndexerStats> {
+public class TransformIndexerStatsTests extends AbstractXContentSerializingTestCase<TransformIndexerStats> {
 
     public static TransformIndexerStats randomStats() {
         return new TransformIndexerStats(

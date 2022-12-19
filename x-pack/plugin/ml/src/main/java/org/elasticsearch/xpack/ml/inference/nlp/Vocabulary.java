@@ -45,6 +45,8 @@ public class Vocabulary implements Writeable, ToXContentObject {
         return parser;
     }
 
+    public static ConstructingObjectParser<Vocabulary, Void> PARSER = createParser(true);
+
     private final List<String> vocab;
     private final List<String> merges;
     private final String modelId;

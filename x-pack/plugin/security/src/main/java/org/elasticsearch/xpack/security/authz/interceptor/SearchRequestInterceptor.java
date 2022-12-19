@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -25,7 +24,6 @@ import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDE
 
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
-    public static final Version VERSION_SHARD_SEARCH_INTERCEPTOR = Version.V_7_11_2;
     private final ClusterService clusterService;
 
     public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, ClusterService clusterService) {
@@ -40,10 +38,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
         ActionListener<Void> listener
     ) {
         final SearchRequest request = (SearchRequest) indicesRequest;
-        // The 7.11.2 version check is needed because request caching has a bug related to DLS/FLS
-        // versions before 7.11.2. It is fixed by #69505. See also ESA-2021-08.
-        // TODO: The version check can be removed in 8.0 because 7.last will have support for request caching with DLS/FLS
-        if (clusterService.state().nodes().getMinNodeVersion().before(VERSION_SHARD_SEARCH_INTERCEPTOR) || hasRemoteIndices(request)) {
+        if (hasRemoteIndices(request)) {
             request.requestCache(false);
         }
 

@@ -97,7 +97,7 @@ public class RollupIT extends ESRestTestCase {
         final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
         int pageSize = randomIntBetween(2, 50);
         // fast cron so test runs quickly
-        createRollupJobRequest.setJsonEntity("""
+        createRollupJobRequest.setJsonEntity(formatted("""
             {
                 "index_pattern": "rollup-*",
                 "rollup_index": "results-rollup",
@@ -119,7 +119,7 @@ public class RollupIT extends ESRestTestCase {
                         ]
                     }
                 ]
-            }""".formatted(pageSize));
+            }""", pageSize));
 
         var createRollupJobResponse = responseAsMap(client().performRequest(createRollupJobRequest));
         assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));

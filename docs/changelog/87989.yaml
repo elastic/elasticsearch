@@ -1,5 +1,0 @@
-pr: 87989
-summary: Move the ingest attachment processor to the default distribution
-area: Ingest
-type: enhancement
-issues: []

@@ -21,8 +21,8 @@ public class UnpairedTTestState implements TTestState {
 
     private final TTestStats a;
     private final TTestStats b;
-    private boolean homoscedastic;
-    private int tails;
+    private final boolean homoscedastic;
+    private final int tails;
 
     public UnpairedTTestState(TTestStats a, TTestStats b, boolean homoscedastic, int tails) {
         this.a = a;

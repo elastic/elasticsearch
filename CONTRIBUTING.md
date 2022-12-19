@@ -94,7 +94,7 @@ Once your changes and tests are ready to submit for review:
 
     Push your local changes to your forked copy of the repository and [submit a pull request](https://help.github.com/articles/using-pull-requests). In the pull request, choose a title which sums up the changes that you have made, and in the body provide more details about what your changes do. Also mention the number of the issue where discussion has taken place, eg "Closes #123".
 
-Then sit back and wait. There will probably be discussion about the pull request and, if any changes are needed, we would love to work with you to get your pull request merged into Elasticsearch.
+Then sit back and wait. There will probably be discussion about the pull request and, if any changes are needed, we would love to work with you to get your pull request merged into Elasticsearch. A yaml changelog entry will be automatically created, there is no need for external contributors to manually edit it, unless requested by the reviewer.
 
 Please adhere to the general guideline that you should never force push
 to a publicly shared branch. Once you have opened your pull request, you
@@ -194,6 +194,9 @@ instructions are below in case you need them.
    4. Click "Browse", and navigate to the file `build-conventions/formatterConfig.xml`
    5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
    6. Click "OK"
+   7. Optional: If you like to format code changes on save automatically, open
+      **Preferences > Tools > Actions on Save** and check "Reformat Code", making sure to
+      configure Java files.
 
 Alternative manual steps for IntelliJ.
 

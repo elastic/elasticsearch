@@ -32,6 +32,7 @@ public class Task {
      * The request header which is contained in HTTP request. We parse trace.id from it and store it in thread context.
      * TRACE_PARENT once parsed in RestController.tryAllHandler is not preserved
      * has to be declared as a header copied over from http request.
+     * May also be used internally when APM is enabled.
      */
     public static final String TRACE_PARENT_HTTP_HEADER = "traceparent";
 
@@ -44,10 +45,16 @@ public class Task {
     public static final String TRACE_STATE = "tracestate";
 
     /**
+     * Used internally to pass the apm trace context between the nodes
+     */
+    public static final String APM_TRACE_CONTEXT = "apm.local.context";
+
+    /**
      * Parsed part of traceparent. It is stored in thread context and emitted in logs.
      * Has to be declared as a header copied over for tasks.
      */
     public static final String TRACE_ID = "trace.id";
+    public static final String TRACE_PARENT = "traceparent";
 
     public static final Set<String> HEADERS_TO_COPY = Set.of(
         X_OPAQUE_ID_HTTP_HEADER,

@@ -1,6 +1,0 @@
-pr: 88553
-summary: "Remove help_url,rename summary to symptom, and `user_actions` to diagnosis"
-area: Health
-type: feature
-issues:
- - 88474

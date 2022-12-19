@@ -194,6 +194,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
             clusterService.addListener(
                 new PersistentTasksNodeService(
+                    threadPool,
                     persistentTasksService,
                     persistentTasksExecutorRegistry,
                     transportService.getTaskManager(),

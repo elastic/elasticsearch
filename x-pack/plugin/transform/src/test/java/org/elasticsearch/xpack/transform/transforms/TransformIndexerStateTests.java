@@ -31,6 +31,7 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -245,6 +246,11 @@ public class TransformIndexerStateTests extends ESTestCase {
         @Override
         void persistState(TransformState state, ActionListener<Void> listener) {
             persistedState = state;
+            listener.onResponse(null);
+        }
+
+        @Override
+        void validate(ActionListener<Void> listener) {
             listener.onResponse(null);
         }
     }
@@ -496,6 +502,10 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.transform.transforms:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/92069"
+    )
     public void testStopAtCheckpointForThrottledTransform() throws Exception {
         TransformConfig config = new TransformConfig(
             randomAlphaOfLength(10),
@@ -507,7 +517,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null, (Boolean) null, null, null, null),
+            new SettingsConfig.Builder().setRequestsPerSecond(1.0f).build(),
             null,
             null,
             null,

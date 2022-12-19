@@ -2,9 +2,9 @@
   "security.get_user_profile":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user-profile.html",
-      "description":"Retrieves user profile for the given unique ID."
+      "description":"Retrieves user profiles for the given unique ID(s)."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "visibility":"private",
     "headers":{
       "accept": [ "application/json"]
@@ -18,8 +18,8 @@
           ],
           "parts":{
             "uid":{
-              "type":"string",
-              "description":"An unique identifier of the user profile"
+              "type":"list",
+              "description":"A comma-separated list of unique identifier for user profiles"
             }
           }
         }

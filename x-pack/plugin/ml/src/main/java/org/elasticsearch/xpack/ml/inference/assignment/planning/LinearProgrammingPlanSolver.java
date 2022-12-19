@@ -92,12 +92,16 @@ class LinearProgrammingPlanSolver {
             .collect(Collectors.toMap(Function.identity(), m -> m.memoryBytes() / (double) maxModelMemoryBytes));
     }
 
-    AssignmentPlan solvePlan() {
+    AssignmentPlan solvePlan(boolean useBinPackingOnly) {
         if (models.isEmpty() || maxNodeCores == 0) {
             return AssignmentPlan.builder(nodes, models).build();
         }
 
         Tuple<Map<Tuple<Model, Node>, Double>, AssignmentPlan> weightsAndBinPackingPlan = calculateWeightsAndBinPackingPlan();
+
+        if (useBinPackingOnly) {
+            return weightsAndBinPackingPlan.v2();
+        }
 
         Map<Tuple<Model, Node>, Double> allocationValues = new HashMap<>();
         Map<Tuple<Model, Node>, Double> assignmentValues = new HashMap<>();
@@ -275,7 +279,7 @@ class LinearProgrammingPlanSolver {
             // Each model should not get more allocations than is required.
             // Also, if the model has previous assignments, it should get at least as many allocations as it did before.
             model.addExpression("allocations_of_model_" + m.id() + "_not_more_than_required")
-                .lower(m.getPreviouslyAssignedAllocations())
+                .lower(m.getCurrentAssignedAllocations())
                 .upper(m.allocations())
                 .setLinearFactorsSimple(varsForModel(m, allocationVars));
         }

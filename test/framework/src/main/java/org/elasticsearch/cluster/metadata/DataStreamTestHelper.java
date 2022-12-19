@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -150,7 +151,7 @@ public final class DataStreamTestHelper {
     }
 
     public static String generateMapping(String timestampFieldName) {
-        return """
+        return String.format(Locale.ROOT, """
             {
               "_doc":{
                 "properties": {
@@ -159,7 +160,7 @@ public final class DataStreamTestHelper {
                   }
                 }
               }
-            }""".formatted(timestampFieldName);
+            }""", timestampFieldName);
     }
 
     public static String generateTsdbMapping() {
@@ -444,12 +445,12 @@ public final class DataStreamTestHelper {
             ScriptCompiler.NONE,
             false,
             Version.CURRENT
-        ).build(MapperBuilderContext.ROOT);
+        ).build(MapperBuilderContext.root(false));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         Environment env = mock(Environment.class);
         when(env.sharedDataFile()).thenReturn(null);
         AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
         MappingLookup mappingLookup = null;
         if (dataStream != null) {
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
@@ -465,7 +466,7 @@ public final class DataStreamTestHelper {
             );
             MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();
             Mapping mapping = new Mapping(
-                root.build(MapperBuilderContext.ROOT),
+                root.build(MapperBuilderContext.root(false)),
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
@@ -489,12 +490,17 @@ public final class DataStreamTestHelper {
             new IndexSettingProviders(providers)
         );
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService, null, registry);
-        return new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService, EmptySystemIndices.INSTANCE);
+        return new MetadataRolloverService(
+            testThreadPool,
+            createIndexService,
+            indexAliasesService,
+            EmptySystemIndices.INSTANCE,
+            WriteLoadForecaster.DEFAULT
+        );
     }
 
     public static MetadataFieldMapper getDataStreamTimestampFieldMapper() {
         Map<String, Object> fieldsMapping = new HashMap<>();
-        fieldsMapping.put("type", DataStreamTimestampFieldMapper.NAME);
         fieldsMapping.put("enabled", true);
         MappingParserContext mockedParserContext = mock(MappingParserContext.class);
         return DataStreamTimestampFieldMapper.PARSER.parse("field", fieldsMapping, mockedParserContext).build();
@@ -516,7 +522,7 @@ public final class DataStreamTestHelper {
             MapperService mapperService = mock(MapperService.class);
 
             RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
-                MapperBuilderContext.ROOT
+                MapperBuilderContext.root(false)
             );
             Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], null);
             DocumentMapper documentMapper = mock(DocumentMapper.class);

@@ -64,7 +64,7 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
         return PARSER.apply(parser, null);
     }
 
-    private List<X509Certificate> certificateChain;
+    private final List<X509Certificate> certificateChain;
 
     public DelegatePkiAuthenticationRequest(List<X509Certificate> certificateChain) {
         this.certificateChain = List.copyOf(certificateChain);
@@ -74,13 +74,13 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
         super(input);
         try {
             final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-            certificateChain = List.copyOf(input.readList(in -> {
+            certificateChain = input.readImmutableList(in -> {
                 try (ByteArrayInputStream bis = new ByteArrayInputStream(in.readByteArray())) {
                     return (X509Certificate) certificateFactory.generateCertificate(bis);
                 } catch (CertificateException e) {
                     throw new IOException(e);
                 }
-            }));
+            });
         } catch (CertificateException e) {
             throw new IOException(e);
         }

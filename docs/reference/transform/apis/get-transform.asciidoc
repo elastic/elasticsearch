@@ -49,6 +49,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
 (Optional, Boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
 
+`exclude_generated`::
+(Optional, Boolean)
+Excludes fields that were automatically added when creating the transform.
+This allows the configuration to be in an acceptable format to be retrieved
+and then added to another cluster. Default is false.
+
 `from`::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
@@ -57,11 +63,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
-`exclude_generated`::
-(Optional, Boolean)
-Excludes fields that were automatically added when creating the transform.
-This allows the configuration to be in an acceptable format to be retrieved
-and then added to another cluster. Default is false.
+
 
 [[get-transform-response]]
 == {api-response-body-title}

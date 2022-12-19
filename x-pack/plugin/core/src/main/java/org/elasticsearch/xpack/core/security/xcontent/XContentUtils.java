@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.core.security.xcontent;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -92,8 +94,14 @@ public class XContentUtils {
         if (authKey == null) {
             return;
         }
+        Subject authenticationSubject;
+        try {
+            authenticationSubject = AuthenticationContextSerializer.decode(authKey).getEffectiveSubject();
+        } catch (Exception e) {
+            // The exception will have been logged by AuthenticationContextSerializer.decode() so don't log it again here.
+            return;
+        }
         builder.startObject("authorization");
-        Subject authenticationSubject = AuthenticationContextSerializer.decode(authKey).getEffectiveSubject();
         switch (authenticationSubject.getType()) {
             case USER -> builder.array(User.Fields.ROLES.getPreferredName(), authenticationSubject.getUser().roles());
             case API_KEY -> {
@@ -101,7 +109,7 @@ public class XContentUtils {
                 Map<String, Object> metadata = authenticationSubject.getMetadata();
                 builder.field("id", metadata.get(AuthenticationField.API_KEY_ID_KEY));
                 Object name = metadata.get(AuthenticationField.API_KEY_NAME_KEY);
-                if (name != null) {
+                if (name instanceof String) {
                     builder.field("name", name);
                 }
                 builder.endObject();
@@ -109,5 +117,22 @@ public class XContentUtils {
             case SERVICE_ACCOUNT -> builder.field("service_account", authenticationSubject.getUser().principal());
         }
         builder.endObject();
+    }
+
+    public static void maybeAddErrorDetails(XContentBuilder builder, Map<String, Exception> errors) throws IOException {
+        if (false == errors.isEmpty()) {
+            builder.startObject("errors");
+            {
+                builder.field("count", errors.size());
+                builder.startObject("details");
+                for (Map.Entry<String, Exception> idWithException : errors.entrySet()) {
+                    builder.startObject(idWithException.getKey());
+                    ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, idWithException.getValue());
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
     }
 }

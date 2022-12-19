@@ -99,7 +99,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(
             pipeline.getDescription(),
-            equalTo("this is a place holder pipeline, " + "because pipeline with id [_id] could not be loaded")
+            equalTo("this is a place holder pipeline, because pipeline with id [_id] could not be loaded")
         );
     }
 

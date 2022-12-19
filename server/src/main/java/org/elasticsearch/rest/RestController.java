@@ -30,6 +30,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -37,11 +38,13 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -458,14 +461,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             name = restPath;
         }
 
-        Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
+        final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
         req.getHeaders().forEach((key, values) -> {
             final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
-            final String value = switch (lowerKey) {
-                case "authorization", "cookie", "secret", "session", "set_cookie", "token" -> "[REDACTED]";
-                default -> String.join("; ", values);
-            };
-            attributes.put("http.request.headers." + lowerKey, value);
+            attributes.put("http.request.headers." + lowerKey, values.size() == 1 ? values.get(0) : String.join("; ", values));
         });
         attributes.put("http.method", method);
         attributes.put("http.url", req.uri());
@@ -559,8 +558,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
                 } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
                     String traceparent = distinctHeaderValues.get(0);
-                    if (traceparent.length() >= 55) {
-                        threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));
+                    Optional<String> traceId = RestUtils.extractTraceId(traceparent);
+                    if (traceId.isPresent()) {
+                        threadContext.putHeader(Task.TRACE_ID, traceId.get());
                         threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);
                     }
                 } else if (name.equals(Task.TRACE_STATE)) {
@@ -591,6 +591,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // so we can handle things like:
         // my_index/my_type/http%3A%2F%2Fwww.google.com
         return handlers.retrieveAll(rawPath, paramsSupplier);
+    }
+
+    /**
+     * Returns the holder for search usage statistics, to be used to track search usage when parsing
+     * incoming search requests from the relevant REST endpoints. This is exposed for plugins that
+     * expose search functionalities which need to contribute to the search usage statistics.
+     */
+    public SearchUsageHolder getSearchUsageHolder() {
+        return usageService.getSearchUsageHolder();
     }
 
     /**
@@ -710,8 +719,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public XContentBuilder newBuilder(
+            XContentType xContentType,
+            XContentType responseContentType,
+            boolean useFiltering,
+            OutputStream out
+        ) throws IOException {
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering, out);
+        }
+
+        @Override
         public BytesStream bytesOutput() {
             return delegate.bytesOutput();
+        }
+
+        @Override
+        public void releaseOutputBuffer() {
+            delegate.releaseOutputBuffer();
         }
 
         @Override
@@ -726,8 +750,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
-            close();
-            delegate.sendResponse(response);
+            boolean success = false;
+            try {
+                close();
+                delegate.sendResponse(response);
+                success = true;
+            } finally {
+                if (success == false) {
+                    releaseOutputBuffer();
+                }
+            }
         }
 
         private void close() {

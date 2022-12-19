@@ -88,13 +88,20 @@ public class LuceneDocument implements Iterable<IndexableField> {
      * Add fields so that they can later be fetched using {@link #getByKey(Object)}.
      */
     public void addWithKey(Object key, IndexableField field) {
+        onlyAddKey(key, field);
+        add(field);
+    }
+
+    /**
+     * only add the key to the keyedFields, it don't add the field to the field list
+     */
+    public void onlyAddKey(Object key, IndexableField field) {
         if (keyedFields == null) {
             keyedFields = new HashMap<>();
         } else if (keyedFields.containsKey(key)) {
             throw new IllegalStateException("Only one field can be stored per key");
         }
         keyedFields.put(key, field);
-        add(field);
     }
 
     /**

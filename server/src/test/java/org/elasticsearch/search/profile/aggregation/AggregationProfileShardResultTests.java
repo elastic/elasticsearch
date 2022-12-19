@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -27,8 +27,10 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.not;
 
-public class AggregationProfileShardResultTests extends AbstractSerializingTestCase<AggregationProfileShardResult> {
+public class AggregationProfileShardResultTests extends AbstractXContentSerializingTestCase<AggregationProfileShardResult> {
 
     public static AggregationProfileShardResult createTestItem(int depth) {
         int size = randomIntBetween(0, 5);
@@ -116,6 +118,12 @@ public class AggregationProfileShardResultTests extends AbstractSerializingTestC
                 }
               ]
             }"""), xContent.utf8ToString());
+    }
+
+    public void testToString() {
+        final String toString = createTestInstance().toString();
+        assertNotNull(toString);
+        assertThat(toString, not(emptyString()));
     }
 
 }

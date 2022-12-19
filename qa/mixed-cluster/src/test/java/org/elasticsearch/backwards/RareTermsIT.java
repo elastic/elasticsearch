@@ -30,10 +30,10 @@ public class RareTermsIT extends ESRestTestCase {
         final Request request = new Request("POST", "/_bulk");
         final StringBuilder builder = new StringBuilder();
         for (int i = 0; i < numDocs; ++i) {
-            builder.append("""
+            builder.append(formatted("""
                 { "index" : { "_index" : "%s", "_id": "%s" } }
                 {"str_value" : "s%s"}
-                """.formatted(index, id++, i));
+                """, index, id++, i));
         }
         request.setJsonEntity(builder.toString());
         assertOK(client().performRequest(request));
@@ -62,7 +62,7 @@ public class RareTermsIT extends ESRestTestCase {
 
     private void assertNumRareTerms(int maxDocs, int rareTerms) throws IOException {
         final Request request = new Request("POST", index + "/_search");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {
               "aggs": {
                 "rareTerms": {
@@ -72,7 +72,7 @@ public class RareTermsIT extends ESRestTestCase {
                   }
                 }
               }
-            }""".formatted(maxDocs));
+            }""", maxDocs));
         final Response response = client().performRequest(request);
         assertOK(response);
         final Object o = XContentMapValues.extractValue("aggregations.rareTerms.buckets", responseAsMap(response));

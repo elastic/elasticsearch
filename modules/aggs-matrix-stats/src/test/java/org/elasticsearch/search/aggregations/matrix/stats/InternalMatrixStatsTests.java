@@ -64,7 +64,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
         ContextParser<Object, Aggregation> parser = (p, c) -> ParsedMatrixStats.fromXContent(p, (String) c);
         return CollectionUtils.appendToCopy(
-            getDefaultNamedXContents(),
+            super.getNamedXContents(),
             new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(MatrixStatsAggregationBuilder.NAME), parser)
         );
     }

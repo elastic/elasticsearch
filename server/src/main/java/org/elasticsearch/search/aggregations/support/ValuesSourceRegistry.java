@@ -169,13 +169,23 @@ public class ValuesSourceRegistry {
             @SuppressWarnings("unchecked")
             T supplier = (T) aggregatorRegistry.get(registryKey).get(valuesSourceConfig.valueSourceType());
             if (supplier == null) {
-                throw new IllegalArgumentException(
-                    valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
-                );
+                final RuntimeException unmappedException = valuesSourceConfig.valueSourceType()
+                    .getUnregisteredException(
+                        valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
+                    );
+                assert unmappedException != null
+                    : "Value source type ["
+                        + valuesSourceConfig.valueSourceType()
+                        + "] did not return a valid exception for aggregation ["
+                        + registryKey.getName()
+                        + "]";
+                throw unmappedException;
             }
             return supplier;
         }
-        throw new AggregationExecutionException("Unregistered Aggregation [" + registryKey.getName() + "]");
+        throw new AggregationExecutionException(
+            "Unregistered Aggregation [" + (registryKey != null ? registryKey.getName() : "unknown aggregation") + "]"
+        );
     }
 
     public AggregationUsageService getUsageService() {

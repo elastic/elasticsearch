@@ -1,5 +1,0 @@
-pr: 86838
-summary: Adding cardinality support for `random_sampler` agg
-area: Aggregations
-type: enhancement
-issues: []

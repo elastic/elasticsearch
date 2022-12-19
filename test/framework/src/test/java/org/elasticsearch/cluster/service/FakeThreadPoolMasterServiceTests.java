@@ -100,6 +100,10 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(scheduleTask, hasToString("master service scheduling next task"));
         scheduleTask.run();
 
+        // run tasks for computing routing nodes and indices lookup
+        runnableTasks.remove(0).run();
+        runnableTasks.remove(0).run();
+
         final Runnable publishTask = runnableTasks.remove(0);
         assertThat(publishTask, hasToString(containsString("publish change of cluster state")));
         publishTask.run();
@@ -137,6 +141,10 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(runnableTasks.size(), equalTo(1)); // check that new task gets queued
 
         runnableTasks.remove(0).run(); // schedule again
+
+        // run task for computing missing indices lookup
+        runnableTasks.remove(0).run();
+
         runnableTasks.remove(0).run(); // publish again
         assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(2));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion + 2));

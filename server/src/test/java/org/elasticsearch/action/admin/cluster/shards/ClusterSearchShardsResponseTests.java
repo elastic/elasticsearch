@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -56,9 +55,9 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             nodes.add(node);
             AliasFilter aliasFilter;
             if (randomBoolean()) {
-                aliasFilter = new AliasFilter(RandomQueryBuilder.createQuery(random()), "alias-" + index);
+                aliasFilter = AliasFilter.of(RandomQueryBuilder.createQuery(random()), "alias-" + index);
             } else {
-                aliasFilter = new AliasFilter(null, Strings.EMPTY_ARRAY);
+                aliasFilter = AliasFilter.EMPTY;
             }
             indicesAndFilters.put(index, aliasFilter);
         }

@@ -63,6 +63,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
+            .put(LARGE_SNAPSHOT_POOL_SETTINGS) // we have #testGetSnapshotsWithSnapshotInProgress which needs many threads to ensure
+            // its snapshot pool does not become fully blocked on data nodes when blocking on data files
             .build();
     }
 
@@ -659,8 +661,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final var waitForCompletion = randomBoolean();
         final var createsListener = new PlainActionFuture<Void>();
         final var createsGroupedListener = new GroupedActionListener<CreateSnapshotResponse>(
-            createsListener.map(ignored -> null),
-            snapshotNames.length
+            snapshotNames.length,
+            createsListener.map(ignored -> null)
         );
         for (final var snapshotName : snapshotNames) {
             clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)

@@ -1,5 +1,0 @@
-pr: 88702
-summary: Fix validation of `close_pit` request
-area: Search
-type: bug
-issues: []

@@ -46,8 +46,13 @@ PUT _cluster/settings
 {
   "persistent": {
     "cluster.routing.allocation.disk.watermark.low": "90%",
+    "cluster.routing.allocation.disk.watermark.low.max_headroom": "100GB",
     "cluster.routing.allocation.disk.watermark.high": "95%",
-    "cluster.routing.allocation.disk.watermark.flood_stage": "97%"
+    "cluster.routing.allocation.disk.watermark.high.max_headroom": "20GB",
+    "cluster.routing.allocation.disk.watermark.flood_stage": "97%",
+    "cluster.routing.allocation.disk.watermark.flood_stage.max_headroom": "5GB",
+    "cluster.routing.allocation.disk.watermark.flood_stage.frozen": "97%",
+    "cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom": "5GB"
   }
 }
 
@@ -77,8 +82,13 @@ PUT _cluster/settings
 {
   "persistent": {
     "cluster.routing.allocation.disk.watermark.low": null,
+    "cluster.routing.allocation.disk.watermark.low.max_headroom": null,
     "cluster.routing.allocation.disk.watermark.high": null,
-    "cluster.routing.allocation.disk.watermark.flood_stage": null
+    "cluster.routing.allocation.disk.watermark.high.max_headroom": null,
+    "cluster.routing.allocation.disk.watermark.flood_stage": null,
+    "cluster.routing.allocation.disk.watermark.flood_stage.max_headroom": null,
+    "cluster.routing.allocation.disk.watermark.flood_stage.frozen": null,
+    "cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom": null
   }
 }
 ----

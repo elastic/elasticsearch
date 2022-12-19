@@ -134,7 +134,7 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 14}
   - match: {aggregations.mfs.fields.0.count: 14}
-  - close_to: {aggregations.mfs.fields.0.correlation.val1: { value: 0.06838646533369998, error: 0.00001 } }
+  - close_to: {aggregations.mfs.fields.0.correlation.val1: { value: 0.06838646533369998, error: 0.1 } }
 
 ---
 "Multi value field Min":
@@ -150,7 +150,7 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 14}
   - match: {aggregations.mfs.fields.0.count: 14}
-  - close_to: {aggregations.mfs.fields.0.correlation.val1: { value: -0.09777682707831963, error: 0.00001} }
+  - close_to: {aggregations.mfs.fields.0.correlation.val1: { value: -0.09777682707831963, error: 0.1} }
 
 ---
 "Partially unmapped":

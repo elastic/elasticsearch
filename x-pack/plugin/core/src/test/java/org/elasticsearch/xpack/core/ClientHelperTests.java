@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -283,10 +282,12 @@ public class ClientHelperTests extends ESTestCase {
             )
         );
         when(client.search(any())).thenReturn(searchFuture);
-        Map<String, String> headers = MapBuilder.<String, String>newMapBuilder()
-            .put(AuthenticationField.AUTHENTICATION_KEY, "anything")
-            .put(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything")
-            .map();
+        Map<String, String> headers = Map.of(
+            AuthenticationField.AUTHENTICATION_KEY,
+            "anything",
+            AuthenticationServiceField.RUN_AS_USER_HEADER,
+            "anything"
+        );
 
         assertRunAsExecution(headers, h -> {
             assertThat(h.keySet(), hasSize(2));
@@ -316,7 +317,7 @@ public class ClientHelperTests extends ESTestCase {
             )
         );
         when(client.search(any())).thenReturn(searchFuture);
-        Map<String, String> unrelatedHeaders = MapBuilder.<String, String>newMapBuilder().put(randomAlphaOfLength(10), "anything").map();
+        Map<String, String> unrelatedHeaders = Map.of(randomAlphaOfLength(10), "anything");
 
         assertExecutionWithOrigin(unrelatedHeaders, client);
     }

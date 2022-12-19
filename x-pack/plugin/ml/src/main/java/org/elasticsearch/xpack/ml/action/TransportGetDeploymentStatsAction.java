@@ -240,7 +240,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                         stat.getQueueCapacity(),
                         stat.getCacheSize(),
                         stat.getStartTime(),
-                        updatedNodeStats
+                        updatedNodeStats,
+                        stat.getPriority()
                     )
                 );
             } else {
@@ -277,7 +278,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                         assignment.getTaskParams().getQueueCapacity(),
                         assignment.getTaskParams().getCacheSize().orElse(null),
                         assignment.getStartTime(),
-                        nodeStats
+                        nodeStats,
+                        assignment.getTaskParams().getPriority()
                     )
                 );
             }
@@ -344,7 +346,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 task.getParams().getQueueCapacity(),
                 task.getParams().getCacheSize().orElse(null),
                 TrainedModelAssignmentMetadata.fromState(clusterService.state()).getModelAssignment(task.getModelId()).getStartTime(),
-                nodeStats
+                nodeStats,
+                task.getParams().getPriority()
             )
         );
     }

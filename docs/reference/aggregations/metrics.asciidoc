@@ -25,6 +25,8 @@ include::metrics/geocentroid-aggregation.asciidoc[]
 
 include::metrics/geoline-aggregation.asciidoc[]
 
+include::metrics/cartesian-bounds-aggregation.asciidoc[]
+
 include::metrics/cartesian-centroid-aggregation.asciidoc[]
 
 include::metrics/matrix-stats-aggregation.asciidoc[]

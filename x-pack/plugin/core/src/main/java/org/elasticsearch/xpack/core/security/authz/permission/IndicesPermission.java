@@ -494,7 +494,7 @@ public final class IndicesPermission {
             if (indexFieldPermissions != null && indexFieldPermissions.isEmpty() == false) {
                 fieldPermissions = indexFieldPermissions.size() == 1
                     ? indexFieldPermissions.iterator().next()
-                    : fieldPermissionsCache.getFieldPermissions(indexFieldPermissions);
+                    : fieldPermissionsCache.union(indexFieldPermissions);
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
@@ -609,6 +609,7 @@ public final class IndicesPermission {
         private final String[] indices;
         private final StringMatcher indexNameMatcher;
         private final Supplier<Automaton> indexNameAutomaton;
+        // TODO: Use FieldPermissionsDefinition instead of FieldPermissions. The former is a better counterpart to query
         private final FieldPermissions fieldPermissions;
         private final Set<BytesReference> query;
         // by default certain restricted indices are exempted when granting privileges, as they should generally be hidden for ordinary

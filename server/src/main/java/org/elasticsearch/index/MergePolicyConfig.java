@@ -143,7 +143,7 @@ public final class MergePolicyConfig {
         "index.merge.policy.max_merge_at_once_explicit",
         30,
         2,
-        Property.Deprecated,
+        Property.Deprecated, // When removing in 9.0 follow the approach of IndexSettingDeprecatedInV7AndRemovedInV8
         Property.Dynamic,
         Property.IndexScope
     );

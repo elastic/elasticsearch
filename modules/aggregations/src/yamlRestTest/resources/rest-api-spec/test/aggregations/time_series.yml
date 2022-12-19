@@ -1,8 +1,4 @@
 setup:
-  - skip:
-        version: " - 8.2.0"
-        reason: Time series indexing changed in 8.2.0
-
   - do:
       indices.create:
         index: tsdb
@@ -57,6 +53,10 @@ setup:
 
 ---
 "Basic test":
+  - skip:
+      version: " - 8.5.99"
+      reason: Time series result serialization changed in 8.6.0
+
   - do:
       search:
         index: tsdb

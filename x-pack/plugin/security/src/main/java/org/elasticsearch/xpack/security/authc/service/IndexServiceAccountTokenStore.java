@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
@@ -269,15 +270,16 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
             .field("creation_time", clock.instant().toEpochMilli())
             .field("enabled", true);
         {
+            final Subject effectiveSubject = authentication.getEffectiveSubject();
             builder.startObject("creator")
-                .field("principal", authentication.getEffectiveSubject().getUser().principal())
-                .field("full_name", authentication.getEffectiveSubject().getUser().fullName())
-                .field("email", authentication.getEffectiveSubject().getUser().email())
-                .field("metadata", authentication.getEffectiveSubject().getUser().metadata())
-                .field("realm", authentication.getSourceRealm().getName())
-                .field("realm_type", authentication.getSourceRealm().getType());
-            if (authentication.getSourceRealm().getDomain() != null) {
-                builder.field("realm_domain", authentication.getSourceRealm().getDomain());
+                .field("principal", effectiveSubject.getUser().principal())
+                .field("full_name", effectiveSubject.getUser().fullName())
+                .field("email", effectiveSubject.getUser().email())
+                .field("metadata", effectiveSubject.getUser().metadata())
+                .field("realm", effectiveSubject.getRealm().getName())
+                .field("realm_type", effectiveSubject.getRealm().getType());
+            if (effectiveSubject.getRealm().getDomain() != null) {
+                builder.field("realm_domain", effectiveSubject.getRealm().getDomain());
             }
             builder.endObject();
         }

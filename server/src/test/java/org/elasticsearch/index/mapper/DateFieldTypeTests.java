@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -363,6 +364,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(
             "my_date",
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS,
+            CoreValuesSourceType.DATE,
             DateNanosDocValuesField::new
         );
         // Read index and check the doc values

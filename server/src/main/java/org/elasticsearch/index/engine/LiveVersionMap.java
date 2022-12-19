@@ -85,8 +85,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
 
         public void updateMinDeletedTimestamp(DeleteVersionValue delete) {
-            long time = delete.time;
-            minDeleteTimestamp.updateAndGet(prev -> Math.min(time, prev));
+            minDeleteTimestamp.accumulateAndGet(delete.time, Math::min);
         }
 
     }

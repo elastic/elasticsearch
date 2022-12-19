@@ -32,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -228,7 +229,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
-        assert mapperBuilderContext == MapperBuilderContext.ROOT;
+        assert Objects.equals(mapperBuilderContext.buildFullName("foo"), "foo");
         return mapperBuilderContext;
     }
 
@@ -350,7 +351,7 @@ public class RootObjectMapper extends ObjectMapper {
                     validate(
                         template,
                         dynamicType,
-                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.ROOT)
+                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.root(false))
                     );
                 }
                 lastError = null; // ok, the template is valid for at least one type

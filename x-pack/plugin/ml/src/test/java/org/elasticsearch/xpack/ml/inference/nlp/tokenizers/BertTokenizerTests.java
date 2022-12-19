@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -63,6 +64,35 @@ public class BertTokenizerTests extends ESTestCase {
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("Elastic", "##search", "fun"));
             assertArrayEquals(new int[] { 0, 1, 3 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 0, 1 }, tokenization.tokenMap());
+        }
+    }
+
+    public void testTokenizeFailureCaseAccentFilter() {
+        List<String> testingVocab = List.of(
+            "[CLS]",
+            "br",
+            "##ᄎ",
+            "##ᅡ",
+            "##ᆼ",
+            "##n",
+            "'",
+            "s",
+            "[SEP]",
+            BertTokenizer.MASK_TOKEN,
+            BertTokenizer.UNKNOWN_TOKEN,
+            BertTokenizer.PAD_TOKEN
+        );
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(
+                testingVocab,
+                new BertTokenization(true, true, 512, Tokenization.Truncate.FIRST, -1)
+            ).build()
+        ) {
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Br창n's", Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 }));
+
+            tokenization = tokenizer.tokenize("Br창n", Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 0, 1, 2, 3, 4, 5, 8 }));
         }
     }
 
@@ -466,6 +496,50 @@ public class BertTokenizerTests extends ESTestCase {
                     )
                 );
             }
+        }
+    }
+
+    public void testMultiSeqTokenizationWithSpanFirstInputTooLong() {
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, Tokenization.createDefault())
+                .setDoLowerCase(false)
+                .setWithSpecialTokens(true)
+                .setMaxSequenceLength(3)
+                .build()
+        ) {
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> tokenizer.tokenize("Elasticsearch is fun", "Godzilla my little red car", Tokenization.Truncate.NONE, 2, 0)
+            );
+            assertThat(
+                iae.getMessage(),
+                containsString(
+                    "Unable to do sequence pair tokenization: the first sequence [7 tokens] "
+                        + "is longer than the max sequence length [3 tokens]"
+                )
+            );
+        }
+    }
+
+    public void testMultiSeqTokenizationWithSpanPlusFirstInputTooLong() {
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, Tokenization.createDefault())
+                .setDoLowerCase(false)
+                .setWithSpecialTokens(true)
+                .setMaxSequenceLength(8)
+                .build()
+        ) {
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> tokenizer.tokenize("Elasticsearch is fun", "Godzilla my little red car", Tokenization.Truncate.NONE, 5, 0)
+            );
+            assertThat(
+                iae.getMessage(),
+                containsString(
+                    "Unable to do sequence pair tokenization: the combined first sequence and span length [4 + 5 = 9 tokens] "
+                        + "is longer than the max sequence length [8 tokens]. Reduce the size of the [span] window."
+                )
+            );
         }
     }
 

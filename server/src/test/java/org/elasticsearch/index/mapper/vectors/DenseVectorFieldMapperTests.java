@@ -56,7 +56,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     public DenseVectorFieldMapperTests() {
         this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT);
-        this.indexed = elementType == ElementType.BYTE || randomBoolean();
+        this.indexed = randomBoolean();
         this.indexOptionsSet = this.indexed && randomBoolean();
     }
 
@@ -421,12 +421,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             () -> createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("element_type", "bytes")))
         );
         assertThat(e.getMessage(), containsString("invalid element_type [bytes]; available types are "));
-
-        e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("element_type", "byte")))
-        );
-        assertThat(e.getMessage(), containsString("index must be [true] when element_type is [byte]"));
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
@@ -726,7 +720,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
         private final int dims = between(5, 1000);
         private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT);
-        private final boolean indexed = elementType == ElementType.BYTE || randomBoolean();
+        private final boolean indexed = randomBoolean();
         private final boolean indexOptionsSet = indexed && randomBoolean();
 
         @Override

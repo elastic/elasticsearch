@@ -319,6 +319,15 @@ public interface Role {
         final FieldPermissionsCache fieldPermissionsCache,
         final RestrictedIndices restrictedIndices
     ) {
+        return buildFromRoleDescriptor(roleDescriptor, fieldPermissionsCache, restrictedIndices, List.of());
+    }
+
+    static SimpleRole buildFromRoleDescriptor(
+        final RoleDescriptor roleDescriptor,
+        final FieldPermissionsCache fieldPermissionsCache,
+        final RestrictedIndices restrictedIndices,
+        final Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivilegeDescriptors
+    ) {
         // TODO handle this when we introduce remote index privileges for built-in users and roles. That's the only production code
         // using this builder
         assert false == roleDescriptor.hasRemoteIndicesPrivileges();
@@ -344,14 +353,11 @@ public interface Role {
         }
 
         for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : roleDescriptor.getApplicationPrivileges()) {
-            builder.addApplicationPrivilege(
-                new ApplicationPrivilege(
-                    applicationPrivilege.getApplication(),
-                    Sets.newHashSet(applicationPrivilege.getPrivileges()),
-                    applicationPrivilege.getPrivileges()
-                ),
-                Sets.newHashSet(applicationPrivilege.getResources())
-            );
+            ApplicationPrivilege.get(
+                applicationPrivilege.getApplication(),
+                Sets.newHashSet(applicationPrivilege.getPrivileges()),
+                storedApplicationPrivilegeDescriptors
+            ).forEach(priv -> builder.addApplicationPrivilege(priv, Sets.newHashSet(applicationPrivilege.getResources())));
         }
 
         final String[] rdRunAs = roleDescriptor.getRunAs();

@@ -165,14 +165,14 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         builder.startObject("shard_sizes");
         {
             for (Map.Entry<String, Long> c : this.shardSizes.entrySet()) {
-                builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), new ByteSizeValue(c.getValue()));
+                builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()));
             }
         }
         builder.endObject(); // end "shard_sizes"
         builder.startObject("shard_data_set_sizes");
         {
             for (Map.Entry<ShardId, Long> c : this.shardDataSetSizes.entrySet()) {
-                builder.humanReadableField(c.getKey() + "_bytes", c.getKey().toString(), new ByteSizeValue(c.getValue()));
+                builder.humanReadableField(c.getKey() + "_bytes", c.getKey().toString(), ByteSizeValue.ofBytes(c.getValue()));
             }
         }
         builder.endObject(); // end "shard_data_set_sizes"

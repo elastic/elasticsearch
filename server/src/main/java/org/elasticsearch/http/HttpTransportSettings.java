@@ -95,8 +95,8 @@ public final class HttpTransportSettings {
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH = Setting.byteSizeSetting(
         "http.max_content_length",
         new ByteSizeValue(100, ByteSizeUnit.MB),
-        new ByteSizeValue(0, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CHUNK_SIZE = Setting.byteSizeSetting(
@@ -117,7 +117,7 @@ public final class HttpTransportSettings {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_WARNING_HEADER_SIZE = Setting.byteSizeSetting(
         "http.max_warning_header_size",
-        new ByteSizeValue(-1),
+        ByteSizeValue.MINUS_ONE,
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_INITIAL_LINE_LENGTH = Setting.byteSizeSetting(

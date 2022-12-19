@@ -63,6 +63,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -112,6 +113,7 @@ import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -210,6 +212,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.BufferedWriter;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -229,6 +232,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
@@ -404,7 +408,10 @@ public class Node implements Closeable {
                 );
             }
 
-            deleteTemporaryApmConfig(jvmInfo);
+            deleteTemporaryApmConfig(
+                jvmInfo,
+                (e, apmConfig) -> logger.error("failed to delete temporary APM config file [{}], reason: [{}]", apmConfig, e.getMessage())
+            );
 
             this.pluginsService = pluginServiceCtor.apply(tmpSettings);
             final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
@@ -561,14 +568,20 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 rerouteServiceReference::get
             );
+            final WriteLoadForecaster writeLoadForecaster = getWriteLoadForecaster(
+                threadPool,
+                settings,
+                clusterService.getClusterSettings()
+            );
             final ClusterModule clusterModule = new ClusterModule(
                 settings,
                 clusterService,
                 clusterPlugins,
                 clusterInfoService,
                 snapshotsInfoService,
-                threadPool.getThreadContext(),
-                systemIndices
+                threadPool,
+                systemIndices,
+                writeLoadForecaster
             );
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
@@ -700,7 +713,8 @@ public class Node implements Closeable {
                 clusterModule.getAllocationService(),
                 settingsModule.getIndexScopedSettings(),
                 indicesService,
-                shardLimitValidator
+                shardLimitValidator,
+                threadPool
             );
 
             Collection<Object> pluginComponents = pluginsService.flatMap(
@@ -864,7 +878,8 @@ public class Node implements Closeable {
                 shardLimitValidator,
                 systemIndices,
                 indicesService,
-                fileSettingsService
+                fileSettingsService,
+                threadPool
             );
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
                 settings,
@@ -982,10 +997,11 @@ public class Node implements Closeable {
                 discoveryModule.getCoordinator(),
                 masterHistoryService
             );
-            HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService);
+            HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService, threadPool);
             HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
+            HealthApiStats healthApiStats = new HealthApiStats();
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1074,8 +1090,10 @@ public class Node implements Closeable {
                 b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
                 b.bind(LocalHealthMonitor.class).toInstance(localHealthMonitor);
                 b.bind(HealthInfoCache.class).toInstance(nodeHealthOverview);
+                b.bind(HealthApiStats.class).toInstance(healthApiStats);
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
+                b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1135,24 +1153,29 @@ public class Node implements Closeable {
      * If the JVM was started with the Elastic APM agent and a config file argument was specified, then
      * delete the config file. The agent only reads it once, when supplied in this fashion, and it
      * may contain a secret token.
+     * <p>
+     * Public for testing only
      */
     @SuppressForbidden(reason = "Cannot guarantee that the temp config path is relative to the environment")
-    private void deleteTemporaryApmConfig(JvmInfo jvmInfo) {
+    public static void deleteTemporaryApmConfig(JvmInfo jvmInfo, BiConsumer<Exception, Path> errorHandler) {
         for (String inputArgument : jvmInfo.getInputArguments()) {
             if (inputArgument.startsWith("-javaagent:")) {
                 final String agentArg = inputArgument.substring(11);
                 final String[] parts = agentArg.split("=", 2);
-                if (parts[0].matches("modules/x-pack-apm-integration/elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")) {
+                String APM_AGENT_CONFIG_FILE_REGEX = String.join(
+                    "\\" + File.separator,
+                    ".*modules",
+                    "apm",
+                    "elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar"
+                );
+                if (parts[0].matches(APM_AGENT_CONFIG_FILE_REGEX)) {
                     if (parts.length == 2 && parts[1].startsWith("c=")) {
                         final Path apmConfig = PathUtils.get(parts[1].substring(2));
                         if (apmConfig.getFileName().toString().matches("^\\.elstcapm\\..*\\.tmp")) {
                             try {
                                 Files.deleteIfExists(apmConfig);
                             } catch (IOException e) {
-                                logger.error(
-                                    "Failed to delete temporary APM config file [" + apmConfig + "], reason: [" + e.getMessage() + "]",
-                                    e
-                                );
+                                errorHandler.accept(e, apmConfig);
                             }
                         }
                     }
@@ -1175,7 +1198,8 @@ public class Node implements Closeable {
     private HealthService createHealthService(
         ClusterService clusterService,
         ClusterModule clusterModule,
-        CoordinationDiagnosticsService coordinationDiagnosticsService
+        CoordinationDiagnosticsService coordinationDiagnosticsService,
+        ThreadPool threadPool
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
@@ -1193,7 +1217,8 @@ public class Node implements Closeable {
             .toList();
         return new HealthService(
             preflightHealthIndicatorServices,
-            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices)
+            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
+            threadPool
         );
     }
 
@@ -1218,6 +1243,23 @@ public class Node implements Closeable {
             clusterService
         );
         return recoveryPlannerPlugins.get(0).createRecoveryPlannerService(shardSnapshotsService);
+    }
+
+    private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+        final List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
+        final List<WriteLoadForecaster> writeLoadForecasters = clusterPlugins.stream()
+            .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings).stream())
+            .toList();
+
+        if (writeLoadForecasters.isEmpty()) {
+            return WriteLoadForecaster.DEFAULT;
+        }
+
+        if (writeLoadForecasters.size() > 1) {
+            throw new IllegalStateException("A single WriteLoadForecaster was expected but got: " + writeLoadForecasters);
+        }
+
+        return writeLoadForecasters.get(0);
     }
 
     protected TransportService newTransportService(

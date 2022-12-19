@@ -1,6 +1,0 @@
-pr: 90365
-summary: Update min version for health node reporting to 8.5
-area: Health
-type: bug
-issues:
- - 90359

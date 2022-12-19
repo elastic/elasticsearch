@@ -1136,7 +1136,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
         public IndexSnapshotDetails(StreamInput in) throws IOException {
             shardCount = in.readVInt();
-            size = new ByteSizeValue(in);
+            size = ByteSizeValue.readFrom(in);
             maxSegmentsPerShard = in.readVInt();
         }
 

@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -28,9 +27,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
-    ValuesSource.GeoPoint,
-    GeoBoundsAggregationBuilder> {
+public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
     public static final ValuesSourceRegistry.RegistryKey<GeoBoundsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,

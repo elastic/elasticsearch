@@ -142,6 +142,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
         assertThat(responseRef.get(), notNullValue());
         if (anonymousUser.enabled() && false == authentication.isApiKey()) {
+            // Roles of anonymousUser are added to non api key authentication
             final Authentication auth = responseRef.get().authentication();
             final User userInResponse = auth.getEffectiveSubject().getUser();
             assertThat(
@@ -152,11 +153,14 @@ public class TransportAuthenticateActionTests extends ESTestCase {
             if (auth.isRunAs()) {
                 assertThat(auth.getAuthenticatingSubject().getUser(), sameInstance(authentication.getAuthenticatingSubject().getUser()));
             }
-            assertThat(auth.getAuthenticatingSubject().getRealm(), sameInstance(auth.getAuthenticatingSubject().getRealm()));
-            assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
-            assertThat(auth.getEffectiveSubject().getVersion(), sameInstance(auth.getEffectiveSubject().getVersion()));
-            assertThat(auth.getAuthenticationType(), sameInstance(auth.getAuthenticationType()));
-            assertThat(auth.getAuthenticatingSubject().getMetadata(), sameInstance(auth.getAuthenticatingSubject().getMetadata()));
+            assertThat(auth.getAuthenticatingSubject().getRealm(), sameInstance(authentication.getAuthenticatingSubject().getRealm()));
+            assertThat(auth.getEffectiveSubject().getRealm(), sameInstance(authentication.getEffectiveSubject().getRealm()));
+            assertThat(auth.getEffectiveSubject().getVersion(), sameInstance(authentication.getEffectiveSubject().getVersion()));
+            assertThat(auth.getAuthenticationType(), sameInstance(authentication.getAuthenticationType()));
+            assertThat(
+                auth.getAuthenticatingSubject().getMetadata(),
+                sameInstance(authentication.getAuthenticatingSubject().getMetadata())
+            );
         } else {
             assertThat(responseRef.get().authentication(), sameInstance(authentication));
         }
@@ -174,6 +178,8 @@ public class TransportAuthenticateActionTests extends ESTestCase {
             authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         }
         final User user = authentication.getEffectiveSubject().getUser();
+        // API key or service account have no named roles
+        assertThat(user.roles(), emptyArray());
 
         TransportAuthenticateAction action = prepareAction(anonymousUser, user, authentication);
 
@@ -192,18 +198,8 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         });
 
         assertThat(responseRef.get(), notNullValue());
-        if (anonymousUser.enabled()) {
-            final Authentication auth = responseRef.get().authentication();
-            final User authUser = auth.getEffectiveSubject().getUser();
-            assertThat(authUser.roles(), emptyArray());
-            assertThat(auth.getAuthenticatingSubject().getRealm(), sameInstance(auth.getAuthenticatingSubject().getRealm()));
-            assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
-            assertThat(auth.getEffectiveSubject().getVersion(), sameInstance(auth.getEffectiveSubject().getVersion()));
-            assertThat(auth.getAuthenticationType(), sameInstance(auth.getAuthenticationType()));
-            assertThat(auth.getAuthenticatingSubject().getMetadata(), sameInstance(auth.getAuthenticatingSubject().getMetadata()));
-        } else {
-            assertThat(responseRef.get().authentication(), sameInstance(authentication));
-        }
+        // Anonymous roles should not be added which means there is no change to the authentication at all
+        assertThat(responseRef.get().authentication(), sameInstance(authentication));
         assertThat(throwableRef.get(), nullValue());
     }
 

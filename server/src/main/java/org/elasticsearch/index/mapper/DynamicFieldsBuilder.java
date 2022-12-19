@@ -162,7 +162,7 @@ final class DynamicFieldsBuilder {
         return mapper != null
             ? mapper
             : new ObjectMapper.Builder(name, ObjectMapper.Defaults.SUBOBJECTS).enabled(ObjectMapper.Defaults.ENABLED)
-                .build(context.createMapperBuilderContext());
+                .build(context.createDynamicMapperBuilderContext());
     }
 
     /**
@@ -170,7 +170,7 @@ final class DynamicFieldsBuilder {
      */
     static Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
         Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
-        return templateBuilder == null ? null : templateBuilder.build(context.createMapperBuilderContext());
+        return templateBuilder == null ? null : templateBuilder.build(context.createDynamicMapperBuilderContext());
     }
 
     /**
@@ -305,7 +305,7 @@ final class DynamicFieldsBuilder {
         }
 
         void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
-            Mapper mapper = builder.build(context.createMapperBuilderContext());
+            Mapper mapper = builder.build(context.createDynamicMapperBuilderContext());
             context.addDynamicMapper(mapper);
             parseField.accept(context, mapper);
         }

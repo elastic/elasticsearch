@@ -34,8 +34,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -66,6 +64,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContex
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -84,6 +83,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -104,7 +104,7 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeSuggester = new SearchPlugin() {
             @Override
             public List<SearchPlugin.SuggesterSpec<?>> getSuggesters() {
-                return singletonList(
+                return List.of(
                     new SuggesterSpec<>(
                         TermSuggestionBuilder.SUGGESTION_NAME,
                         TermSuggestionBuilder::new,
@@ -119,7 +119,7 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeScoreFunction = new SearchPlugin() {
             @Override
             public List<ScoreFunctionSpec<?>> getScoreFunctions() {
-                return singletonList(
+                return List.of(
                     new ScoreFunctionSpec<>(
                         GaussDecayFunctionBuilder.NAME,
                         GaussDecayFunctionBuilder::new,
@@ -133,7 +133,7 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeSignificanceHeuristic = new SearchPlugin() {
             @Override
             public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
-                return singletonList(new SignificanceHeuristicSpec<>(ChiSquare.NAME, ChiSquare::new, ChiSquare.PARSER));
+                return List.of(new SignificanceHeuristicSpec<>(ChiSquare.NAME, ChiSquare::new, ChiSquare.PARSER));
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeSignificanceHeuristic));
@@ -141,7 +141,7 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeFetchSubPhase = new SearchPlugin() {
             @Override
             public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-                return singletonList(new ExplainPhase());
+                return List.of(new ExplainPhase());
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeFetchSubPhase));
@@ -149,7 +149,7 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeQuery = new SearchPlugin() {
             @Override
             public List<SearchPlugin.QuerySpec<?>> getQueries() {
-                return singletonList(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
+                return List.of(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeQuery));
@@ -157,7 +157,7 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeAggregation = new SearchPlugin() {
             @Override
             public List<AggregationSpec> getAggregations() {
-                return singletonList(
+                return List.of(
                     new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new, TermsAggregationBuilder.PARSER)
                 );
             }
@@ -167,12 +167,9 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupePipelineAggregation = new SearchPlugin() {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
-                return singletonList(
-                    new PipelineAggregationSpec(
-                        DerivativePipelineAggregationBuilder.NAME,
-                        DerivativePipelineAggregationBuilder::new,
-                        DerivativePipelineAggregationBuilder::parse
-                    ).addResultReader(InternalDerivative::new)
+                return List.of(
+                    new PipelineAggregationSpec("test", TestPipelineAggregationBuilder::new, TestPipelineAggregationBuilder.PARSER),
+                    new PipelineAggregationSpec("test", TestPipelineAggregationBuilder::new, TestPipelineAggregationBuilder.PARSER)
                 );
             }
         };
@@ -181,7 +178,7 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeRescorer = new SearchPlugin() {
             @Override
             public List<RescorerSpec<?>> getRescorers() {
-                return singletonList(
+                return List.of(
                     new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent)
                 );
             }
@@ -355,7 +352,7 @@ public class SearchModuleTests extends ESTestCase {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(
-                    new PipelineAggregationSpec("test", TestPipelineAggregationBuilder::new, TestPipelineAggregationBuilder::fromXContent)
+                    new PipelineAggregationSpec("test", TestPipelineAggregationBuilder::new, TestPipelineAggregationBuilder.PARSER)
                 );
             }
         }));
@@ -556,6 +553,19 @@ public class SearchModuleTests extends ESTestCase {
      * Dummy test {@link PipelineAggregator} used to test registering aggregation builders.
      */
     private static class TestPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<TestPipelineAggregationBuilder> {
+        public static final ConstructingObjectParser<TestPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
+            "test",
+            false,
+            (args, name) -> { return new TestPipelineAggregationBuilder(name, (String) args[0]); }
+        );
+        static {
+            PARSER.declareString(constructorArg(), PipelineAggregator.Parser.BUCKETS_PATH);
+        }
+
+        TestPipelineAggregationBuilder(String name, String bucketsPath) {
+            super(name, "test", new String[] { bucketsPath });
+        }
+
         /**
          * Read from a stream.
          */

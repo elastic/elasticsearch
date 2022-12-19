@@ -40,17 +40,28 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final NumericType numericType;
+        private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
         public Builder(String name, NumericType numericType, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
+            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory);
+        }
+
+        public Builder(
+            String name,
+            NumericType numericType,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ) {
             this.name = name;
             this.numericType = numericType;
+            this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedNumericIndexFieldData(name, numericType, toScriptFieldFactory);
+            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory);
         }
     }
 
@@ -62,12 +73,13 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     public SortedNumericIndexFieldData(
         String fieldName,
         NumericType numericType,
+        ValuesSourceType valuesSourceType,
         ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
     ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint() == false;
-        this.valuesSourceType = numericType.getValuesSourceType();
+        this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 

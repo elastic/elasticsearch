@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -51,21 +50,21 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     public void testJwtAuthcRealmAuthcAuthzWithEmptyRoles() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             this.createJwtRealmsSettingsBuilder(),
-            new MinMax(1, 1), // realmsRange
-            new MinMax(0, 1), // authzRange
-            new MinMax(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
-            new MinMax(1, 3), // audiencesRange
-            new MinMax(1, 3), // usersRange
-            new MinMax(0, 0), // rolesRange
-            new MinMax(0, 1), // jwtCacheSizeRange
+            randomIntBetween(1, 1), // realmsRange
+            randomIntBetween(0, 1), // authzRange
+            randomIntBetween(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
+            randomIntBetween(1, 3), // audiencesRange
+            randomIntBetween(1, 3), // usersRange
+            randomIntBetween(0, 0), // rolesRange
+            randomIntBetween(0, 1), // jwtCacheSizeRange
             randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
-        final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
-        final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+        final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
+        final int jwtAuthcCount = randomIntBetween(2, 3);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcCount);
     }
 
     /**
@@ -75,13 +74,13 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     public void testJwtAuthcRealmAuthcAuthzWithoutAuthzRealms() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             this.createJwtRealmsSettingsBuilder(),
-            new MinMax(1, 3), // realmsRange
-            new MinMax(0, 0), // authzRange
-            new MinMax(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
-            new MinMax(1, 3), // audiencesRange
-            new MinMax(1, 3), // usersRange
-            new MinMax(0, 3), // rolesRange
-            new MinMax(0, 1), // jwtCacheSizeRange
+            randomIntBetween(1, 3), // realmsRange
+            randomIntBetween(0, 0), // authzRange
+            randomIntBetween(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
+            randomIntBetween(1, 3), // audiencesRange
+            randomIntBetween(1, 3), // usersRange
+            randomIntBetween(0, 3), // rolesRange
+            randomIntBetween(0, 1), // jwtCacheSizeRange
             randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
@@ -89,26 +88,25 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
-        final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
-        final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+        final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
+        final int jwtAuthcCount = randomIntBetween(2, 3);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcCount);
     }
 
     /**
      * Test with updated/removed/restored JWKs.
      * @throws Exception Unexpected test failure
      */
-    @TestLogging(value = "org.elasticsearch.xpack.security.authc.jwt:trace", reason = "debug")
     public void testJwkSetUpdates() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             this.createJwtRealmsSettingsBuilder(),
-            new MinMax(1, 3), // realmsRange
-            new MinMax(0, 0), // authzRange
-            new MinMax(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
-            new MinMax(1, 3), // audiencesRange
-            new MinMax(1, 3), // usersRange
-            new MinMax(0, 3), // rolesRange
-            new MinMax(0, 1), // jwtCacheSizeRange
+            randomIntBetween(1, 3), // realmsRange
+            randomIntBetween(0, 0), // authzRange
+            randomIntBetween(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
+            randomIntBetween(1, 3), // audiencesRange
+            randomIntBetween(1, 3), // usersRange
+            randomIntBetween(0, 3), // rolesRange
+            randomIntBetween(0, 1), // jwtCacheSizeRange
             randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
@@ -116,9 +114,9 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SecureString jwtJwks1 = this.randomJwt(jwtIssuerAndRealm, user);
-        final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
-        final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
+        final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
+        final int jwtAuthcCount = randomIntBetween(2, 3);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcCount);
 
         // Details about first JWT using the JWT issuer original JWKs
         final String jwt1JwksAlg = SignedJWT.parse(jwtJwks1.toString()).getHeader().getAlgorithm().getName();
@@ -140,7 +138,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         LOGGER.debug("JWKs 1 emptied, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
 
         // Original JWT continues working, because JWT realm cached old JWKs in memory.
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcCount);
         LOGGER.debug("JWT 1 still worked, because JWT realm has old JWKs cached in memory");
 
         // Restore original JWKs 1 into the JWT issuer.
@@ -150,7 +148,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         LOGGER.debug("JWKs 1 restored, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
 
         // Original JWT continues working, because JWT realm cached old JWKs in memory.
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcCount);
         LOGGER.debug("JWT 1 still worked, because JWT realm has old JWKs cached in memory");
 
         // Generate a replacement set of JWKs 2 for the JWT issuer.
@@ -166,7 +164,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // Original JWT continues working, because JWT realm still has original JWKs cached in memory.
         // - jwtJwks1(PKC): Pass (Original PKC JWKs are still in the realm)
         // - jwtJwks1(HMAC): Pass (Original HMAC JWKs are still in the realm)
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcCount);
         LOGGER.debug("JWT 1 still worked, because JWT realm has old JWKs cached in memory");
 
         // Create a JWT using the new JWKs.
@@ -179,7 +177,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // - jwtJwks2(PKC): PKC reload triggered and loaded new JWKs, so PASS
         // - jwtJwks2(HMAC): HMAC reload triggered but it is a no-op, so FAIL
         if (isPkcJwtJwks2) {
-            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange);
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcCount);
             LOGGER.debug("PKC JWT 2 worked with JWKs 2");
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks2, clientSecret);
@@ -192,7 +190,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // - jwtJwks2(HMAC): HMAC reload triggered but it is a no-op, jwtJwks1(PKC): PKC reload not triggered, so PASS
         // - jwtJwks2(HMAC): HMAC reload triggered but it is a no-op, jwtJwks1(HMAC): HMAC reload not triggered, so PASS
         if (isPkcJwtJwks1 == false || isPkcJwtJwks2 == false) {
-            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcCount);
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks1, clientSecret);
         }
@@ -204,7 +202,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // New JWT continues working because JWT realm will end up with PKC JWKs 2 and HMAC JWKs 1 in memory
         if (isPkcJwtJwks2) {
-            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange);
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcCount);
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks2, clientSecret);
         }
@@ -213,7 +211,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // - jwtJwks1(HMAC): HMAC reload not triggered, so PASS
         // - jwtJwks1(PKC): PKC reload triggered and loaded new JWKs, so FAIL
         if (isPkcJwtJwks1 == false || isPkcJwtJwks2 == false) {
-            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcCount);
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks1, clientSecret);
         }
@@ -224,7 +222,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // - jwtJwks1(PKC) + jwtJwks2(HMAC): If second JWT is HMAC, it always fails because HMAC reload not supported.
         // - jwtJwks1(HMAC) + jwtJwks2(HMAC): If second JWT is HMAC, it always fails because HMAC reload not supported.
         if (isPkcJwtJwks1 == false && isPkcJwtJwks2) {
-            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange);
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcCount);
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks2, clientSecret);
         }
@@ -240,12 +238,12 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // - jwtJwks2(HMAC): Fail (Triggers HMAC reload, but it is a no-op), jwtJwks1(PKC): Fail (Triggers PKC reload, gets new PKC JWKs)
         // - jwtJwks2(HMAC): Fail (Triggers HMAC reload, but it is a no-op), jwtJwks1(HMAC): Pass (HMAC reload was a no-op)
         if (isPkcJwtJwks2) {
-            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange);
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcCount);
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks2, clientSecret);
         }
         if (isPkcJwtJwks1 == false || isPkcJwtJwks2 == false) {
-            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcCount);
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks1, clientSecret);
         }
@@ -258,13 +256,13 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     public void testJwtAuthcRealmAuthcAuthzWithAuthzRealms() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             this.createJwtRealmsSettingsBuilder(),
-            new MinMax(1, 3), // realmsRange
-            new MinMax(1, 3), // authzRange
-            new MinMax(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
-            new MinMax(1, 3), // audiencesRange
-            new MinMax(1, 3), // usersRange
-            new MinMax(0, 3), // rolesRange
-            new MinMax(0, 1), // jwtCacheSizeRange
+            randomIntBetween(1, 3), // realmsRange
+            randomIntBetween(1, 3), // authzRange
+            randomIntBetween(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
+            randomIntBetween(1, 3), // audiencesRange
+            randomIntBetween(1, 3), // usersRange
+            randomIntBetween(0, 3), // rolesRange
+            randomIntBetween(0, 1), // jwtCacheSizeRange
             randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
@@ -272,9 +270,9 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
-        final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
-        final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+        final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
+        final int jwtAuthcCount = randomIntBetween(2, 3);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcCount);
 
         // After the above success path test, do a negative path test for an authc user that does not exist in any authz realm.
         // In other words, above the `user` was found in an authz realm, but below `otherUser` will not be found in any authz realm.
@@ -287,7 +285,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             final SecureString otherJwt = this.randomJwt(jwtIssuerAndRealm, otherUser);
 
             final JwtAuthenticationToken otherToken = new JwtAuthenticationToken(
-                List.of(jwtIssuerAndRealm.realm().claimParserPrincipal.getClaimName()),
+                List.of(JwtRealmInspector.getPrincipalClaimName(jwtIssuerAndRealm.realm())),
                 otherJwt,
                 clientSecret
             );
@@ -338,23 +336,23 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     public void testJwtValidationFailures() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             this.createJwtRealmsSettingsBuilder(),
-            new MinMax(1, 1), // realmsRange
-            new MinMax(0, 0), // authzRange
-            new MinMax(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
-            new MinMax(1, 1), // audiencesRange
-            new MinMax(1, 1), // usersRange
-            new MinMax(1, 1), // rolesRange
-            new MinMax(0, 1), // jwtCacheSizeRange
+            randomIntBetween(1, 1), // realmsRange
+            randomIntBetween(0, 0), // authzRange
+            randomIntBetween(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
+            randomIntBetween(1, 1), // audiencesRange
+            randomIntBetween(1, 1), // usersRange
+            randomIntBetween(1, 1), // rolesRange
+            randomIntBetween(0, 1), // jwtCacheSizeRange
             randomBoolean() // createHttpsServer
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
-        final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
-        final MinMax jwtAuthcRange = new MinMax(2, 3);
+        final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
+        final int jwtAuthcCount = randomIntBetween(2, 3);
 
         // Indirectly verify authentication works before performing any failure scenarios
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcCount);
 
         // The above confirmed JWT realm authc/authz is working.
         // Now perform negative path tests to confirm JWT validation rejects invalid JWTs for different scenarios.
@@ -414,16 +412,16 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         {   // Verify rejection of a tampered header (flip HMAC=>RSA or RSA/EC=>HMAC)
             final String mixupAlg; // Check if there are any algorithms available in the realm for attempting a flip test
             if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(validHeader.getAlgorithm().getName())) {
-                if (jwtIssuerAndRealm.realm().getJwksAlgsPkc().jwksAlgs().algs().isEmpty()) {
+                if (JwtRealmInspector.getJwksAlgsPkc(jwtIssuerAndRealm.realm()).algs().isEmpty()) {
                     mixupAlg = null; // cannot flip HMAC to PKC (no PKC algs available)
                 } else {
-                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().getJwksAlgsPkc().jwksAlgs().algs()); // flip HMAC to PKC
+                    mixupAlg = randomFrom(JwtRealmInspector.getJwksAlgsPkc(jwtIssuerAndRealm.realm()).algs()); // flip HMAC to PKC
                 }
             } else {
-                if (jwtIssuerAndRealm.realm().contentAndJwksAlgsHmac.jwksAlgs().algs().isEmpty()) {
+                if (JwtRealmInspector.getJwksAlgsHmac(jwtIssuerAndRealm.realm()).algs().isEmpty()) {
                     mixupAlg = null; // cannot flip PKC to HMAC (no HMAC algs available)
                 } else {
-                    mixupAlg = randomFrom(jwtIssuerAndRealm.realm().contentAndJwksAlgsHmac.jwksAlgs().algs()); // flip HMAC to PKC
+                    mixupAlg = randomFrom(JwtRealmInspector.getJwksAlgsHmac(jwtIssuerAndRealm.realm()).algs()); // flip HMAC to PKC
                 }
             }
             // This check can only be executed if there is a flip algorithm available in the realm
@@ -545,8 +543,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.jwtIssuerAndRealms.get(1);
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
-        final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
-        final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+        final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
+        final int jwtAuthcCount = randomIntBetween(2, 3);
+        this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcCount);
     }
 }

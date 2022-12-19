@@ -51,6 +51,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -90,6 +91,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -838,9 +840,13 @@ public class InternalEngine extends Engine {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion;
             try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
-                if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES && op instanceof Index index) {
+                if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
                     assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
-                    long timestamp = (long) index.parsedDoc().rootDoc().getNumericValue("@timestamp");
+                    byte[] id = Base64.getUrlDecoder().decode(op.id());
+                    assert id.length == 20;
+                    // id format: [4 bytes (basic hash routing fields), 8 bytes prefix of 128 murmurhash dimension fields, 8 bytes
+                    // @timestamp)
+                    long timestamp = ByteUtils.readLongBE(id, 12);
                     docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
                         searcher.getIndexReader(),
                         op.uid(),

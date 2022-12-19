@@ -102,7 +102,7 @@ public class BulkProcessor2 implements Closeable {
         }
 
         /**
-         * Sets a flush interval flushing *any* bulk actions pending into a queue if the interval passes. Defaults to not set.
+         * Sets a flush interval flushing *any* bulk actions pending if the interval passes. Defaults to not set.
          * <p>
          * Note, both {@link #setBulkActions(int)} and {@link #setBulkSize(org.elasticsearch.common.unit.ByteSizeValue)}
          * can be set to {@code -1} with the flush interval set allowing for complete async processing of bulk actions.
@@ -113,7 +113,7 @@ public class BulkProcessor2 implements Closeable {
         }
 
         /**
-         * Sets the maximum number of times a BulkLoad will be retried if it fails.
+         * Sets the maximum number of times a BulkRequest will be retried if it fails.
          */
         public Builder setMaxNumberOfRetries(int maxNumberOfRetries) {
             assert maxNumberOfRetries >= 0;
@@ -121,6 +121,11 @@ public class BulkProcessor2 implements Closeable {
             return this;
         }
 
+        /**
+         * Sets the maximum number of bytes allowed in in-flight requests (both the BulkRequest being built up by the BulkProcessor and
+         * any BulkRequests sent to Retry2 that have not yet completed) before subsequent calls to add()result in
+         * EsRejectedExecutionException. Defaults to 50mb.
+         */
         public Builder setMaxBytesInFlight(ByteSizeValue maxBytesInFlight) {
             this.maxBytesInFlight = maxBytesInFlight;
             return this;
@@ -147,7 +152,7 @@ public class BulkProcessor2 implements Closeable {
      * @param consumer The consumer that is called to fulfil bulk operations. This consumer _must_ operate either very fast or
      *                 asynchronously.
      * @param listener The BulkProcessor2 listener that gets called on bulk events
-     * @param threadPool The threadpool to use for this bulk processor
+     * @param threadPool The threadpool used to schedule the flush task for this bulk processor, if flushInterval is not null.
      * @return the builder for BulkProcessor2
      */
     public static Builder builder(
@@ -164,10 +169,9 @@ public class BulkProcessor2 implements Closeable {
     private final long maxBulkSizeBytes;
     private final ByteSizeValue maxBytesInFlight;
     /*
-     * This is the approximate total number of bytes in use by this object, both in the BulkRequest that it is building up and in all of
-     * the BulkRequests that its Retry2 is managing. If this number would exceed maxBytesInFlight, then calls to add() will throw
-     * EsRejectedExecutionExceptions and any calls to Retry2::withBackoff will notify the listener of a EsRejectedExecutionException for
-     * the whole batch.
+     * This is the approximate total number of bytes in in-flight requests, both in the BulkRequest that it is building up and in all of
+     * the BulkRequests that it has sent to Retry2 that have not completed yet. If this number would exceeds maxBytesInFlight, then calls
+     * to add() will throw EsRejectedExecutionExceptions.
      */
     private final AtomicLong totalBytesInFlight = new AtomicLong(0);
 
@@ -223,7 +227,7 @@ public class BulkProcessor2 implements Closeable {
     }
 
     /**
-     * Closes the processor. Waits up to 1s to clear out any queued requests.
+     * Closes the processor. Flushes queued requests and waits up to 1s for in-flight requests to complete.
      */
     @Override
     public void close() {
@@ -285,8 +289,8 @@ public class BulkProcessor2 implements Closeable {
 
     /**
      * Adds either a delete or an index request.
-     * @throws EsRejectedExecutionException if adding the approximate size in bytes of the request to totalBytesInFlight would exceed
-     * maxBytesInFlight
+     * @throws EsRejectedExecutionException if the total bytes already in flight exceeds maxBytesInFlight. In this case, the request will
+     * not be retried and it is on the client to decide whether to wait and try later.
      */
     public BulkProcessor2 add(DocWriteRequest<?> request) throws EsRejectedExecutionException {
         internalAdd(request);

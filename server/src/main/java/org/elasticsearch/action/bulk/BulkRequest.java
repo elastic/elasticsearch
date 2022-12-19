@@ -336,11 +336,11 @@ public class BulkRequest extends ActionRequest
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
      *
-     - {@link BulkRequest#add(IndexRequest)}
-     - {@link BulkRequest#add(UpdateRequest)}
-     - {@link BulkRequest#add(DocWriteRequest)}
-     - {@link BulkRequest#add(DocWriteRequest[])} )}
-     - {@link BulkRequest#add(Iterable)}
+      - {@link BulkRequest#add(IndexRequest)}
+      - {@link BulkRequest#add(UpdateRequest)}
+      - {@link BulkRequest#add(DocWriteRequest)}
+      - {@link BulkRequest#add(DocWriteRequest[])} )}
+      - {@link BulkRequest#add(Iterable)}
      * @param globalRouting the global default setting
      * @return Bulk request with global setting set
      */

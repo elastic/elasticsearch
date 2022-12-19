@@ -27,8 +27,8 @@ import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
 
 /**
- * Encapsulates asynchronous retry logic. This class maintains two queues: (1) readyToLoadQueue -- this is a queue containing
- * BulkRequests that it can load right now and (2) retryQueue -- these are BulkRequests that are to be loaded at some point in the future.
+ * Encapsulates asynchronous retry logic. This class will attempt to load a BulkRequest up to numberOfRetries times. If that number of
+ * times is exhausted, it sends the listener an EsRejectedExecutionException.
  */
 class Retry2 {
     private final Logger logger;
@@ -53,9 +53,9 @@ class Retry2 {
     }
 
     /**
-     * This method queues up the given BulkRequest. If there is no room on the queue, the listener is immediately notified of failure
-     * with an EsRejectedExecutionException. Otherwise, as soon as there is capacity consumer.accept(bulkRequest, actionListener) will be
-     * called (from another thread). If that call fails, the BulkRequest will be queued for retry based on this class's BackoffPolicy.
+     * This method attempts to load the given BulkRequest (via the given BiConsumer). If the initial load fails with a retry-able reason,
+     * this class will retry the load up to maxNumberOfRetries times. The given ActionListener will be notified of the result, either on
+     * success or after failure when no retries are left. The listener is not notified of failures if it is still possible to retry.
      * @param consumer The consumer to which apply the request and listener. This consumer is expected to perform its work asynchronously
      *                (that is, not block the thread from which it is called).
      * @param bulkRequest The bulk request that should be executed.
@@ -104,7 +104,7 @@ class Retry2 {
         } else {
             listener.onFailure(
                 new EsRejectedExecutionException(
-                    "Could not queue bulk request for retry because the backoff policy does not allow any more retries"
+                    "Could not retry the bulk request because the backoff policy does not allow any more retries"
                 )
             );
         }
@@ -138,7 +138,9 @@ class Retry2 {
         /**
          * Creates a RetryHandler listener
          * @param bulkRequest The BulkRequest to be sent, a subset of the original BulkRequest.
-         * @param responsesAccumulator The accumulator of all BulkItemResponses for the original BulkRequest
+         * @param responsesAccumulator The accumulator of all BulkItemResponses for the original BulkRequest. These are complted
+         *                             responses, meaning responses for successes, or responses for failures only if no more retries are
+         *                             allowed.
          * @param consumer
          * @param listener The delegate listener
          * @param retriesRemaining The number of retry attempts remaining for the bulkRequestForRetry

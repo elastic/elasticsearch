@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.not;
 
 public class AggregationProfileShardResultTests extends AbstractXContentSerializingTestCase<AggregationProfileShardResult> {
 
@@ -116,6 +118,12 @@ public class AggregationProfileShardResultTests extends AbstractXContentSerializ
                 }
               ]
             }"""), xContent.utf8ToString());
+    }
+
+    public void testToString() {
+        final String toString = createTestInstance().toString();
+        assertNotNull(toString);
+        assertThat(toString, not(emptyString()));
     }
 
 }

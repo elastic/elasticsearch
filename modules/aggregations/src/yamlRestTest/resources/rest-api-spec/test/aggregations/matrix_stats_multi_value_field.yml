@@ -122,6 +122,8 @@ setup:
 
 ---
 "Multi value field Max":
+  - skip:
+      features: close_to
 
   - do:
       search:
@@ -132,10 +134,12 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 14}
   - match: {aggregations.mfs.fields.0.count: 14}
-  - match: {aggregations.mfs.fields.0.correlation.val1: 0.06838646533369998}
+  - close_to: {aggregations.mfs.fields.0.correlation.val1: { value: 0.06838646533369998, error: 0.00001 } }
 
 ---
 "Multi value field Min":
+  - skip:
+      features: close_to
 
   - do:
       search:
@@ -146,10 +150,12 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 14}
   - match: {aggregations.mfs.fields.0.count: 14}
-  - match: {aggregations.mfs.fields.0.correlation.val1: -0.09777682707831963}
+  - close_to: {aggregations.mfs.fields.0.correlation.val1: { value: -0.09777682707831963, error: 0.00001} }
 
 ---
 "Partially unmapped":
+  - skip:
+      features: close_to
 
   - do:
       search:
@@ -160,10 +166,12 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 13}
   - match: {aggregations.mfs.fields.0.count: 13}
-  - match: {aggregations.mfs.fields.0.correlation.val1: -0.044997535185684244}
+  - close_to: {aggregations.mfs.fields.0.correlation.val1: {value: -0.044997535185684244, error: 0.00001} }
 
 ---
 "Partially unmapped with missing defaults":
+  - skip:
+      features: close_to
 
   - do:
       search:
@@ -174,7 +182,7 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 15}
   - match: {aggregations.mfs.fields.0.count: 15}
-  - match: {aggregations.mfs.fields.0.correlation.val2: 0.04028024709708195}
+  - close_to: {aggregations.mfs.fields.0.correlation.val2: {value: 0.04028024709708195, error: 0.00001} }
 
 ---
 "With script":

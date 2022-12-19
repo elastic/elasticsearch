@@ -80,11 +80,6 @@ subprojects {
 
           //there is something wrong when using dotted document syntax here, passes in main yaml tests
           'search/330_fetch_fields/Test nested field inside object structure',
-          // muted when matrix_stats was moved from its own module to aggregations module
-          'aggregations/matrix_stats_multi_value_field/Multi value field Min',
-          'aggregations/matrix_stats_multi_value_field/Multi value field Max',
-          'aggregations/matrix_stats_multi_value_field/Partially unmapped',
-          'aggregations/matrix_stats_multi_value_field/Partially unmapped with missing defaults',
 
           /////// TO FIX ///////
 

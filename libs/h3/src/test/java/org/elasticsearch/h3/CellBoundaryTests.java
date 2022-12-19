@@ -21,7 +21,6 @@ package org.elasticsearch.h3;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -32,6 +31,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
 import java.util.zip.GZIPInputStream;
+
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CellBoundaryTests extends ESTestCase {
 
@@ -187,8 +189,8 @@ public class CellBoundaryTests extends ESTestCase {
             int count = 0;
             CellBoundary ringBoundary = H3.h3ToGeoBoundary(r);
             for (int i = 0; i < boundary.numPoints(); i++) {
-                LatLng latLng1 = boundary.getLatLon(getIndex(i, boundary.numPoints()));
-                LatLng latLng2 = boundary.getLatLon(getIndex(i + 1, boundary.numPoints()));
+                LatLng latLng1 = boundary.getLatLon(i % boundary.numPoints());
+                LatLng latLng2 = boundary.getLatLon((i + 1) % boundary.numPoints());
                 int lon1 = GeoEncodingUtils.encodeLongitude(latLng1.getLonDeg());
                 int lat1 = GeoEncodingUtils.encodeLatitude(latLng1.getLatDeg());
                 int lon2 = GeoEncodingUtils.encodeLongitude(latLng2.getLonDeg());
@@ -197,14 +199,14 @@ public class CellBoundaryTests extends ESTestCase {
                     count++;
                 }
             }
-            assertThat(count, Matchers.greaterThan(0));
+            assertThat("For cell " + H3.h3ToString(h3), count, either(equalTo(1)).or(equalTo(2)));
         }
     }
 
     private boolean isSharedBoundary(int clon1, int clat1, int clon2, int clat2, CellBoundary boundary) {
         for (int i = 0; i < boundary.numPoints(); i++) {
-            LatLng latLng1 = boundary.getLatLon(getIndex(i, boundary.numPoints()));
-            LatLng latLng2 = boundary.getLatLon(getIndex(i + 1, boundary.numPoints()));
+            LatLng latLng1 = boundary.getLatLon(i % boundary.numPoints());
+            LatLng latLng2 = boundary.getLatLon((i + 1) % boundary.numPoints());
             int lon1 = GeoEncodingUtils.encodeLongitude(latLng1.getLonDeg());
             int lat1 = GeoEncodingUtils.encodeLatitude(latLng1.getLatDeg());
             int lon2 = GeoEncodingUtils.encodeLongitude(latLng2.getLonDeg());
@@ -215,12 +217,5 @@ public class CellBoundaryTests extends ESTestCase {
             }
         }
         return false;
-    }
-
-    private int getIndex(int i, int numPoints) {
-        if (i < numPoints) {
-            return i;
-        }
-        return i - numPoints;
     }
 }

@@ -223,7 +223,14 @@ public class ActionListenerTests extends ESTestCase {
             public void onFailure(Exception e) {
                 assertTrue(completed.compareAndSet(false, true));
             }
+
+            @Override
+            public String toString() {
+                return "inner-listener";
+            }
         });
+        assertThat(listener.toString(), equalTo("notifyOnce[inner-listener]"));
+
         final var threads = new Thread[between(1, 10)];
         final var startBarrier = new CyclicBarrier(threads.length);
         for (int i = 0; i < threads.length; i++) {

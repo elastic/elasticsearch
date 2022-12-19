@@ -436,6 +436,11 @@ public interface ActionListener<Response> {
                     acquired.onFailure(e);
                 }
             }
+
+            @Override
+            public String toString() {
+                return "notifyOnce[" + delegate + "]";
+            }
         };
     }
 

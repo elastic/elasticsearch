@@ -2,4 +2,5 @@ pr: 92407
 summary: Allow different filters per `DataStream` in a `DataStreamAlias`
 area: Data streams
 type: bug
-issues: []
+issues:
+ - 92050

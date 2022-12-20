@@ -51,7 +51,7 @@ public class GeoHexCellIdSource extends CellIdSource {
                 final double lon = target.getLon();
                 final long hex = H3.geoToH3(lat, lon, precision);
                 // validPoint is a fast check, validHex is slow
-                if (validPoint(lon, lat) || predicate.validHex(hex)) {
+                if (pointInBounds(lon, lat) || predicate.validHex(hex)) {
                     assert predicate.validHex(hex) : H3.h3ToString(hex) + " should be valid but it is not";
                     value = hex;
                     return true;
@@ -82,7 +82,7 @@ public class GeoHexCellIdSource extends CellIdSource {
                 final double lon = target.getLon();
                 final long hex = H3.geoToH3(lat, lon, precision);
                 // validPoint is a fast check, validHex is slow
-                if (validPoint(lon, lat) || predicate.validHex(hex)) {
+                if (pointInBounds(lon, lat) || predicate.validHex(hex)) {
                     values[valuesIdx] = hex;
                     return valuesIdx + 1;
                 }
@@ -94,13 +94,13 @@ public class GeoHexCellIdSource extends CellIdSource {
     // package private for testing
     static LatLonBounds getGeoBounds(CellBoundary cellBoundary) {
         final LatLonBounds bounds = new LatLonBounds();
-        org.apache.lucene.spatial3d.geom.GeoPoint A = getGeoPoint(cellBoundary.getLatLon(cellBoundary.numPoints() - 1));
+        org.apache.lucene.spatial3d.geom.GeoPoint start = getGeoPoint(cellBoundary.getLatLon(cellBoundary.numPoints() - 1));
         for (int i = 0; i < cellBoundary.numPoints(); i++) {
-            final org.apache.lucene.spatial3d.geom.GeoPoint B = getGeoPoint(cellBoundary.getLatLon(i));
-            bounds.addPoint(B);
-            final Plane plane = new Plane(A, B);
-            bounds.addPlane(PlanetModel.SPHERE, new Plane(A, B), new SidedPlane(A, plane, B), new SidedPlane(B, A, plane));
-            A = B;
+            final org.apache.lucene.spatial3d.geom.GeoPoint end = getGeoPoint(cellBoundary.getLatLon(i));
+            bounds.addPoint(end);
+            final Plane plane = new Plane(start, end);
+            bounds.addPlane(PlanetModel.SPHERE, plane, new SidedPlane(start, plane, end), new SidedPlane(end, start, plane));
+            start = end;
         }
         return bounds;
     }

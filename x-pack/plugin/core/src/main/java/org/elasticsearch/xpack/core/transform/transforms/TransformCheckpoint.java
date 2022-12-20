@@ -46,7 +46,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class TransformCheckpoint implements Writeable, ToXContentObject {
 
-    public static String EMPTY_NAME = "empty";
+    public static String EMPTY_NAME = "_empty";
     public static TransformCheckpoint EMPTY = createEmpty(0);
 
     public static TransformCheckpoint createEmpty(long timestampMillis) {

@@ -27,6 +27,7 @@ import java.util.Objects;
 
 public class StoreFileMetadata implements Writeable {
 
+    public static final String UNAVAILABLE_CHECKSUM = "_unavailable_";
     public static final BytesRef UNAVAILABLE_WRITER_UUID = new BytesRef();
     private static final org.elasticsearch.Version WRITER_UUID_MIN_VERSION = org.elasticsearch.Version.V_7_16_0;
 

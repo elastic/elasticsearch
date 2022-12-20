@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -81,7 +82,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         tempFileNames.put(tempFileName, fileName);
 
         incRef();
-        try (IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, fileMetadata, IOContext.DEFAULT)) {
+        try (IndexOutput indexOutput = createIndexOutput(tempFileName, fileMetadata)) {
             int bufferSize = Math.toIntExact(Math.min(readSnapshotFileBufferSize, fileMetadata.length()));
             byte[] buffer = new byte[bufferSize];
             int length;
@@ -115,6 +116,12 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         } finally {
             decRef();
         }
+    }
+
+    private IndexOutput createIndexOutput(String tempFileName, StoreFileMetadata fileMetadata) throws IOException {
+        return Objects.equals(fileMetadata.checksum(), StoreFileMetadata.UNAVAILABLE_CHECKSUM)
+            ? store.directory().createOutput(tempFileName, IOContext.DEFAULT)
+            : store.createVerifyingOutput(tempFileName, fileMetadata, IOContext.DEFAULT);
     }
 
     /** Get a temporary name for the provided file name. */

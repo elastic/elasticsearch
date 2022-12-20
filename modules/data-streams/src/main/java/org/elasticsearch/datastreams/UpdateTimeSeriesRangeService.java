@@ -57,7 +57,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL, this::setPollInterval);
-        this.taskQueue = clusterService.getTaskQueue("update-time-series-range", Priority.URGENT, new UpdateTimeSeriesExecutor());
+        this.taskQueue = clusterService.createTaskQueue("update-time-series-range", Priority.URGENT, new UpdateTimeSeriesExecutor());
     }
 
     void perform(Runnable onComplete) {

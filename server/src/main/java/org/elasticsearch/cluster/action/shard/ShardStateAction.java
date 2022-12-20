@@ -282,7 +282,7 @@ public class ShardStateAction {
             ClusterService clusterService,
             ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor
         ) {
-            taskQueue = clusterService.getTaskQueue(TASK_SOURCE, Priority.HIGH, shardFailedClusterStateTaskExecutor);
+            taskQueue = clusterService.createTaskQueue(TASK_SOURCE, Priority.HIGH, shardFailedClusterStateTaskExecutor);
         }
 
         private static final String TASK_SOURCE = "shard-failed";
@@ -571,7 +571,7 @@ public class ShardStateAction {
             ClusterService clusterService,
             ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor
         ) {
-            taskQueue = clusterService.getTaskQueue("shard-started", Priority.URGENT, shardStartedClusterStateTaskExecutor);
+            taskQueue = clusterService.createTaskQueue("shard-started", Priority.URGENT, shardStartedClusterStateTaskExecutor);
         }
 
         @Override

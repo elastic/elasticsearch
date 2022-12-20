@@ -143,11 +143,11 @@ public class MetadataIndexStateService {
         this.client = client;
         this.threadPool = threadPool;
 
-        opensQueue = clusterService.getTaskQueue("open-index", Priority.URGENT, new OpenIndicesExecutor());
-        addBlocksToCloseQueue = clusterService.getTaskQueue("add-blocks-to-close", Priority.URGENT, new AddBlocksToCloseExecutor());
-        closesQueue = clusterService.getTaskQueue("close-index", Priority.URGENT, new CloseIndicesExecutor());
-        addBlocksQueue = clusterService.getTaskQueue("add-blocks", Priority.URGENT, new AddBlocksExecutor());
-        finalizeBlocksQueue = clusterService.getTaskQueue("finalize-blocks", Priority.URGENT, new FinalizeBlocksExecutor());
+        opensQueue = clusterService.createTaskQueue("open-index", Priority.URGENT, new OpenIndicesExecutor());
+        addBlocksToCloseQueue = clusterService.createTaskQueue("add-blocks-to-close", Priority.URGENT, new AddBlocksToCloseExecutor());
+        closesQueue = clusterService.createTaskQueue("close-index", Priority.URGENT, new CloseIndicesExecutor());
+        addBlocksQueue = clusterService.createTaskQueue("add-blocks", Priority.URGENT, new AddBlocksExecutor());
+        finalizeBlocksQueue = clusterService.createTaskQueue("finalize-blocks", Priority.URGENT, new FinalizeBlocksExecutor());
     }
 
     /**

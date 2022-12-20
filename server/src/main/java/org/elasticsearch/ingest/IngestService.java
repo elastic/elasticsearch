@@ -176,7 +176,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
 
         this.threadPool = threadPool;
-        this.taskQueue = clusterService.getTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
+        this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {

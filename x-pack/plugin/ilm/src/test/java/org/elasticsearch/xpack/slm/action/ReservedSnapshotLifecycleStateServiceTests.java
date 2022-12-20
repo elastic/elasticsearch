@@ -220,7 +220,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
     private void setupTaskMock(ClusterService clusterService) {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         when(clusterService.state()).thenReturn(state);
-        when(clusterService.getTaskQueue(anyString(), any(), any())).thenAnswer(getQueueInvocation -> {
+        when(clusterService.createTaskQueue(anyString(), any(), any())).thenAnswer(getQueueInvocation -> {
             Object[] getQueueArgs = getQueueInvocation.getArguments();
             @SuppressWarnings("unchecked")
             final MasterServiceTaskQueue<ClusterStateTaskListener> taskQueue = mock(MasterServiceTaskQueue.class);

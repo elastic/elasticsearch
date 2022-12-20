@@ -141,7 +141,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.threadContext = threadPool.getThreadContext();
-        this.taskQueue = clusterService.getTaskQueue("rollup", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
+        this.taskQueue = clusterService.createTaskQueue("rollup", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
     }
 
     @Override

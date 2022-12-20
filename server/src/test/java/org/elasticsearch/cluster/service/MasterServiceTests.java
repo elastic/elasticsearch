@@ -235,7 +235,7 @@ public class MasterServiceTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
 
         try (MasterService masterService = createMasterService(true, taskManager)) {
-            masterService.getTaskQueue("test", Priority.NORMAL, new ClusterStateTaskExecutor<>() {
+            masterService.createTaskQueue("test", Priority.NORMAL, new ClusterStateTaskExecutor<>() {
                 @Override
                 public ClusterState execute(BatchExecutionContext<ClusterStateTaskListener> batchExecutionContext) {
                     for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -351,7 +351,7 @@ public class MasterServiceTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
 
         try (MasterService masterService = createMasterService(true)) {
-            masterService.getTaskQueue(
+            masterService.createTaskQueue(
                 "testClusterStateTaskListenerThrowingExceptionIsOkay",
                 Priority.NORMAL,
                 new ClusterStateTaskExecutor<ExpectSuccessTask>() {
@@ -575,14 +575,14 @@ public class MasterServiceTests extends ESTestCase {
             for (int i = 0; i < executors.length; i++) {
                 final var executor = new Executor();
                 executors[i] = new QueueAndExecutor(
-                    masterService.getTaskQueue("executor-" + i, randomFrom(Priority.values()), executor),
+                    masterService.createTaskQueue("executor-" + i, randomFrom(Priority.values()), executor),
                     executor
                 );
             }
 
             final var executionBarrier = new CyclicBarrier(2);
 
-            masterService.getTaskQueue("block", Priority.NORMAL, batchExecutionContext -> {
+            masterService.createTaskQueue("block", Priority.NORMAL, batchExecutionContext -> {
                 executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
                 executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -774,7 +774,7 @@ public class MasterServiceTests extends ESTestCase {
             for (int i = 0; i < numberOfExecutors; i++) {
                 final var executor = new TaskExecutor();
                 executors.add(
-                    new QueueAndExecutor(masterService.getTaskQueue("queue-" + i, randomFrom(Priority.values()), executor), executor)
+                    new QueueAndExecutor(masterService.createTaskQueue("queue-" + i, randomFrom(Priority.values()), executor), executor)
                 );
             }
 
@@ -889,7 +889,7 @@ public class MasterServiceTests extends ESTestCase {
         };
 
         try (var masterService = createMasterService(true)) {
-            final var queue = masterService.getTaskQueue("test", Priority.NORMAL, executor);
+            final var queue = masterService.createTaskQueue("test", Priority.NORMAL, executor);
 
             masterService.submitUnbatchedStateUpdateTask("block", blockMasterTask);
             executionBarrier.await(10, TimeUnit.SECONDS); // wait for the master service to be blocked
@@ -967,7 +967,7 @@ public class MasterServiceTests extends ESTestCase {
 
         try (var masterService = createMasterService(true)) {
 
-            final var queue = masterService.getTaskQueue("test", Priority.NORMAL, executor);
+            final var queue = masterService.createTaskQueue("test", Priority.NORMAL, executor);
 
             // success case: submit some tasks, possibly in different contexts, and verify that the expected listener is completed
 
@@ -1061,7 +1061,7 @@ public class MasterServiceTests extends ESTestCase {
         final AtomicReference<AssertionError> assertionRef = new AtomicReference<>();
 
         try (MasterService masterService = createMasterService(true)) {
-            masterService.getTaskQueue("testBlockingCallInClusterStateTaskListenerFails", Priority.NORMAL, batchExecutionContext -> {
+            masterService.createTaskQueue("testBlockingCallInClusterStateTaskListenerFails", Priority.NORMAL, batchExecutionContext -> {
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
                     taskContext.success(() -> {
                         BaseFuture<Void> future = new BaseFuture<Void>() {
@@ -1415,7 +1415,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 }
 
-                masterService.<Task>getTaskQueue("success-test", Priority.NORMAL, batchExecutionContext -> {
+                masterService.<Task>createTaskQueue("success-test", Priority.NORMAL, batchExecutionContext -> {
                     for (final var taskContext : batchExecutionContext.taskContexts()) {
                         final var responseHeaderValue = randomAlphaOfLength(10);
                         try (var ignored = taskContext.captureResponseHeaders()) {
@@ -1456,7 +1456,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 }
 
-                masterService.<Task>getTaskQueue("success-test", Priority.NORMAL, batchExecutionContext -> {
+                masterService.<Task>createTaskQueue("success-test", Priority.NORMAL, batchExecutionContext -> {
                     for (final var taskContext : batchExecutionContext.taskContexts()) {
                         taskContext.success(latch::countDown, new LatchAckListener(latch));
                     }
@@ -1487,7 +1487,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 }
 
-                masterService.<Task>getTaskQueue("success-test", Priority.NORMAL, batchExecutionContext -> {
+                masterService.<Task>createTaskQueue("success-test", Priority.NORMAL, batchExecutionContext -> {
                     for (final var taskContext : batchExecutionContext.taskContexts()) {
                         taskContext.success(new LatchAckListener(latch));
                     }
@@ -1518,7 +1518,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 }
 
-                masterService.<Task>getTaskQueue("node-ack-fail-test", Priority.NORMAL, batchExecutionContext -> {
+                masterService.<Task>createTaskQueue("node-ack-fail-test", Priority.NORMAL, batchExecutionContext -> {
                     for (final var taskContext : batchExecutionContext.taskContexts()) {
                         final var responseHeaderValue = randomAlphaOfLength(10);
                         try (var ignored = taskContext.captureResponseHeaders()) {
@@ -1832,7 +1832,7 @@ public class MasterServiceTests extends ESTestCase {
             barrier.await(10, TimeUnit.SECONDS);
 
             final var smallBatchExecutor = new Executor();
-            final var smallBatchQueue = masterService.getTaskQueue("small-batch", Priority.NORMAL, smallBatchExecutor);
+            final var smallBatchQueue = masterService.createTaskQueue("small-batch", Priority.NORMAL, smallBatchExecutor);
             for (int source = 0; source < 2; source++) {
                 for (int task = 0; task < 2; task++) {
                     smallBatchQueue.submitTask("source-" + source, new Task("task-" + source + "-" + task), null);
@@ -1848,7 +1848,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             final var manySourceExecutor = new Executor();
-            final var manySourceQueue = masterService.getTaskQueue("many-source", Priority.NORMAL, manySourceExecutor);
+            final var manySourceQueue = masterService.createTaskQueue("many-source", Priority.NORMAL, manySourceExecutor);
             for (int source = 0; source < 1024; source++) {
                 for (int task = 0; task < 2; task++) {
                     manySourceQueue.submitTask("source-" + source, new Task("task-" + task), null);
@@ -1869,7 +1869,7 @@ public class MasterServiceTests extends ESTestCase {
             );
 
             final var manyTasksPerSourceExecutor = new Executor();
-            final var manyTasksPerSourceQueue = masterService.getTaskQueue(
+            final var manyTasksPerSourceQueue = masterService.createTaskQueue(
                 "many-tasks-per-source",
                 Priority.NORMAL,
                 manyTasksPerSourceExecutor
@@ -1990,7 +1990,7 @@ public class MasterServiceTests extends ESTestCase {
             for (int i = 0; i < 3; i++) {
                 final var batchingPriority = randomFrom(Priority.values());
                 batchingPriorities.add(batchingPriority);
-                taskQueues.add(masterService.getTaskQueue("queue-" + i, batchingPriority, batchExecutionContext -> {
+                taskQueues.add(masterService.createTaskQueue("queue-" + i, batchingPriority, batchExecutionContext -> {
                     for (final var taskContext : batchExecutionContext.taskContexts()) {
                         final var task = taskContext.getTask();
                         task.onExecute();
@@ -2132,7 +2132,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
             }
 
-            final var queue = masterService.getTaskQueue(
+            final var queue = masterService.createTaskQueue(
                 "queue",
                 randomFrom(Priority.values()),
                 batchExecutionContext -> { throw new AssertionError("should not execute batch"); }
@@ -2192,7 +2192,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
             }
 
-            final var queue = masterService.getTaskQueue(
+            final var queue = masterService.createTaskQueue(
                 "queue",
                 randomFrom(Priority.values()),
                 batchExecutionContext -> { throw new AssertionError("should not execute batch"); }
@@ -2298,7 +2298,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
             }
 
-            final var queue = masterService.getTaskQueue(
+            final var queue = masterService.createTaskQueue(
                 "queue",
                 Priority.NORMAL,
                 batchExecutionContext -> { throw new AssertionError("should not execute batch"); }

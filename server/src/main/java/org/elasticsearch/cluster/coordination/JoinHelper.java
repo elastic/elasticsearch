@@ -89,7 +89,7 @@ public class JoinHelper {
         JoinReasonService joinReasonService,
         CircuitBreakerService circuitBreakerService
     ) {
-        this.joinTaskQueue = masterService.getTaskQueue(
+        this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
             Priority.URGENT,
             new JoinTaskExecutor(allocationService, rerouteService)

@@ -107,7 +107,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            this.taskQueue = clusterService.getTaskQueue("auto-create", Priority.URGENT, batchExecutionContext -> {
+            this.taskQueue = clusterService.createTaskQueue("auto-create", Priority.URGENT, batchExecutionContext -> {
                 final var listener = new AllocationActionMultiListener<CreateIndexResponse>(threadPool.getThreadContext());
                 final var taskContexts = batchExecutionContext.taskContexts();
                 final var successfulRequests = Maps.<CreateIndexRequest, String>newMapWithExpectedSize(taskContexts.size());

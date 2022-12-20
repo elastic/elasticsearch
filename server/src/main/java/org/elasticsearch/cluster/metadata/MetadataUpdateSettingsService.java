@@ -68,7 +68,7 @@ public class MetadataUpdateSettingsService {
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
-        this.taskQueue = clusterService.getTaskQueue("update-settings", Priority.URGENT, batchExecutionContext -> {
+        this.taskQueue = clusterService.createTaskQueue("update-settings", Priority.URGENT, batchExecutionContext -> {
             var listener = new AllocationActionMultiListener<AcknowledgedResponse>(threadPool.getThreadContext());
             var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {

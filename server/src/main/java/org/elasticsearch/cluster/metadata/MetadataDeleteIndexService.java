@@ -77,7 +77,7 @@ public class MetadataDeleteIndexService {
                 return clusterState;
             }
         };
-        taskQueue = clusterService.getTaskQueue("delete-index", Priority.URGENT, executor);
+        taskQueue = clusterService.createTaskQueue("delete-index", Priority.URGENT, executor);
     }
 
     public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request) {

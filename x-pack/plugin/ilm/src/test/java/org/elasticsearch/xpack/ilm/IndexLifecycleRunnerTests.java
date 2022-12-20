@@ -148,7 +148,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
-        Mockito.verify(clusterService, times(1)).getTaskQueue(anyString(), any(), any());
+        Mockito.verify(clusterService, times(1)).createTaskQueue(anyString(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -167,14 +167,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verify(clusterService, times(1)).getTaskQueue(anyString(), any(), any());
+        Mockito.verify(clusterService, times(1)).createTaskQueue(anyString(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     @SuppressWarnings("unchecked")
     private static MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> newMockTaskQueue(ClusterService clusterService) {
         final var masterServiceTaskQueue = mock(MasterServiceTaskQueue.class);
-        when(clusterService.<IndexLifecycleClusterStateUpdateTask>getTaskQueue(eq("ilm-runner"), eq(Priority.NORMAL), any())).thenReturn(
+        when(clusterService.<IndexLifecycleClusterStateUpdateTask>createTaskQueue(eq("ilm-runner"), eq(Priority.NORMAL), any())).thenReturn(
             masterServiceTaskQueue
         );
         return masterServiceTaskQueue;
@@ -230,7 +230,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
-        Mockito.verify(clusterService).getTaskQueue(anyString(), any(Priority.class), any());
+        Mockito.verify(clusterService).createTaskQueue(anyString(), any(Priority.class), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -683,7 +683,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 Mockito.eq(null)
             );
         Mockito.verifyNoMoreInteractions(taskQueue);
-        Mockito.verify(clusterService, Mockito.times(1)).getTaskQueue(any(), any(), any());
+        Mockito.verify(clusterService, Mockito.times(1)).createTaskQueue(any(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -712,7 +712,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 Mockito.eq(null)
             );
         Mockito.verifyNoMoreInteractions(taskQueue);
-        Mockito.verify(clusterService, Mockito.times(1)).getTaskQueue(any(), any(), any());
+        Mockito.verify(clusterService, Mockito.times(1)).createTaskQueue(any(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -734,7 +734,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
         assertEquals(0, step.getExecuteCount());
-        Mockito.verify(clusterService, Mockito.times(1)).getTaskQueue(any(), any(), any());
+        Mockito.verify(clusterService, Mockito.times(1)).createTaskQueue(any(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -756,7 +756,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
         assertEquals(0, step.getExecuteCount());
-        Mockito.verify(clusterService, Mockito.times(1)).getTaskQueue(any(), any(), any());
+        Mockito.verify(clusterService, Mockito.times(1)).createTaskQueue(any(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -797,7 +797,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 Mockito.eq(null)
             );
         Mockito.verifyNoMoreInteractions(taskQueue);
-        Mockito.verify(clusterService, Mockito.times(1)).getTaskQueue(any(), any(), any());
+        Mockito.verify(clusterService, Mockito.times(1)).createTaskQueue(any(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 

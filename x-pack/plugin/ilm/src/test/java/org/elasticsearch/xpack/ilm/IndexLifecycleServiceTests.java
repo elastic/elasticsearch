@@ -345,7 +345,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         Mockito.verify(clusterService, Mockito.atLeastOnce()).getClusterSettings();
         Mockito.verify(clusterService, Mockito.atLeastOnce()).submitUnbatchedStateUpdateTask(anyString(), any());
-        Mockito.verify(clusterService, times(1)).getTaskQueue(anyString(), any(), any());
+        Mockito.verify(clusterService, times(1)).createTaskQueue(anyString(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 

@@ -63,7 +63,11 @@ public class HealthMetadataService {
         this.settings = settings;
         this.clusterStateListener = this::updateOnClusterStateChange;
         this.enabled = ENABLED_SETTING.get(settings);
-        this.taskQueue = clusterService.getTaskQueue("health metadata service", Priority.NORMAL, new UpsertHealthMetadataTask.Executor());
+        this.taskQueue = clusterService.createTaskQueue(
+            "health metadata service",
+            Priority.NORMAL,
+            new UpsertHealthMetadataTask.Executor()
+        );
     }
 
     public static HealthMetadataService create(ClusterService clusterService, Settings settings) {

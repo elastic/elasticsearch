@@ -84,12 +84,12 @@ public class ReservedClusterStateService {
      */
     public ReservedClusterStateService(ClusterService clusterService, List<ReservedClusterStateHandler<?>> handlerList) {
         this.clusterService = clusterService;
-        this.updateTaskQueue = clusterService.getTaskQueue(
+        this.updateTaskQueue = clusterService.createTaskQueue(
             "reserved state update",
             Priority.URGENT,
             new ReservedStateUpdateTaskExecutor(clusterService.getRerouteService())
         );
-        this.errorTaskQueue = clusterService.getTaskQueue("reserved state error", Priority.URGENT, new ReservedStateErrorTaskExecutor());
+        this.errorTaskQueue = clusterService.createTaskQueue("reserved state error", Priority.URGENT, new ReservedStateErrorTaskExecutor());
         this.handlers = handlerList.stream().collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity()));
         stateChunkParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, name) -> {
             if (handlers.containsKey(name) == false) {

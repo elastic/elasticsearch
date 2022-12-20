@@ -66,7 +66,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             ThreadPool.Names.SAME
         );
         this.settingsValidator = settingsValidator;
-        this.taskQueue = clusterService.getTaskQueue(
+        this.taskQueue = clusterService.createTaskQueue(
             "update-desired-nodes",
             Priority.URGENT,
             new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService)

@@ -124,7 +124,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
-        taskQueue = clusterService.getTaskQueue("delete-node-shutdown", Priority.URGENT, new DeleteShutdownNodeExecutor());
+        taskQueue = clusterService.createTaskQueue("delete-node-shutdown", Priority.URGENT, new DeleteShutdownNodeExecutor());
     }
 
     @Override

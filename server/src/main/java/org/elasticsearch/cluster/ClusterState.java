@@ -74,7 +74,7 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  * <p>
  * Updates are triggered by submitting tasks to the {@link MasterService} on the elected master, typically using a {@link
  * TransportMasterNodeAction} to route a request to the master on which the task is submitted via a queue obtained with {@link
- * ClusterService#getTaskQueue}, which has an associated priority. Submitted tasks have an associated
+ * ClusterService#createTaskQueue}, which has an associated priority. Submitted tasks have an associated
  * timeout. Tasks are processed in priority order, so a flood of higher-priority tasks can starve lower-priority ones from running.
  * Therefore, avoid priorities other than {@link Priority#NORMAL} where possible. Tasks associated with client actions should typically have
  * a timeout, or otherwise be sensitive to client cancellations, to avoid surprises caused by the execution of stale tasks long after they

@@ -92,7 +92,7 @@ class IndexLifecycleRunner {
         this.clusterService = clusterService;
         this.nowSupplier = nowSupplier;
         this.threadPool = threadPool;
-        this.masterServiceTaskQueue = clusterService.getTaskQueue("ilm-runner", Priority.NORMAL, ILM_TASK_EXECUTOR);
+        this.masterServiceTaskQueue = clusterService.createTaskQueue("ilm-runner", Priority.NORMAL, ILM_TASK_EXECUTOR);
     }
 
     /**

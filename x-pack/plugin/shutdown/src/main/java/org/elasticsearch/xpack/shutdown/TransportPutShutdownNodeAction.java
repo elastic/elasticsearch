@@ -165,7 +165,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
-        taskQueue = clusterService.getTaskQueue("put-shutdown", Priority.URGENT, new PutShutdownNodeExecutor());
+        taskQueue = clusterService.createTaskQueue("put-shutdown", Priority.URGENT, new PutShutdownNodeExecutor());
     }
 
     @Override

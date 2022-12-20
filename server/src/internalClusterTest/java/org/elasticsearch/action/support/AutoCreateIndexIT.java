@@ -27,7 +27,7 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
     public void testBatchingWithDeprecationWarnings() throws Exception {
         final var masterNodeClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var barrier = new CyclicBarrier(2);
-        masterNodeClusterService.getTaskQueue("block", Priority.NORMAL, batchExecutionContext -> {
+        masterNodeClusterService.createTaskQueue("block", Priority.NORMAL, batchExecutionContext -> {
             barrier.await(10, TimeUnit.SECONDS);
             barrier.await(10, TimeUnit.SECONDS);
             batchExecutionContext.taskContexts().forEach(c -> c.success(() -> {}));

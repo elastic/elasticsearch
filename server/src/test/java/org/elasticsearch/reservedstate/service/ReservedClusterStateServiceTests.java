@@ -77,7 +77,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     public void testOperatorController() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
+        when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
         final ClusterName clusterName = new ClusterName("elasticsearch");
 
         ClusterState state = ClusterState.builder(clusterName).build();
@@ -494,7 +494,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         var state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         when(clusterService.state()).thenReturn(state);
-        when(clusterService.getTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
+        when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
 
         final var controller = spy(new ReservedClusterStateService(clusterService, List.of()));
 

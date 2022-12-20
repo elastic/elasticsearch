@@ -16,7 +16,7 @@ import org.elasticsearch.core.TimeValue;
 
 /**
  * A queue of tasks for the master service to execute. Tasks submitted to the same queue can be processed as a batch, resulting in a single
- * cluster state update. Queues are typically created during initialization using {@link MasterService#getTaskQueue}.
+ * cluster state update. Queues are typically created during initialization using {@link MasterService#createTaskQueue}.
  *
  * @param <T> The type of task to process.
  */

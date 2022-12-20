@@ -89,7 +89,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             ThreadPool.Names.SAME
         );
         this.client = client;
-        this.rolloverTaskQueue = clusterService.getTaskQueue(
+        this.rolloverTaskQueue = clusterService.createTaskQueue(
             "rollover",
             Priority.NORMAL,
             new RolloverExecutor(clusterService, allocationService, rolloverService, threadPool)

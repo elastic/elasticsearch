@@ -59,7 +59,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         var actionFilters = mock(ActionFilters.class);
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(clusterService.getTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<DeleteShutdownNodeTask>>any())).thenReturn(
+        when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<DeleteShutdownNodeTask>>any())).thenReturn(
             taskQueue
         );
         action = new TransportDeleteShutdownNodeAction(
@@ -81,7 +81,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         action.masterOperation(null, request, clusterStateWithShutdown, ActionListener.noop());
         var updateTask = ArgumentCaptor.forClass(DeleteShutdownNodeTask.class);
         var taskExecutor = ArgumentCaptor.forClass(DeleteShutdownNodeExecutor.class);
-        verify(clusterService).getTaskQueue(any(), any(), taskExecutor.capture());
+        verify(clusterService).createTaskQueue(any(), any(), taskExecutor.capture());
         verify(taskQueue).submitTask(any(), updateTask.capture(), any());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
         ClusterState gotState = taskExecutor.getValue()

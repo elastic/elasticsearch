@@ -163,12 +163,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
-        this.startTrialTaskQueue = clusterService.getTaskQueue(
+        this.startTrialTaskQueue = clusterService.createTaskQueue(
             "license-service-start-trial",
             Priority.NORMAL,
             new StartTrialClusterTask.Executor()
         );
-        this.startBasicTaskQueue = clusterService.getTaskQueue(
+        this.startBasicTaskQueue = clusterService.createTaskQueue(
             "license-service-start-basic",
             Priority.NORMAL,
             new StartBasicClusterTask.Executor()

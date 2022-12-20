@@ -177,7 +177,7 @@ public class LicenseServiceTests extends ESTestCase {
         final ClusterService clusterService = mockDefaultClusterService();
         @SuppressWarnings("unchecked")
         final var taskQueue = (MasterServiceTaskQueue<ClusterStateTaskListener>) mock(MasterServiceTaskQueue.class);
-        Mockito.when(clusterService.getTaskQueue(eq("license-service-start-basic"), any(), any())).thenReturn(taskQueue);
+        Mockito.when(clusterService.createTaskQueue(eq("license-service-start-basic"), any(), any())).thenReturn(taskQueue);
 
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final var taskExecutorCaptor = ArgumentCaptor.forClass(StartBasicClusterTask.Executor.class);
@@ -190,7 +190,7 @@ public class LicenseServiceTests extends ESTestCase {
             mock(ResourceWatcherService.class),
             mock(XPackLicenseState.class)
         );
-        verify(clusterService).getTaskQueue(eq("license-service-start-basic"), any(), taskExecutorCaptor.capture());
+        verify(clusterService).createTaskQueue(eq("license-service-start-basic"), any(), taskExecutorCaptor.capture());
 
         final Consumer<PlainActionFuture<PostStartBasicResponse>> assertion = future -> {
             PostStartBasicResponse response = future.actionGet();

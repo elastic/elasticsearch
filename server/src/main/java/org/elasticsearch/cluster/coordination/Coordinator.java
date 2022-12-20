@@ -272,7 +272,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             this::removeNode,
             nodeHealthService
         );
-        this.nodeRemovalQueue = masterService.getTaskQueue(
+        this.nodeRemovalQueue = masterService.createTaskQueue(
             "node-left",
             Priority.IMMEDIATE,
             new NodeRemovalClusterStateTaskExecutor(allocationService)

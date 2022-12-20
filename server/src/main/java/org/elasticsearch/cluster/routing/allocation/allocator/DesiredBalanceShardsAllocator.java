@@ -142,7 +142,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
         };
         this.queue = new PendingListenersQueue(threadPool);
-        this.masterServiceTaskQueue = clusterService.getTaskQueue(
+        this.masterServiceTaskQueue = clusterService.createTaskQueue(
             "reconcile-desired-balance",
             Priority.URGENT,
             new ReconcileDesiredBalanceExecutor()

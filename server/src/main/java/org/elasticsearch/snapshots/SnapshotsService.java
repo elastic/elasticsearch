@@ -226,7 +226,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         this.systemIndices = systemIndices;
 
-        this.masterServiceTaskQueue = clusterService.getTaskQueue("snapshots-service", Priority.NORMAL, SHARD_STATE_EXECUTOR);
+        this.masterServiceTaskQueue = clusterService.createTaskQueue("snapshots-service", Priority.NORMAL, SHARD_STATE_EXECUTOR);
     }
 
     /**

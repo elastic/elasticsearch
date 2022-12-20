@@ -30,7 +30,7 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
     public void submit(MasterService masterService, String source) {
         // Uses a new queue each time so that these tasks are not batched, but they never change the cluster state anyway so they don't
         // trigger the publication process and hence batching isn't really needed.
-        masterService.getTaskQueue("local-master-service-task", priority, new ClusterStateTaskExecutor<LocalMasterServiceTask>() {
+        masterService.createTaskQueue("local-master-service-task", priority, new ClusterStateTaskExecutor<LocalMasterServiceTask>() {
 
             @Override
             public boolean runOnlyOnMaster() {

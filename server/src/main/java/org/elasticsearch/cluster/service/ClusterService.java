@@ -259,11 +259,11 @@ public class ClusterService extends AbstractLifecycleComponent {
      *
      * @return A new batching task queue.
      */
-    public <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> getTaskQueue(
+    public <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> createTaskQueue(
         String name,
         Priority priority,
         ClusterStateTaskExecutor<T> executor
     ) {
-        return masterService.getTaskQueue(name, priority, executor);
+        return masterService.createTaskQueue(name, priority, executor);
     }
 }

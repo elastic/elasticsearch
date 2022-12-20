@@ -59,7 +59,9 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         var actionFilters = mock(ActionFilters.class);
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(clusterService.getTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<PutShutdownNodeTask>>any())).thenReturn(taskQueue);
+        when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<PutShutdownNodeTask>>any())).thenReturn(
+            taskQueue
+        );
         action = new TransportPutShutdownNodeAction(
             transportService,
             clusterService,
@@ -77,7 +79,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
         var updateTask = ArgumentCaptor.forClass(PutShutdownNodeTask.class);
         var taskExecutor = ArgumentCaptor.forClass(PutShutdownNodeExecutor.class);
-        verify(clusterService).getTaskQueue(any(), any(), taskExecutor.capture());
+        verify(clusterService).createTaskQueue(any(), any(), taskExecutor.capture());
         verify(taskQueue).submitTask(any(), updateTask.capture(), any());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
         ClusterState stableState = taskExecutor.getValue()

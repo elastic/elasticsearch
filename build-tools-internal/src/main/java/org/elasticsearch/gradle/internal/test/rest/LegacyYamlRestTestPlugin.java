@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
+import org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -20,24 +20,27 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYaml
 
 /**
  * Apply this plugin to run the YAML based REST tests.
+ *
+ * @deprecated use {@link InternalYamlRestTestPlugin}
  */
-public class NewYamlRestTestPlugin implements Plugin<Project> {
+@Deprecated
+public class LegacyYamlRestTestPlugin implements Plugin<Project> {
 
     public static final String SOURCE_SET_NAME = "yamlRestTest";
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(NewRestTestBasePlugin.class);
+        project.getPluginManager().apply(LegacyRestTestBasePlugin.class);
         project.getPluginManager().apply(RestResourcesPlugin.class);
 
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        registerTestTask(project, yamlTestSourceSet, SOURCE_SET_NAME, StandaloneRestIntegTestTask.class);
+        registerTestTask(project, yamlTestSourceSet);
 
         // setup the dependencies
-        setupYamlRestTestDependenciesDefaults(project, yamlTestSourceSet, true);
+        setupYamlRestTestDependenciesDefaults(project, yamlTestSourceSet);
 
         // setup the copy for the rest resources
         project.getTasks().withType(CopyRestApiTask.class).configureEach(copyRestApiTask -> {

@@ -46,7 +46,10 @@ import java.util.Optional;
 
 import javax.inject.Inject;
 
-public class NewRestTestBasePlugin implements Plugin<Project> {
+/**
+ * Base plugin used for wiring up build tasks to REST testing tasks using new JUnit rule-based test clusters framework.
+ */
+public class RestTestBasePlugin implements Plugin<Project> {
 
     private static final String TESTS_RUNTIME_JAVA_SYSPROP = "tests.runtime.java";
     private static final String DEFAULT_DISTRIBUTION_SYSPROP = "tests.default.distribution";
@@ -62,7 +65,7 @@ public class NewRestTestBasePlugin implements Plugin<Project> {
     private final ProviderFactory providerFactory;
 
     @Inject
-    public NewRestTestBasePlugin(ProviderFactory providerFactory) {
+    public RestTestBasePlugin(ProviderFactory providerFactory) {
         this.providerFactory = providerFactory;
     }
 

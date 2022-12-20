@@ -31,7 +31,11 @@ import javax.inject.Inject;
 import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
 import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME;
 
-public class RestTestBasePlugin implements Plugin<Project> {
+/**
+ * @deprecated use {@link RestTestBasePlugin} instead
+ */
+@Deprecated
+public class LegacyRestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";
     private static final String TESTS_CLUSTER = "tests.cluster";
     private static final String TESTS_CLUSTER_NAME = "tests.clustername";
@@ -40,7 +44,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private ProviderFactory providerFactory;
 
     @Inject
-    public RestTestBasePlugin(ProviderFactory providerFactory) {
+    public LegacyRestTestBasePlugin(ProviderFactory providerFactory) {
         this.providerFactory = providerFactory;
     }
 

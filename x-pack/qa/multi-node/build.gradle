@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.new-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:qa')

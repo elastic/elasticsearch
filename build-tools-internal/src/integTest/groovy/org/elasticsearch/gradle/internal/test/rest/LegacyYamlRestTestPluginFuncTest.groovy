@@ -15,7 +15,7 @@ import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
 @IgnoreIf({ os.isWindows() })
-class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
+class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestTest does nothing when there are no tests"() {
         given:
@@ -23,7 +23,7 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         configurationCacheCompatible = false
         buildFile << """
         plugins {
-          id 'elasticsearch.internal-yaml-rest-test'
+          id 'elasticsearch.legacy-yaml-rest-test'
         }
         """
 
@@ -42,7 +42,7 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         configurationCacheCompatible = false
         internalBuild()
         buildFile << """
-            apply plugin: 'elasticsearch.internal-yaml-rest-test'
+            apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
             dependencies {
                yamlRestTestImplementation "junit:junit:4.12"
@@ -96,7 +96,7 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         def subProjectBuildFile = subProject(pluginProjectPath)
         subProjectBuildFile << """
             apply plugin: 'elasticsearch.esplugin'
-            apply plugin: 'elasticsearch.internal-yaml-rest-test'
+            apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
             dependencies {
                yamlRestTestImplementation "junit:junit:4.12"

@@ -6,9 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.rest.compat;
+package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 
-import org.elasticsearch.gradle.internal.test.rest.NewYamlRestTestPlugin;
+import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin;
 import org.elasticsearch.gradle.internal.test.rest.RestTestUtil;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.gradle.api.Plugin;
@@ -24,9 +24,9 @@ import javax.inject.Inject;
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
  */
-public class NewYamlRestCompatTestPlugin extends AbstractYamlRestCompatTestPlugin {
+public class YamlRestCompatTestPlugin extends AbstractYamlRestCompatTestPlugin {
     @Inject
-    public NewYamlRestCompatTestPlugin(ProjectLayout projectLayout, FileOperations fileOperations) {
+    public YamlRestCompatTestPlugin(ProjectLayout projectLayout, FileOperations fileOperations) {
         super(projectLayout, fileOperations);
     }
 
@@ -37,6 +37,6 @@ public class NewYamlRestCompatTestPlugin extends AbstractYamlRestCompatTestPlugi
 
     @Override
     public Class<? extends Plugin<Project>> getBasePlugin() {
-        return NewYamlRestTestPlugin.class;
+        return InternalYamlRestTestPlugin.class;
     }
 }

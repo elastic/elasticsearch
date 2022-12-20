@@ -115,13 +115,13 @@ gradlePlugin {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
     }
+    legacyInternalJavaRestTest {
+      id = 'elasticsearch.legacy-java-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin'
+    }
     internalJavaRestTest {
       id = 'elasticsearch.internal-java-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin'
-    }
-    newJavaRestTest {
-      id = 'elasticsearch.new-java-rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.NewJavaRestTestPlugin'
     }
     jdkDownload {
       id = 'elasticsearch.jdk-download'
@@ -171,21 +171,21 @@ gradlePlugin {
       id = 'elasticsearch.validate-rest-spec'
       implementationClass = 'org.elasticsearch.gradle.internal.precommit.ValidateRestSpecPlugin'
     }
+    legacyYamlRestCompatTest {
+      id = 'elasticsearch.legacy-yaml-rest-compat-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin'
+    }
     yamlRestCompatTest {
       id = 'elasticsearch.yaml-rest-compat-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin'
-    }
-    newYamlRestCompatTest {
-      id = 'elasticsearch.new-yaml-rest-compat-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.rest.compat.NewYamlRestCompatTestPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin'
     }
     yamlRestTest {
-      id = 'elasticsearch.internal-yaml-rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
+      id = 'elasticsearch.legacy-yaml-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin'
     }
     newYamlRestTest {
-      id = 'elasticsearch.new-yaml-rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.NewYamlRestTestPlugin'
+      id = 'elasticsearch.internal-yaml-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
   }
 }

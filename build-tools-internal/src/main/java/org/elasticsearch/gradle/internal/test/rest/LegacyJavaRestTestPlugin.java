@@ -8,8 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
+import org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -21,25 +20,24 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupJava
 
 /**
  * Apply this plugin to run the Java based REST tests.
+ *
+ * @deprecated use {@link InternalJavaRestTestPlugin}
  */
-public class NewJavaRestTestPlugin implements Plugin<Project> {
+@Deprecated
+public class LegacyJavaRestTestPlugin implements Plugin<Project> {
 
     public static final String SOURCE_SET_NAME = "javaRestTest";
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(RestTestBasePlugin.class);
-        project.getPluginManager().apply(NewRestTestBasePlugin.class);
+        project.getPluginManager().apply(LegacyRestTestBasePlugin.class);
 
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        project.getDependencies().add(javaTestSourceSet.getImplementationConfigurationName(), project.project(":test:test-clusters"));
-
         // setup the javaRestTest task
-        // we use a StandloneRestIntegTestTask here so that the conventions of RestTestBasePlugin don't create a test cluster
-        registerTestTask(project, javaTestSourceSet, SOURCE_SET_NAME, StandaloneRestIntegTestTask.class);
+        registerTestTask(project, javaTestSourceSet);
 
         // setup dependencies
         setupJavaRestTestDependenciesDefaults(project, javaTestSourceSet);

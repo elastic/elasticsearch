@@ -118,7 +118,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());
@@ -137,7 +137,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             status.getSymptom(),
             status.getDetails(verbose),
             status.getImpacts(),
-            status.getDiagnosis(verbose)
+            status.getDiagnosis(verbose, maxAffectedResourcesCount)
         );
     }
 
@@ -452,9 +452,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         LOGGER.trace("Diagnosing unassigned shard [{}] due to reason [{}]", shardRouting.shardId(), shardRouting.unassignedInfo());
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
             case NO_VALID_SHARD_COPY:
-                if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {
-                    diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
-                }
+                diagnosisDefs.add(ACTION_RESTORE_FROM_SNAPSHOT);
                 break;
             case NO_ATTEMPT:
                 if (shardRouting.unassignedInfo().isDelayed()) {
@@ -904,9 +902,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         /**
          * Returns the diagnosis for unassigned primary and replica shards.
          * @param verbose true if the diagnosis should be generated, false if they should be omitted.
+         * @param maxAffectedResourcesCount the max number of affected resources to be returned as part of the diagnosis
          * @return The diagnoses list the indicator identified. Alternatively, an empty list if none were found or verbose is false.
          */
-        public List<Diagnosis> getDiagnosis(boolean verbose) {
+        public List<Diagnosis> getDiagnosis(boolean verbose, int maxAffectedResourcesCount) {
             if (verbose) {
                 Map<Diagnosis.Definition, Set<String>> diagnosisToAffectedIndices = new HashMap<>(primaries.diagnosisDefinitions);
                 replicas.diagnosisDefinitions.forEach((diagnosisDef, indicesWithReplicasUnassigned) -> {
@@ -929,7 +928,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                                 affectedResources = getRestoreFromSnapshotAffectedResources(
                                     clusterMetadata,
                                     systemIndices,
-                                    restoreFromSnapshotIndices
+                                    restoreFromSnapshotIndices,
+                                    maxAffectedResourcesCount
                                 );
                             }
                         } else {
@@ -939,6 +939,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                                     e.getValue()
                                         .stream()
                                         .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
+                                        .limit(Math.min(e.getValue().size(), maxAffectedResourcesCount))
                                         .collect(Collectors.toList())
                                 )
                             );
@@ -960,7 +961,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         static List<Diagnosis.Resource> getRestoreFromSnapshotAffectedResources(
             Metadata metadata,
             SystemIndices systemIndices,
-            Set<String> restoreFromSnapshotIndices
+            Set<String> restoreFromSnapshotIndices,
+            int maxAffectedResourcesCount
         ) {
             List<Diagnosis.Resource> affectedResources = new ArrayList<>(2);
 
@@ -1011,10 +1013,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
 
             if (affectedIndices.isEmpty() == false) {
-                affectedResources.add(new Diagnosis.Resource(INDEX, affectedIndices));
+                affectedResources.add(new Diagnosis.Resource(INDEX, affectedIndices.stream().limit(maxAffectedResourcesCount).toList()));
             }
             if (affectedFeatureStates.isEmpty() == false) {
-                affectedResources.add(new Diagnosis.Resource(FEATURE_STATE, affectedFeatureStates));
+                affectedResources.add(
+                    new Diagnosis.Resource(FEATURE_STATE, affectedFeatureStates.stream().limit(maxAffectedResourcesCount).toList())
+                );
             }
             return affectedResources;
         }

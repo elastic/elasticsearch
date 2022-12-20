@@ -133,8 +133,8 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));
-                List<String> results = stringFieldScript.resultsForDoc(0);
-                assertEquals(numValues, results.size());
+                stringFieldScript.runForDoc(0);
+                assertEquals(numValues, stringFieldScript.getValues().size());
             }
         }
     }
@@ -162,8 +162,8 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));
-                List<String> results = stringFieldScript.resultsForDoc(0);
-                assertEquals(5, results.size());
+                stringFieldScript.runForDoc(0);
+                assertEquals(5, stringFieldScript.getValues().size());
             }
         }
     }

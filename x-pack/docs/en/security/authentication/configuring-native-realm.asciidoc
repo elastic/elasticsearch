@@ -1,6 +1,4 @@
-The native realm is available and enabled by default. If you want to use a different method to manage and authenticate users you need to disable the native realm. 
-
-The following snippet displays an example of how to disable the `native` realm.
+The native realm is available and enabled by default. You can disable it explicitly with the following snippet. 
 
 [source,yaml]
 ----------------------------------------

@@ -81,22 +81,22 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         super(fieldName, params, searchLookup, ctx);
     }
 
-    /**
-     * Execute the script for the provided {@code docId}.
-     *
-     * @return a mutable {@link List} that contains the results of the script
-     * and will be modified the next time you call {@linkplain #resultsForDoc}.
-     */
-    public final List<String> resultsForDoc(int docId) {
+    @Override
+    protected void prepareExecute() {
         results.clear();
         chars = 0;
-        setDocument(docId);
-        execute();
-        return results;
     }
 
     public final void runForDoc(int docId, Consumer<String> consumer) {
-        resultsForDoc(docId).forEach(consumer);
+        runForDoc(docId);
+        results.forEach(consumer);
+    }
+
+    /**
+     * Values from the last time runForDoc(int) was called. This list is mutable and will change with the next call of runForDoc(int).
+     */
+    public List<String> getValues() {
+        return results;
     }
 
     @Override

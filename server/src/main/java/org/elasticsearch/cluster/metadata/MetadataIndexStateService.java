@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
@@ -619,9 +618,9 @@ public class MetadataIndexStateService {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 final int shardId = shardRoutingTable.shardId().id();
-                sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<>() {
+                sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, ActionListener.notifyOnce(new ActionListener<>() {
                     @Override
-                    public void innerOnResponse(final ReplicationResponse replicationResponse) {
+                    public void onResponse(ReplicationResponse replicationResponse) {
                         ShardResult.Failure[] failures = Arrays.stream(replicationResponse.getShardInfo().getFailures())
                             .map(f -> new ShardResult.Failure(f.index(), f.shardId(), f.getCause(), f.nodeId()))
                             .toArray(ShardResult.Failure[]::new);
@@ -630,7 +629,7 @@ public class MetadataIndexStateService {
                     }
 
                     @Override
-                    public void innerOnFailure(final Exception e) {
+                    public void onFailure(Exception e) {
                         ShardResult.Failure failure = new ShardResult.Failure(index.getName(), shardId, e);
                         results.setOnce(shardId, new ShardResult(shardId, new ShardResult.Failure[] { failure }));
                         processIfFinished();
@@ -641,7 +640,7 @@ public class MetadataIndexStateService {
                             onResponse.accept(new IndexResult(index, results.toArray(new ShardResult[results.length()])));
                         }
                     }
-                });
+                }));
             }
         }
 
@@ -749,9 +748,9 @@ public class MetadataIndexStateService {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 final int shardId = shardRoutingTable.shardId().id();
-                sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, new NotifyOnceListener<>() {
+                sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, ActionListener.notifyOnce(new ActionListener<>() {
                     @Override
-                    public void innerOnResponse(final ReplicationResponse replicationResponse) {
+                    public void onResponse(ReplicationResponse replicationResponse) {
                         AddBlockShardResult.Failure[] failures = Arrays.stream(replicationResponse.getShardInfo().getFailures())
                             .map(f -> new AddBlockShardResult.Failure(f.index(), f.shardId(), f.getCause(), f.nodeId()))
                             .toArray(AddBlockShardResult.Failure[]::new);
@@ -760,7 +759,7 @@ public class MetadataIndexStateService {
                     }
 
                     @Override
-                    public void innerOnFailure(final Exception e) {
+                    public void onFailure(Exception e) {
                         AddBlockShardResult.Failure failure = new AddBlockShardResult.Failure(index.getName(), shardId, e);
                         results.setOnce(shardId, new AddBlockShardResult(shardId, new AddBlockShardResult.Failure[] { failure }));
                         processIfFinished();
@@ -773,7 +772,7 @@ public class MetadataIndexStateService {
                             onResponse.accept(result);
                         }
                     }
-                });
+                }));
             }
         }
 

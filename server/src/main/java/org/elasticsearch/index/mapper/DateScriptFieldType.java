@@ -93,12 +93,12 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             Script script,
             Map<String, String> meta,
             Version supportedVersion,
-            ErrorBehaviour errorBehavior
+            OnScriptError onScriptError
         ) {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
             Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
             DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern, supportedVersion).withLocale(locale);
-            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta, errorBehavior);
+            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta, onScriptError);
         }
 
         @Override
@@ -107,9 +107,9 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             DateFieldScript.Factory factory,
             Script script,
             Map<String, String> meta,
-            ErrorBehaviour errorBehavior
+            OnScriptError onScriptError
         ) {
-            return createFieldType(name, factory, script, meta, Version.CURRENT, errorBehavior);
+            return createFieldType(name, factory, script, meta, Version.CURRENT, onScriptError);
         }
 
         @Override
@@ -138,11 +138,11 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         DateFormatter dateTimeFormatter,
         Script script,
         Map<String, String> meta,
-        ErrorBehaviour errorBehaviour
+        OnScriptError onScriptError
     ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter, errorBehaviour),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta

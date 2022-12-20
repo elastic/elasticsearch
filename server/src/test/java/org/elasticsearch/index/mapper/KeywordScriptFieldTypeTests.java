@@ -60,7 +60,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             List<String> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType ft = build("append_param", Map.of("param", "-suffix"), ErrorBehaviour.FAIL);
+                KeywordScriptFieldType ft = build("append_param", Map.of("param", "-suffix"), OnScriptError.FAIL);
                 StringScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -287,7 +287,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), ErrorBehaviour.FAIL);
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), OnScriptError.FAIL);
                 assertThat(searcher.count(fieldType.termQuery("1-suffix", mockContext())), equalTo(1));
             }
         }
@@ -299,7 +299,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), ErrorBehaviour.FAIL);
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), OnScriptError.FAIL);
                 expectThrows(
                     IllegalArgumentException.class,
                     () -> {
@@ -375,7 +375,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), ErrorBehaviour.FAIL);
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), OnScriptError.FAIL);
                 SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
                 Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(searchExecutionContext);
                 assertThat(searcher.count(query), equalTo(1));
@@ -385,12 +385,12 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
     @Override
     protected KeywordScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of(), ErrorBehaviour.FAIL);
+        return build("read_foo", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
     protected KeywordScriptFieldType loopFieldType() {
-        return build("loop", Map.of(), ErrorBehaviour.FAIL);
+        return build("loop", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
@@ -398,18 +398,18 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         return "keyword";
     }
 
-    protected KeywordScriptFieldType build(String code, Map<String, Object> params, ErrorBehaviour errorbehaviour) {
+    protected KeywordScriptFieldType build(String code, Map<String, Object> params, OnScriptError onScriptError) {
         Script script = new Script(ScriptType.INLINE, "test", code, params);
-        return new KeywordScriptFieldType("test", factory(script), script, emptyMap(), errorbehaviour);
+        return new KeywordScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
     private static StringFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
-            case "read_foo" -> (fieldName, params, lookup, errorBehaviour) -> ctx -> new StringFieldScript(
+            case "read_foo" -> (fieldName, params, lookup, onScriptError) -> ctx -> new StringFieldScript(
                 fieldName,
                 params,
                 lookup,
-                ErrorBehaviour.FAIL,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override
@@ -419,11 +419,11 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                     }
                 }
             };
-            case "append_param" -> (fieldName, params, lookup, errorBehaviour) -> ctx -> new StringFieldScript(
+            case "append_param" -> (fieldName, params, lookup, onScriptError) -> ctx -> new StringFieldScript(
                 fieldName,
                 params,
                 lookup,
-                ErrorBehaviour.FAIL,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override
@@ -433,16 +433,16 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                     }
                 }
             };
-            case "loop" -> (fieldName, params, lookup, errorBehaviour) -> {
+            case "loop" -> (fieldName, params, lookup, onScriptError) -> {
                 // Indicate that this script wants the field call "test", which *is* the name of this field
                 lookup.forkAndTrackFieldReferences("test");
                 throw new IllegalStateException("should have thrown on the line above");
             };
-            case "error" -> (fieldName, params, lookup, errorBehaviour) -> ctx -> new StringFieldScript(
+            case "error" -> (fieldName, params, lookup, onScriptError) -> ctx -> new StringFieldScript(
                 fieldName,
                 params,
                 lookup,
-                errorBehaviour,
+                onScriptError,
                 ctx
             ) {
                 @Override

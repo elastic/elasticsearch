@@ -26,12 +26,12 @@ public class KeywordScriptMapperTests extends MapperScriptTestCase<StringFieldSc
                 String fieldName,
                 Map<String, Object> params,
                 SearchLookup searchLookup,
-                ErrorBehaviour errorBehaviour
+                OnScriptError onScriptError
             ) {
                 return new StringFieldScript.LeafFactory() {
                     @Override
                     public StringFieldScript newInstance(LeafReaderContext ctx) {
-                        return new StringFieldScript(fieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx) {
+                        return new StringFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);

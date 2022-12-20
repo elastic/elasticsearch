@@ -32,17 +32,19 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Factory> {
-    public static final DateFieldScript.Factory DUMMY = (
+    public static final DateFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
         fieldName,
         params,
         lookup,
         formatter,
-        errorBehaviour) -> ctx -> new DateFieldScript(fieldName, params, lookup, formatter, ErrorBehaviour.FAIL, ctx) {
-            @Override
-            public void execute() {
-                emit(1595431354874L);
-            }
-        };
+        OnScriptError.FAIL,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            emit(1595431354874L);
+        }
+    };
 
     @Override
     protected ScriptContext<DateFieldScript.Factory> context() {
@@ -68,7 +70,7 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                     Map.of(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
                     DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random())),
-                    ErrorBehaviour.FAIL,
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -105,7 +107,7 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                     Collections.emptyMap(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
                     DateFormatter.forPattern("epoch_millis"),
-                    ErrorBehaviour.FAIL
+                    OnScriptError.FAIL
                 );
                 DateFieldScript dateFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<Long> results = new ArrayList<>();

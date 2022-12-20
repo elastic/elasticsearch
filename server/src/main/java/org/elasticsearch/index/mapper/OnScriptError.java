@@ -11,16 +11,16 @@ package org.elasticsearch.index.mapper;
 import java.util.Locale;
 import java.util.Objects;
 
-public enum ErrorBehaviour {
+public enum OnScriptError {
     FAIL,
     CONTINUE;
 
-    public static ErrorBehaviour fromString(final String str) {
+    public static OnScriptError fromString(final String str) {
         Objects.requireNonNull(str, "input string is null");
         return switch (str.toLowerCase(Locale.ROOT)) {
             case "fail" -> FAIL;
             case "continue" -> CONTINUE;
-            default -> throw new IllegalArgumentException("Unknown ErrorBehavior [" + str + "]");
+            default -> throw new IllegalArgumentException("Unknown onScriptError [" + str + "]");
         };
     }
 }

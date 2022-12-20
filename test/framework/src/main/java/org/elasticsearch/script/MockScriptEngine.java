@@ -15,7 +15,7 @@ import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.index.mapper.ErrorBehaviour;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
@@ -270,11 +270,11 @@ public class MockScriptEngine implements ScriptEngine {
             IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(BooleanFieldScript.class)) {
-            BooleanFieldScript.Factory booleanFieldScript = (f, p, s, errorBehaviour) -> ctx -> new BooleanFieldScript(
+            BooleanFieldScript.Factory booleanFieldScript = (f, p, s, onScriptError) -> ctx -> new BooleanFieldScript(
                 f,
                 p,
                 s,
-                ErrorBehaviour.FAIL,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override
@@ -284,11 +284,11 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(booleanFieldScript);
         } else if (context.instanceClazz.equals(StringFieldScript.class)) {
-            StringFieldScript.Factory stringFieldScript = (f, p, s, errorBehaviour) -> ctx -> new StringFieldScript(
+            StringFieldScript.Factory stringFieldScript = (f, p, s, onScriptError) -> ctx -> new StringFieldScript(
                 f,
                 p,
                 s,
-                ErrorBehaviour.FAIL,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override
@@ -298,11 +298,11 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(stringFieldScript);
         } else if (context.instanceClazz.equals(LongFieldScript.class)) {
-            LongFieldScript.Factory longFieldScript = (f, p, s, errorBehaviour) -> ctx -> new LongFieldScript(
+            LongFieldScript.Factory longFieldScript = (f, p, s, onScriptError) -> ctx -> new LongFieldScript(
                 f,
                 p,
                 s,
-                ErrorBehaviour.FAIL,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override
@@ -312,11 +312,11 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(longFieldScript);
         } else if (context.instanceClazz.equals(DoubleFieldScript.class)) {
-            DoubleFieldScript.Factory doubleFieldScript = (f, p, s, errorBehaviour) -> ctx -> new DoubleFieldScript(
+            DoubleFieldScript.Factory doubleFieldScript = (f, p, s, onScriptError) -> ctx -> new DoubleFieldScript(
                 f,
                 p,
                 s,
-                ErrorBehaviour.FAIL,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override
@@ -326,12 +326,12 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(doubleFieldScript);
         } else if (context.instanceClazz.equals(DateFieldScript.class)) {
-            DateFieldScript.Factory dateFieldScript = (f, p, s, formatter, errorBehaviour) -> ctx -> new DateFieldScript(
+            DateFieldScript.Factory dateFieldScript = (f, p, s, formatter, onScriptError) -> ctx -> new DateFieldScript(
                 f,
                 p,
                 s,
                 formatter,
-                ErrorBehaviour.FAIL,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override
@@ -341,7 +341,7 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(dateFieldScript);
         } else if (context.instanceClazz.equals(IpFieldScript.class)) {
-            IpFieldScript.Factory ipFieldScript = (f, p, s, errorBehaviour) -> ctx -> new IpFieldScript(f, p, s, ErrorBehaviour.FAIL, ctx) {
+            IpFieldScript.Factory ipFieldScript = (f, p, s, onScriptError) -> ctx -> new IpFieldScript(f, p, s, OnScriptError.FAIL, ctx) {
                 @Override
                 public void execute() {
                     emit("127.0.0.1");
@@ -349,11 +349,11 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(ipFieldScript);
         } else if (context.instanceClazz.equals(GeoPointFieldScript.class)) {
-            GeoPointFieldScript.Factory geoPointFieldScript = (f, p, s, errorBehaviour) -> ctx -> new GeoPointFieldScript(
+            GeoPointFieldScript.Factory geoPointFieldScript = (f, p, s, onScriptError) -> ctx -> new GeoPointFieldScript(
                 f,
                 p,
                 s,
-                ErrorBehaviour.FAIL,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override
@@ -363,11 +363,11 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(geoPointFieldScript);
         } else if (context.instanceClazz.equals(CompositeFieldScript.class)) {
-            CompositeFieldScript.Factory objectFieldScript = (f, p, s, errorBehaviour) -> ctx -> new CompositeFieldScript(
+            CompositeFieldScript.Factory objectFieldScript = (f, p, s, onScriptError) -> ctx -> new CompositeFieldScript(
                 f,
                 p,
                 s,
-                ErrorBehaviour.FAIL,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override

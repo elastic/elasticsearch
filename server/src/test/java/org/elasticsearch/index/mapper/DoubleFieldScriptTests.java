@@ -31,11 +31,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DoubleFieldScriptTests extends FieldScriptTestCase<DoubleFieldScript.Factory> {
-    public static final DoubleFieldScript.Factory DUMMY = (fieldName, params, lookup, errorBehaviour) -> ctx -> new DoubleFieldScript(
+    public static final DoubleFieldScript.Factory DUMMY = (fieldName, params, lookup, onScriptError) -> ctx -> new DoubleFieldScript(
         fieldName,
         params,
         lookup,
-        ErrorBehaviour.FAIL,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -67,7 +67,7 @@ public class DoubleFieldScriptTests extends FieldScriptTestCase<DoubleFieldScrip
                     "test",
                     Map.of(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
-                    ErrorBehaviour.FAIL,
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -103,7 +103,7 @@ public class DoubleFieldScriptTests extends FieldScriptTestCase<DoubleFieldScrip
                     "field",
                     Collections.emptyMap(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
-                    ErrorBehaviour.FAIL
+                    OnScriptError.FAIL
                 );
                 DoubleFieldScript doubleFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<Double> results = new ArrayList<>();

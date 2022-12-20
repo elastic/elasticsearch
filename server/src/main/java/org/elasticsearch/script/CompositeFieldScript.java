@@ -9,7 +9,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.mapper.ErrorBehaviour;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
@@ -32,7 +32,7 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
             String fieldName,
             Map<String, Object> params,
             SearchLookup searchLookup,
-            ErrorBehaviour errorBehaviour
+            OnScriptError onScriptError
         );
     }
 
@@ -46,10 +46,10 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
         String fieldName,
         Map<String, Object> params,
         SearchLookup searchLookup,
-        ErrorBehaviour errorBehaviour,
+        OnScriptError onScriptError,
         LeafReaderContext ctx
     ) {
-        super(fieldName, params, searchLookup, ctx, errorBehaviour);
+        super(fieldName, params, searchLookup, ctx, onScriptError);
     }
 
     /**

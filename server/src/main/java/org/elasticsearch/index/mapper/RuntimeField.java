@@ -64,7 +64,7 @@ public interface RuntimeField extends ToXContentFragment {
             MappingParserContext parserContext,
             String parentName,
             Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
-            ErrorBehaviour errorBehaviour
+            OnScriptError onScriptError
         );
 
         public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {

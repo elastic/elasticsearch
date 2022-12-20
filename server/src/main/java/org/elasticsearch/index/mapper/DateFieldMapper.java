@@ -308,7 +308,7 @@ public final class DateFieldMapper extends FieldMapper {
                     script.get().getParams(),
                     lookup,
                     buildFormatter(),
-                    ErrorBehaviour.FAIL
+                    OnScriptError.FAIL
                 ).newInstance(ctx).runForDoc(doc, consumer::accept);
         }
 

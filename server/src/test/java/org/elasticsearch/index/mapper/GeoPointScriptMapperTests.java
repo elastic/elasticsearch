@@ -25,12 +25,12 @@ public class GeoPointScriptMapperTests extends MapperScriptTestCase<GeoPointFiel
                 String fieldName,
                 Map<String, Object> params,
                 SearchLookup searchLookup,
-                ErrorBehaviour errorBehaviour
+                OnScriptError onScriptError
             ) {
                 return new GeoPointFieldScript.LeafFactory() {
                     @Override
                     public GeoPointFieldScript newInstance(LeafReaderContext ctx) {
-                        return new GeoPointFieldScript(fieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx) {
+                        return new GeoPointFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(new Emit(this));

@@ -76,7 +76,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                LongScriptFieldType ft = build("add_param", Map.of("param", 1), ErrorBehaviour.FAIL);
+                LongScriptFieldType ft = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
                 LongScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -132,7 +132,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                LongScriptFieldData ifd = build("millis_ago", Map.of(), ErrorBehaviour.FAIL).fielddataBuilder(mockFielddataContext())
+                LongScriptFieldData ifd = build("millis_ago", Map.of(), OnScriptError.FAIL).fielddataBuilder(mockFielddataContext())
                     .build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
@@ -224,7 +224,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1.1, mockContext())), equalTo(0));
                 assertThat(
-                    searcher.count(build("add_param", Map.of("param", 1), ErrorBehaviour.FAIL).termQuery(2, mockContext())),
+                    searcher.count(build("add_param", Map.of("param", 1), OnScriptError.FAIL).termQuery(2, mockContext())),
                     equalTo(1)
                 );
             }
@@ -259,12 +259,12 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
     @Override
     protected LongScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of(), ErrorBehaviour.FAIL);
+        return build("read_foo", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
     protected LongScriptFieldType loopFieldType() {
-        return build("loop", Map.of(), ErrorBehaviour.FAIL);
+        return build("loop", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
@@ -272,19 +272,19 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         return "long";
     }
 
-    protected LongScriptFieldType build(String code, Map<String, Object> params, ErrorBehaviour errorbehaviour) {
+    protected LongScriptFieldType build(String code, Map<String, Object> params, OnScriptError onScriptError) {
         Script script = new Script(ScriptType.INLINE, "test", code, params);
-        return new LongScriptFieldType("test", factory(script), script, emptyMap(), errorbehaviour);
+        return new LongScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
     private static LongFieldScript.Factory factory(Script script) {
         switch (script.getIdOrCode()) {
             case "read_foo":
-                return (fieldName, params, lookup, errorBehaviour) -> (ctx) -> new LongFieldScript(
+                return (fieldName, params, lookup, onScriptError) -> (ctx) -> new LongFieldScript(
                     fieldName,
                     params,
                     lookup,
-                    errorBehaviour,
+                    onScriptError,
                     ctx
                 ) {
                     @Override
@@ -295,11 +295,11 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
                 };
             case "add_param":
-                return (fieldName, params, lookup, errorBehaviour) -> (ctx) -> new LongFieldScript(
+                return (fieldName, params, lookup, onScriptError) -> (ctx) -> new LongFieldScript(
                     fieldName,
                     params,
                     lookup,
-                    errorBehaviour,
+                    onScriptError,
                     ctx
                 ) {
                     @Override
@@ -312,11 +312,11 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             case "millis_ago":
                 // Painless actually call System.currentTimeMillis. We could mock the time but this works fine too.
                 long now = System.currentTimeMillis();
-                return (fieldName, params, lookup, errorBehaviour) -> (ctx) -> new LongFieldScript(
+                return (fieldName, params, lookup, onScriptError) -> (ctx) -> new LongFieldScript(
                     fieldName,
                     params,
                     lookup,
-                    errorBehaviour,
+                    onScriptError,
                     ctx
                 ) {
                     @Override
@@ -327,17 +327,17 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
                 };
             case "loop":
-                return (fieldName, params, lookup, errorBehaviour) -> {
+                return (fieldName, params, lookup, onScriptError) -> {
                     // Indicate that this script wants the field call "test", which *is* the name of this field
                     lookup.forkAndTrackFieldReferences("test");
                     throw new IllegalStateException("should have thrown on the line above");
                 };
             case "error":
-                return (fieldName, params, lookup, errorBehaviour) -> ctx -> new LongFieldScript(
+                return (fieldName, params, lookup, onScriptError) -> ctx -> new LongFieldScript(
                     fieldName,
                     params,
                     lookup,
-                    errorBehaviour,
+                    onScriptError,
                     ctx
                 ) {
                     @Override

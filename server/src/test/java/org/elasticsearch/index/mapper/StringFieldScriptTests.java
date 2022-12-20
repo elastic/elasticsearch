@@ -30,11 +30,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScript.Factory> {
-    public static final StringFieldScript.Factory DUMMY = (fieldName, params, lookup, errorBehaviour) -> ctx -> new StringFieldScript(
+    public static final StringFieldScript.Factory DUMMY = (fieldName, params, lookup, onScriptError) -> ctx -> new StringFieldScript(
         fieldName,
         params,
         lookup,
-        ErrorBehaviour.FAIL,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -66,7 +66,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                     "test",
                     Map.of(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
-                    ErrorBehaviour.FAIL,
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -93,7 +93,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                     "test",
                     Map.of(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
-                    ErrorBehaviour.FAIL,
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -134,7 +134,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                     "field",
                     Collections.emptyMap(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
-                    ErrorBehaviour.FAIL
+                    OnScriptError.FAIL
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 stringFieldScript.runForDoc(0);
@@ -164,7 +164,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                     "field",
                     Collections.emptyMap(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
-                    ErrorBehaviour.FAIL
+                    OnScriptError.FAIL
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 stringFieldScript.runForDoc(0);

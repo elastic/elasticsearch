@@ -10,7 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.index.mapper.ErrorBehaviour;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
@@ -23,8 +23,8 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
 
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, ErrorBehaviour errorBehaviour) {
-            return ctx -> new BooleanFieldScript(field, params, lookup, ErrorBehaviour.FAIL, ctx) {
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, OnScriptError onScriptError) {
+            return ctx -> new BooleanFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -39,11 +39,11 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
     };
 
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
-        return (leafFieldName, params, searchLookup, errorBehaviour) -> {
+        return (leafFieldName, params, searchLookup, onScriptError) -> {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new BooleanFieldScript(leafFieldName, params, searchLookup, errorBehaviour, ctx) {
+                return new BooleanFieldScript(leafFieldName, params, searchLookup, onScriptError, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);
@@ -62,7 +62,7 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup, ErrorBehaviour errorBehaviour);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup, OnScriptError onScriptError);
     }
 
     public interface LeafFactory {
@@ -76,10 +76,10 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         String fieldName,
         Map<String, Object> params,
         SearchLookup searchLookup,
-        ErrorBehaviour errorBehaviour,
+        OnScriptError onScriptError,
         LeafReaderContext ctx
     ) {
-        super(fieldName, params, searchLookup, ctx, errorBehaviour);
+        super(fieldName, params, searchLookup, ctx, onScriptError);
     }
 
     @Override

@@ -250,7 +250,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             MappingParserContext parserContext,
             String parent,
             Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
-            ErrorBehaviour errorBehaviour
+            OnScriptError onScriptError
         ) {
             if (script.isConfigured()) {
                 throw new IllegalArgumentException(
@@ -260,7 +260,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             String fullName = parent + "." + name;
             return new LeafRuntimeField(
                 name,
-                createFieldType(fullName, getCompositeLeafFactory(parentScriptFactory), getScript(), meta(), errorBehaviour),
+                createFieldType(fullName, getCompositeLeafFactory(parentScriptFactory), getScript(), meta(), onScriptError),
                 getParameters()
             );
         }
@@ -276,7 +276,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
                 getScript(),
                 meta(),
                 indexVersion,
-                ErrorBehaviour.fromString(onScriptError.get())
+                OnScriptError.fromString(onScriptError.get())
             );
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
@@ -286,7 +286,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             Factory factory,
             Script script,
             Map<String, String> meta,
-            ErrorBehaviour errorBehavior
+            OnScriptError onScriptError
         );
 
         AbstractScriptFieldType<?> createFieldType(
@@ -295,9 +295,9 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             Script script,
             Map<String, String> meta,
             Version supportedVersion,
-            ErrorBehaviour errorBehavior
+            OnScriptError onScriptError
         ) {
-            return createFieldType(name, factory, script, meta, errorBehavior);
+            return createFieldType(name, factory, script, meta, onScriptError);
         }
 
         @Override

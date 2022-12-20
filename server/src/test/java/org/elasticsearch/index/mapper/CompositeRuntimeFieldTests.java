@@ -33,11 +33,11 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context == CompositeFieldScript.CONTEXT) {
-            return (T) (CompositeFieldScript.Factory) (fieldName, params, searchLookup, errorBehaviour) -> ctx -> new CompositeFieldScript(
+            return (T) (CompositeFieldScript.Factory) (fieldName, params, searchLookup, onScriptError) -> ctx -> new CompositeFieldScript(
                 fieldName,
                 params,
                 searchLookup,
-                ErrorBehaviour.FAIL,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override
@@ -53,11 +53,11 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
             };
         }
         if (context == LongFieldScript.CONTEXT) {
-            return (T) (LongFieldScript.Factory) (field, params, lookup, errorBehaviour) -> ctx -> new LongFieldScript(
+            return (T) (LongFieldScript.Factory) (field, params, lookup, onScriptError) -> ctx -> new LongFieldScript(
                 field,
                 params,
                 lookup,
-                ErrorBehaviour.FAIL,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override

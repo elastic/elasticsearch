@@ -388,11 +388,11 @@ public class IpFieldMapperTests extends MapperTestCase {
         return new IngestScriptSupport() {
             @Override
             protected IpFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup, errorBehaviour) -> ctx -> new IpFieldScript(
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new IpFieldScript(
                     fieldName,
                     params,
                     searchLookup,
-                    ErrorBehaviour.FAIL,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override
@@ -402,11 +402,11 @@ public class IpFieldMapperTests extends MapperTestCase {
 
             @Override
             protected IpFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup, errorBehaviour) -> ctx -> new IpFieldScript(
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new IpFieldScript(
                     fieldName,
                     params,
                     searchLookup,
-                    ErrorBehaviour.FAIL,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override

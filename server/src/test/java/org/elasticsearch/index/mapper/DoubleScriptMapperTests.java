@@ -25,12 +25,12 @@ public class DoubleScriptMapperTests extends MapperScriptTestCase<DoubleFieldScr
                 String fieldName,
                 Map<String, Object> params,
                 SearchLookup searchLookup,
-                ErrorBehaviour errorBehaviour
+                OnScriptError onScriptError
             ) {
                 return new DoubleFieldScript.LeafFactory() {
                     @Override
                     public DoubleFieldScript newInstance(LeafReaderContext ctx) {
-                        return new DoubleFieldScript(fieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx) {
+                        return new DoubleFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);

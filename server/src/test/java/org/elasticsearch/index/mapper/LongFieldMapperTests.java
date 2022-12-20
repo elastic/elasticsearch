@@ -132,11 +132,11 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
             @Override
             protected LongFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup, errorBehaviour) -> ctx -> new LongFieldScript(
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new LongFieldScript(
                     fieldName,
                     params,
                     searchLookup,
-                    ErrorBehaviour.FAIL,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override
@@ -146,11 +146,11 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
             @Override
             protected LongFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup, errorBehaviour) -> ctx -> new LongFieldScript(
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new LongFieldScript(
                     fieldName,
                     params,
                     searchLookup,
-                    ErrorBehaviour.FAIL,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override

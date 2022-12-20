@@ -77,7 +77,7 @@ public class CompositeRuntimeField implements RuntimeField {
             MappingParserContext parserContext,
             String parent,
             Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
-            ErrorBehaviour errorBehaviour
+            OnScriptError onScriptError
         ) {
             throw new IllegalArgumentException("Composite field [" + name + "] cannot be a child of composite field [" + parent + "]");
         }
@@ -86,12 +86,12 @@ public class CompositeRuntimeField implements RuntimeField {
         protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
             CompositeFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.get(), CompositeFieldScript.CONTEXT);
             Function<RuntimeField.Builder, RuntimeField> builder = b -> {
-                ErrorBehaviour errorBehaviour = ErrorBehaviour.fromString(onScriptError.get());
+                OnScriptError onScriptError = OnScriptError.fromString(this.onScriptError.get());
                 return b.createChildRuntimeField(
                     parserContext,
                     name,
-                    lookup -> factory.newFactory(name, script.get().getParams(), lookup, errorBehaviour),
-                    errorBehaviour
+                    lookup -> factory.newFactory(name, script.get().getParams(), lookup, onScriptError),
+                    onScriptError
                 );
             };
             Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(

@@ -25,12 +25,12 @@ public class IpScriptMapperTests extends MapperScriptTestCase<IpFieldScript.Fact
                 String fieldName,
                 Map<String, Object> params,
                 SearchLookup searchLookup,
-                ErrorBehaviour errorBehaviour
+                OnScriptError onScriptError
             ) {
                 return new IpFieldScript.LeafFactory() {
                     @Override
                     public IpFieldScript newInstance(LeafReaderContext ctx) {
-                        return new IpFieldScript(fieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx) {
+                        return new IpFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);

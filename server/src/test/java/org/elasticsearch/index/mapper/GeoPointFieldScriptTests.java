@@ -26,11 +26,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldScript.Factory> {
-    public static final GeoPointFieldScript.Factory DUMMY = (fieldName, params, lookup, errorBehaviour) -> ctx -> new GeoPointFieldScript(
+    public static final GeoPointFieldScript.Factory DUMMY = (fieldName, params, lookup, onScriptError) -> ctx -> new GeoPointFieldScript(
         fieldName,
         params,
         lookup,
-        ErrorBehaviour.FAIL,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -62,7 +62,7 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
                     "test",
                     Map.of(),
                     new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
-                    ErrorBehaviour.FAIL,
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override

@@ -11,8 +11,8 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
@@ -269,7 +269,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
                     String fieldName,
                     Map<String, Object> params,
                     SearchLookup searchLookup,
-                    ErrorBehaviour errorBehaviour
+                    OnScriptError onScriptError
                 ) {
                     throw new UnsupportedOperationException("error should be thrown before getting here");
                 }

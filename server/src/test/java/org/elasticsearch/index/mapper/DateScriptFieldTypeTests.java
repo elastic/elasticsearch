@@ -131,7 +131,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         DateScriptFieldType scripted = build(
             new Script(ScriptType.INLINE, "test", "read_timestamp", Map.of()),
             formatter,
-            ErrorBehaviour.FAIL
+            OnScriptError.FAIL
         );
         DateFieldMapper.DateFieldType indexed = new DateFieldMapper.DateFieldType("test", formatter);
         for (int i = 0; i < 100; i++) {
@@ -153,7 +153,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                DateScriptFieldType ft = build("add_days", Map.of("days", 1), ErrorBehaviour.FAIL);
+                DateScriptFieldType ft = build("add_days", Map.of("days", 1), OnScriptError.FAIL);
                 DateScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -386,7 +386,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(2595432181354L, mockContext())), equalTo(0));
                 assertThat(
                     searcher.count(
-                        build("add_days", Map.of("days", 1), ErrorBehaviour.FAIL).termQuery("2020-07-23T15:36:21.354Z", mockContext())
+                        build("add_days", Map.of("days", 1), OnScriptError.FAIL).termQuery("2020-07-23T15:36:21.354Z", mockContext())
                     ),
                     equalTo(1)
                 );
@@ -471,7 +471,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         return build(
             simpleMappedFieldType().script,
             DateFormatter.forPattern("yyyy-MM-dd(-■_■)HH:mm:ss.SSSz||epoch_millis"),
-            ErrorBehaviour.FAIL
+            OnScriptError.FAIL
         );
     }
 
@@ -481,21 +481,21 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private DateScriptFieldType build(String code) {
-        return build(code, Map.of(), ErrorBehaviour.FAIL);
+        return build(code, Map.of(), OnScriptError.FAIL);
     }
 
-    protected DateScriptFieldType build(String code, Map<String, Object> params, ErrorBehaviour errorbehaviour) {
-        return build(new Script(ScriptType.INLINE, "test", code, params), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, errorbehaviour);
+    protected DateScriptFieldType build(String code, Map<String, Object> params, OnScriptError onScriptError) {
+        return build(new Script(ScriptType.INLINE, "test", code, params), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, onScriptError);
     }
 
     private static DateFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
-            case "read_timestamp" -> (fieldName, params, lookup, formatter, errorBehaviour) -> ctx -> new DateFieldScript(
+            case "read_timestamp" -> (fieldName, params, lookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
                 fieldName,
                 params,
                 lookup,
                 formatter,
-                errorBehaviour,
+                onScriptError,
                 ctx
             ) {
                 @Override
@@ -506,12 +506,12 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
                 }
             };
-            case "add_days" -> (fieldName, params, lookup, formatter, errorBehaviour) -> ctx -> new DateFieldScript(
+            case "add_days" -> (fieldName, params, lookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
                 fieldName,
                 params,
                 lookup,
                 formatter,
-                errorBehaviour,
+                onScriptError,
                 ctx
             ) {
                 @Override
@@ -524,17 +524,17 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
                 }
             };
-            case "loop" -> (fieldName, params, lookup, formatter, errorBehaviour) -> {
+            case "loop" -> (fieldName, params, lookup, formatter, onScriptError) -> {
                 // Indicate that this script wants the field call "test", which *is* the name of this field
                 lookup.forkAndTrackFieldReferences("test");
                 throw new IllegalStateException("should have thrown on the line above");
             };
-            case "error" -> (fieldName, params, lookup, formatter, errorBehaviour) -> ctx -> new DateFieldScript(
+            case "error" -> (fieldName, params, lookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
                 fieldName,
                 params,
                 lookup,
                 formatter,
-                errorBehaviour,
+                onScriptError,
                 ctx
             ) {
                 @Override
@@ -546,8 +546,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         };
     }
 
-    private static DateScriptFieldType build(Script script, DateFormatter dateTimeFormatter, ErrorBehaviour errorbehaviour) {
-        return new DateScriptFieldType("test", factory(script), dateTimeFormatter, script, emptyMap(), errorbehaviour);
+    private static DateScriptFieldType build(Script script, DateFormatter dateTimeFormatter, OnScriptError onScriptError) {
+        return new DateScriptFieldType("test", factory(script), dateTimeFormatter, script, emptyMap(), onScriptError);
     }
 
     private static long randomDate() {

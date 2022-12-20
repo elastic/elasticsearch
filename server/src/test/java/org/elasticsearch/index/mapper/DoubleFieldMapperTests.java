@@ -105,11 +105,11 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
 
             @Override
             protected DoubleFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup, errorBehaviour) -> ctx -> new DoubleFieldScript(
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new DoubleFieldScript(
                     fieldName,
                     params,
                     searchLookup,
-                    ErrorBehaviour.FAIL,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override
@@ -119,11 +119,11 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
 
             @Override
             protected DoubleFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup, errorBehaviour) -> ctx -> new DoubleFieldScript(
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new DoubleFieldScript(
                     fieldName,
                     params,
                     searchLookup,
-                    ErrorBehaviour.FAIL,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override

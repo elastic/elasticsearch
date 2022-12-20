@@ -173,7 +173,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                AbstractScriptFieldType<?> fieldType = build("error", Collections.emptyMap(), ErrorBehaviour.CONTINUE);
+                AbstractScriptFieldType<?> fieldType = build("error", Collections.emptyMap(), OnScriptError.CONTINUE);
                 SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
                 Query query = new ExistsQueryBuilder("test").rewrite(searchExecutionContext).toQuery(searchExecutionContext);
                 try {
@@ -185,7 +185,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    protected abstract AbstractScriptFieldType<?> build(String error, Map<String, Object> emptyMap, ErrorBehaviour errorbehaviour);
+    protected abstract AbstractScriptFieldType<?> build(String error, Map<String, Object> emptyMap, OnScriptError onScriptError);
 
     @SuppressWarnings("unused")
     public abstract void testDocValues() throws IOException;

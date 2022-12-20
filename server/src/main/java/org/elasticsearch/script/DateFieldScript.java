@@ -10,7 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.index.mapper.ErrorBehaviour;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
@@ -27,9 +27,9 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
             Map<String, Object> params,
             SearchLookup lookup,
             DateFormatter formatter,
-            ErrorBehaviour errorBehaviour
+            OnScriptError onScriptError
         ) {
-            return ctx -> new DateFieldScript(field, params, lookup, formatter, ErrorBehaviour.FAIL, ctx) {
+            return ctx -> new DateFieldScript(field, params, lookup, formatter, OnScriptError.FAIL, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -44,11 +44,11 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
     };
 
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
-        return (leafFieldName, params, searchLookup, formatter, errorBehaviour) -> {
+        return (leafFieldName, params, searchLookup, formatter, onScriptError) -> {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new DateFieldScript(leafFieldName, params, searchLookup, formatter, errorBehaviour, ctx) {
+                return new DateFieldScript(leafFieldName, params, searchLookup, formatter, onScriptError, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);
@@ -72,7 +72,7 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
             Map<String, Object> params,
             SearchLookup searchLookup,
             DateFormatter formatter,
-            ErrorBehaviour errorBehaviour
+            OnScriptError onScriptError
         );
     }
 
@@ -87,10 +87,10 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         Map<String, Object> params,
         SearchLookup searchLookup,
         DateFormatter formatter,
-        ErrorBehaviour errorBehaviour,
+        OnScriptError onScriptError,
         LeafReaderContext ctx
     ) {
-        super(fieldName, params, searchLookup, errorBehaviour, ctx);
+        super(fieldName, params, searchLookup, onScriptError, ctx);
         this.formatter = formatter;
     }
 

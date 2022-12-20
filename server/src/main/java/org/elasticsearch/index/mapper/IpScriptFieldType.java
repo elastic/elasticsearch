@@ -50,9 +50,9 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
             IpFieldScript.Factory factory,
             Script script,
             Map<String, String> meta,
-            ErrorBehaviour errorBehavior
+            OnScriptError onScriptError
         ) {
-            return new IpScriptFieldType(name, factory, getScript(), meta(), errorBehavior);
+            return new IpScriptFieldType(name, factory, getScript(), meta(), onScriptError);
         }
 
         @Override
@@ -71,11 +71,11 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         IpFieldScript.Factory scriptFactory,
         Script script,
         Map<String, String> meta,
-        ErrorBehaviour errorbehaviour
+        OnScriptError onScriptError
     ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, errorbehaviour),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta

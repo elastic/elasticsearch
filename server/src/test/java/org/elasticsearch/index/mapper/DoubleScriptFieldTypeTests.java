@@ -64,7 +64,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             List<Double> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                DoubleScriptFieldType ft = build("add_param", Map.of("param", 1), ErrorBehaviour.FAIL);
+                DoubleScriptFieldType ft = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
                 DoubleScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -191,7 +191,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1.1, mockContext())), equalTo(0));
                 assertThat(
-                    searcher.count(build("add_param", Map.of("param", 1), ErrorBehaviour.FAIL).termQuery(2, mockContext())),
+                    searcher.count(build("add_param", Map.of("param", 1), OnScriptError.FAIL).termQuery(2, mockContext())),
                     equalTo(1)
                 );
             }
@@ -226,12 +226,12 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
 
     @Override
     protected DoubleScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of(), ErrorBehaviour.FAIL);
+        return build("read_foo", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
     protected MappedFieldType loopFieldType() {
-        return build("loop", Map.of(), ErrorBehaviour.FAIL);
+        return build("loop", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
@@ -239,18 +239,18 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         return "double";
     }
 
-    protected DoubleScriptFieldType build(String code, Map<String, Object> params, ErrorBehaviour errorbehaviour) {
+    protected DoubleScriptFieldType build(String code, Map<String, Object> params, OnScriptError onScriptError) {
         Script script = new Script(ScriptType.INLINE, "test", code, params);
-        return new DoubleScriptFieldType("test", factory(script), script, emptyMap(), errorbehaviour);
+        return new DoubleScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
     private static DoubleFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
-            case "read_foo" -> (fieldName, params, lookup, errorBehaviour) -> (ctx) -> new DoubleFieldScript(
+            case "read_foo" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new DoubleFieldScript(
                 fieldName,
                 params,
                 lookup,
-                errorBehaviour,
+                onScriptError,
                 ctx
             ) {
                 @Override
@@ -260,11 +260,11 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                     }
                 }
             };
-            case "add_param" -> (fieldName, params, lookup, errorBehaviour) -> (ctx) -> new DoubleFieldScript(
+            case "add_param" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new DoubleFieldScript(
                 fieldName,
                 params,
                 lookup,
-                errorBehaviour,
+                onScriptError,
                 ctx
             ) {
                 @Override
@@ -274,16 +274,16 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                     }
                 }
             };
-            case "loop" -> (fieldName, params, lookup, errorBehaviour) -> {
+            case "loop" -> (fieldName, params, lookup, onScriptError) -> {
                 // Indicate that this script wants the field call "test", which *is* the name of this field
                 lookup.forkAndTrackFieldReferences("test");
                 throw new IllegalStateException("should have thrown on the line above");
             };
-            case "error" -> (fieldName, params, lookup, errorBehaviour) -> ctx -> new DoubleFieldScript(
+            case "error" -> (fieldName, params, lookup, onScriptError) -> ctx -> new DoubleFieldScript(
                 fieldName,
                 params,
                 lookup,
-                errorBehaviour,
+                onScriptError,
                 ctx
             ) {
                 @Override

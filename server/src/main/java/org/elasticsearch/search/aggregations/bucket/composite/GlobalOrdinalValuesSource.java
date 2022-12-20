@@ -98,12 +98,20 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         if (missingBucket) {
             return false;
         }
+
+        // If we do not know the field type, the field is not indexed (e.g. runtime field) or the field
+        // has no doc values we should not apply the optimization.
+        if (fieldType == null || fieldType.isIndexed() == false || fieldType.hasDocValues() == false) {
+            return false;
+        }
+
         // We also need to check if there are terms for the field in question.
         // Some field types do not despite being global ordinals (e.g. IP addresses).
         return hasTerms(indexReader);
     }
 
     private boolean hasTerms(IndexReader indexReader) {
+        assert fieldType != null;
         List<LeafReaderContext> leaves = indexReader.leaves();
         for (LeafReaderContext leaf : leaves) {
             Terms terms;

@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
-public class StatelessEngine extends InternalEngine {
+public class IndexEngine extends InternalEngine {
 
     public static final Setting<TimeValue> INDEX_FLUSH_INTERVAL_SETTING = Setting.timeSetting(
         "index.translog.flush_interval",
@@ -25,7 +25,7 @@ public class StatelessEngine extends InternalEngine {
     private final AtomicLong lastFlushNanos;
     private volatile TimeValue indexFlushInterval;
 
-    public StatelessEngine(EngineConfig engineConfig) {
+    public IndexEngine(EngineConfig engineConfig) {
         super(engineConfig);
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());

@@ -14,20 +14,20 @@ import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class StatelessEngineTests extends EngineTestCase {
+public class IndexEngineTests extends EngineTestCase {
 
     public void testShouldPeriodicallyFlush() throws IOException {
 
         var configuredFlushIntervalNanos = randomLongBetween(1_000L, 5_000_000_000L);
         var settings = Settings.builder()
-            .put(StatelessEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(configuredFlushIntervalNanos))
+            .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(configuredFlushIntervalNanos))
             .build();
 
         var currentTime = new AtomicLong(0L);
 
         IOUtils.close(engine);
         var config = copy(engine.config(), settings, currentTime::get);
-        try (var engine = new StatelessEngine(config)) {
+        try (var engine = new IndexEngine(config)) {
             // skip recovery, otherwise flush is not possible (see `InternalEngine.ensureCanFlush()`)
             engine.skipTranslogRecovery();
 

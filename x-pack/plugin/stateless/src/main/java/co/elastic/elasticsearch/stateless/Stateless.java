@@ -1,6 +1,7 @@
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.engine.StatelessEngine;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.lucene.DefaultDirectoryListener;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.lucene.StatelessDirectory;
@@ -21,7 +22,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -100,7 +100,7 @@ public class Stateless extends Plugin implements EnginePlugin {
             ObjectStoreService.TYPE,
             ObjectStoreService.BUCKET,
             ObjectStoreService.CLIENT,
-            StatelessEngine.INDEX_FLUSH_INTERVAL_SETTING,
+            IndexEngine.INDEX_FLUSH_INTERVAL_SETTING,
             ObjectStoreService.OBJECT_STORE_SHUTDOWN_TIMEOUT
         );
     }
@@ -125,44 +125,7 @@ public class Stateless extends Plugin implements EnginePlugin {
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        return Optional.of(config -> {
-            if (config.isRecoveringAsPrimary()) {
-                return new StatelessEngine(config);
-            } else {
-                // TODO Replace this once ES-4857 https://github.com/elastic/elasticsearch-stateless/pull/38 is merged
-                // override the EngineConfig to nullify the IndexCommitListener so that replica do not upload files to the object store
-                return new StatelessEngine(
-                    new EngineConfig(
-                        config.getShardId(),
-                        config.getThreadPool(),
-                        config.getIndexSettings(),
-                        config.getWarmer(),
-                        config.getStore(),
-                        config.getMergePolicy(),
-                        config.getAnalyzer(),
-                        config.getSimilarity(),
-                        config.getCodecService(),
-                        config.getEventListener(),
-                        config.getQueryCache(),
-                        config.getQueryCachingPolicy(),
-                        config.getTranslogConfig(),
-                        config.getFlushMergesAfter(),
-                        config.getExternalRefreshListener(),
-                        config.getInternalRefreshListener(),
-                        config.getIndexSort(),
-                        config.getCircuitBreakerService(),
-                        config.getGlobalCheckpointSupplier(),
-                        config.retentionLeasesSupplier(),
-                        config.getPrimaryTermSupplier(),
-                        config.getSnapshotCommitSupplier(),
-                        config.getLeafSorter(),
-                        config.getRelativeTimeInNanosSupplier(),
-                        null, // here
-                        false
-                    )
-                );
-            }
-        });
+        return Optional.of(config -> config.isRecoveringAsPrimary() ? new IndexEngine(config) : new SearchEngine(config));
     }
 
     /**

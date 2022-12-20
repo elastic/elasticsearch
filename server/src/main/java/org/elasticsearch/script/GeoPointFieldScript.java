@@ -85,13 +85,9 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
         super(fieldName, params, searchLookup, ctx);
     }
 
-    /**
-     * Execute the script for the provided {@code docId}.
-     */
-    public final void runForDoc(int docId) {
+    @Override
+    protected void prepareExecute() {
         count = 0;
-        setDocument(docId);
-        execute();
     }
 
     /**

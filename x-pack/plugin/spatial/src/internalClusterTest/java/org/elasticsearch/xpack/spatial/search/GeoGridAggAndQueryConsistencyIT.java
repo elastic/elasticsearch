@@ -11,7 +11,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -125,11 +124,41 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             }
             return points;
         },
-            h3 -> new Rectangle(GeoUtils.MIN_LON, GeoUtils.MAX_LON, GeoUtils.MAX_LAT, GeoUtils.MAX_LAT),
+            this::toGeoHexRectangle,
             GeoHexGridAggregationBuilder::new,
             (s1, s2) -> new GeoGridQueryBuilder(s1).setGridId(GeoGridQueryBuilder.Grid.GEOHEX, s2),
             randomGeometriesSupplier
         );
+    }
+
+    private Rectangle toGeoHexRectangle(String bucketKey) {
+        final long h3 = H3.stringToH3(bucketKey);
+        final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
+        double minLat = Double.POSITIVE_INFINITY;
+        double minLon = Double.POSITIVE_INFINITY;
+        double maxLat = Double.NEGATIVE_INFINITY;
+        double maxLon = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < boundary.numPoints(); i++) {
+            final double boundaryLat = boundary.getLatLon(i).getLatDeg();
+            final double boundaryLon = boundary.getLatLon(i).getLonDeg();
+            minLon = Math.min(minLon, boundaryLon);
+            maxLon = Math.max(maxLon, boundaryLon);
+            minLat = Math.min(minLat, boundaryLat);
+            maxLat = Math.max(maxLat, boundaryLat);
+        }
+        final int resolution = H3.getResolution(h3);
+        if (H3.geoToH3(90, 0, resolution) == h3) {
+            // north pole
+            return new Rectangle(-180d, 180d, 90, minLat);
+        } else if (H3.geoToH3(-90, 0, resolution) == h3) {
+            // south pole
+            return new Rectangle(-180d, 180d, maxLat, -90);
+        } else if (maxLon - minLon > 180d) {
+            // crosses dateline
+            return new Rectangle(maxLon, minLon, maxLat, minLat);
+        } else {
+            return new Rectangle(minLon, maxLon, maxLat, minLat);
+        }
     }
 
     private void doTestGrid(

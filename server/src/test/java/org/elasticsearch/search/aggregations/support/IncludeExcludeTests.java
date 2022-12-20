@@ -57,8 +57,10 @@ public class IncludeExcludeTests extends ESTestCase {
                     new TreeSet<>(Set.of(newBytesRef("include"))),
                     new TreeSet<>(Set.of(newBytesRef("exclude")))
                 );
-            default:
+            case 7:
                 return new IncludeExclude(null, null, null, new TreeSet<>(Set.of(newBytesRef("exclude"))));
+            default:
+                throw new IllegalArgumentException("got unexpected parameter, expected 0 <= x <= 7");
         }
     }
 

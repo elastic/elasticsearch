@@ -83,7 +83,8 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                         IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
                         if (dlsFlsUsage.hasDocumentLevelSecurity() && false == DOCUMENT_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
                             incompatibleLicense = true;
-                        } else if (dlsFlsUsage.hasFieldLevelSecurity() && false == FIELD_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
+                        }
+                        if (dlsFlsUsage.hasFieldLevelSecurity() && false == FIELD_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
                             incompatibleLicense = true;
                         }
 

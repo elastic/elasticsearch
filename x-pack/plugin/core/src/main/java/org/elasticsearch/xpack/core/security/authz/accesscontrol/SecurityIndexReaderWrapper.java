@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
 /**
  * An IndexReader wrapper implementation that is used for field and document level security.
@@ -90,10 +91,16 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             DirectoryReader wrappedReader = reader;
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
             if (documentPermissions.hasDocumentLevelPermissions()) {
+                DOCUMENT_LEVEL_SECURITY_FEATURE.check(licenseState); // Just for tracking the DLS feature usage.
                 BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, searchExecutionContextProvider);
                 if (filterQuery != null) {
                     wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));
                 }
+            }
+
+            // Check if FLS feature is actually used and track it.
+            if (permissions.getFieldPermissions().hasFieldLevelSecurity()) {
+                FIELD_LEVEL_SECURITY_FEATURE.check(licenseState);
             }
 
             return permissions.getFieldPermissions().filter(wrappedReader);

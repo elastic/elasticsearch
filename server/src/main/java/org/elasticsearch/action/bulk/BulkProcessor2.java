@@ -388,20 +388,20 @@ public class BulkProcessor2 implements Closeable {
             retry.withBackoff(consumer, bulkRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkResponse response) {
-                    listener.afterBulk(executionId, bulkRequest, response);
                     totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
+                    listener.afterBulk(executionId, bulkRequest, response);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.afterBulk(executionId, bulkRequest, e);
                     totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
+                    listener.afterBulk(executionId, bulkRequest, e);
                 }
             });
         } catch (Exception e) {
             logger.warn(() -> "Failed to execute bulk request " + executionId + ".", e);
-            listener.afterBulk(executionId, bulkRequest, e);
             totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
+            listener.afterBulk(executionId, bulkRequest, e);
         }
     }
 

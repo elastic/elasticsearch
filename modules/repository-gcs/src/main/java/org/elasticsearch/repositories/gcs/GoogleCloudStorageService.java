@@ -177,7 +177,7 @@ public class GoogleCloudStorageService {
         final HttpTransportOptions httpTransportOptions
     ) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
-            .setStorageRetryStrategy(StorageRetryStrategy.getUniformStorageRetryStrategy())
+            .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
             .setTransportOptions(httpTransportOptions)
             .setHeaderProvider(() -> {
                 return Strings.hasLength(gcsClientSettings.getApplicationName())

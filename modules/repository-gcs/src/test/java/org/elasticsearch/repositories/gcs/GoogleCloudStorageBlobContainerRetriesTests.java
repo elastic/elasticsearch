@@ -141,7 +141,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     retrySettingsBuilder.setMaxAttempts(maxRetries + 1);
                 }
                 return options.toBuilder()
-                    .setStorageRetryStrategy(StorageRetryStrategy.getUniformStorageRetryStrategy())
+                    .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
                     .setHost(options.getHost())
                     .setCredentials(options.getCredentials())
                     .setRetrySettings(retrySettingsBuilder.build())

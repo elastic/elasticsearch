@@ -19,8 +19,7 @@ if (BuildParams.getIsRuntimeJavaHomeSet()) {
   configure(allprojects) {
     project.tasks.withType(Test).configureEach { Test test ->
       if (BuildParams.getIsRuntimeJavaHomeSet()) {
-        test.executable = "${BuildParams.runtimeJavaHome}/bin/java" +
-                (OS.current() == OS.WINDOWS ? '.exe' : '')
+        test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
       }
     }
   }
@@ -37,8 +36,7 @@ if (BuildParams.getIsRuntimeJavaHomeSet()) {
 configure(allprojects) {
     project.tasks.withType(Test).configureEach { Test test ->
       test.dependsOn(rootProject.jdks.provisioned_runtime)
-      test.executable = "${BuildParams.runtimeJavaHome}/bin/java" +
-              (OS.current() == OS.WINDOWS ? '.exe' : '')
+      test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
     }
   }
 }

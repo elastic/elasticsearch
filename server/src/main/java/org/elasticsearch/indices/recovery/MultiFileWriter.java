@@ -83,7 +83,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
     }
 
-    public void writeFile(StoreFileMetadata fileMetadata, long readSnapshotFileBufferSize, InputStream stream) throws Exception {
+    public void writeFile(StoreFileMetadata fileMetadata, long readSnapshotFileBufferSize, InputStream stream) throws IOException {
         ensureOpen.run();
         assert Transports.assertNotTransportThread("multi_file_writer");
 

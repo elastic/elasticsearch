@@ -402,6 +402,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             // TODO Rate limit or some type of throttling?
             // TODO Are there situations where we need to abort an upload?
 
+            Result result = null;
             try (IndexInput input = directory.openChecksumInput(name, IOContext.READONCE)) {
                 final long length = input.length();
                 var before = threadPool.relativeTimeInMillis();
@@ -417,10 +418,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         TimeValue.timeValueNanos(after - before).millis()
                     )
                 );
-                listener.onResponse(new Result(name, length, after - before));
+                result = new Result(name, length, after - before);
             } catch (IOException e) {
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 listener.onFailure(e);
+            } finally {
+                if (result != null) {
+                    listener.onResponse(result);
+                }
             }
         }
 

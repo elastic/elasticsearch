@@ -616,7 +616,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     IpFieldScript.LeafFactory leafFactory = factory.newFactory(
                         IpFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        ErrorBehaviour.FAIL
                     );
                     IpFieldScript ipFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<String> ips = new ArrayList<>();

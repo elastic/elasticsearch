@@ -316,7 +316,7 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(dateFieldScript);
         } else if (context.instanceClazz.equals(IpFieldScript.class)) {
-            IpFieldScript.Factory ipFieldScript = (f, p, s) -> ctx -> new IpFieldScript(f, p, s, ctx) {
+            IpFieldScript.Factory ipFieldScript = (f, p, s, errorBehaviour) -> ctx -> new IpFieldScript(f, p, s, ErrorBehaviour.FAIL, ctx) {
                 @Override
                 public void execute() {
                     emit("127.0.0.1");

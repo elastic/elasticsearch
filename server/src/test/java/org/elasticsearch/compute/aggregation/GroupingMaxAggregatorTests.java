@@ -8,28 +8,21 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.BreakerTestCase;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.Page;
+
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GroupingMaxAggregatorTests extends BreakerTestCase {
+public class GroupingMaxAggregatorTests extends GroupingAggregatorTestCase {
     @Override
-    protected void assertSimple(BigArrays bigArrays) {
-        Block maxs;
-        try (GroupingMaxAggregator agg = GroupingMaxAggregator.create(bigArrays.withCircuitBreaking(), 0)) {
-            int[] groups = new int[] { 0, 1, 2, 1, 2, 3 };
-            double[] values = new double[] { 1, 2, 3, 4, 5, 6 };
-            agg.addRawInput(new IntArrayBlock(groups, groups.length), new Page(new DoubleArrayBlock(values, values.length)));
-            maxs = agg.evaluateFinal();
-        }
-        assertThat(maxs.getDouble(0), equalTo(1.0));
-        assertThat(maxs.getDouble(1), equalTo(4.0));
-        assertThat(maxs.getDouble(2), equalTo(5.0));
-        assertThat(maxs.getDouble(3), equalTo(6.0));
+    protected GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggregatorFunction() {
+        return GroupingAggregatorFunction.max;
+    }
+
+    @Override
+    public void assertSimpleBucket(Block result, int end, int bucket) {
+        double expected = LongStream.range(0, end).filter(l -> l % 5 == bucket).max().getAsLong();
+        assertThat(result.getDouble(bucket), equalTo(expected));
     }
 }

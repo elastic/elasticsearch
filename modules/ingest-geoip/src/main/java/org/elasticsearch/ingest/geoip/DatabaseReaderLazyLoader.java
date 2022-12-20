@@ -19,7 +19,6 @@ import com.maxmind.geoip2.model.CountryResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Booleans;
@@ -34,8 +33,6 @@ import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -187,14 +184,13 @@ class DatabaseReaderLazyLoader implements Closeable {
         InetAddress ipAddress,
         CheckedBiFunction<DatabaseReader, InetAddress, Optional<T>, Exception> responseProvider
     ) {
-        SpecialPermission.check();
-        return AccessController.doPrivileged((PrivilegedAction<T>) () -> cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
+        return cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress).orElse(null);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }));
+        });
     }
 
     DatabaseReader get() throws IOException {

@@ -30,6 +30,7 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusListener;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.logging.log4j.util.Unbox;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.logging.internal.LoggerFactoryImpl;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +42,7 @@ import org.elasticsearch.node.Node;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.lang.invoke.MethodHandles;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
@@ -122,6 +124,7 @@ public class LogConfigurator {
         }
         configureESLogging();
         configure(environment.settings(), environment.configFile(), environment.logsFile(), useConsole);
+        initializeStatics();
     }
 
     public static void configureESLogging() {
@@ -142,6 +145,17 @@ public class LogConfigurator {
      */
     public static void setNodeName(String nodeName) {
         NodeNamePatternConverter.setNodeName(nodeName);
+    }
+
+    // Some classes within log4j have static initializers that require security manager permissions.
+    // Here we aggressively initialize those classes during logging configuration so that
+    // actual logging calls at runtime do not trigger that initialization.
+    private static void initializeStatics() {
+        try {
+            MethodHandles.publicLookup().ensureInitialized(Unbox.class);
+        } catch (IllegalAccessException impossible) {
+            throw new AssertionError(impossible);
+        }
     }
 
     private static void checkErrorListener() {

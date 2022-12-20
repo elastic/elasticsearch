@@ -692,12 +692,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     () -> onCompletion.accept(originalThread, null)
                 );
 
-                int i = 0;
+                int requestSlot = 0;
                 for (DocWriteRequest<?> actionRequest : actionRequests) {
                     IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
                     if (indexRequest == null) {
                         onFinished.onResponse(null);
-                        i++;
+                        requestSlot++;
                         continue;
                     }
 
@@ -717,13 +717,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         pipelines = List.of(finalPipelineId);
                     } else {
                         onFinished.onResponse(null);
-                        i++;
+                        requestSlot++;
                         continue;
                     }
 
-                    executePipelines(i, pipelines.iterator(), hasFinalPipeline, indexRequest, onDropped, onFailure, onFinished);
+                    executePipelines(requestSlot, pipelines.iterator(), hasFinalPipeline, indexRequest, onDropped, onFailure, onFinished);
 
-                    i++;
+                    requestSlot++;
                 }
             }
         });
@@ -798,6 +798,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (newIt.hasNext()) {
                     executePipelines(slot, newIt, newHasFinalPipeline, indexRequest, onDropped, onFailure, onFinished);
                 } else {
+                    validateIndexRequestPostProcessing(slot, indexRequest, onFailure);
                     onFinished.onResponse(null);
                 }
             });
@@ -860,6 +861,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             sb.append(tag);
         }
         return sb.toString();
+    }
+
+    private void validateIndexRequestPostProcessing(int requestSlot, IndexRequest indexRequest, BiConsumer<Integer, Exception> onFailure) {
+        var validation = indexRequest.validate();
+
+        if (validation != null && validation.validationErrors().isEmpty() == false) {
+            onFailure.accept(requestSlot, validation);
+        }
     }
 
     private void innerExecute(

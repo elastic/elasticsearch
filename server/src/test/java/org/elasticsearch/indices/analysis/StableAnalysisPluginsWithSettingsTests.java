@@ -20,7 +20,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.indices.analysis.lucene.AppendTokenFilter;
 import org.elasticsearch.indices.analysis.lucene.ReplaceCharToNumber;
-import org.elasticsearch.indices.analysis.lucene.SkipTokenFilter;
+import org.elasticsearch.indices.analysis.lucene.SkipAsciiDigits;
 import org.elasticsearch.indices.analysis.lucene.TestTokenizer;
 import org.elasticsearch.plugin.analysis.api.AnalysisMode;
 import org.elasticsearch.plugin.api.Inject;
@@ -219,7 +219,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
             protected TokenStreamComponents createComponents(String fieldName) {
                 var tokenizer = new TestTokenizer(settings.tokenizerListOfChars());
                 long tokenFilterNumber = settings.analyzerUseTokenListOfChars() ? settings.tokenFilterNumber() : -1;
-                var tokenFilter = new SkipTokenFilter(tokenizer, tokenFilterNumber);
+                var tokenFilter = new SkipAsciiDigits(tokenizer, tokenFilterNumber);
                 return new TokenStreamComponents(
                     r -> tokenizer.setReader(new ReplaceCharToNumber(r, settings.oldChar(), settings.newNumber())),
                     tokenFilter
@@ -263,7 +263,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
         @Override
         public TokenStream create(TokenStream tokenStream) {
-            return new SkipTokenFilter(tokenStream, tokenFilterNumber);
+            return new SkipAsciiDigits(tokenStream, tokenFilterNumber);
         }
 
         @Override

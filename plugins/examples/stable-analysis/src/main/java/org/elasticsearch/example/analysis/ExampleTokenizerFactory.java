@@ -9,15 +9,14 @@
 package org.elasticsearch.example.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.elasticsearch.example.analysis.lucene.CharTokenizer;
-import org.elasticsearch.plugin.analysis.api.TokenizerFactory;
-import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.example.analysis.lucene.SkippingCharFilter;
 import org.elasticsearch.plugin.api.Inject;
+import org.elasticsearch.plugin.api.NamedComponent;
 
 import java.util.List;
 
 @NamedComponent("example_tokenizer_factory")
-public class ExampleTokenizerFactory implements TokenizerFactory {
+public class ExampleTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
     private final List<String> tokenizerListOfChars;
 
     @Inject
@@ -27,7 +26,7 @@ public class ExampleTokenizerFactory implements TokenizerFactory {
 
     @Override
     public Tokenizer create() {
-        return new CharTokenizer(tokenizerListOfChars);
+        return new SkippingCharFilter(tokenizerListOfChars);
     }
 }
 

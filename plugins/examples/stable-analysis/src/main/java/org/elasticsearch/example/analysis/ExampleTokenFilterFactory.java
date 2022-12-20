@@ -10,7 +10,7 @@ package org.elasticsearch.example.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.example.analysis.lucene.AppendTokenFilter;
-import org.elasticsearch.example.analysis.lucene.SkipTokenFilter;
+import org.elasticsearch.example.analysis.lucene.SkipStartingWithDigitTokenFilter;
 import org.elasticsearch.plugin.analysis.api.AnalysisMode;
 import org.elasticsearch.plugin.api.NamedComponent;
 import org.elasticsearch.plugin.api.Inject;
@@ -26,7 +26,7 @@ public class ExampleTokenFilterFactory implements org.elasticsearch.plugin.analy
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new SkipTokenFilter(tokenStream, tokenFilterNumber);
+        return new SkipStartingWithDigitTokenFilter(tokenStream, tokenFilterNumber);
     }
 
     @Override

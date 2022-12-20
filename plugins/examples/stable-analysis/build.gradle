@@ -1,4 +1,4 @@
-  apply plugin: 'elasticsearch.stable-esplugin'
+apply plugin: 'elasticsearch.stable-esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {

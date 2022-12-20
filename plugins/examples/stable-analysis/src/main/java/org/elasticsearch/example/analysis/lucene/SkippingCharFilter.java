@@ -8,15 +8,17 @@
 
 package org.elasticsearch.example.analysis.lucene;
 
+import org.apache.lucene.analysis.util.CharTokenizer;
+
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class CharTokenizer extends org.apache.lucene.analysis.util.CharTokenizer {
+public class SkippingCharFilter extends CharTokenizer {
 
     private final Set<Integer> setOfChars;
 
-    public CharTokenizer(List<String> tokenizerListOfChars) {
+    public SkippingCharFilter(List<String> tokenizerListOfChars) {
         this.setOfChars = tokenizerListOfChars.stream().map(s -> (int) s.charAt(0)).collect(Collectors.toSet());
 
     }

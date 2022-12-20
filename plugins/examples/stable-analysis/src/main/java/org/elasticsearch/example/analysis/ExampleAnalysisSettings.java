@@ -17,20 +17,44 @@ import org.elasticsearch.plugin.api.settings.ListSetting;
 
 import java.util.List;
 
+/**
+ * This is a setings interface that will be injected into a plugins' constructors
+ * annotated with @Inject.
+ * @see ExampleAnalyzerFactory an example injection of this interface
+ */
 @AnalysisSettings
 public interface ExampleAnalysisSettings {
+    /*
+     * This method presents the use of String typed setting.
+     * see the ReplaceCharWithNumberCharFilterFactory
+     */
     @StringSetting(path = "old_char", defaultValue = " ")
     String oldChar();
 
+    /*
+     * This method presents the use of int typed setting.
+     * see the ReplaceCharWithNumberCharFilterFactory
+     */
     @IntSetting(path = "new_number", defaultValue = 0)
     int newNumber();
 
+    /*
+     * This method presents the use of long typed setting.
+     * see the ExampleTokenFilterFactory
+     */
     @LongSetting(path = "token_filter_number", defaultValue = 0L)
     long tokenFilterNumber();
 
+    /*
+     * This method presents the use of boolean typed setting.
+     * see the ExampleAnalyzerFactory
+     */
     @BooleanSetting(path = "analyzerUseTokenListOfChars", defaultValue = true)
     boolean analyzerUseTokenListOfChars();
-
+    /*
+     * This method presents the use of boolean typed setting.
+     * see the ExampleTokenizerFactory
+     */
     @ListSetting(path = "tokenizer_list_of_chars")
     List<String> tokenizerListOfChars();
 }

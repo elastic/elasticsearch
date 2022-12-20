@@ -9,9 +9,9 @@
 package org.elasticsearch.example.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.example.analysis.lucene.CharTokenizer;
+import org.elasticsearch.example.analysis.lucene.SkippingCharFilter;
 import org.elasticsearch.example.analysis.lucene.ReplaceCharToNumber;
-import org.elasticsearch.example.analysis.lucene.SkipTokenFilter;
+import org.elasticsearch.example.analysis.lucene.SkipStartingWithDigitTokenFilter;
 import org.elasticsearch.plugin.api.NamedComponent;
 import org.elasticsearch.plugin.api.Inject;
 
@@ -42,10 +42,10 @@ public class ExampleAnalyzerFactory implements org.elasticsearch.plugin.analysis
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
             var tokenizerListOfChars = settings.tokenizerListOfChars().isEmpty() ? List.of("_") : settings.tokenizerListOfChars();
-            var tokenizer = new CharTokenizer(tokenizerListOfChars);
+            var tokenizer = new SkippingCharFilter(tokenizerListOfChars);
 
             long tokenFilterNumber = settings.analyzerUseTokenListOfChars() ? settings.tokenFilterNumber() : -1;
-            var tokenFilter = new SkipTokenFilter(tokenizer, tokenFilterNumber);
+            var tokenFilter = new SkipStartingWithDigitTokenFilter(tokenizer, tokenFilterNumber);
             return new TokenStreamComponents(
                 r -> tokenizer.setReader(new ReplaceCharToNumber(r, settings.oldChar(), settings.newNumber())),
                 tokenFilter

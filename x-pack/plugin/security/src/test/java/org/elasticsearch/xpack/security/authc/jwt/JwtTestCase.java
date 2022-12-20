@@ -503,11 +503,6 @@ public abstract class JwtTestCase extends ESTestCase {
         return new SecureString(signedJwt.serialize().toCharArray());
     }
 
-    // Convenience method to construct JWSVerifier from JWK, and verify the signed JWT
-    public static boolean verifyJwt(final JWK jwk, final SignedJWT signedJwt) throws Exception {
-        return signedJwt.verify(JwtValidateUtil.createJwsVerifier(jwk));
-    }
-
     public static JWSSigner createJwsSigner(final JWK jwk) throws JOSEException {
         if (jwk instanceof RSAKey rsaKey) {
             return new RSASSASigner(rsaKey);

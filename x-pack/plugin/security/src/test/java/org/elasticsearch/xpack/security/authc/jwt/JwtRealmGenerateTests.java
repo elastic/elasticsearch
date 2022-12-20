@@ -41,9 +41,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-
 /**
  * Generate verified JWT configurations for integration tests or documentation.
  */
@@ -144,7 +141,6 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             Collections.emptyMap() // other claims
         );
         final SecureString jwt = signJwt(algJwkPairHmac.jwk(), unsignedJwt);
-        assertThat(verifyJwt(algJwkPairHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
         super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
@@ -236,7 +232,6 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             Collections.emptyMap() // other claims
         );
         final SecureString jwt = signJwt(algJwkPairPkc.jwk(), unsignedJwt);
-        assertThat(verifyJwt(algJwkPairPkc.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
         super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, null, JWT_AUTHC_REPEATS_1);
@@ -342,7 +337,6 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             Collections.emptyMap() // other claims
         );
         final SecureString jwt = signJwt(algJwkPairHmac.jwk(), unsignedJwt);
-        assertThat(verifyJwt(algJwkPairHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
         super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
@@ -439,7 +433,6 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             Collections.emptyMap() // other claims
         );
         final SecureString jwt = signJwt(selectedHmac.jwk(), unsignedJwt);
-        assertThat(verifyJwt(selectedHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
         super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);

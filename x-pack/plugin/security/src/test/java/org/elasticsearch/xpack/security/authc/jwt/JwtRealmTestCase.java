@@ -617,7 +617,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             randomBoolean() ? null : Map.of("other1", randomAlphaOfLength(10), "other2", randomAlphaOfLength(10))
         );
         final SecureString signedJWT = signJwt(jwk, unsignedJwt);
-        assertThat(verifyJwt(jwk, SignedJWT.parse(signedJWT.toString())), is(equalTo(true)));
         return signedJWT;
     }
 

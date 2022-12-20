@@ -16,6 +16,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -23,18 +25,22 @@ public class JwtValidateUtilTests extends JwtTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtValidateUtilTests.class);
 
-    private boolean helpTestSignatureAlgorithm(final String signatureAlgorithm, final boolean requireOidcSafe) throws Exception {
+    private void helpTestSignatureAlgorithm(final String signatureAlgorithm, final boolean requireOidcSafe) throws Exception {
         LOGGER.trace("Testing signature algorithm " + signatureAlgorithm);
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, requireOidcSafe);
         final SecureString serializedJWTOriginal = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm);
         final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal.toString());
-        return verifyJwt(jwk, parsedSignedJWT);
+        JwtValidateUtil.validateSignature(parsedSignedJWT, List.of(jwk));
     }
 
     public void testJwtSignVerifyPassedForAllSupportedAlgorithms() throws Exception {
         // Pass: "ES256", "ES384", "ES512", RS256", "RS384", "RS512", "PS256", "PS384", "PS512, "HS256", "HS384", "HS512"
         for (final String signatureAlgorithm : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS) {
-            assertThat(this.helpTestSignatureAlgorithm(signatureAlgorithm, false), is(true));
+            try {
+                helpTestSignatureAlgorithm(signatureAlgorithm, false);
+            } catch (Exception e) {
+                fail("signature validation with algorithm [" + signatureAlgorithm + "] should have succeeded");
+            }
         }
         // Fail: "ES256K"
         final Exception exp1 = expectThrows(

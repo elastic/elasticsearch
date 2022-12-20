@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalPlanExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -81,7 +82,7 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
                 "Local Plan",
                 Limiter.ONCE,
                 new MarkLocalPlan(),
-                new LocalToGlobalLimit(),
+                new LocalToGlobalLimitAndTopNExec(),
                 new InsertFieldExtraction(),
                 new LocalOptimizations(),
                 new RemoveLocalPlanMarker()
@@ -124,20 +125,22 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
     }
 
     /**
-     * Copy any limit in the local plan (before the exchange) after it so after gathering the data,
+     * Copy any limit/sort/topN in the local plan (before the exchange) after it so after gathering the data,
      * the limit still applies.
      */
-    private static class LocalToGlobalLimit extends Rule<PhysicalPlan, PhysicalPlan> {
+    private static class LocalToGlobalLimitAndTopNExec extends Rule<PhysicalPlan, PhysicalPlan> {
 
         public PhysicalPlan apply(PhysicalPlan plan) {
-            PhysicalPlan pl = plan;
-            if (plan instanceof UnaryExec unary && unary.child()instanceof ExchangeExec exchange) {
-                var localLimit = findLocalLimit(exchange);
-                if (localLimit != null) {
-                    pl = new LimitExec(localLimit.source(), plan, localLimit.limit());
+            return plan.transformUp(UnaryExec.class, u -> {
+                PhysicalPlan pl = u;
+                if (u.child()instanceof ExchangeExec exchange) {
+                    var localLimit = findLocalLimitOrTopN(exchange);
+                    if (localLimit != null) {
+                        pl = localLimit.replaceChild(u);
+                    }
                 }
-            }
-            return pl;
+                return pl;
+            });
         }
 
         @Override
@@ -145,10 +148,10 @@ public class PhysicalPlanOptimizer extends RuleExecutor<PhysicalPlan> {
             return plan;
         }
 
-        private LimitExec findLocalLimit(UnaryExec localPlan) {
+        private UnaryExec findLocalLimitOrTopN(UnaryExec localPlan) {
             for (var plan = localPlan.child();;) {
-                if (plan instanceof LimitExec localLimit) {
-                    return localLimit;
+                if (plan instanceof LimitExec || plan instanceof TopNExec) {
+                    return (UnaryExec) plan;
                 }
                 // possible to go deeper
                 if (plan instanceof ProjectExec || plan instanceof EvalExec) {

@@ -84,8 +84,7 @@ public class Mapper {
         // typically this would be done in the optimizer however this complicates matching a bit due to limit being in two nodes
         // since it's a simple match, handle this case directly in the mapper
         if (child instanceof OrderExec order) {
-            var partial = new TopNExec(limit.source(), order.child(), order.order(), limit.limit(), TopNExec.Mode.PARTIAL);
-            return new TopNExec(limit.source(), partial, order.order(), limit.limit(), TopNExec.Mode.FINAL);
+            return new TopNExec(limit.source(), order.child(), order.order(), limit.limit());
         }
 
         return new LimitExec(limit.source(), child, limit.limit());

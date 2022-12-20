@@ -445,7 +445,7 @@ public class LocalExecutionPlanner {
         }).toList();
 
         int limit;
-        if (topNExec.getLimit()instanceof Literal literal) {
+        if (topNExec.limit()instanceof Literal literal) {
             limit = Integer.parseInt(literal.value().toString());
         } else {
             throw new UnsupportedOperationException();

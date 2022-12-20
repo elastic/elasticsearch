@@ -576,9 +576,8 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(actualDocs, equalTo(allDocs.stream().limit(limit).toList()));
     }
 
-    // @AwaitsFix(bugUrl = "#322")
     public void testEvalWithNull() {
-        EsqlQueryResponse results = run("from test | project * | eval nullsum = count_d + null | sort nullsum | limit 1");
+        EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | sort nullsum | limit 1");
         logger.info(results);
         Assert.assertEquals(7, results.columns().size());
         Assert.assertEquals(1, results.values().size());

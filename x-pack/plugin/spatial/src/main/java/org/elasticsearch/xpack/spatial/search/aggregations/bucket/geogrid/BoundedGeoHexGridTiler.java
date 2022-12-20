@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
@@ -38,15 +39,13 @@ public class BoundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
         final double minY = Math.max(bbox.bottom() - FACTOR * height, -90d);
         final double maxY = Math.min(bbox.top() + FACTOR * height, 90d);
         final double width = Math.abs(bbox.right() - bbox.left());
-        final double minX = bbox.left() - FACTOR * width;
-        final double maxX = bbox.right() + FACTOR * width;
-        // TODO: I think we can do much better when the inflated bounding box goes across the dateline
-        if (precision <= 2) {
-            inflatedBbox = new GeoBoundingBox(new GeoPoint(90d, -180d), new GeoPoint(-90d, 180d));
-        } else if (bbox.right() < bbox.left() || (minX < -180d || maxX > 180d)) {
+        final double leftX = GeoUtils.normalizeLon(bbox.left() - FACTOR * width);
+        final double rightX = GeoUtils.normalizeLon(bbox.right() + FACTOR * width);
+        if (bbox.left() > bbox.right() != leftX > rightX) {
+            // if one crosses the dateline and the other not, then it covers all longitude range.
             inflatedBbox = new GeoBoundingBox(new GeoPoint(maxY, -180d), new GeoPoint(minY, 180d));
         } else {
-            inflatedBbox = new GeoBoundingBox(new GeoPoint(maxY, minX), new GeoPoint(minY, maxX));
+            inflatedBbox = new GeoBoundingBox(new GeoPoint(maxY, leftX), new GeoPoint(minY, rightX));
         }
     }
 

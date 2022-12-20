@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunctio
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -123,324 +124,206 @@ public class LocalExecutionPlanner {
     );
 
     private final BigArrays bigArrays;
-    public final int taskConcurrency;
+    private final int taskConcurrency;
     private final int bufferMaxPages;
     private final DataPartitioning dataPartitioning;
     private final List<SearchContext> searchContexts;
 
-    public LocalExecutionPlanner(BigArrays bigArrays, EsqlConfiguration configuration, List<SearchContext> searchContexts) {
+    public LocalExecutionPlanner(BigArrays bigArrays, EsqlConfiguration configuration, List<SearchContext> contexts) {
         this.bigArrays = bigArrays;
         taskConcurrency = TASK_CONCURRENCY.get(configuration.pragmas());
         bufferMaxPages = BUFFER_MAX_PAGES.get(configuration.pragmas());
         dataPartitioning = DATA_PARTITIONING.get(configuration.pragmas());
-        this.searchContexts = searchContexts;
+        searchContexts = contexts;
     }
 
     /**
      * turn the given plan into a list of drivers to execute
      */
     public LocalExecutionPlan plan(PhysicalPlan node) {
-        LocalExecutionPlanContext context = new LocalExecutionPlanContext();
+
+        var context = new LocalExecutionPlannerContext(
+            new ArrayList<>(),
+            searchContexts,
+            new Holder<>(DriverParallelism.SINGLE),
+            taskConcurrency,
+            bufferMaxPages,
+            dataPartitioning,
+            bigArrays
+        );
 
         PhysicalOperation physicalOperation = plan(node, context);
 
-        context.addDriverFactory(new DriverFactory(new DriverSupplier(bigArrays, physicalOperation), context.driverParallelism()));
+        context.addDriverFactory(
+            new DriverFactory(new DriverSupplier(context.bigArrays, physicalOperation), context.driverParallelism().get())
+        );
 
-        LocalExecutionPlan localExecutionPlan = new LocalExecutionPlan();
-        localExecutionPlan.driverFactories.addAll(context.driverFactories);
-        return localExecutionPlan;
+        return new LocalExecutionPlan(context.driverFactories);
     }
 
-    public PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlanContext context) {
+    public PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
         if (node instanceof AggregateExec aggregate) {
-            PhysicalOperation source = plan(aggregate.child(), context);
-            Layout.Builder layout = new Layout.Builder();
-            OperatorFactory operatorFactory = null;
-
-            if (aggregate.groupings().isEmpty()) {
-                // not grouping
-                for (NamedExpression e : aggregate.aggregates()) {
-                    if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                        var provider = AggregateMapper.map(aggregateFunction);
-
-                        if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
-                            operatorFactory = new AggregationOperatorFactory(
-                                List.of(
-                                    new AggregatorFactory(
-                                        provider,
-                                        AggregatorMode.INITIAL,
-                                        source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
-                                    )
-                                ),
-                                AggregatorMode.INITIAL
-                            );
-                            layout.appendChannel(alias.id());
-                        } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
-                            operatorFactory = new AggregationOperatorFactory(
-                                List.of(new AggregatorFactory(provider, AggregatorMode.FINAL, source.layout.getChannel(alias.id()))),
-                                AggregatorMode.FINAL
-                            );
-                            layout.appendChannel(alias.id());
-                        } else {
-                            throw new UnsupportedOperationException();
-                        }
-                    } else {
-                        throw new UnsupportedOperationException();
-                    }
-                }
-            } else {
-                // grouping
-                AttributeSet groups = Expressions.references(aggregate.groupings());
-                if (groups.size() != 1) {
-                    throw new UnsupportedOperationException("just one group, for now");
-                }
-                Attribute grpAttrib = groups.iterator().next();
-                layout.appendChannel(grpAttrib.id());
-
-                for (NamedExpression e : aggregate.aggregates()) {
-                    if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                        GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggregatorFunc;
-                        if (aggregateFunction instanceof Avg) {
-                            aggregatorFunc = GroupingAggregatorFunction.avg;
-                        } else if (aggregateFunction instanceof Count) {
-                            aggregatorFunc = GroupingAggregatorFunction.count;
-                        } else {
-                            throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
-                        }
-                        final Supplier<BlockHash> blockHash;
-                        if (grpAttrib.dataType() == DataTypes.KEYWORD) {
-                            blockHash = () -> BlockHash.newBytesRefHash(bigArrays);
-                        } else {
-                            blockHash = () -> BlockHash.newLongHash(bigArrays);
-                        }
-                        if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
-                            List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories = List.of(
-                                new GroupingAggregator.GroupingAggregatorFactory(
-                                    bigArrays,
-                                    aggregatorFunc,
-                                    AggregatorMode.INITIAL,
-                                    source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
-                                )
-                            );
-                            final Integer inputChannel = source.layout.getChannel(grpAttrib.id());
-                            // The grouping-by values are ready, let's group on them directly.
-                            if (inputChannel != null) {
-                                operatorFactory = new HashAggregationOperatorFactory(
-                                    inputChannel,
-                                    aggregatorFactories,
-                                    blockHash,
-                                    AggregatorMode.FINAL
-                                );
-                            } else {
-                                var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregate.child());
-                                operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-                                    grpAttrib.name(),
-                                    source.layout.getChannel(sourceAttributes.get(2).id()),
-                                    source.layout.getChannel(sourceAttributes.get(1).id()),
-                                    source.layout.getChannel(sourceAttributes.get(0).id()),
-                                    searchContexts,
-                                    aggregatorFactories,
-                                    BigArrays.NON_RECYCLING_INSTANCE
-                                );
-                            }
-                            layout.appendChannel(alias.id());  // <<<< TODO: this one looks suspicious
-                        } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
-                            operatorFactory = new HashAggregationOperatorFactory(
-                                source.layout.getChannel(grpAttrib.id()),
-                                List.of(
-                                    new GroupingAggregator.GroupingAggregatorFactory(
-                                        bigArrays,
-                                        aggregatorFunc,
-                                        AggregatorMode.FINAL,
-                                        source.layout.getChannel(alias.id())
-                                    )
-                                ),
-                                blockHash,
-                                AggregatorMode.FINAL
-                            );
-                            layout.appendChannel(alias.id());
-                        } else {
-                            throw new UnsupportedOperationException();
-                        }
-                    } else if (aggregate.groupings().contains(e) == false) {
-                        var u = e instanceof Alias ? ((Alias) e).child() : e;
-                        throw new UnsupportedOperationException(
-                            "expected an aggregate function, but got [" + u + "] of type [" + u.nodeName() + "]"
-                        );
-                    }
-                }
-
-            }
-            if (operatorFactory != null) {
-                return source.with(operatorFactory, layout.build());
-            }
-            throw new UnsupportedOperationException();
+            return planAggregation(aggregate, context);
         } else if (node instanceof EsQueryExec esQuery) {
             return planEsQueryNode(esQuery, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(context, fieldExtractExec);
         } else if (node instanceof OutputExec outputExec) {
-            PhysicalOperation source = plan(outputExec.child(), context);
-            var output = outputExec.output();
-            if (output.size() != source.layout.numberOfIds()) {
-                throw new IllegalStateException(
-                    "expected layout:"
-                        + output
-                        + ": "
-                        + output.stream().map(NamedExpression::id).toList()
-                        + ", source.layout:"
-                        + source.layout
-                );
-            }
-            // align the page layout with the operator output
-            // extraction order - the list ordinal is the same as the column one
-            // while the value represents the position in the original page
-            final int[] mappedPosition = new int[output.size()];
-            int index = -1;
-            boolean transformRequired = false;
-            for (var attribute : output) {
-                mappedPosition[++index] = source.layout.getChannel(attribute.id());
-                if (transformRequired == false) {
-                    transformRequired = mappedPosition[index] != index;
-                }
-            }
-            Function<Page, Page> mapper = transformRequired ? p -> {
-                var blocks = new Block[mappedPosition.length];
-                for (int i = 0; i < blocks.length; i++) {
-                    blocks[i] = p.getBlock(mappedPosition[i]);
-                }
-                return new Page(blocks);
-            } : Function.identity();
-
-            return source.withSink(
-                new OutputOperatorFactory(Expressions.names(outputExec.output()), mapper, outputExec.getPageConsumer()),
-                source.layout
-            );
+            return planOutput(outputExec, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
-            DriverParallelism parallelism = exchangeExec.getType() == ExchangeExec.Type.GATHER
-                ? DriverParallelism.SINGLE
-                : new DriverParallelism(DriverParallelism.Type.TASK_LEVEL_PARALLELISM, taskConcurrency);
-            context.driverParallelism(parallelism);
-            Exchange ex = new Exchange(parallelism.instanceCount(), exchangeExec.getPartitioning().toExchange(), bufferMaxPages);
-
-            LocalExecutionPlanContext subContext = context.createSubContext();
-            PhysicalOperation source = plan(exchangeExec.child(), subContext);
-            Layout layout = source.layout;
-            PhysicalOperation sink = source.withSink(new ExchangeSinkOperatorFactory(ex), source.layout);
-            context.addDriverFactory(new DriverFactory(new DriverSupplier(bigArrays, sink), subContext.driverParallelism()));
-            return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(ex), layout);
+            return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
-            PhysicalOperation source = plan(topNExec.child(), context);
-
-            List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
-                int sortByChannel;
-                if (order.child()instanceof Attribute a) {
-                    sortByChannel = source.layout.getChannel(a.id());
-                } else {
-                    throw new UnsupportedOperationException();
-                }
-
-                return new TopNOperator.SortOrder(
-                    sortByChannel,
-                    order.direction().equals(Order.OrderDirection.ASC),
-                    order.nullsPosition().equals(Order.NullsPosition.FIRST)
-                );
-            }).toList();
-
-            int limit;
-            if (topNExec.getLimit()instanceof Literal literal) {
-                limit = Integer.parseInt(literal.value().toString());
-            } else {
-                throw new UnsupportedOperationException();
-            }
-
-            return source.with(new TopNOperatorFactory(limit, orders), source.layout);
+            return planTopN(topNExec, context);
         } else if (node instanceof EvalExec eval) {
-            PhysicalOperation source = plan(eval.child(), context);
-            if (eval.fields().size() != 1) {
-                throw new UnsupportedOperationException();
-            }
-            NamedExpression namedExpression = eval.fields().get(0);
-            ExpressionEvaluator evaluator;
-            if (namedExpression instanceof Alias alias) {
-                evaluator = toEvaluator(alias.child(), source.layout);
-            } else {
-                throw new UnsupportedOperationException();
-            }
-            Layout.Builder layout = source.layout.builder();
-            layout.appendChannel(namedExpression.toAttribute().id());
-            return source.with(
-                new EvalOperatorFactory(evaluator, namedExpression.dataType().isRational() ? Double.TYPE : Long.TYPE),
-                layout.build()
-            );
+            return planEval(eval, context);
         } else if (node instanceof RowExec row) {
-            List<Object> obj = row.fields().stream().map(f -> {
-                if (f instanceof Alias) {
-                    return ((Alias) f).child().fold();
-                } else {
-                    return f.fold();
-                }
-            }).toList();
-            Layout.Builder layout = new Layout.Builder();
-            var output = row.output();
-            for (int i = 0; i < output.size(); i++) {
-                layout.appendChannel(output.get(i).id());
-            }
-            return PhysicalOperation.fromSource(new RowOperatorFactory(obj), layout.build());
+            return planRow(row, context);
         } else if (node instanceof ProjectExec project) {
-            var source = plan(project.child(), context);
-
-            Map<Integer, Set<NameId>> inputChannelToOutputIds = new HashMap<>();
-            for (NamedExpression ne : project.projections()) {
-                NameId inputId;
-                if (ne instanceof Alias a) {
-                    inputId = ((NamedExpression) a.child()).id();
-                } else {
-                    inputId = ne.id();
-                }
-                int inputChannel = source.layout.getChannel(inputId);
-                inputChannelToOutputIds.computeIfAbsent(inputChannel, ignore -> new HashSet<>()).add(ne.id());
-            }
-
-            BitSet mask = new BitSet();
-            Layout.Builder layout = new Layout.Builder();
-
-            for (int inChannel = 0; inChannel < source.layout.numberOfChannels(); inChannel++) {
-                Set<NameId> outputIds = inputChannelToOutputIds.get(inChannel);
-
-                if (outputIds != null) {
-                    mask.set(inChannel);
-                    layout.appendChannel(outputIds);
-                }
-            }
-
-            if (mask.cardinality() == source.layout.numberOfChannels()) {
-                // all columns are retained, project operator is not needed but the layout needs to be updated
-                return source.with(layout.build());
-            } else {
-                return source.with(new ProjectOperatorFactory(mask), layout.build());
-            }
+            return planProject(project, context);
         } else if (node instanceof FilterExec filter) {
-            PhysicalOperation source = plan(filter.child(), context);
-            return source.with(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout);
+            return planFilter(filter, context);
         } else if (node instanceof LimitExec limit) {
-            PhysicalOperation source = plan(limit.child(), context);
-            return source.with(new LimitOperatorFactory((Integer) limit.limit().fold()), source.layout);
+            return planLimit(limit, context);
         }
         throw new UnsupportedOperationException(node.nodeName());
     }
 
-    private PhysicalOperation planEsQueryNode(EsQueryExec esQuery, LocalExecutionPlanContext context) {
+    private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(aggregate.child(), context);
+        Layout.Builder layout = new Layout.Builder();
+        OperatorFactory operatorFactory = null;
+
+        if (aggregate.groupings().isEmpty()) {
+            // not grouping
+            for (NamedExpression e : aggregate.aggregates()) {
+                if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
+                    var provider = AggregateMapper.map(aggregateFunction);
+
+                    if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
+                        operatorFactory = new AggregationOperatorFactory(
+                            List.of(
+                                new AggregatorFactory(
+                                    provider,
+                                    AggregatorMode.INITIAL,
+                                    source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
+                                )
+                            ),
+                            AggregatorMode.INITIAL
+                        );
+                        layout.appendChannel(alias.id());
+                    } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
+                        operatorFactory = new AggregationOperatorFactory(
+                            List.of(new AggregatorFactory(provider, AggregatorMode.FINAL, source.layout.getChannel(alias.id()))),
+                            AggregatorMode.FINAL
+                        );
+                        layout.appendChannel(alias.id());
+                    } else {
+                        throw new UnsupportedOperationException();
+                    }
+                } else {
+                    throw new UnsupportedOperationException();
+                }
+            }
+        } else {
+            // grouping
+            AttributeSet groups = Expressions.references(aggregate.groupings());
+            if (groups.size() != 1) {
+                throw new UnsupportedOperationException("just one group, for now");
+            }
+            Attribute grpAttrib = groups.iterator().next();
+            layout.appendChannel(grpAttrib.id());
+
+            for (NamedExpression e : aggregate.aggregates()) {
+                if (e instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
+                    GroupingAggregatorFunction.GroupingAggregatorFunctionFactory aggregatorFunc;
+                    if (aggregateFunction instanceof Avg) {
+                        aggregatorFunc = GroupingAggregatorFunction.avg;
+                    } else if (aggregateFunction instanceof Count) {
+                        aggregatorFunc = GroupingAggregatorFunction.count;
+                    } else {
+                        throw new UnsupportedOperationException("unsupported aggregate function:" + aggregateFunction);
+                    }
+                    final Supplier<BlockHash> blockHash;
+                    if (grpAttrib.dataType() == DataTypes.KEYWORD) {
+                        blockHash = () -> BlockHash.newBytesRefHash(context.bigArrays);
+                    } else {
+                        blockHash = () -> BlockHash.newLongHash(context.bigArrays);
+                    }
+                    if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
+                        List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories = List.of(
+                            new GroupingAggregator.GroupingAggregatorFactory(
+                                context.bigArrays,
+                                aggregatorFunc,
+                                AggregatorMode.INITIAL,
+                                source.layout.getChannel(Expressions.attribute(aggregateFunction.field()).id())
+                            )
+                        );
+                        final Integer inputChannel = source.layout.getChannel(grpAttrib.id());
+                        // The grouping-by values are ready, let's group on them directly.
+                        if (inputChannel != null) {
+                            operatorFactory = new HashAggregationOperatorFactory(
+                                inputChannel,
+                                aggregatorFactories,
+                                blockHash,
+                                AggregatorMode.FINAL
+                            );
+                        } else {
+                            var sourceAttributes = FieldExtractExec.extractSourceAttributesFrom(aggregate.child());
+                            operatorFactory = new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
+                                grpAttrib.name(),
+                                source.layout.getChannel(sourceAttributes.get(2).id()),
+                                source.layout.getChannel(sourceAttributes.get(1).id()),
+                                source.layout.getChannel(sourceAttributes.get(0).id()),
+                                context.searchContexts,
+                                aggregatorFactories,
+                                BigArrays.NON_RECYCLING_INSTANCE
+                            );
+                        }
+                        layout.appendChannel(alias.id());  // <<<< TODO: this one looks suspicious
+                    } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
+                        operatorFactory = new HashAggregationOperatorFactory(
+                            source.layout.getChannel(grpAttrib.id()),
+                            List.of(
+                                new GroupingAggregator.GroupingAggregatorFactory(
+                                    context.bigArrays,
+                                    aggregatorFunc,
+                                    AggregatorMode.FINAL,
+                                    source.layout.getChannel(alias.id())
+                                )
+                            ),
+                            blockHash,
+                            AggregatorMode.FINAL
+                        );
+                        layout.appendChannel(alias.id());
+                    } else {
+                        throw new UnsupportedOperationException();
+                    }
+                } else if (aggregate.groupings().contains(e) == false) {
+                    var u = e instanceof Alias ? ((Alias) e).child() : e;
+                    throw new UnsupportedOperationException(
+                        "expected an aggregate function, but got [" + u + "] of type [" + u.nodeName() + "]"
+                    );
+                }
+            }
+
+        }
+        if (operatorFactory != null) {
+            return source.with(operatorFactory, layout.build());
+        }
+        throw new UnsupportedOperationException();
+    }
+
+    private PhysicalOperation planEsQueryNode(EsQueryExec esQuery, LocalExecutionPlannerContext context) {
         Set<String> indices = Sets.newHashSet(esQuery.index().name());
-        List<SearchExecutionContext> matchedSearchContexts = this.searchContexts.stream()
+        List<SearchExecutionContext> matchedSearchContexts = context.searchContexts.stream()
             .filter(ctx -> indices.contains(ctx.indexShard().shardId().getIndexName()))
             .map(SearchContext::getSearchExecutionContext)
             .toList();
         LuceneSourceOperatorFactory operatorFactory = new LuceneSourceOperatorFactory(
             matchedSearchContexts,
             ctx -> ctx.toQuery(esQuery.query()).query(),
-            dataPartitioning,
-            taskConcurrency
+            context.dataPartitioning,
+            context.taskConcurrency
         );
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, operatorFactory.size()));
         Layout.Builder layout = new Layout.Builder();
@@ -450,7 +333,7 @@ public class LocalExecutionPlanner {
         return PhysicalOperation.fromSource(operatorFactory, layout.build());
     }
 
-    private PhysicalOperation planFieldExtractNode(LocalExecutionPlanContext context, FieldExtractExec fieldExtractExec) {
+    private PhysicalOperation planFieldExtractNode(LocalExecutionPlannerContext context, FieldExtractExec fieldExtractExec) {
         PhysicalOperation source = plan(fieldExtractExec.child(), context);
         Layout.Builder layout = source.layout.builder();
 
@@ -462,7 +345,7 @@ public class LocalExecutionPlanner {
             Layout previousLayout = op.layout;
 
             // Create ValuesSource object for the field to extract its values
-            final List<Tuple<ValuesSourceType, ValuesSource>> valuesSources = searchContexts.stream()
+            final List<Tuple<ValuesSourceType, ValuesSource>> valuesSources = context.searchContexts.stream()
                 .map(SearchContext::getSearchExecutionContext)
                 .map(ctx -> {
                     MappedFieldType fieldType = ctx.getFieldType(attr.name());
@@ -474,7 +357,7 @@ public class LocalExecutionPlanner {
                 })
                 .collect(Collectors.toList());
 
-            final List<IndexReader> indexReaders = searchContexts.stream()
+            final List<IndexReader> indexReaders = context.searchContexts.stream()
                 .map(ctx -> ctx.getSearchExecutionContext().getIndexReader())
                 .collect(Collectors.toList());
 
@@ -492,6 +375,103 @@ public class LocalExecutionPlanner {
             );
         }
         return op;
+    }
+
+    private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(outputExec.child(), context);
+        var output = outputExec.output();
+        if (output.size() != source.layout.numberOfIds()) {
+            throw new IllegalStateException(
+                "expected layout:" + output + ": " + output.stream().map(NamedExpression::id).toList() + ", source.layout:" + source.layout
+            );
+        }
+        // align the page layout with the operator output
+        // extraction order - the list ordinal is the same as the column one
+        // while the value represents the position in the original page
+        final int[] mappedPosition = new int[output.size()];
+        int index = -1;
+        boolean transformRequired = false;
+        for (var attribute : output) {
+            mappedPosition[++index] = source.layout.getChannel(attribute.id());
+            if (transformRequired == false) {
+                transformRequired = mappedPosition[index] != index;
+            }
+        }
+        Function<Page, Page> mapper = transformRequired ? p -> {
+            var blocks = new Block[mappedPosition.length];
+            for (int i = 0; i < blocks.length; i++) {
+                blocks[i] = p.getBlock(mappedPosition[i]);
+            }
+            return new Page(blocks);
+        } : Function.identity();
+
+        return source.withSink(
+            new OutputOperatorFactory(Expressions.names(outputExec.output()), mapper, outputExec.getPageConsumer()),
+            source.layout
+        );
+    }
+
+    private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
+        DriverParallelism parallelism = exchangeExec.getType() == ExchangeExec.Type.GATHER
+            ? DriverParallelism.SINGLE
+            : new DriverParallelism(DriverParallelism.Type.TASK_LEVEL_PARALLELISM, context.taskConcurrency);
+        context.driverParallelism(parallelism);
+        Exchange ex = new Exchange(parallelism.instanceCount(), exchangeExec.getPartitioning().toExchange(), context.bufferMaxPages);
+
+        LocalExecutionPlannerContext subContext = context.createSubContext();
+        PhysicalOperation source = plan(exchangeExec.child(), subContext);
+        Layout layout = source.layout;
+        PhysicalOperation sink = source.withSink(new ExchangeSinkOperatorFactory(ex), source.layout);
+        context.addDriverFactory(new DriverFactory(new DriverSupplier(context.bigArrays, sink), subContext.driverParallelism().get()));
+        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(ex), layout);
+    }
+
+    private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(topNExec.child(), context);
+
+        List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
+            int sortByChannel;
+            if (order.child()instanceof Attribute a) {
+                sortByChannel = source.layout.getChannel(a.id());
+            } else {
+                throw new UnsupportedOperationException();
+            }
+
+            return new TopNOperator.SortOrder(
+                sortByChannel,
+                order.direction().equals(Order.OrderDirection.ASC),
+                order.nullsPosition().equals(Order.NullsPosition.FIRST)
+            );
+        }).toList();
+
+        int limit;
+        if (topNExec.getLimit()instanceof Literal literal) {
+            limit = Integer.parseInt(literal.value().toString());
+        } else {
+            throw new UnsupportedOperationException();
+        }
+
+        return source.with(new TopNOperatorFactory(limit, orders), source.layout);
+    }
+
+    private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(eval.child(), context);
+        if (eval.fields().size() != 1) {
+            throw new UnsupportedOperationException();
+        }
+        NamedExpression namedExpression = eval.fields().get(0);
+        ExpressionEvaluator evaluator;
+        if (namedExpression instanceof Alias alias) {
+            evaluator = toEvaluator(alias.child(), source.layout);
+        } else {
+            throw new UnsupportedOperationException();
+        }
+        Layout.Builder layout = source.layout.builder();
+        layout.appendChannel(namedExpression.toAttribute().id());
+        return source.with(
+            new EvalOperatorFactory(evaluator, namedExpression.dataType().isRational() ? Double.TYPE : Long.TYPE),
+            layout.build()
+        );
     }
 
     private ExpressionEvaluator toEvaluator(Expression exp, Layout layout) {
@@ -544,6 +524,67 @@ public class LocalExecutionPlanner {
         } else {
             throw new UnsupportedOperationException(exp.nodeName());
         }
+    }
+
+    private PhysicalOperation planRow(RowExec row, LocalExecutionPlannerContext context) {
+        List<Object> obj = row.fields().stream().map(f -> {
+            if (f instanceof Alias) {
+                return ((Alias) f).child().fold();
+            } else {
+                return f.fold();
+            }
+        }).toList();
+        Layout.Builder layout = new Layout.Builder();
+        var output = row.output();
+        for (Attribute attribute : output) {
+            layout.appendChannel(attribute.id());
+        }
+        return PhysicalOperation.fromSource(new RowOperatorFactory(obj), layout.build());
+    }
+
+    private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {
+        var source = plan(project.child(), context);
+
+        Map<Integer, Set<NameId>> inputChannelToOutputIds = new HashMap<>();
+        for (NamedExpression ne : project.projections()) {
+            NameId inputId;
+            if (ne instanceof Alias a) {
+                inputId = ((NamedExpression) a.child()).id();
+            } else {
+                inputId = ne.id();
+            }
+            int inputChannel = source.layout.getChannel(inputId);
+            inputChannelToOutputIds.computeIfAbsent(inputChannel, ignore -> new HashSet<>()).add(ne.id());
+        }
+
+        BitSet mask = new BitSet();
+        Layout.Builder layout = new Layout.Builder();
+
+        for (int inChannel = 0; inChannel < source.layout.numberOfChannels(); inChannel++) {
+            Set<NameId> outputIds = inputChannelToOutputIds.get(inChannel);
+
+            if (outputIds != null) {
+                mask.set(inChannel);
+                layout.appendChannel(outputIds);
+            }
+        }
+
+        if (mask.cardinality() == source.layout.numberOfChannels()) {
+            // all columns are retained, project operator is not needed but the layout needs to be updated
+            return source.with(layout.build());
+        } else {
+            return source.with(new ProjectOperatorFactory(mask), layout.build());
+        }
+    }
+
+    private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(filter.child(), context);
+        return source.with(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout);
+    }
+
+    private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(limit.child(), context);
+        return source.with(new LimitOperatorFactory((Integer) limit.limit().fold()), source.layout);
     }
 
     /**
@@ -636,34 +677,33 @@ public class LocalExecutionPlanner {
      * Context object used while generating a local plan. Currently only collects the driver factories as well as
      * maintains information how many driver instances should be created for a given driver.
      */
-    public static class LocalExecutionPlanContext {
-        final List<DriverFactory> driverFactories;
-
-        private DriverParallelism driverParallelism = DriverParallelism.SINGLE;
-
-        LocalExecutionPlanContext() {
-            driverFactories = new ArrayList<>();
-        }
-
-        LocalExecutionPlanContext(List<DriverFactory> driverFactories) {
-            this.driverFactories = driverFactories;
-        }
-
+    public record LocalExecutionPlannerContext(
+        List<DriverFactory> driverFactories,
+        List<SearchContext> searchContexts,
+        Holder<DriverParallelism> driverParallelism,
+        int taskConcurrency,
+        int bufferMaxPages,
+        DataPartitioning dataPartitioning,
+        BigArrays bigArrays
+    ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
         }
 
-        public LocalExecutionPlanContext createSubContext() {
-            LocalExecutionPlanContext subContext = new LocalExecutionPlanContext(driverFactories);
-            return subContext;
+        void driverParallelism(DriverParallelism parallelism) {
+            driverParallelism.set(parallelism);
         }
 
-        public DriverParallelism driverParallelism() {
-            return driverParallelism;
-        }
-
-        public void driverParallelism(DriverParallelism driverParallelism) {
-            this.driverParallelism = driverParallelism;
+        public LocalExecutionPlannerContext createSubContext() {
+            return new LocalExecutionPlannerContext(
+                driverFactories,
+                searchContexts,
+                new Holder<>(DriverParallelism.SINGLE),
+                taskConcurrency,
+                bufferMaxPages,
+                dataPartitioning,
+                bigArrays
+            );
         }
     }
 
@@ -710,14 +750,20 @@ public class LocalExecutionPlanner {
      * Plan representation that is geared towards execution on a single node
      */
     public static class LocalExecutionPlan implements Describable {
-        final List<DriverFactory> driverFactories = new ArrayList<>();
+        final List<DriverFactory> driverFactories;
 
-        public void createDrivers(List<Driver> drivers) {
+        LocalExecutionPlan(List<DriverFactory> driverFactories) {
+            this.driverFactories = driverFactories;
+        }
+
+        public List<Driver> createDrivers() {
+            List<Driver> drivers = new ArrayList<>();
             for (DriverFactory df : driverFactories) {
                 for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
                     drivers.add(df.driverSupplier.get());
                 }
             }
+            return drivers;
         }
 
         @Override

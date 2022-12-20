@@ -179,11 +179,11 @@ gradlePlugin {
       id = 'elasticsearch.yaml-rest-compat-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin'
     }
-    yamlRestTest {
+    legacyYamlRestTest {
       id = 'elasticsearch.legacy-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin'
     }
-    newYamlRestTest {
+    yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }

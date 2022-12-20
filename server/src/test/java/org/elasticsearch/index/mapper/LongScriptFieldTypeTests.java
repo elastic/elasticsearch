@@ -308,7 +308,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 return (fieldName, params, lookup) -> {
                     // Indicate that this script wants the field call "test", which *is* the name of this field
                     lookup.forkAndTrackFieldReferences("test");
-                    throw new IllegalStateException("shoud have thrown on the line above");
+                    throw new IllegalStateException("should have thrown on the line above");
                 };
             case "error":
                 return (fieldName, params, lookup) -> ctx -> new LongFieldScript(fieldName, params, lookup, ctx) {

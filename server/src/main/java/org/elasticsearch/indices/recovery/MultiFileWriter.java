@@ -31,32 +31,45 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
-    public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
-        this.store = store;
-        this.indexState = indexState;
-        this.tempFilePrefix = tempFilePrefix;
-        this.logger = logger;
-        this.ensureOpen = ensureOpen;
-    }
-
-    private final Runnable ensureOpen;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final Logger logger;
     private final Store store;
     private final RecoveryState.Index indexState;
     private final String tempFilePrefix;
+    private final Logger logger;
+    private final Runnable ensureOpen;
+    private final boolean verifyOutput;
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<String, FileChunkWriter> fileChunkWriters = ConcurrentCollections.newConcurrentMap();
 
     final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
+
+    public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
+        this(store, indexState, tempFilePrefix, logger, ensureOpen, true);
+    }
+
+    public MultiFileWriter(
+        Store store,
+        RecoveryState.Index indexState,
+        String tempFilePrefix,
+        Logger logger,
+        Runnable ensureOpen,
+        boolean verifyOutput
+    ) {
+        this.store = store;
+        this.indexState = indexState;
+        this.tempFilePrefix = tempFilePrefix;
+        this.logger = logger;
+        this.ensureOpen = ensureOpen;
+        this.verifyOutput = verifyOutput;
+    }
 
     public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content, boolean lastChunk)
         throws IOException {
@@ -119,9 +132,9 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     }
 
     private IndexOutput createIndexOutput(String tempFileName, StoreFileMetadata fileMetadata) throws IOException {
-        return Objects.equals(fileMetadata.checksum(), StoreFileMetadata.UNAVAILABLE_CHECKSUM)
-            ? store.directory().createOutput(tempFileName, IOContext.DEFAULT)
-            : store.createVerifyingOutput(tempFileName, fileMetadata, IOContext.DEFAULT);
+        return verifyOutput
+            ? store.createVerifyingOutput(tempFileName, fileMetadata, IOContext.DEFAULT)
+            : store.directory().createOutput(tempFileName, IOContext.DEFAULT);
     }
 
     /** Get a temporary name for the provided file name. */

@@ -48,7 +48,7 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new DateFieldScript(leafFieldName, params, searchLookup, formatter, ErrorBehaviour.FAIL, ctx) {
+                return new DateFieldScript(leafFieldName, params, searchLookup, formatter, errorBehaviour, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);

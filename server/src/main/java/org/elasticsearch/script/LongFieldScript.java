@@ -41,7 +41,7 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new LongFieldScript(leafFieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx) {
+                return new LongFieldScript(leafFieldName, params, searchLookup, errorBehaviour, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);

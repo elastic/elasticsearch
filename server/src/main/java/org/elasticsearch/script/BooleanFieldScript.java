@@ -43,7 +43,7 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new BooleanFieldScript(leafFieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx) {
+                return new BooleanFieldScript(leafFieldName, params, searchLookup, errorBehaviour, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);

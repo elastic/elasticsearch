@@ -52,7 +52,7 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new GeoPointFieldScript(leafFieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx) {
+                return new GeoPointFieldScript(leafFieldName, params, searchLookup, errorBehaviour, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);

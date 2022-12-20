@@ -17,11 +17,13 @@ import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 
 /**
  * This task updates the operation mode state for ILM.
@@ -91,27 +93,26 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (ilmMode == null) {
             return currentState;
         }
-        IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(ilmMode) == false) {
+
+        final OperationMode currentMode = currentILMMode(currentState);
+        if (currentMode.equals(ilmMode)) {
+            // No need for a new state
             return currentState;
-        } else if (currentMetadata == null) {
-            currentMetadata = IndexLifecycleMetadata.EMPTY;
         }
 
         final OperationMode newMode;
-        if (currentMetadata.getOperationMode().isValidChange(ilmMode)) {
+        if (currentMode.isValidChange(ilmMode)) {
             newMode = ilmMode;
         } else {
-            newMode = currentMetadata.getOperationMode();
+            // The transition is invalid, return the current state
+            return currentState;
         }
 
-        if (newMode.equals(ilmMode) == false) {
-            logger.info("updating ILM operation mode to {}", newMode);
-        }
+        logger.info("updating ILM operation mode to {}", newMode);
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.metadata())
-                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), newMode))
+                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(newMode, currentSLMMode(currentState)))
             )
             .build();
     }
@@ -120,30 +121,26 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (slmMode == null) {
             return currentState;
         }
-        SnapshotLifecycleMetadata currentMetadata = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(slmMode) == false) {
+
+        final OperationMode currentMode = currentSLMMode(currentState);
+        if (currentMode.equals(slmMode)) {
+            // No need for a new state
             return currentState;
-        } else if (currentMetadata == null) {
-            currentMetadata = SnapshotLifecycleMetadata.EMPTY;
         }
 
         final OperationMode newMode;
-        if (currentMetadata.getOperationMode().isValidChange(slmMode)) {
+        if (currentMode.isValidChange(slmMode)) {
             newMode = slmMode;
         } else {
-            newMode = currentMetadata.getOperationMode();
+            // The transition is invalid, return the current state
+            return currentState;
         }
 
-        if (newMode.equals(slmMode) == false) {
-            logger.info("updating SLM operation mode to {}", newMode);
-        }
+        logger.info("updating SLM operation mode to {}", newMode);
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.metadata())
-                    .putCustom(
-                        SnapshotLifecycleMetadata.TYPE,
-                        new SnapshotLifecycleMetadata(currentMetadata.getSnapshotConfigurations(), newMode, currentMetadata.getStats())
-                    )
+                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(currentILMMode(currentState), newMode))
             )
             .build();
     }

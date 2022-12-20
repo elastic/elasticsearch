@@ -318,4 +318,8 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         AccessController.doPrivileged(pa);
     }
 
+    // visible for testing
+    public URLClassLoader getInternalLoader() {
+        return internalLoader;
+    }
 }

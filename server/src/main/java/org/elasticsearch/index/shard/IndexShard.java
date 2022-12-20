@@ -222,6 +222,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final PendingReplicationActions pendingReplicationActions;
     private final ReplicationTracker replicationTracker;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
+    private final Engine.IndexCommitListener indexCommitListener;
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -311,7 +312,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        final LongSupplier relativeTimeInNanosSupplier
+        final LongSupplier relativeTimeInNanosSupplier,
+        final Engine.IndexCommitListener indexCommitListener,
+        final ReplicationTracker.Factory replicationTrackerFactory
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -359,12 +362,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
         this.pendingReplicationActions = new PendingReplicationActions(shardId, threadPool);
-        this.replicationTracker = new ReplicationTracker(
+        this.replicationTracker = replicationTrackerFactory.create(
             shardId,
             aId,
             indexSettings,
             primaryTerm,
-            UNASSIGNED_SEQ_NO,
             globalCheckpointListeners::globalCheckpointUpdated,
             threadPool::absoluteTimeInMillis,
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
@@ -390,6 +392,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.indexCommitListener = indexCommitListener;
     }
 
     public ThreadPool getThreadPool() {
@@ -3270,7 +3273,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this::getOperationPrimaryTerm,
             snapshotCommitSupplier,
             isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
-            relativeTimeInNanosSupplier
+            relativeTimeInNanosSupplier,
+            indexCommitListener,
+            recoveryState != null && recoveryState.getPrimary()
         );
     }
 
@@ -3769,7 +3774,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     // for tests
-    ReplicationTracker getReplicationTracker() {
+    public ReplicationTracker getReplicationTracker() {
         return replicationTracker;
     }
 

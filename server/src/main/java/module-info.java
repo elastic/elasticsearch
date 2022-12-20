@@ -53,6 +53,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action;
     exports org.elasticsearch.action.admin.cluster.allocation;
     exports org.elasticsearch.action.admin.cluster.configuration;
+    exports org.elasticsearch.action.admin.cluster.coordination;
     exports org.elasticsearch.action.admin.cluster.desirednodes;
     exports org.elasticsearch.action.admin.cluster.health;
     exports org.elasticsearch.action.admin.cluster.migration;
@@ -281,7 +282,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor.os;
     exports org.elasticsearch.monitor.process;
     exports org.elasticsearch.node;
-    exports org.elasticsearch.reservedstate;
     exports org.elasticsearch.persistent;
     exports org.elasticsearch.persistent.decider;
     exports org.elasticsearch.plugins;
@@ -290,6 +290,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.repositories;
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
+    exports org.elasticsearch.reservedstate;
     exports org.elasticsearch.rest;
     exports org.elasticsearch.rest.action;
     exports org.elasticsearch.rest.action.admin.cluster;

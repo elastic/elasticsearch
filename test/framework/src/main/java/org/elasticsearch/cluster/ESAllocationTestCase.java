@@ -119,6 +119,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
         return new DesiredBalanceShardsAllocator(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             new BalancedShardsAllocator(settings),
             queue.getThreadPool(),
             mock(ClusterService.class),
@@ -283,7 +285,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterState clusterState,
         RoutingNode routingNode
     ) {
-        return startShardsAndReroute(allocationService, clusterState, routingNode.shardsWithState(INITIALIZING));
+        return startShardsAndReroute(allocationService, clusterState, routingNode.shardsWithState(INITIALIZING).toList());
     }
 
     /**

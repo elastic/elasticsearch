@@ -47,7 +47,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     public final boolean decRef() {
         touch();
         int i = refCount.decrementAndGet();
-        assert i >= 0;
+        assert i >= 0 : "invalid decRef call: already closed";
         if (i == 0) {
             try {
                 closeInternal();

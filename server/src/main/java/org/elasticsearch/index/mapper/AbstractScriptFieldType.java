@@ -275,7 +275,14 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory, Version indexVersion) {
-            var fieldType = createFieldType(name, scriptFactory, getScript(), meta(), indexVersion);
+            var fieldType = createFieldType(
+                name,
+                scriptFactory,
+                getScript(),
+                meta(),
+                indexVersion,
+                ErrorBehaviour.fromString(onScriptError.get())
+            );
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
@@ -292,9 +299,10 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             Factory factory,
             Script script,
             Map<String, String> meta,
-            Version supportedVersion
+            Version supportedVersion,
+            ErrorBehaviour errorBehavior
         ) {
-            return createFieldType(name, factory, script, meta, ErrorBehaviour.fromString(onScriptError.get()));
+            return createFieldType(name, factory, script, meta, errorBehavior);
         }
 
         @Override

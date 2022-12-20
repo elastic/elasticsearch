@@ -1342,9 +1342,10 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Queue which tracks the count of items, allowing it to determine (in a threadsafe fashion) the transitions between empty and nonempty,
-     * so that it can spawn an action to process its elements if and only if it's needed. This allows it to ensure that there is only ever
-     * at most one active {@link #queuesProcessor}, and that there's always a pending processor if there is work to be done.
+     * Queue of batches of tasks for a single priority level. Tracks its count of batches in {@link #totalQueueSize}, allowing detection (in
+     * a threadsafe fashion) of the transitions between empty and nonempty, so that it can spawn a processor if and only if it's needed.
+     * This allows it to ensure that there is only ever at most one active {@link #queuesProcessor}, and that there's always a pending
+     * processor if there is work to be done.
      *
      * There is one of these queues for each priority level.
      */

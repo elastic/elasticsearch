@@ -143,8 +143,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             null, // nonce
             Collections.emptyMap() // other claims
         );
-        final SecureString jwt = JwtValidateUtil.signJwt(algJwkPairHmac.jwk(), unsignedJwt);
-        assertThat(JwtValidateUtil.verifyJwt(algJwkPairHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
+        final SecureString jwt = signJwt(algJwkPairHmac.jwk(), unsignedJwt);
+        assertThat(verifyJwt(algJwkPairHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
         super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
@@ -235,8 +235,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             null, // nonce
             Collections.emptyMap() // other claims
         );
-        final SecureString jwt = JwtValidateUtil.signJwt(algJwkPairPkc.jwk(), unsignedJwt);
-        assertThat(JwtValidateUtil.verifyJwt(algJwkPairPkc.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
+        final SecureString jwt = signJwt(algJwkPairPkc.jwk(), unsignedJwt);
+        assertThat(verifyJwt(algJwkPairPkc.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
         super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, null, JWT_AUTHC_REPEATS_1);
@@ -341,8 +341,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             null, // nonce
             Collections.emptyMap() // other claims
         );
-        final SecureString jwt = JwtValidateUtil.signJwt(algJwkPairHmac.jwk(), unsignedJwt);
-        assertThat(JwtValidateUtil.verifyJwt(algJwkPairHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
+        final SecureString jwt = signJwt(algJwkPairHmac.jwk(), unsignedJwt);
+        assertThat(verifyJwt(algJwkPairHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
         super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);
@@ -438,8 +438,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             null, // nonce
             Collections.emptyMap() // other claims
         );
-        final SecureString jwt = JwtValidateUtil.signJwt(selectedHmac.jwk(), unsignedJwt);
-        assertThat(JwtValidateUtil.verifyJwt(selectedHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
+        final SecureString jwt = signJwt(selectedHmac.jwk(), unsignedJwt);
+        assertThat(verifyJwt(selectedHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
 
         // Verify authc+authz, then print all artifacts
         super.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_REPEATS_1);

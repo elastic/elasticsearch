@@ -88,7 +88,7 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
             null, // nonce
             Map.of() // other claims
         );
-        final SecureString jwt = JwtValidateUtil.signJwt(jwk, unsignedJwt);
+        final SecureString jwt = signJwt(jwk, unsignedJwt);
 
         final List<String> principalClaimNames = List.of(randomAlphaOfLength(4), "sub", principalClaimName);
         final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(principalClaimNames, jwt, null);

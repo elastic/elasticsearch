@@ -28,7 +28,7 @@ public class JwtValidateUtilTests extends JwtTestCase {
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, requireOidcSafe);
         final SecureString serializedJWTOriginal = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm);
         final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal.toString());
-        return JwtValidateUtil.verifyJwt(jwk, parsedSignedJWT);
+        return verifyJwt(jwk, parsedSignedJWT);
     }
 
     public void testJwtSignVerifyPassedForAllSupportedAlgorithms() throws Exception {

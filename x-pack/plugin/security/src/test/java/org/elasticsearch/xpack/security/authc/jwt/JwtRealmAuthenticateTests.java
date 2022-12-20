@@ -427,14 +427,14 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             // This check can only be executed if there is a flip algorithm available in the realm
             if (Strings.hasText(mixupAlg)) {
                 final JWSHeader tamperedHeader = new JWSHeader.Builder(JWSAlgorithm.parse(mixupAlg)).build();
-                final SecureString jwtTamperedHeader = JwtValidateUtil.buildJwt(tamperedHeader, validClaimsSet, validSignature);
+                final SecureString jwtTamperedHeader = buildJwt(tamperedHeader, validClaimsSet, validSignature);
                 this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtTamperedHeader, clientSecret);
             }
         }
 
         {   // Verify rejection of a tampered claim set
             final JWTClaimsSet tamperedClaimsSet = new JWTClaimsSet.Builder(validClaimsSet).claim("gr0up", "superuser").build();
-            final SecureString jwtTamperedClaimsSet = JwtValidateUtil.buildJwt(validHeader, tamperedClaimsSet, validSignature);
+            final SecureString jwtTamperedClaimsSet = buildJwt(validHeader, tamperedClaimsSet, validSignature);
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtTamperedClaimsSet, clientSecret);
         }
 
@@ -452,25 +452,25 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         {   // Verify rejection of JWT auth_time > now
             final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).claim("auth_time", future).build();
-            final SecureString jwtIatFuture = JwtValidateUtil.signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
+            final SecureString jwtIatFuture = signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtIatFuture, clientSecret);
         }
 
         {   // Verify rejection of JWT iat > now
             final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).issueTime(future).build();
-            final SecureString jwtIatFuture = JwtValidateUtil.signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
+            final SecureString jwtIatFuture = signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtIatFuture, clientSecret);
         }
 
         {   // Verify rejection of JWT nbf > now
             final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).notBeforeTime(future).build();
-            final SecureString jwtIatFuture = JwtValidateUtil.signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
+            final SecureString jwtIatFuture = signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtIatFuture, clientSecret);
         }
 
         {   // Verify rejection of JWT now > exp
             final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).expirationTime(past).build();
-            final SecureString jwtExpPast = JwtValidateUtil.signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
+            final SecureString jwtExpPast = signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtExpPast, clientSecret);
         }
     }

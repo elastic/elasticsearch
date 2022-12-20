@@ -10,7 +10,10 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
@@ -479,7 +482,51 @@ public abstract class JwtTestCase extends ESTestCase {
                 + otherClaims
                 + "]}."
         );
-        return JwtValidateUtil.buildUnsignedJwt(jwtHeader, jwtClaimsSet);
+        return buildUnsignedJwt(jwtHeader, jwtClaimsSet);
+    }
+
+    public static SignedJWT buildUnsignedJwt(final JWSHeader jwtHeader, final JWTClaimsSet jwtClaimsSet) {
+        return new SignedJWT(jwtHeader, jwtClaimsSet);
+    }
+
+    // Build from Base64 components. Signature may or may not be valid. Useful for negative test cases.
+    public static SecureString buildJwt(final JWSHeader header, final JWTClaimsSet claims, final Base64URL signature) throws Exception {
+        final SignedJWT signedJwt = new SignedJWT(header.toBase64URL(), claims.toPayload().toBase64URL(), signature);
+        return new SecureString(signedJwt.serialize().toCharArray());
+    }
+
+    // Convenience method to construct JWSSigner from JWK, sign the JWT, and return serialized SecureString
+    public static SecureString signJwt(final JWK jwk, final SignedJWT unsignedJwt) throws Exception {
+        // Copy the header and claims set to a new unsigned JWT, in case JWT is being re-signing
+        final SignedJWT signedJwt = new SignedJWT(unsignedJwt.getHeader(), unsignedJwt.getJWTClaimsSet());
+        signedJwt.sign(createJwsSigner(jwk));
+        return new SecureString(signedJwt.serialize().toCharArray());
+    }
+
+    // Convenience method to construct JWSVerifier from JWK, and verify the signed JWT
+    public static boolean verifyJwt(final JWK jwk, final SignedJWT signedJwt) throws Exception {
+        return signedJwt.verify(JwtValidateUtil.createJwsVerifier(jwk));
+    }
+
+    public static JWSSigner createJwsSigner(final JWK jwk) throws JOSEException {
+        if (jwk instanceof RSAKey rsaKey) {
+            return new RSASSASigner(rsaKey);
+        } else if (jwk instanceof ECKey ecKey) {
+            return new ECDSASigner(ecKey);
+        } else if (jwk instanceof OctetSequenceKey octetSequenceKey) {
+            return new MACSigner(octetSequenceKey);
+        }
+        throw new JOSEException(
+            "Unsupported JWK class ["
+                + (jwk == null ? "null" : jwk.getClass().getCanonicalName())
+                + "]. Supported classes are ["
+                + RSAKey.class.getCanonicalName()
+                + ", "
+                + ECKey.class.getCanonicalName()
+                + ", "
+                + OctetSequenceKey.class.getCanonicalName()
+                + "]."
+        );
     }
 
     public static SecureString randomBespokeJwt(final JWK jwk, final String signatureAlgorithm) throws Exception {
@@ -503,7 +550,7 @@ public abstract class JwtTestCase extends ESTestCase {
             randomBoolean() ? null : new Nonce(32).toString(),
             randomBoolean() ? null : Map.of("other1", randomAlphaOfLength(10), "other2", randomAlphaOfLength(10))
         );
-        return JwtValidateUtil.signJwt(jwk, unsignedJwt);
+        return signJwt(jwk, unsignedJwt);
     }
 
     public static Map<String, User> generateTestUsersWithRoles(final int numUsers, final int numRolesPerUser) {

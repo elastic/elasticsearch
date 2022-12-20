@@ -150,8 +150,8 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
             randomBoolean() ? null : new Nonce(32).toString(),
             otherClaims
         );
-        final SecureString signedJWT = JwtValidateUtil.signJwt(jwk, unsignedJwt);
-        assertThat(JwtValidateUtil.verifyJwt(jwk, SignedJWT.parse(signedJWT.toString())), is(equalTo(true)));
+        final SecureString signedJWT = signJwt(jwk, unsignedJwt);
+        assertThat(verifyJwt(jwk, SignedJWT.parse(signedJWT.toString())), is(equalTo(true)));
         return signedJWT;
     }
 

@@ -32,8 +32,8 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
 
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
-            return ctx -> new GeoPointFieldScript(field, params, lookup, ctx) {
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, ErrorBehaviour errorBehaviour) {
+            return ctx -> new GeoPointFieldScript(field, params, lookup, ErrorBehaviour.FAIL, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -48,11 +48,11 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
     };
 
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
-        return (leafFieldName, params, searchLookup) -> {
+        return (leafFieldName, params, searchLookup, errorBehaviour) -> {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new GeoPointFieldScript(leafFieldName, params, searchLookup, ctx) {
+                return new GeoPointFieldScript(leafFieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);
@@ -71,7 +71,7 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup, ErrorBehaviour errorBehaviour);
     }
 
     public interface LeafFactory {
@@ -82,8 +82,14 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
     private double[] lons = new double[1];
     private int count;
 
-    public GeoPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx, ErrorBehaviour.FAIL);
+    public GeoPointFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        ErrorBehaviour errorBehaviour,
+        LeafReaderContext ctx
+    ) {
+        super(fieldName, params, searchLookup, ctx, errorBehaviour);
     }
 
     @Override

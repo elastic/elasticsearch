@@ -72,16 +72,15 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         GeoPointFieldScript.Factory scriptFactory,
         Script script,
         Map<String, String> meta,
-        ErrorBehaviour errorbehaviour
+        ErrorBehaviour errorBehaviour
     ) {
-        super(name, searchLookup -> {
-            GeoPointFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup);
-            return ctx -> {
-                GeoPointFieldScript fieldScript = leafFactory.newInstance(ctx);
-                // fieldScript.setErrorBehahiour(errorbehaviour);
-                return fieldScript;
-            };
-        }, script, scriptFactory.isResultDeterministic(), meta);
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, errorBehaviour),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta
+        );
     }
 
     @Override

@@ -233,19 +233,31 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     private static GeoPointFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
-            case "fromLatLon" -> (fieldName, params, lookup) -> (ctx) -> new GeoPointFieldScript(fieldName, params, lookup, ctx) {
+            case "fromLatLon" -> (fieldName, params, lookup, errorBehaviour) -> (ctx) -> new GeoPointFieldScript(
+                fieldName,
+                params,
+                lookup,
+                errorBehaviour,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     Map<?, ?> foo = (Map<?, ?>) lookup.source().source().get("foo");
                     emit(((Number) foo.get("lat")).doubleValue(), ((Number) foo.get("lon")).doubleValue());
                 }
             };
-            case "loop" -> (fieldName, params, lookup) -> {
+            case "loop" -> (fieldName, params, lookup, errorBehaviour) -> {
                 // Indicate that this script wants the field call "test", which *is* the name of this field
                 lookup.forkAndTrackFieldReferences("test");
                 throw new IllegalStateException("should have thrown on the line above");
             };
-            case "error" -> (fieldName, params, lookup) -> ctx -> new GeoPointFieldScript(fieldName, params, lookup, ctx) {
+            case "error" -> (fieldName, params, lookup, errorBehaviour) -> ctx -> new GeoPointFieldScript(
+                fieldName,
+                params,
+                lookup,
+                errorBehaviour,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     throw new RuntimeException("test error");

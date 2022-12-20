@@ -349,7 +349,13 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(ipFieldScript);
         } else if (context.instanceClazz.equals(GeoPointFieldScript.class)) {
-            GeoPointFieldScript.Factory geoPointFieldScript = (f, p, s) -> ctx -> new GeoPointFieldScript(f, p, s, ctx) {
+            GeoPointFieldScript.Factory geoPointFieldScript = (f, p, s, errorBehaviour) -> ctx -> new GeoPointFieldScript(
+                f,
+                p,
+                s,
+                ErrorBehaviour.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit(1.2D, 1.2D);

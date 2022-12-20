@@ -44,7 +44,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -380,26 +379,6 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
                 Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(searchExecutionContext);
                 assertThat(searcher.count(query), equalTo(1));
-            }
-        }
-    }
-
-    /**
-     * Check that running a script that throws errors with a field type with enabled lenient error handling doesn't throw exception
-     */
-    public void testQueryErrorHandling() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("error", Collections.emptyMap(), true);
-                SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
-                Query query = new MatchQueryBuilder("test", "foo").toQuery(searchExecutionContext);
-                try {
-                    assertThat(searcher.count(query), equalTo(0));
-                } catch (RuntimeException e) {
-                    fail("lenient error handling should silently ignore all runtime errors");
-                }
             }
         }
     }

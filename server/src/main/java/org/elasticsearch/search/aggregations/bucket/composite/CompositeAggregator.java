@@ -34,6 +34,7 @@ import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
@@ -629,7 +630,9 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        queue.collectDebugInfo(add);
+        if (sources[0]instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
+            globalOrdinalValuesSource.collectDebugInfo(Strings.format("sources.%s", sourceConfigs[0].name()), add);
+        }
     }
 
     private static class Entry {

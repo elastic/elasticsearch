@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.logging.LogManager;
@@ -58,7 +59,8 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private Long highestCompetitiveValueGlobalOrd;
     private boolean isTopValueInsertionPoint;
     private volatile CompetitiveIterator currentCompetitiveIterator;
-    private int dynamicPruningInitialized;
+    private int segmentsDynamicPruningUsed;
+    private int totalSegments;
 
     private long lastLookupOrd = -1;
     private BytesRef lastLookupValue;
@@ -203,6 +205,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
+        totalSegments++;
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
         if (lookup == null) {
             initLookup(dvs);
@@ -244,6 +247,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         if (value.getClass() != BytesRef.class) {
             throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
         }
+        totalSegments++;
         BytesRef term = (BytesRef) value;
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
         if (lookup == null) {
@@ -308,8 +312,9 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         }
     }
 
-    void collectDebugInfo(BiConsumer<String, Object> add) {
-        add.accept("num_global_ordinal_dynamic_pruning_initialized", currentCompetitiveIterator == null ? 0 : dynamicPruningInitialized);
+    void collectDebugInfo(String namespace, BiConsumer<String, Object> add) {
+        add.accept(Strings.format("%s.segments_collected", namespace), totalSegments);
+        add.accept(Strings.format("%s.segments_dynamic_pruning_used", namespace), segmentsDynamicPruningUsed);
     }
 
     private record PostingsEnumAndOrd(PostingsEnum postings, long ord) {}
@@ -407,7 +412,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
          * out of them.
          */
         private void init(long minOrd, long maxOrd) throws IOException {
-            dynamicPruningInitialized++;
+            segmentsDynamicPruningUsed++;
 
             final int size = (int) Math.max(0, maxOrd - minOrd + 1);
             postings = new ArrayDeque<>(size);

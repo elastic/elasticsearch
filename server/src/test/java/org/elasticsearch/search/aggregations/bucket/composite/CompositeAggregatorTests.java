@@ -3262,7 +3262,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsNotApplicableDueToMissingBucket() throws Exception {
         final CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
             "name",
-            List.of(new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true))
+            List.of(new TermsValuesSourceBuilder("leading").field("keyword").missingBucket(true))
         ).size(2);
         final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
         final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
@@ -3280,14 +3280,18 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(result.getBuckets(), hasSize(2));
                 assertEquals(CompositeAggregator.class, impl);
-                assertEquals("{keyword=a_10}", result.afterKey().toString());
-                assertEquals("{keyword=a_1}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{leading=a_10}", result.afterKey().toString());
+                assertEquals("{leading=a_1}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{keyword=a_10}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals("{leading=a_10}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(0)))
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", equalTo(0))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
+                    )
                 );
             },
             keywordMapping,
@@ -3298,7 +3302,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsNotApplicableDueToSize() throws Exception {
         final CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
             "name",
-            List.of(new TermsValuesSourceBuilder("keyword").field("keyword").missingBucket(true))
+            List.of(new TermsValuesSourceBuilder("leading").field("keyword").missingBucket(true))
         ).size(13); // We need a size that is more than 1/8 of the total count.
         final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
         final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
@@ -3318,7 +3322,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(CompositeAggregator.class, impl);
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(0)))
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", equalTo(0))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
+                    )
                 );
             },
             keywordMapping,
@@ -3329,7 +3337,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsApplicableAndAscendingOrder() throws Exception {
         CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
             "name",
-            List.of(new TermsValuesSourceBuilder("keyword").field("keyword"))
+            List.of(new TermsValuesSourceBuilder("leading").field("keyword"))
         ).size(2);
         final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
         final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
@@ -3347,16 +3355,17 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(result.getBuckets(), hasSize(2));
                 assertEquals(CompositeAggregator.class, impl);
-                assertEquals("{keyword=a_10}", result.afterKey().toString());
-                assertEquals("{keyword=a_1}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{leading=a_10}", result.afterKey().toString());
+                assertEquals("{leading=a_1}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{keyword=a_10}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals("{leading=a_10}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
                     matchesMap().entry(
                         "name",
-                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
                     )
                 );
             },
@@ -3364,9 +3373,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             fooMapping
         );
 
-        aggregationBuilder = new CompositeAggregationBuilder("name", List.of(new TermsValuesSourceBuilder("keyword").field("keyword")))
+        aggregationBuilder = new CompositeAggregationBuilder("name", List.of(new TermsValuesSourceBuilder("leading").field("keyword")))
             .size(2)
-            .aggregateAfter(Collections.singletonMap("keyword", "a_10"));
+            .aggregateAfter(Collections.singletonMap("leading", "a_10"));
         debugTestCase(
             aggregationBuilder,
             new TermQuery(new Term("foo", "bar")),
@@ -3374,16 +3383,17 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(result.getBuckets(), hasSize(2));
                 assertEquals(CompositeAggregator.class, impl);
-                assertEquals("{keyword=a_11}", result.afterKey().toString());
-                assertEquals("{keyword=a_100}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{leading=a_11}", result.afterKey().toString());
+                assertEquals("{leading=a_100}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{keyword=a_11}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals("{leading=a_11}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
                     matchesMap().entry(
                         "name",
-                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
                     )
                 );
             },
@@ -3395,7 +3405,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsApplicableAndDescendingOrder() throws Exception {
         CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
             "name",
-            List.of(new TermsValuesSourceBuilder("keyword").field("keyword").order(SortOrder.DESC))
+            List.of(new TermsValuesSourceBuilder("leading").field("keyword").order(SortOrder.DESC))
         ).size(2);
         final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
         final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
@@ -3413,16 +3423,17 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(result.getBuckets(), hasSize(2));
                 assertEquals(CompositeAggregator.class, impl);
-                assertEquals("{keyword=a_98}", result.afterKey().toString());
-                assertEquals("{keyword=a_99}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{leading=a_98}", result.afterKey().toString());
+                assertEquals("{leading=a_99}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{keyword=a_98}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals("{leading=a_98}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
                     matchesMap().entry(
                         "name",
-                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
                     )
                 );
             },
@@ -3432,8 +3443,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
         aggregationBuilder = new CompositeAggregationBuilder(
             "name",
-            List.of(new TermsValuesSourceBuilder("keyword").field("keyword").order(SortOrder.DESC))
-        ).size(2).aggregateAfter(Collections.singletonMap("keyword", "a_98"));
+            List.of(new TermsValuesSourceBuilder("leading").field("keyword").order(SortOrder.DESC))
+        ).size(2).aggregateAfter(Collections.singletonMap("leading", "a_98"));
         debugTestCase(
             aggregationBuilder,
             new TermQuery(new Term("foo", "bar")),
@@ -3441,16 +3452,17 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(result.getBuckets(), hasSize(2));
                 assertEquals(CompositeAggregator.class, impl);
-                assertEquals("{keyword=a_96}", result.afterKey().toString());
-                assertEquals("{keyword=a_97}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{leading=a_96}", result.afterKey().toString());
+                assertEquals("{leading=a_97}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{keyword=a_96}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals("{leading=a_96}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
                     matchesMap().entry(
                         "name",
-                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
                     )
                 );
             },
@@ -3494,7 +3506,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     debug,
                     matchesMap().entry(
                         "name",
-                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                        matchesMap().entry("sources.leading_keyword.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading_keyword.segments_collected", greaterThanOrEqualTo(1))
                     )
                 );
             },
@@ -3503,7 +3516,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             fooMapping
         );
 
-        aggregationBuilder = aggregationBuilder = new CompositeAggregationBuilder(
+        aggregationBuilder = new CompositeAggregationBuilder(
             "name",
             List.of(
                 new TermsValuesSourceBuilder("leading_keyword").field("leading_keyword"),
@@ -3526,7 +3539,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     debug,
                     matchesMap().entry(
                         "name",
-                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                        matchesMap().entry("sources.leading_keyword.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading_keyword.segments_collected", greaterThanOrEqualTo(1))
                     )
                 );
             },

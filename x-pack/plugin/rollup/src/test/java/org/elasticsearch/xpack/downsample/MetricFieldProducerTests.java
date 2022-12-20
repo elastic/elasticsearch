@@ -69,7 +69,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         for (int i = 0; i < values.length; i++) {
             metric.collect(values[i]);
         }
-        assertEquals(metric.get().doubleValue(), 15.3, Double.MIN_NORMAL);
+        assertEquals(15.3, metric.get().doubleValue(), Double.MIN_NORMAL);
 
         // Summing up an array which contains NaN and infinities and expect a result same as naive summation
         metric.reset();
@@ -82,7 +82,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
             sum += d;
             metric.collect(d);
         }
-        assertEquals(metric.get().doubleValue(), sum, 1e-10);
+        assertEquals(sum, metric.get().doubleValue(), 1e-10);
 
         // Summing up some big double values and expect infinity result
         metric.reset();
@@ -90,13 +90,13 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         for (int i = 0; i < n; i++) {
             metric.collect(Double.MAX_VALUE);
         }
-        assertEquals(metric.get().doubleValue(), Double.POSITIVE_INFINITY, 0d);
+        assertEquals(Double.POSITIVE_INFINITY, metric.get().doubleValue(), 0d);
 
         metric.reset();
         for (int i = 0; i < n; i++) {
             metric.collect(-Double.MAX_VALUE);
         }
-        assertEquals(metric.get().doubleValue(), Double.NEGATIVE_INFINITY, 0d);
+        assertEquals(Double.NEGATIVE_INFINITY, metric.get().doubleValue(), 0d);
     }
 
     public void testValueCountMetric() {

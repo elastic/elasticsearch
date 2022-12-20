@@ -14,9 +14,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Class that collects all raw values for a metric field and computes its aggregate (downsampled)
@@ -286,44 +284,6 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer {
                 }
                 builder.endObject();
             }
-        }
-    }
-
-    static class AggregateMetricFieldProducer extends MetricFieldProducer {
-
-        private Map<String, Metric> metricsByField = new LinkedHashMap<>();
-
-        AggregateMetricFieldProducer(String name) {
-            super(name, Collections.emptyList());
-        }
-
-        public void addMetric(String field, Metric metric) {
-            metricsByField.put(field, metric);
-        }
-
-        @Override
-        public void collect(Number value) {
-            String field = ""; // TODO
-            metricsByField.get(field).collect(value);
-            isEmpty = false;
-        }
-
-        @Override
-        public void write(XContentBuilder builder) throws IOException {
-            if (isEmpty() == false) {
-                builder.startObject(name());
-                for (MetricFieldProducer.Metric metric : metrics()) {
-                    if (metric.get() != null) {
-                        builder.field(metric.name(), metric.get());
-                    }
-                }
-                builder.endObject();
-            }
-        }
-
-        @Override
-        public Collection<Metric> metrics() {
-            return metricsByField.values();
         }
     }
 }

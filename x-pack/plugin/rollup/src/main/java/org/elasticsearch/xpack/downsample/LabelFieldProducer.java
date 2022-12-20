@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 
 /**
  * Class that produces values for a label field.
@@ -22,6 +22,8 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
     LabelFieldProducer(String name) {
         super(name);
     }
+
+    abstract List<Label> labels();
 
     abstract static class Label {
         final String name;
@@ -84,9 +86,18 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
     static class LabelLastValueFieldProducer extends LabelFieldProducer {
         private final LastValueLabel label;
 
-        LabelLastValueFieldProducer(String name) {
+        LabelLastValueFieldProducer(String name, LastValueLabel label) {
             super(name);
-            this.label = new LastValueLabel(name);
+            this.label = label;
+        }
+
+        LabelLastValueFieldProducer(String name) {
+            this(name, new LastValueLabel(name));
+        }
+
+        @Override
+        List<Label> labels() {
+            return List.of(label);
         }
 
         @Override
@@ -126,64 +137,10 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
         }
     }
 
-    static class AggregateMetricFieldProducer extends LabelFieldProducer {
-        private LastValueLabel[] labels;
+    static class AggregateMetricFieldProducer extends LabelLastValueFieldProducer {
 
-        AggregateMetricFieldProducer(
-            String name,
-            Set<AggregateDoubleMetricFieldMapper.Metric> metrics
-        ) {
-            super(name);
-            labels = new LastValueLabel[metrics.size()];
-            int i = 0;
-            for (var e : metrics) {
-                labels[i++] = new LastValueLabel(e.name());
-            }
-        }
-
-        @Override
-        public void collect(FormattedDocValues docValues, int docId) throws IOException {
-            if (isEmpty == false) {
-                return;
-            }
-
-            if (docValues.advanceExact(docId) == false) {
-                return;
-            }
-
-            // TODO
-            int docValuesCount = docValues.docValueCount();
-            assert docValuesCount > 0;
-            if (docValuesCount == 1) {
-                //label.collect(docValues.nextValue());
-            } else {
-                Object[] values = new Object[docValuesCount];
-                for (int i = 0; i < docValuesCount; i++) {
-                    values[i] = docValues.nextValue();
-                }
-                //label.collect(values);
-            }
-        }
-
-        @Override
-        public void write(XContentBuilder builder) throws IOException {
-            if (isEmpty() == false) {
-                builder.startObject(name());
-                for (Label label : labels) {
-                    if (label.get() != null) {
-                        builder.field(label.name(), label.get());
-                    }
-                }
-                builder.endObject();
-            }
-        }
-
-        @Override
-        public void reset() {
-            for (LastValueLabel l : labels) {
-                l.reset();
-            }
-            isEmpty = true;
+        AggregateMetricFieldProducer(String name, Metric metric) {
+            super(name, new LastValueLabel(metric.name()));
         }
     }
 }

@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.groupingBy;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -260,7 +261,7 @@ class RollupShardIndexer {
             final LeafReaderContext ctx = aggCtx.getLeafReaderContext();
             final DocCountProvider docCountProvider = new DocCountProvider();
             docCountProvider.setLeafReaderContext(ctx);
-            final List<Tuple<AbstractRollupFieldProducer, FormattedDocValues>> producers = fieldValueFetchers.stream()
+            final List<Tuple<AbstractRollupFieldProducer, FormattedDocValues>> fieldProcessors = fieldValueFetchers.stream()
                 .map(f -> Tuple.tuple(f.rollupFieldProducer(), f.getLeaf(ctx)))
                 .toList();
 
@@ -324,13 +325,12 @@ class RollupShardIndexer {
                         } else {
                             rollupBucketBuilder.resetTimestamp(lastHistoTimestamp);
                         }
-
                         bucketsCreated++;
                     }
 
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
-                    for (var f : producers) {
+                    for (var f : fieldProcessors) {
                         AbstractRollupFieldProducer rollupFieldProducer = f.v1();
                         FormattedDocValues docValues = f.v2();
                         rollupFieldProducer.collect(docValues, docId);
@@ -435,9 +435,22 @@ class RollupShardIndexer {
                 builder.field(e.getKey(), e.getValue());
             }
 
+            var groupedProducers = rollupFieldProducers.stream()
+                .collect(groupingBy(AbstractRollupFieldProducer::name))
+                .entrySet()
+                .stream()
+                .map(e -> {
+                    if (e.getValue().size() == 1) {
+                        return e.getValue().get(0);
+                    } else {
+                        return new AggregateMetricFieldSerializer(e.getKey(), e.getValue());
+                    }
+                })
+                .toList();
+
             // Serialize fields
-            for (var producer : rollupFieldProducers) {
-                producer.write(builder);
+            for (var fieldProducer : groupedProducers) {
+                fieldProducer.write(builder);
             }
 
             builder.endObject();
@@ -463,5 +476,6 @@ class RollupShardIndexer {
         public boolean isEmpty() {
             return tsid() == null || timestamp() == 0 || docCount() == 0;
         }
+
     }
 }

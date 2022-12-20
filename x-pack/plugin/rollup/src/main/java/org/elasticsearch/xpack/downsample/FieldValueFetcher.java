@@ -61,8 +61,10 @@ class FieldValueFetcher {
                 case gauge -> new MetricFieldProducer.GaugeMetricFieldProducer(name());
                 case counter -> new MetricFieldProducer.CounterMetricFieldProducer(name());
             };
+        } else {
+            // If field is not a metric, we downsample it as a label
+            return new LabelFieldProducer.LabelLastValueFieldProducer(name());
         }
-        return new LabelFieldProducer.LabelLastValueFieldProducer(name());
     }
 
     /**

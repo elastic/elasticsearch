@@ -73,16 +73,15 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         DoubleFieldScript.Factory scriptFactory,
         Script script,
         Map<String, String> meta,
-        ErrorBehaviour errorbehaviour
+        ErrorBehaviour errorBehaviour
     ) {
-        super(name, searchLookup -> {
-            DoubleFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup);
-            return ctx -> {
-                DoubleFieldScript fieldScript = leafFactory.newInstance(ctx);
-                // fieldScript.setErrorBehahiour(errorbehaviour);
-                return fieldScript;
-            };
-        }, script, scriptFactory.isResultDeterministic(), meta);
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, errorBehaviour),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta
+        );
     }
 
     @Override

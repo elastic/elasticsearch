@@ -586,7 +586,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     DoubleFieldScript.LeafFactory leafFactory = factory.newFactory(
                         DoubleFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        ErrorBehaviour.FAIL
                     );
                     DoubleFieldScript doubleFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Double> doubles = new ArrayList<>();

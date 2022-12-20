@@ -137,7 +137,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             );
         }
         if (context.factoryClazz == DoubleFieldScript.Factory.class) {
-            return (T) (DoubleFieldScript.Factory) (n, p, l) -> ctx -> new TestDoubleFieldScript(
+            return (T) (DoubleFieldScript.Factory) (n, p, l, errorBehaviour) -> ctx -> new TestDoubleFieldScript(
                 n,
                 p,
                 l,
@@ -224,7 +224,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             LeafReaderContext ctx,
             Consumer<TestDoubleFieldScript> executor
         ) {
-            super(fieldName, params, searchLookup, ctx);
+            super(fieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx);
             this.executor = executor;
         }
 

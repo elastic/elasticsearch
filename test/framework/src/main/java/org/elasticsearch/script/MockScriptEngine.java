@@ -312,7 +312,13 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(longFieldScript);
         } else if (context.instanceClazz.equals(DoubleFieldScript.class)) {
-            DoubleFieldScript.Factory doubleFieldScript = (f, p, s) -> ctx -> new DoubleFieldScript(f, p, s, ctx) {
+            DoubleFieldScript.Factory doubleFieldScript = (f, p, s, errorBehaviour) -> ctx -> new DoubleFieldScript(
+                f,
+                p,
+                s,
+                ErrorBehaviour.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit(1.2D);

@@ -592,7 +592,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
                 DoubleFieldScript.Factory scriptFactory = compiler.compile(script, DoubleFieldScript.CONTEXT);
-                return (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(fieldName, script.getParams(), lookup)
+                return (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(fieldName, script.getParams(), lookup, ErrorBehaviour.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer::accept);
             }

@@ -210,7 +210,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         }
 
         int[] counts = new int[nodeIds.size()];
-        var randomIter = Randomness.get().ints(1, 1, allocationSum + 1).iterator();
+        var randomIter = Randomness.get().ints(numberOfRequests, 1, allocationSum + 1).iterator();
         for (int i = 0; i < numberOfRequests; i++) {
             int randomInt = randomIter.nextInt();
             int nodeIndex = Collections.binarySearch(cumulativeAllocations, randomInt);

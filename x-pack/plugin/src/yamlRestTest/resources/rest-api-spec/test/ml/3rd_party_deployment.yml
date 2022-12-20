@@ -162,6 +162,19 @@ setup:
           }
 
   - do:
+      catch: /multiple documents are not supported/
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }, { "input": "words2" }
+            ]
+          }
+
+  - do:
       ml.get_trained_models_stats:
         model_id: "test_model"
   - match: { count: 1 }

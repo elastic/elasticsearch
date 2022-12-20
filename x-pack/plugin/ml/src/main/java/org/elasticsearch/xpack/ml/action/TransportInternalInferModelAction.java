@@ -272,7 +272,6 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                             responseBuilder.addInferenceResults(results.get(i));
                         }
                     }
-
                     listener.onResponse(responseBuilder.build());
                 } else {
                     listener.onFailure(failure.get());

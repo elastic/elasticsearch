@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -62,19 +63,27 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
         if (restRequest.hasContent() == false) {
             throw ExceptionsHelper.badRequestException("requires body");
         }
-        InferModelAction.Request.Builder request = InferModelAction.Request.parseRequest(modelId, restRequest.contentParser());
+        InferModelAction.Request.Builder requestBuilder = InferModelAction.Request.parseRequest(modelId, restRequest.contentParser());
 
         if (restRequest.hasParam(InferModelAction.Request.TIMEOUT.getPreferredName())) {
             TimeValue inferTimeout = restRequest.paramAsTime(
                 InferModelAction.Request.TIMEOUT.getPreferredName(),
                 InferModelAction.Request.DEFAULT_TIMEOUT
             );
-            request.setInferenceTimeout(inferTimeout);
+            requestBuilder.setInferenceTimeout(inferTimeout);
+        }
+
+        // Unlike the _infer API, deployment/_infer only accepts a single document
+        var request = requestBuilder.build();
+        if (request.getObjectsToInfer() != null && request.getObjectsToInfer().size() > 1) {
+            ValidationException ex = new ValidationException();
+            ex.addValidationError("multiple documents are not supported");
+            throw ex;
         }
 
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             InferModelAction.EXTERNAL_INSTANCE,
-            request.build(),
+            request,
             // This API is deprecated but refactoring makes it simpler to call
             // the new replacement API and swap in the old response.
             ActionListener.wrap(response -> {

@@ -249,7 +249,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         protected final RuntimeField createChildRuntimeField(
             MappingParserContext parserContext,
             String parent,
-            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
+            ErrorBehaviour errorBehaviour
         ) {
             if (script.isConfigured()) {
                 throw new IllegalArgumentException(
@@ -259,13 +260,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             String fullName = parent + "." + name;
             return new LeafRuntimeField(
                 name,
-                createFieldType(
-                    fullName,
-                    getCompositeLeafFactory(parentScriptFactory),
-                    getScript(),
-                    meta(),
-                    ErrorBehaviour.fromString(onScriptError.get())
-                ),
+                createFieldType(fullName, getCompositeLeafFactory(parentScriptFactory), getScript(), meta(), errorBehaviour),
                 getParameters()
             );
         }

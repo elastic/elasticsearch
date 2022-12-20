@@ -28,7 +28,12 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        CompositeFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+        CompositeFieldScript.LeafFactory newFactory(
+            String fieldName,
+            Map<String, Object> params,
+            SearchLookup searchLookup,
+            ErrorBehaviour errorBehaviour
+        );
     }
 
     public interface LeafFactory {
@@ -37,8 +42,14 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
 
     private final Map<String, List<Object>> fieldValues = new HashMap<>();
 
-    public CompositeFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx, ErrorBehaviour.FAIL);
+    public CompositeFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        ErrorBehaviour errorBehaviour,
+        LeafReaderContext ctx
+    ) {
+        super(fieldName, params, searchLookup, ctx, errorBehaviour);
     }
 
     /**

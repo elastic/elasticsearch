@@ -34,6 +34,7 @@ public class CompositeFieldScriptTests extends ESTestCase {
                     "composite",
                     Collections.emptyMap(),
                     new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
+                    ErrorBehaviour.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -65,6 +66,7 @@ public class CompositeFieldScriptTests extends ESTestCase {
                     "composite",
                     Collections.emptyMap(),
                     new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
+                    ErrorBehaviour.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override

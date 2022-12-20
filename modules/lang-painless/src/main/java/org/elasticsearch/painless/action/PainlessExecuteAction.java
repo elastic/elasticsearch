@@ -668,7 +668,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     CompositeFieldScript.LeafFactory leafFactory = factory.newFactory(
                         CompositeFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        ErrorBehaviour.FAIL
                     );
                     CompositeFieldScript compositeFieldScript = leafFactory.newInstance(leafReaderContext);
                     compositeFieldScript.runForDoc(0);

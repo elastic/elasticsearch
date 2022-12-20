@@ -81,7 +81,12 @@ public class GeoIpDownloaderTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(
                 Settings.EMPTY,
-                Set.of(GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING, GeoIpDownloaderTaskExecutor.ENABLED_SETTING)
+                Set.of(
+                    GeoIpDownloader.EAGER_DOWNLOAD_SETTING,
+                    GeoIpDownloader.ENDPOINT_SETTING,
+                    GeoIpDownloader.POLL_INTERVAL_SETTING,
+                    GeoIpDownloaderTaskExecutor.ENABLED_SETTING
+                )
             )
         );
         ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));

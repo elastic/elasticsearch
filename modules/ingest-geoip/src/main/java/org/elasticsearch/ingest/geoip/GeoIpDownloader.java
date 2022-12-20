@@ -72,6 +72,13 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> EAGER_DOWNLOAD_SETTING = Setting.boolSetting(
+        "ingest.geoip.downloader.eager.download",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // for overriding in tests
     private static final String DEFAULT_ENDPOINT = System.getProperty(
         "ingest.geoip.downloader.endpoint.default",
@@ -101,10 +108,11 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
     private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
     /*
      * This variable tells us whether we have at least one pipeline with a geoip processor. If there are no geoip processors then we do
-     * not download geoip databases. Access is not protected because it is set in the constructor and then only ever updated on the cluster
-     * state update thread (it is also read on the generic thread). Non-private for unit testing.
+     * not download geoip databases (unless configured to eagerly download). Access is not protected because it is set in the constructor
+     * and then only ever updated on the cluster state update thread (it is also read on the generic thread). Non-private for unit testing.
      */
     volatile boolean atLeastOneGeoipProcessor;
+    private volatile boolean eagerDownload;
 
     GeoIpDownloader(
         Client client,
@@ -124,10 +132,21 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        atLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(clusterService.state());
+        this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
+        this.atLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(clusterService.state());
         endpoint = ENDPOINT_SETTING.get(settings);
         pollInterval = POLL_INTERVAL_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(EAGER_DOWNLOAD_SETTING, this::setEagerDownload);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
+    }
+
+    public void setEagerDownload(Boolean eagerDownload) {
+        if (this.eagerDownload != eagerDownload) {
+            this.eagerDownload = eagerDownload;
+            if (eagerDownload && scheduled != null && scheduled.cancel()) {
+                scheduleNextRun(TimeValue.ZERO);
+            }
+        }
     }
 
     public void setPollInterval(TimeValue pollInterval) {
@@ -151,7 +170,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
                 throw blockException;
             }
         }
-        if (atLeastOneGeoipProcessor) {
+        if (eagerDownload || atLeastOneGeoipProcessor) {
             logger.trace("Updating geoip databases");
             List<Map<String, Object>> response = fetchDatabasesOverview();
             for (Map<String, Object> res : response) {
@@ -160,7 +179,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask implements ClusterS
                 }
             }
         } else {
-            logger.trace("Not updating geoip databases because no geoip processors exist in the cluster");
+            logger.trace(
+                "Not updating geoip databases because no geoip processors exist in the cluster and eager downloading is not " + "configured"
+            );
         }
     }
 

@@ -97,6 +97,25 @@ public final class ConvertProcessor extends AbstractProcessor {
                 return value;
             }
         },
+        MAC {
+            @Override
+            public Object convert(Object value) {
+                StringBuilder stringBuilder = new StringBuilder();
+                String stringValue = value.toString().toUpperCase().replaceAll("[^a-fA-F0-9]", "");
+                if (stringValue.length() != 12) throw new IllegalArgumentException(
+                    "[" + value + "] is not a valid MAC Address"
+                );
+
+                for (int i = 0; i < stringValue.length(); i++) {
+                    if (i != 0 && i % 2 == 0) {
+                        stringBuilder.append('-');
+                    }
+                    stringBuilder.append(stringValue.charAt(i));
+                }
+
+                return stringBuilder.toString();
+            }
+        },
         STRING {
             @Override
             public Object convert(Object value) {

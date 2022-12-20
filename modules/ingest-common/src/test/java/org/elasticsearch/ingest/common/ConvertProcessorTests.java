@@ -379,6 +379,27 @@ public class ConvertProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
 
+    public void testMACConvert() throws Exception {
+        List<String> fieldValue = new ArrayList<>();
+        List<String> expectedList = new ArrayList<>();
+        Map<String, String> testValueMap = new HashMap<>();
+        testValueMap.put("10:AC:AF:BC:16:22", "10-AC-AF-BC-16-22");
+        testValueMap.put("10-AC-AF-BC-16-22", "10-AC-AF-BC-16-22");
+        testValueMap.put("10A.CAF.BC1.622", "10-AC-AF-BC-16-22");
+        testValueMap.put("10:ac:af:bc:16:22", "10-AC-AF-BC-16-22");
+
+        testValueMap.forEach((key, value) -> {
+            fieldValue.add(key);
+            expectedList.add(value);
+        });
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.MAC, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
+    }
+
     public void testConvertString() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Object fieldValue;

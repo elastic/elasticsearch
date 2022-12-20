@@ -91,6 +91,24 @@ public class GeoHexCellIdSource extends CellIdSource {
         };
     }
 
+    // package private for testing
+    static LatLonBounds getGeoBounds(CellBoundary cellBoundary) {
+        final LatLonBounds bounds = new LatLonBounds();
+        org.apache.lucene.spatial3d.geom.GeoPoint A = getGeoPoint(cellBoundary.getLatLon(cellBoundary.numPoints() - 1));
+        for (int i = 0; i < cellBoundary.numPoints(); i++) {
+            final org.apache.lucene.spatial3d.geom.GeoPoint B = getGeoPoint(cellBoundary.getLatLon(i));
+            bounds.addPoint(B);
+            final Plane plane = new Plane(A, B);
+            bounds.addPlane(PlanetModel.SPHERE, new Plane(A, B), new SidedPlane(A, plane, B), new SidedPlane(B, A, plane));
+            A = B;
+        }
+        return bounds;
+    }
+
+    private static org.apache.lucene.spatial3d.geom.GeoPoint getGeoPoint(LatLng latLng) {
+        return new org.apache.lucene.spatial3d.geom.GeoPoint(PlanetModel.SPHERE, latLng.getLatRad(), latLng.getLonRad());
+    }
+
     private static class GeoHexPredicate {
 
         private final boolean crossesDateline;
@@ -123,27 +141,10 @@ public class GeoHexCellIdSource extends CellIdSource {
             } else if (southPoleHex == hex) {
                 return maxLat > bbox.bottom();
             } else if (maxLon < minLon) {
-                return intersects(-180, minLon, minLat, maxLat) || intersects(maxLon, 180, minLat, maxLat);
+                return intersects(-180, maxLon, minLat, maxLat) || intersects(minLon, 180, minLat, maxLat);
             } else {
                 return intersects(minLon, maxLon, minLat, maxLat);
             }
-        }
-
-        private static LatLonBounds getGeoBounds(CellBoundary cellBoundary) {
-            final LatLonBounds bounds = new LatLonBounds();
-            org.apache.lucene.spatial3d.geom.GeoPoint A = getGeoPoint(cellBoundary.getLatLon(cellBoundary.numPoints() - 1));
-            for (int i = 0; i < cellBoundary.numPoints(); i++) {
-                final org.apache.lucene.spatial3d.geom.GeoPoint B = getGeoPoint(cellBoundary.getLatLon(i));
-                bounds.addPoint(B);
-                final Plane plane = new Plane(A, B);
-                bounds.addPlane(PlanetModel.SPHERE, new Plane(A, B), new SidedPlane(A, plane, B), new SidedPlane(B, A, plane));
-                A = B;
-            }
-            return bounds;
-        }
-
-        private static org.apache.lucene.spatial3d.geom.GeoPoint getGeoPoint(LatLng latLng) {
-            return new org.apache.lucene.spatial3d.geom.GeoPoint(PlanetModel.SPHERE, latLng.getLatRad(), latLng.getLonRad());
         }
 
         private boolean intersects(double minLon, double maxLon, double minLat, double maxLat) {

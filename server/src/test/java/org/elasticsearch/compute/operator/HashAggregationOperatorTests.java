@@ -8,11 +8,8 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.BreakerTestCase;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.BlockHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
@@ -21,38 +18,14 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class HashAggregationOperatorTests extends ESTestCase {
-    public void testNoBreaking() {
-        assertSimple(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofKb(1)));
-    }
-
-    public void testCircuitBreaking() {
-        Exception e = expectThrows(
-            CircuitBreakingException.class,
-            () -> assertSimple(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(between(1, 32))))
-        );
-        assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
-    }
-
-    public void testWithCranky() {
-        CrankyCircuitBreakerService breaker = new CrankyCircuitBreakerService();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker).withCircuitBreaking();
-        try {
-            assertSimple(bigArrays);
-            // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
-        } catch (CircuitBreakingException e) {
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
-    }
-
-    private void assertSimple(BigArrays bigArrays) {
+public class HashAggregationOperatorTests extends BreakerTestCase {
+    @Override
+    protected void assertSimple(BigArrays bigArrays) {
         BigArrays breakingBigArrays = bigArrays.withCircuitBreaking();
         HashAggregationOperator.HashAggregationOperatorFactory factory = new HashAggregationOperator.HashAggregationOperatorFactory(
             0,

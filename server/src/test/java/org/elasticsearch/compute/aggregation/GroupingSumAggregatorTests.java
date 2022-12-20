@@ -17,19 +17,19 @@ import org.elasticsearch.compute.data.Page;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GroupingAvgAggregatorTests extends BreakerTestCase {
+public class GroupingSumAggregatorTests extends BreakerTestCase {
     @Override
     protected void assertSimple(BigArrays bigArrays) {
-        Block avgs;
-        try (GroupingAvgAggregator agg = GroupingAvgAggregator.create(bigArrays.withCircuitBreaking(), 0)) {
+        Block sums;
+        try (GroupingSumAggregator agg = GroupingSumAggregator.create(bigArrays.withCircuitBreaking(), 0)) {
             int[] groups = new int[] { 0, 1, 2, 1, 2, 3 };
             double[] values = new double[] { 1, 2, 3, 4, 5, 6 };
             agg.addRawInput(new IntArrayBlock(groups, groups.length), new Page(new DoubleArrayBlock(values, values.length)));
-            avgs = agg.evaluateFinal();
+            sums = agg.evaluateFinal();
         }
-        assertThat(avgs.getDouble(0), equalTo(1.0));
-        assertThat(avgs.getDouble(1), equalTo(3.0));
-        assertThat(avgs.getDouble(2), equalTo(4.0));
-        assertThat(avgs.getDouble(3), equalTo(6.0));
+        assertThat(sums.getDouble(0), equalTo(1.0));
+        assertThat(sums.getDouble(1), equalTo(6.0));
+        assertThat(sums.getDouble(2), equalTo(8.0));
+        assertThat(sums.getDouble(3), equalTo(6.0));
     }
 }

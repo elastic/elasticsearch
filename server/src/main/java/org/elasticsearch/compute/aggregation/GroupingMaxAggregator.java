@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Experimental;
 
 @Experimental
@@ -15,15 +16,15 @@ final class GroupingMaxAggregator extends GroupingAbstractMinMaxAggregator {
 
     private static final double INITIAL_DEFAULT_VALUE = Double.NEGATIVE_INFINITY;
 
-    static GroupingMaxAggregator create(int inputChannel) {
+    static GroupingMaxAggregator create(BigArrays bigArrays, int inputChannel) {
         if (inputChannel < 0) {
             throw new IllegalArgumentException();
         }
-        return new GroupingMaxAggregator(inputChannel, new DoubleArrayState(INITIAL_DEFAULT_VALUE));
+        return new GroupingMaxAggregator(inputChannel, new DoubleArrayState(bigArrays, INITIAL_DEFAULT_VALUE));
     }
 
-    static GroupingMaxAggregator createIntermediate() {
-        return new GroupingMaxAggregator(-1, new DoubleArrayState(INITIAL_DEFAULT_VALUE));
+    static GroupingMaxAggregator createIntermediate(BigArrays bigArrays) {
+        return new GroupingMaxAggregator(-1, new DoubleArrayState(bigArrays, INITIAL_DEFAULT_VALUE));
     }
 
     private GroupingMaxAggregator(int channel, DoubleArrayState state) {

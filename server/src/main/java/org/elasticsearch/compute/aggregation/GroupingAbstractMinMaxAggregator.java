@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateBlock;
 import org.elasticsearch.compute.data.Block;
@@ -47,7 +48,8 @@ abstract class GroupingAbstractMinMaxAggregator implements GroupingAggregatorFun
         if (block instanceof AggregatorStateBlock) {
             @SuppressWarnings("unchecked")
             AggregatorStateBlock<DoubleArrayState> blobBlock = (AggregatorStateBlock<DoubleArrayState>) block;
-            DoubleArrayState tmpState = new DoubleArrayState(initialDefaultValue());
+            // TODO exchange big arrays directly without funny serialization - no more copying
+            DoubleArrayState tmpState = new DoubleArrayState(BigArrays.NON_RECYCLING_INSTANCE, initialDefaultValue());
             blobBlock.get(0, tmpState);
             final int positions = groupIdBlock.getPositionCount();
             final DoubleArrayState s = state;

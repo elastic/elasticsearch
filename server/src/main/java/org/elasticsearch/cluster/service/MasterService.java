@@ -55,7 +55,6 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -110,7 +109,6 @@ public class MasterService extends AbstractLifecycleComponent {
     private final TaskManager taskManager;
 
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
-    private final PerPriorityQueue[] queues;
     private final AtomicInteger totalQueueSize = new AtomicInteger();
     private volatile Batch currentlyExecutingBatch;
     private final Map<Priority, PerPriorityQueue> queuesByPriority;
@@ -131,13 +129,8 @@ public class MasterService extends AbstractLifecycleComponent {
         this.taskManager = taskManager;
 
         final var queuesByPriorityBuilder = new EnumMap<Priority, PerPriorityQueue>(Priority.class);
-        final var priorities = Priority.values();
-        queues = new PerPriorityQueue[priorities.length];
-        var queueIndex = 0;
-        for (final var priority : priorities) {
-            final var queue = new PerPriorityQueue(priority);
-            queues[queueIndex++] = queue;
-            queuesByPriorityBuilder.put(priority, queue);
+        for (final var priority : Priority.values()) {
+            queuesByPriorityBuilder.put(priority, new PerPriorityQueue(priority));
         }
         this.queuesByPriority = Collections.unmodifiableMap(queuesByPriorityBuilder);
         this.unbatchedExecutor = new UnbatchedExecutor();
@@ -610,7 +603,7 @@ public class MasterService extends AbstractLifecycleComponent {
      */
     public List<PendingClusterTask> pendingTasks() {
         final var currentTimeMillis = threadPool.relativeTimeInMillis();
-        return Stream.concat(Stream.ofNullable(currentlyExecutingBatch), Arrays.stream(queues).flatMap(q -> q.queue.stream()))
+        return Stream.concat(Stream.ofNullable(currentlyExecutingBatch), queuesByPriority.values().stream().flatMap(q -> q.queue.stream()))
             .flatMap(e -> e.getPending(currentTimeMillis))
             .toList();
     }
@@ -620,7 +613,7 @@ public class MasterService extends AbstractLifecycleComponent {
      */
     public int numberOfPendingTasks() {
         var result = getPendingCountOrZero(currentlyExecutingBatch); // single volatile read
-        for (final var queue : queues) {
+        for (final var queue : queuesByPriority.values()) {
             for (final var entry : queue.queue) {
                 result += entry.getPendingCount();
             }
@@ -640,7 +633,7 @@ public class MasterService extends AbstractLifecycleComponent {
     public TimeValue getMaxTaskWaitTime() {
         final var oldestTaskTimeMillis = Stream.concat(
             Stream.ofNullable(currentlyExecutingBatch),
-            Arrays.stream(queues).flatMap(q -> q.queue.stream())
+            queuesByPriority.values().stream().flatMap(q -> q.queue.stream())
         ).mapToLong(Batch::getCreationTimeMillis).min().orElse(Long.MAX_VALUE);
 
         if (oldestTaskTimeMillis == Long.MAX_VALUE) {
@@ -1279,7 +1272,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private Batch takeNextItem() {
         assert totalQueueSize.get() > 0;
         assert currentlyExecutingBatch == null;
-        for (final var queue : queues) {
+        for (final var queue : queuesByPriority.values()) {
             var item = queue.queue.poll();
             if (item != null) {
                 currentlyExecutingBatch = item;

@@ -104,33 +104,22 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     // package private for testing
     int setValuesByRecursion(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
         throws IOException {
+        // NOTE: When we recurse, we cannot shortcut for CONTAINS relationship because it might fail when visiting noChilds.
         int valueIndex = 0;
         if (bounds.maxX() - bounds.minX() < 180d) {
             final long minH3 = H3.geoToH3(bounds.minY(), bounds.minX(), 0);
             final long maxH3 = H3.geoToH3(bounds.maxY(), bounds.maxX(), 0);
             if (minH3 == maxH3) {
-                final GeoRelation relation = relateTile(geoValue, minH3);
-                valueIndex = setValuesByRecursion(values, geoValue, minH3, relation, 0, valueIndex);
-                if (relation == GeoRelation.QUERY_CONTAINS) {
-                    return valueIndex;
-                }
+                valueIndex = setValuesByRecursion(values, geoValue, minH3, 0, valueIndex);
                 for (long n : H3.hexRing(minH3)) {
-                    final GeoRelation nRelation = relateTile(geoValue, n);
-                    valueIndex = setValuesByRecursion(values, geoValue, n, nRelation, 0, valueIndex);
-                    if (nRelation == GeoRelation.QUERY_CONTAINS) {
-                        return valueIndex;
-                    }
+                    valueIndex = setValuesByRecursion(values, geoValue, n, 0, valueIndex);
                 }
                 return valueIndex;
             }
             // TODO: specialize when they are neighbour cells.
         }
         for (long h3 : RES0CELLS) {
-            final GeoRelation relation = relateTile(geoValue, h3);
-            valueIndex = setValuesByRecursion(values, geoValue, h3, relation, 0, valueIndex);
-            if (relation == GeoRelation.QUERY_CONTAINS) {
-                return valueIndex;
-            }
+            valueIndex = setValuesByRecursion(values, geoValue, h3, 0, valueIndex);
         }
         return valueIndex;
     }
@@ -143,10 +132,10 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         GeoShapeCellValues values,
         GeoShapeValues.GeoShapeValue geoValue,
         long h3,
-        GeoRelation relation,
         int precision,
         int valueIndex
     ) throws IOException {
+        final GeoRelation relation = relateTile(geoValue, h3);
         if (precision == this.precision) {
             // When we're at the desired level
             return maybeAdd(h3, relation, values, valueIndex);
@@ -164,11 +153,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
                 final int numChildren = H3.h3ToChildrenSize(h3);
                 for (; i < numChildren; i++) {
                     final long child = H3.childPosToH3(h3, i);
-                    final GeoRelation childRelation = relateTile(geoValue, child);
-                    valueIndex = setValuesByRecursion(values, geoValue, child, childRelation, precision + 1, valueIndex);
-                    if (childRelation == GeoRelation.QUERY_CONTAINS) {
-                        return valueIndex;
-                    }
+                    valueIndex = setValuesByRecursion(values, geoValue, child, precision + 1, valueIndex);
                 }
                 // H3 cells do intersects with other cells that are not part of the children cells. If the parent cell of those
                 // cells is disjoint, they will not be visited, therefore visit them here.
@@ -176,14 +161,9 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
                 for (int j = 0; j < numNoChildren; j++) {
                     final long noChild = H3.noChildIntersectingPosToH3(h3, j);
                     if (relateTile(geoValue, H3.h3ToParent(noChild)) == GeoRelation.QUERY_DISJOINT) {
-                        final GeoRelation noChildRelation = relateTile(geoValue, noChild);
-                        valueIndex = setValuesByRecursion(values, geoValue, noChild, noChildRelation, precision + 1, valueIndex);
-                        if (noChildRelation == GeoRelation.QUERY_CONTAINS) {
-                            return valueIndex;
-                        }
+                        valueIndex = setValuesByRecursion(values, geoValue, noChild, precision + 1, valueIndex);
                     }
                 }
-
             }
         }
         return valueIndex;

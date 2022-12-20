@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -48,8 +47,6 @@ public class SearchLookup {
         MappedFieldType.FielddataOperation,
         IndexFieldData<?>> fieldDataLookup;
 
-    private final RuntimeExceptionHandler exceptionHandler;
-
     /**
      * Create the top level field lookup for a search request. Provides a way to look up fields from  doc_values,
      * stored fields, or _source.
@@ -57,14 +54,12 @@ public class SearchLookup {
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
-        SourceLookup.SourceProvider sourceProvider,
-        RuntimeExceptionHandler exceptionHandler
+        SourceLookup.SourceProvider sourceProvider
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
         this.sourceLookup = new SourceLookup(sourceProvider);
         this.fieldDataLookup = fieldDataLookup;
-        this.exceptionHandler = exceptionHandler;
     }
 
     /**
@@ -79,7 +74,6 @@ public class SearchLookup {
         this.sourceLookup = searchLookup.sourceLookup;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
-        this.exceptionHandler = searchLookup.exceptionHandler;
     }
 
     /**
@@ -122,9 +116,5 @@ public class SearchLookup {
 
     public SourceLookup source() {
         return sourceLookup;
-    }
-
-    public RuntimeExceptionHandler getExceptionHandler() {
-        return exceptionHandler;
     }
 }

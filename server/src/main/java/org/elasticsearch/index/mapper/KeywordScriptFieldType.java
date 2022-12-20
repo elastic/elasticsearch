@@ -81,14 +81,14 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         Map<String, String> meta,
         boolean onErrorContinue
     ) {
-        super(
-            name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
-            script,
-            scriptFactory.isResultDeterministic(),
-            meta,
-            onErrorContinue
-        );
+        super(name, searchLookup -> {
+            StringFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup);
+            return ctx -> {
+                StringFieldScript fieldScript = leafFactory.newInstance(ctx);
+                fieldScript.setOnErrorContinue(onErrorContinue);
+                return fieldScript;
+            };
+        }, script, scriptFactory.isResultDeterministic(), meta, onErrorContinue);
     }
 
     @Override

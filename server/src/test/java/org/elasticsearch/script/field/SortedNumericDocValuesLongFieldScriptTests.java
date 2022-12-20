@@ -15,7 +15,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.SortedNumericDocValuesLongFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -41,12 +40,7 @@ public class SortedNumericDocValuesLongFieldScriptTests extends ESTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 SortedNumericDocValuesLongFieldScript docValues = new SortedNumericDocValuesLongFieldScript(
                     "test",
-                    new SearchLookup(
-                        field -> null,
-                        (ft, lookup, ftd) -> null,
-                        new SourceLookup.ReaderSourceProvider(),
-                        new RuntimeExceptionHandler()
-                    ),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
                     reader.leaves().get(0)
                 );
                 List<Long> values = new ArrayList<>();

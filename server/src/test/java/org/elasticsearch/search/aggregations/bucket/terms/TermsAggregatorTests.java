@@ -63,7 +63,6 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
-import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -1994,12 +1993,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
      */
     public void testRuntimeFieldTopLevelNotOptimized() throws IOException {
         long totalDocs = 500;
-        SearchLookup lookup = new SearchLookup(
-            s -> null,
-            (ft, l, ftd) -> null,
-            new SourceLookup.ReaderSourceProvider(),
-            new RuntimeExceptionHandler()
-        );
+        SearchLookup lookup = new SearchLookup(s -> null, (ft, l, ftd) -> null, new SourceLookup.ReaderSourceProvider());
         StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript("dummy", Map.of(), lookup, ctx) {
             @Override
             public void execute() {

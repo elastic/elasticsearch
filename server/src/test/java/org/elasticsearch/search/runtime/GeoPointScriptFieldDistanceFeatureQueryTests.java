@@ -21,7 +21,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
-import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
@@ -84,12 +83,7 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"location\": [-3.56, -45.98]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchLookup searchLookup = new SearchLookup(
-                    null,
-                    null,
-                    new SourceLookup.ReaderSourceProvider(),
-                    new RuntimeExceptionHandler()
-                );
+                SearchLookup searchLookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider());
                 Function<LeafReaderContext, GeoPointFieldScript> leafFactory = ctx -> new GeoPointFieldScript(
                     "test",
                     Map.of(),

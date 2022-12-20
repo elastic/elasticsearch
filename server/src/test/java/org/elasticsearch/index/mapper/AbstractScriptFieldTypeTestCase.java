@@ -258,8 +258,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             context::getFieldType,
             (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo))
                 .build(null, null),
-            sourceProvider,
-            new RuntimeExceptionHandler()
+            sourceProvider
         );
         when(context.lookup()).thenReturn(lookup);
         when(context.getForField(any(), any())).then(args -> {

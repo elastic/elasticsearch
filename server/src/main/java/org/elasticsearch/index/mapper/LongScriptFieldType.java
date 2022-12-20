@@ -69,14 +69,14 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         Map<String, String> meta,
         boolean onErrorContinue
     ) {
-        super(
-            name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
-            script,
-            scriptFactory.isResultDeterministic(),
-            meta,
-            onErrorContinue
-        );
+        super(name, searchLookup -> {
+            LongFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup);
+            return ctx -> {
+                LongFieldScript fieldScript = leafFactory.newInstance(ctx);
+                fieldScript.setOnErrorContinue(onErrorContinue);
+                return fieldScript;
+            };
+        }, script, scriptFactory.isResultDeterministic(), meta, onErrorContinue);
     }
 
     @Override

@@ -78,8 +78,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
                     fieldDataLookup(mapperService),
-                    new SourceLookup.ReaderSourceProvider(),
-                    new RuntimeExceptionHandler()
+                    new SourceLookup.ReaderSourceProvider()
                 );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);

@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -137,7 +136,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             searchLookupSetOnce.set(fdc.lookupSupplier());
             return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
-        SearchLookup searchLookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider(), new RuntimeExceptionHandler());
+        SearchLookup searchLookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider());
         ifdService.getForField(ft, new FieldDataContext("qualified", () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH));
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }

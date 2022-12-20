@@ -44,7 +44,6 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
-    protected final boolean onErrorContinue;
 
     AbstractScriptFieldType(
         String name,
@@ -58,7 +57,6 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
         this.isResultDeterministic = isResultDeterministic;
-        this.onErrorContinue = onErrorContinue;
     }
 
     @Override
@@ -184,10 +182,6 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
      * Create a script leaf factory.
      */
     protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        if (onErrorContinue) {
-            // activate error tolerance for this field in the error handler
-            searchLookup.getExceptionHandler().continueOnErrorForField(name());
-        }
         return factory.apply(searchLookup);
     }
 

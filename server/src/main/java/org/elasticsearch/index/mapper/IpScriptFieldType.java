@@ -61,14 +61,14 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     });
 
     IpScriptFieldType(String name, IpFieldScript.Factory scriptFactory, Script script, Map<String, String> meta, boolean onErrorContinue) {
-        super(
-            name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
-            script,
-            scriptFactory.isResultDeterministic(),
-            meta,
-            onErrorContinue
-        );
+        super(name, searchLookup -> {
+            IpFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup);
+            return ctx -> {
+                IpFieldScript fieldScript = leafFactory.newInstance(ctx);
+                fieldScript.setOnErrorContinue(onErrorContinue);
+                return fieldScript;
+            };
+        }, script, scriptFactory.isResultDeterministic(), meta, onErrorContinue);
     }
 
     @Override

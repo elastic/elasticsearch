@@ -27,7 +27,6 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
@@ -599,12 +598,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
      */
     public void testRuntimeFieldTopLevelQueryNotOptimized() throws IOException {
         long totalDocs = (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 4;
-        SearchLookup lookup = new SearchLookup(
-            s -> null,
-            (ft, l, ftd) -> null,
-            new SourceLookup.ReaderSourceProvider(),
-            new RuntimeExceptionHandler()
-        );
+        SearchLookup lookup = new SearchLookup(s -> null, (ft, l, ftd) -> null, new SourceLookup.ReaderSourceProvider());
         StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript("dummy", Map.of(), lookup, ctx) {
             @Override
             public void execute() {

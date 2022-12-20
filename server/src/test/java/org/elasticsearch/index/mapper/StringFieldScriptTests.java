@@ -64,12 +64,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript script = new StringFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(
-                        field -> null,
-                        (ft, lookup, fdt) -> null,
-                        new SourceLookup.ReaderSourceProvider(),
-                        new RuntimeExceptionHandler()
-                    ),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -95,12 +90,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript script = new StringFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(
-                        field -> null,
-                        (ft, lookup, fdt) -> null,
-                        new SourceLookup.ReaderSourceProvider(),
-                        new RuntimeExceptionHandler()
-                    ),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -140,12 +130,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(
-                        field -> null,
-                        (ft, lookup, fdt) -> null,
-                        new SourceLookup.ReaderSourceProvider(),
-                        new RuntimeExceptionHandler()
-                    )
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 stringFieldScript.runForDoc(0);
@@ -174,12 +159,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(
-                        field -> null,
-                        (ft, lookup, fdt) -> null,
-                        new SourceLookup.ReaderSourceProvider(),
-                        new RuntimeExceptionHandler()
-                    )
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 stringFieldScript.runForDoc(0);

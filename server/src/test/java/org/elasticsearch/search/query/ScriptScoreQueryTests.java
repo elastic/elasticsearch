@@ -23,7 +23,6 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -51,12 +50,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
     private DirectoryReader reader;
     private IndexSearcher searcher;
     private LeafReaderContext leafReaderContext;
-    private final SearchLookup lookup = new SearchLookup(
-        null,
-        null,
-        new SourceLookup.ReaderSourceProvider(),
-        new RuntimeExceptionHandler()
-    );
+    private final SearchLookup lookup = new SearchLookup(null, null, new SourceLookup.ReaderSourceProvider());
 
     @Before
     public void initSearcher() throws IOException {

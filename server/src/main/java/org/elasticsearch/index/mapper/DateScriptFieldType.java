@@ -133,14 +133,14 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         Map<String, String> meta,
         boolean onErrorContinue
     ) {
-        super(
-            name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
-            script,
-            scriptFactory.isResultDeterministic(),
-            meta,
-            onErrorContinue
-        );
+        super(name, searchLookup -> {
+            DateFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter);
+            return ctx -> {
+                DateFieldScript fieldScript = leafFactory.newInstance(ctx);
+                fieldScript.setOnErrorContinue(onErrorContinue);
+                return fieldScript;
+            };
+        }, script, scriptFactory.isResultDeterministic(), meta, onErrorContinue);
         this.dateTimeFormatter = dateTimeFormatter;
         this.dateMathParser = dateTimeFormatter.toDateMathParser();
     }

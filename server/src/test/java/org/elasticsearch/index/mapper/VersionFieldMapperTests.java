@@ -67,8 +67,7 @@ public class VersionFieldMapperTests extends MetadataMapperTestCase {
             SearchLookup lookup = new SearchLookup(
                 mapperService::fieldType,
                 fieldDataLookup(mapperService),
-                new SourceLookup.ReaderSourceProvider(),
-                new RuntimeExceptionHandler()
+                new SourceLookup.ReaderSourceProvider()
             );
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
             ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);

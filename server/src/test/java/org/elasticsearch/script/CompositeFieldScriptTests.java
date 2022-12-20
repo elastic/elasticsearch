@@ -13,7 +13,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.RuntimeExceptionHandler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -33,12 +32,7 @@ public class CompositeFieldScriptTests extends ESTestCase {
                 CompositeFieldScript script = new CompositeFieldScript(
                     "composite",
                     Collections.emptyMap(),
-                    new SearchLookup(
-                        field -> null,
-                        (ft, lookup, ftd) -> null,
-                        new SourceLookup.ReaderSourceProvider(),
-                        new RuntimeExceptionHandler()
-                    ),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -69,12 +63,7 @@ public class CompositeFieldScriptTests extends ESTestCase {
                 CompositeFieldScript script = new CompositeFieldScript(
                     "composite",
                     Collections.emptyMap(),
-                    new SearchLookup(
-                        field -> null,
-                        (ft, lookup, ftd) -> null,
-                        new SourceLookup.ReaderSourceProvider(),
-                        new RuntimeExceptionHandler()
-                    ),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -87,12 +76,7 @@ public class CompositeFieldScriptTests extends ESTestCase {
                 StringFieldScript stringFieldScript = new StringFieldScript(
                     "composite.leaf",
                     Collections.emptyMap(),
-                    new SearchLookup(
-                        field -> null,
-                        (ft, lookup, ftd) -> null,
-                        new SourceLookup.ReaderSourceProvider(),
-                        new RuntimeExceptionHandler()
-                    ),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
                     reader.leaves().get(0)
                 ) {
                     @Override

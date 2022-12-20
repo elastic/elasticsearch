@@ -50,7 +50,7 @@ public class GeoHexCellIdSource extends CellIdSource {
                 final double lat = target.getLat();
                 final double lon = target.getLon();
                 final long hex = H3.geoToH3(lat, lon, precision);
-                // validPoint is a fast check, validHex is slow
+                // pointInBounds is a fast check, validHex is slow
                 if (pointInBounds(lon, lat) || predicate.validHex(hex)) {
                     assert predicate.validHex(hex) : H3.h3ToString(hex) + " should be valid but it is not";
                     value = hex;

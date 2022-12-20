@@ -31,6 +31,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -308,7 +309,7 @@ public class OperatorTests extends ESTestCase {
                             )
                         );
                     }
-                    Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+                    runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
                 } finally {
                     Releasables.close(drivers);
                 }
@@ -464,7 +465,7 @@ public class OperatorTests extends ESTestCase {
                     });
                     drivers.add(new Driver(queryOperator, List.of(), docCollector, () -> {}));
                 }
-                Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
+                runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
                 assertThat("query=" + query + ", partition=" + partition, actualDocIds, equalTo(expectedDocIds));
             } finally {
@@ -512,7 +513,7 @@ public class OperatorTests extends ESTestCase {
                 () -> {}
             );
         ) {
-            Driver.runToCompletion(randomExecutor(), List.of(driver1, driver2));
+            runToCompletion(randomExecutor(), List.of(driver1, driver2));
             // TODO where is the assertion here?
         }
     }
@@ -566,7 +567,7 @@ public class OperatorTests extends ESTestCase {
                 () -> {}
             );
         ) {
-            Driver.runToCompletion(randomExecutor(), List.of(driver1, driver2, driver3, driver4));
+            runToCompletion(randomExecutor(), List.of(driver1, driver2, driver3, driver4));
         }
     }
 
@@ -1600,5 +1601,14 @@ public class OperatorTests extends ESTestCase {
      */
     private BigArrays bigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
+
+    public static void runToCompletion(Executor executor, List<Driver> drivers) {
+        ListenableActionFuture<List<Driver.Result>> future = new ListenableActionFuture<>();
+        Driver.start(executor, drivers, future::onResponse);
+        RuntimeException e = Driver.Result.collectFailures(future.actionGet());
+        if (e != null) {
+            throw e;
+        }
     }
 }

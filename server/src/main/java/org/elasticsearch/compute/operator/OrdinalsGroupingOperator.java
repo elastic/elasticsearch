@@ -111,7 +111,7 @@ public class OrdinalsGroupingOperator implements Operator {
 
         @Override
         public String describe() {
-            return "HashAggregationSourceOperator(aggs = " + aggregators.stream().map(Describable::describe).collect(joining(", ")) + ")";
+            return "OrdinalsGroupingOperator(aggs = " + aggregators.stream().map(Describable::describe).collect(joining(", ")) + ")";
         }
     }
 

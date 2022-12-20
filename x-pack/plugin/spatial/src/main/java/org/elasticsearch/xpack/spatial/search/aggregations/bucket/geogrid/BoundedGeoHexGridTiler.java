@@ -39,14 +39,15 @@ public class BoundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
         final double minY = Math.max(bbox.bottom() - FACTOR * height, -90d);
         final double maxY = Math.min(bbox.top() + FACTOR * height, 90d);
         final double width = Math.abs(bbox.right() - bbox.left());
-        final double leftX = GeoUtils.normalizeLon(bbox.left() - FACTOR * width);
-        final double rightX = GeoUtils.normalizeLon(bbox.right() + FACTOR * width);
-        if (bbox.left() > bbox.right() != leftX > rightX) {
+        final double left = GeoUtils.normalizeLon(bbox.left() - FACTOR * width);
+        final double right = GeoUtils.normalizeLon(bbox.right() + FACTOR * width);
+        if (bbox.left() > bbox.right() != left > right || width >= 180d) {
             // if one crosses the dateline and the other not, then it covers all longitude range.
             inflatedBbox = new GeoBoundingBox(new GeoPoint(maxY, -180d), new GeoPoint(minY, 180d));
         } else {
-            inflatedBbox = new GeoBoundingBox(new GeoPoint(maxY, leftX), new GeoPoint(minY, rightX));
+            inflatedBbox = new GeoBoundingBox(new GeoPoint(maxY, left), new GeoPoint(minY, right));
         }
+
     }
 
     @Override

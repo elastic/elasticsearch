@@ -32,6 +32,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -117,8 +118,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             try {
                 terms = leaf.reader().terms(fieldType.name());
             } catch (IOException e) {
-                logger.error("failed to read terms; dynamic pruning is disabled", e);
-                return false;
+                throw new UncheckedIOException(e);
             }
             if (terms != null) {
                 return true;

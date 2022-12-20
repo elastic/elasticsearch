@@ -1301,6 +1301,7 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private void forkQueueProcessor() {
+        // single-threaded: started when totalQueueSize transitions from 0 to 1 and keeps calling itself until the queue is drained.
         if (lifecycle.started() == false) {
             drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
             return;

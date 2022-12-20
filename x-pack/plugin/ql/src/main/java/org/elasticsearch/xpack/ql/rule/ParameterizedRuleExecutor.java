@@ -26,6 +26,6 @@ public abstract class ParameterizedRuleExecutor<TreeType extends Node<TreeType>,
     @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
     protected Function<TreeType, TreeType> transform(Rule<?, TreeType> rule) {
-        return (rule instanceof ParameterizedRule pr) ? t -> (TreeType) pr.apply(t, context) : rule::apply;
+        return (rule instanceof ParameterizedRule pr) ? t -> (TreeType) pr.apply(t, context) : t -> rule.apply(t);
     }
 }

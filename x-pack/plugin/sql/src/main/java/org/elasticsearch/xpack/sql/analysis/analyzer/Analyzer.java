@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy
 import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -305,7 +306,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
 
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
-            var indexResolution = context.indexResolution();
+            IndexResolution indexResolution = context.indexResolution();
             if (indexResolution.isValid() == false) {
                 return plan.unresolvedMessage().equals(indexResolution.toString())
                     ? plan

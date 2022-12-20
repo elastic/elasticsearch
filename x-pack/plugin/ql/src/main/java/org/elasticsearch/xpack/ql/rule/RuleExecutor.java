@@ -91,7 +91,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             return lazyHasChanged;
         }
 
-        public String ruleName() {
+        public String name() {
             return name;
         }
 

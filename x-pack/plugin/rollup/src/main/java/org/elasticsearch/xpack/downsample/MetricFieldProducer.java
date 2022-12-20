@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -26,7 +23,7 @@ import java.util.Map;
  * values. Based on the supported metric types, the subclasses of this class compute values for
  * gauge and metric types.
  */
-abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
+abstract class MetricFieldProducer extends AbstractRollupFieldProducer {
     /**
      * a list of metrics that will be computed for the field
      */
@@ -41,14 +38,8 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
      * Reset all values collected for the field
      */
     public void reset() {
-        for (Metric metric : metrics()) {
-            metric.reset();
-        }
+        metrics().forEach(Metric::reset);
         isEmpty = true;
-    }
-
-    public String name() {
-        return name;
     }
 
     /** return the list of metrics that are computed for the field */
@@ -57,12 +48,23 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
     }
 
     /** Collect the value of a raw field and compute all downsampled metrics */
-    @Override
-    public void collect(String field, Number value) {
+    void collect(Number value) {
         for (MetricFieldProducer.Metric metric : metrics()) {
             metric.collect(value);
         }
         isEmpty = false;
+    }
+
+    @Override
+    public void collect(FormattedDocValues docValues, int docId) throws IOException {
+        if (docValues.advanceExact(docId) == false) {
+            return;
+        }
+        int docValuesCount = docValues.docValueCount();
+        for (int i = 0; i < docValuesCount; i++) {
+            Number num = (Number) docValues.nextValue();
+            collect(num);
+        }
     }
 
     abstract static class Metric {
@@ -212,7 +214,7 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
         @Override
         void collect(Number value) {
             if (lastValue == null) {
-                lastValue = value.doubleValue();
+                lastValue = value;
             }
         }
 
@@ -234,6 +236,17 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
 
         CounterMetricFieldProducer(String name) {
             super(name, Collections.singletonList(new LastValue()));
+        }
+
+        @Override
+        public void collect(FormattedDocValues docValues, int docId) throws IOException {
+            // Counter producers only collect the last_value. Since documents are
+            // collected by descending timestamp order, the producer should only
+            // process the first value for every tsid. So, it will only collect the
+            // field if no value has been set before.
+            if (isEmpty()) {
+                super.collect(docValues, docId);
+            }
         }
 
         public Object value() {
@@ -289,7 +302,8 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
         }
 
         @Override
-        public void collect(String field, Number value) {
+        public void collect(Number value) {
+            String field = ""; // TODO
             metricsByField.get(field).collect(value);
             isEmpty = false;
         }

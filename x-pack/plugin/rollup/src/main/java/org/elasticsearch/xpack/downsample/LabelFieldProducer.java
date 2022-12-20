@@ -7,29 +7,20 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.Set;
 
 /**
  * Class that produces values for a label field.
  */
-abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
+abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
 
     LabelFieldProducer(String name) {
         super(name);
-    }
-
-    public String name() {
-        return name;
     }
 
     abstract static class Label {
@@ -60,39 +51,14 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
      * ignoring everything else.
      */
     static class LastValueLabel extends Label {
-        private final CheckedFunction<LeafReaderContext, FormattedDocValues, IOException> leaf;
         private Object lastValue;
 
-        LastValueLabel(String name, CheckedFunction<LeafReaderContext, FormattedDocValues, IOException> leaf) {
+        LastValueLabel(String name) {
             super(name);
-            this.leaf = leaf;
         }
 
-        LastValueLabel(CheckedFunction<LeafReaderContext, FormattedDocValues, IOException> leaf) {
-            this("last_value", leaf);
-        }
-
-        LeafCollector leaf(LeafReaderContext ctx) throws IOException {
-            final FormattedDocValues docValues = leaf.apply(ctx);
-            return docId -> {
-                if (lastValue != null) {
-                    return;
-                }
-                if (docValues.advanceExact(docId) == false) {
-                    return;
-                }
-
-                assert docValues.docValueCount() > 0;
-                if (docValues.docValueCount() == 1) {
-                    lastValue = docValues.nextValue();
-                    return;
-                }
-                Object[] values = new Object[docValues.docValueCount()];
-                for (int i = 0; i < values.length; i++) {
-                    values[i] = docValues.nextValue();
-                }
-                lastValue = values;
-            };
+        LastValueLabel() {
+            this("last_value");
         }
 
         @Override
@@ -104,6 +70,12 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
         void reset() {
             lastValue = null;
         }
+
+        void collect(Object value) {
+            if (lastValue == null) {
+                lastValue = value;
+            }
+        }
     }
 
     /**
@@ -112,9 +84,9 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
     static class LabelLastValueFieldProducer extends LabelFieldProducer {
         private final LastValueLabel label;
 
-        LabelLastValueFieldProducer(String name, CheckedFunction<LeafReaderContext, FormattedDocValues, IOException> leaf) {
+        LabelLastValueFieldProducer(String name) {
             super(name);
-            this.label = new LastValueLabel(name, leaf);
+            this.label = new LastValueLabel(name);
         }
 
         @Override
@@ -125,8 +97,26 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
         }
 
         @Override
-        public LeafCollector leaf(LeafReaderContext ctx) throws IOException {
-            return label.leaf(ctx);
+        public void collect(FormattedDocValues docValues, int docId) throws IOException {
+            if (isEmpty() == false) {
+                return;
+            }
+            if (docValues.advanceExact(docId) == false) {
+                return;
+            }
+
+            int docValuesCount = docValues.docValueCount();
+            assert docValuesCount > 0;
+            isEmpty = false;
+            if (docValuesCount == 1) {
+                label.collect(docValues.nextValue());
+            } else {
+                Object[] values = new Object[docValuesCount];
+                for (int i = 0; i < docValuesCount; i++) {
+                    values[i] = docValues.nextValue();
+                }
+                label.collect(values);
+            }
         }
 
         @Override
@@ -139,26 +129,40 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
     static class AggregateMetricFieldProducer extends LabelFieldProducer {
         private LastValueLabel[] labels;
 
-        AggregateMetricFieldProducer(String name, Map<String, CheckedFunction<LeafReaderContext, FormattedDocValues, IOException>> metrics) {
+        AggregateMetricFieldProducer(
+            String name,
+            Set<AggregateDoubleMetricFieldMapper.Metric> metrics
+        ) {
             super(name);
             labels = new LastValueLabel[metrics.size()];
             int i = 0;
-            for (var e : metrics.entrySet()) {
-                labels[i++] = new LastValueLabel(e.getKey(), e.getValue());
+            for (var e : metrics) {
+                labels[i++] = new LastValueLabel(e.name());
             }
         }
 
         @Override
-        public LeafCollector leaf(LeafReaderContext ctx) throws IOException {
-            LeafCollector[] labelLeaves = new LeafCollector[labels.length];
-            for (int i = 0; i < labelLeaves.length; i++) {
-                labelLeaves[i] = labels[i].leaf(ctx);
+        public void collect(FormattedDocValues docValues, int docId) throws IOException {
+            if (isEmpty == false) {
+                return;
             }
-            return docId -> {
-                for (LeafCollector l : labelLeaves) {
-                    l.collect(docId);
+
+            if (docValues.advanceExact(docId) == false) {
+                return;
+            }
+
+            // TODO
+            int docValuesCount = docValues.docValueCount();
+            assert docValuesCount > 0;
+            if (docValuesCount == 1) {
+                //label.collect(docValues.nextValue());
+            } else {
+                Object[] values = new Object[docValuesCount];
+                for (int i = 0; i < docValuesCount; i++) {
+                    values[i] = docValues.nextValue();
                 }
-            };
+                //label.collect(values);
+            }
         }
 
         @Override

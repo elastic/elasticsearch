@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -16,9 +15,9 @@ import java.io.IOException;
 /**
  * Base class for classes that read metric and label fields.
  */
-abstract class AbstractRollupFieldProducer<T> {
+abstract class AbstractRollupFieldProducer {
 
-    protected final String name;
+    private final String name;
     protected boolean isEmpty;
 
     AbstractRollupFieldProducer(String name) {
@@ -50,9 +49,5 @@ abstract class AbstractRollupFieldProducer<T> {
         return isEmpty;
     }
 
-    @FunctionalInterface interface LeafCollector {
-        void collect(int doc) throws IOException;
-    }
-
-    public abstract LeafCollector leaf(LeafReaderContext ctx) throws IOException;
+    public abstract void collect(FormattedDocValues docValues, int docId) throws IOException;
 }

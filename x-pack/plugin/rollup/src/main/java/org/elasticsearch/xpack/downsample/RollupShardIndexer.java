@@ -24,9 +24,9 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -56,11 +56,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -91,8 +89,7 @@ class RollupShardIndexer {
     private final String[] dimensionFields;
     private final String[] metricFields;
     private final String[] labelFields;
-    private final Map<String, FieldValueFetcher> fieldValueFetchers;
-
+    private final List<FieldValueFetcher> fieldValueFetchers;
     private final RollupShardTask task;
     private volatile boolean abort = false;
 
@@ -129,7 +126,11 @@ class RollupShardIndexer {
             this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
-            this.fieldValueFetchers = FieldValueFetcher.create(searchExecutionContext, ArrayUtils.concat(metricFields, labelFields));
+
+            List<FieldValueFetcher> fetchers = new ArrayList<>(metricFields.length + labelFields.length);
+            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metricFields));
+            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, labelFields));
+            this.fieldValueFetchers = Collections.unmodifiableList(fetchers);
             toClose = null;
         } finally {
             IOUtils.closeWhileHandlingException(toClose);
@@ -240,14 +241,18 @@ class RollupShardIndexer {
 
     private class TimeSeriesBucketCollector extends BucketCollector {
         private final BulkProcessor bulkProcessor;
+        private final RollupBucketBuilder rollupBucketBuilder;
         private long docsProcessed;
         private long bucketsCreated;
-        private final RollupBucketBuilder rollupBucketBuilder = new RollupBucketBuilder();
         long lastTimestamp = Long.MAX_VALUE;
         long lastHistoTimestamp = Long.MAX_VALUE;
 
         TimeSeriesBucketCollector(BulkProcessor bulkProcessor) {
             this.bulkProcessor = bulkProcessor;
+            List<AbstractRollupFieldProducer> rollupFieldProducers = fieldValueFetchers.stream()
+                .map(FieldValueFetcher::rollupFieldProducer)
+                .toList();
+            this.rollupBucketBuilder = new RollupBucketBuilder(rollupFieldProducers);
         }
 
         @Override
@@ -255,7 +260,9 @@ class RollupShardIndexer {
             final LeafReaderContext ctx = aggCtx.getLeafReaderContext();
             final DocCountProvider docCountProvider = new DocCountProvider();
             docCountProvider.setLeafReaderContext(ctx);
-            final Map<String, FormattedDocValues> docValuesFetchers = FieldValueFetcher.docValuesFetchers(ctx, fieldValueFetchers);
+            final List<Tuple<AbstractRollupFieldProducer, FormattedDocValues>> producers = fieldValueFetchers.stream()
+                .map(f -> Tuple.tuple(f.rollupFieldProducer(), f.getLeaf(ctx)))
+                .toList();
 
             return new LeafBucketCollector() {
                 @Override
@@ -323,23 +330,10 @@ class RollupShardIndexer {
 
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
-                    for (Map.Entry<String, FormattedDocValues> e : docValuesFetchers.entrySet()) {
-                        final String fieldName = e.getKey();
-                        final FormattedDocValues leafField = e.getValue();
-
-                        if (leafField.advanceExact(docId)) {
-                            rollupBucketBuilder.collect(fieldName, leafField.docValueCount(), docValueCount -> {
-                                final Object[] values = new Object[docValueCount];
-                                for (int i = 0; i < docValueCount; ++i) {
-                                    try {
-                                        values[i] = leafField.nextValue();
-                                    } catch (IOException ex) {
-                                        throw new ElasticsearchException("Failed to read values for field [" + fieldName + "]");
-                                    }
-                                }
-                                return values;
-                            });
-                        }
+                    for (var f : producers) {
+                        AbstractRollupFieldProducer rollupFieldProducer = f.v1();
+                        FormattedDocValues docValues = f.v2();
+                        rollupFieldProducer.collect(docValues, docId);
                     }
                     docsProcessed++;
                 }
@@ -387,16 +381,10 @@ class RollupShardIndexer {
         private int tsidOrd = -1;
         private long timestamp;
         private int docCount;
-        private final List<MetricFieldProducer> metricFieldProducers = new ArrayList<>();
-        private final List<LabelFieldProducer> labelFieldProducers = new ArrayList<>();
+        private final List<AbstractRollupFieldProducer> rollupFieldProducers;
 
-        RollupBucketBuilder() {
-            for (String m : metricFields) {
-                metricFieldProducers.addAll(fieldValueFetchers.get(m).metricProducer(searchExecutionContext));
-            }
-            for (String m : labelFields) {
-                labelFieldProducers.addAll(fieldValueFetchers.get(m).labelFieldProducer(searchExecutionContext));
-            }
+        RollupBucketBuilder(List<AbstractRollupFieldProducer> rollupFieldProducers) {
+            this.rollupFieldProducers = rollupFieldProducers;
         }
 
         /**
@@ -414,8 +402,7 @@ class RollupShardIndexer {
         public RollupBucketBuilder resetTimestamp(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
-            this.metricFieldProducers.forEach(MetricFieldProducer::reset);
-            this.labelFieldProducers.forEach(LabelFieldProducer::reset);
+            this.rollupFieldProducers.forEach(AbstractRollupFieldProducer::reset);
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "New bucket for _tsid: [{}], @timestamp: [{}]",
@@ -424,46 +411,6 @@ class RollupShardIndexer {
                 );
             }
             return this;
-        }
-
-        public void collect(final String field, int docValueCount, final Function<Integer, Object[]> fieldValues) {
-            final Object[] values = fieldValues.apply(docValueCount);
-            if (metricFieldProducers.containsKey(field)) {
-                // TODO: missing support for array metrics
-                collectMetric(field, values);
-            } else if (labelFieldProducers.containsKey(field)) {
-                if (values.length == 1) {
-                    collectLabel(field, values[0]);
-                } else {
-                    collectLabel(field, values);
-                }
-            } else {
-                throw new IllegalArgumentException(
-                    "Field '"
-                        + field
-                        + "' is not a label nor a metric, existing labels: [ "
-                        + String.join(",", labelFieldProducers.keySet())
-                        + "], existing metrics: ["
-                        + String.join(", ", metricFieldProducers.keySet())
-                        + "]"
-                );
-            }
-        }
-
-        private void collectLabel(final String field, final Object value) {
-            labelFieldProducers.get(field).collect(field, value);
-        }
-
-        private void collectMetric(final String field, final Object[] values) {
-            for (Object value : values) {
-                if (value instanceof Number number) {
-                    metricFieldProducers.get(field).collect(field, number);
-                } else {
-                    throw new IllegalArgumentException(
-                        "Expected numeric value for field '" + field + "' but got non numeric value: '" + value + "'"
-                    );
-                }
-            }
         }
 
         public void collectDocCount(int docCount) {
@@ -488,13 +435,8 @@ class RollupShardIndexer {
                 builder.field(e.getKey(), e.getValue());
             }
 
-            // Serialize all metric fields
-            for (var producer : new HashSet<>(metricFieldProducers.values())) {
-                producer.write(builder);
-            }
-
-            // Serialize all label fields
-            for (var producer : new HashSet<>(labelFieldProducers.values())) {
+            // Serialize fields
+            for (var producer : rollupFieldProducers) {
                 producer.write(builder);
             }
 

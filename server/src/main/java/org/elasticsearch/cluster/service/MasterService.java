@@ -110,10 +110,10 @@ public class MasterService extends AbstractLifecycleComponent {
     private final TaskManager taskManager;
 
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
-    private final CountedQueue[] queues;
+    private final PerPriorityQueue[] queues;
     private final AtomicInteger totalQueueSize = new AtomicInteger();
     private volatile Batch currentlyExecutingBatch;
-    private final Map<Priority, CountedQueue> queuesByPriority;
+    private final Map<Priority, PerPriorityQueue> queuesByPriority;
     private final LongSupplier insertionIndexSupplier = new AtomicLong()::incrementAndGet;
 
     private final ClusterStateUpdateStatsTracker clusterStateUpdateStatsTracker = new ClusterStateUpdateStatsTracker();
@@ -130,12 +130,12 @@ public class MasterService extends AbstractLifecycleComponent {
         this.threadPool = threadPool;
         this.taskManager = taskManager;
 
-        final var queuesByPriorityBuilder = new EnumMap<Priority, CountedQueue>(Priority.class);
+        final var queuesByPriorityBuilder = new EnumMap<Priority, PerPriorityQueue>(Priority.class);
         final var priorities = Priority.values();
-        queues = new CountedQueue[priorities.length];
+        queues = new PerPriorityQueue[priorities.length];
         var queueIndex = 0;
         for (final var priority : priorities) {
-            final var queue = new CountedQueue(priority);
+            final var queue = new PerPriorityQueue(priority);
             queues[queueIndex++] = queue;
             queuesByPriorityBuilder.put(priority, queue);
         }
@@ -1348,11 +1348,11 @@ public class MasterService extends AbstractLifecycleComponent {
      *
      * There is one of these queues for each priority level.
      */
-    private class CountedQueue {
+    private class PerPriorityQueue {
         private final ConcurrentLinkedQueue<Batch> queue = new ConcurrentLinkedQueue<>();
         private final Priority priority;
 
-        CountedQueue(Priority priority) {
+        PerPriorityQueue(Priority priority) {
             this.priority = priority;
         }
 
@@ -1481,16 +1481,16 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Actual implementation of {@link MasterServiceTaskQueue} exposed to clients. Conceptually, each entry in each {@link CountedQueue} is
-     * a {@link BatchingTaskQueue} representing a batch of tasks to be executed. Clients may add more tasks to each of these queues prior to
-     * their execution.
+     * Actual implementation of {@link MasterServiceTaskQueue} exposed to clients. Conceptually, each entry in each {@link PerPriorityQueue}
+     * is a {@link BatchingTaskQueue} representing a batch of tasks to be executed. Clients may add more tasks to each of these queues prior
+     * to their execution.
      *
-     * Works similarly to {@link CountedQueue} in that the queue size is tracked in a threadsafe fashion so that we can detect transitions
-     * between empty and nonempty queues and arrange to process the queue if and only if it's nonempty. There is only ever one active
-     * processor for each such queue.
+     * Works similarly to {@link PerPriorityQueue} in that the queue size is tracked in a threadsafe fashion so that we can detect
+     * transitions between empty and nonempty queues and arrange to process the queue if and only if it's nonempty. There is only ever one
+     * active processor for each such queue.
      *
-     * Works differently from {@link CountedQueue} in that each time the queue is processed it will drain all the pending items at once and
-     * process them in a single batch.
+     * Works differently from {@link PerPriorityQueue} in that each time the queue is processed it will drain all the pending items at once
+     * and process them in a single batch.
      *
      * Also handles that tasks may time out before being processed.
      */
@@ -1502,7 +1502,7 @@ public class MasterService extends AbstractLifecycleComponent {
         private final String name;
         private final BatchConsumer<T> batchConsumer;
         private final LongSupplier insertionIndexSupplier;
-        private final CountedQueue countedQueue;
+        private final PerPriorityQueue perPriorityQueue;
         private final ClusterStateTaskExecutor<T> executor;
         private final ThreadPool threadPool;
         private final Batch processor = new Processor();
@@ -1511,14 +1511,14 @@ public class MasterService extends AbstractLifecycleComponent {
             String name,
             BatchConsumer<T> batchConsumer,
             LongSupplier insertionIndexSupplier,
-            CountedQueue countedQueue,
+            PerPriorityQueue perPriorityQueue,
             ClusterStateTaskExecutor<T> executor,
             ThreadPool threadPool
         ) {
             this.name = name;
             this.batchConsumer = batchConsumer;
             this.insertionIndexSupplier = insertionIndexSupplier;
-            this.countedQueue = countedQueue;
+            this.perPriorityQueue = perPriorityQueue;
             this.executor = executor;
             this.threadPool = threadPool;
         }
@@ -1550,7 +1550,7 @@ public class MasterService extends AbstractLifecycleComponent {
             );
 
             if (queueSize.getAndIncrement() == 0) {
-                countedQueue.execute(processor);
+                perPriorityQueue.execute(processor);
             }
         }
 
@@ -1658,7 +1658,7 @@ public class MasterService extends AbstractLifecycleComponent {
                         .map(
                             entry -> new PendingClusterTask(
                                 entry.insertionIndex(),
-                                countedQueue.priority(),
+                                perPriorityQueue.priority(),
                                 new Text(entry.source()),
                                 currentTimeMillis - entry.insertionTimeMillis(),
                                 true
@@ -1669,7 +1669,7 @@ public class MasterService extends AbstractLifecycleComponent {
                         .map(
                             entry -> new PendingClusterTask(
                                 entry.insertionIndex(),
-                                countedQueue.priority(),
+                                perPriorityQueue.priority(),
                                 new Text(entry.source()),
                                 currentTimeMillis - entry.insertionTimeMillis(),
                                 false

@@ -43,35 +43,31 @@ public class DraResolvePlugin implements Plugin<Project> {
             DraWorkflow workflow = providerFactory.systemProperty(DRA_WORKFLOW).map(String::toUpperCase).map(DraWorkflow::valueOf).get();
             resolveBuildIdProperties().get().forEach((key, buildId) -> {
                 configureDraRepository(
-                        project,
-                        "dra-" + workflow.name().toLowerCase() + "-artifacts-" + key,
-                        key,
-                        buildId,
-                        repositoryPrefix.orElse(workflow.repository),
-                        workflow.versionRegex
+                    project,
+                    "dra-" + workflow.name().toLowerCase() + "-artifacts-" + key,
+                    key,
+                    buildId,
+                    repositoryPrefix.orElse(workflow.repository),
+                    workflow.versionRegex
                 );
             });
         }
     }
 
     private void configureDraRepository(
-            Project project,
-            String repositoryName,
-            String draKey,
-            String buildId,
-            Provider<String> repoPrefix,
-            String includeVersionRegex
+        Project project,
+        String repositoryName,
+        String draKey,
+        String buildId,
+        Provider<String> repoPrefix,
+        String includeVersionRegex
     ) {
         project.getRepositories().ivy(repo -> {
             repo.setName(repositoryName);
             repo.setUrl(repoPrefix.get());
             repo.patternLayout(patternLayout -> {
-                patternLayout.artifact(
-                        String.format("/%s/%s/downloads/%s/[module]-[revision].[ext]", draKey, buildId, draKey)
-                );
-                patternLayout.artifact(
-                        String.format("/%s/%s/downloads/%s/[module]/[module]-[revision].[ext]", draKey, buildId, draKey)
-                );
+                patternLayout.artifact(String.format("/%s/%s/downloads/%s/[module]-[revision].[ext]", draKey, buildId, draKey));
+                patternLayout.artifact(String.format("/%s/%s/downloads/%s/[module]/[module]-[revision].[ext]", draKey, buildId, draKey));
             });
             repo.metadataSources(metadataSources -> metadataSources.artifact());
             repo.content(repositoryContentDescriptor -> repositoryContentDescriptor.includeVersionByRegex(".*", ".*", includeVersionRegex));
@@ -80,13 +76,13 @@ public class DraResolvePlugin implements Plugin<Project> {
 
     private Provider<Map<String, String>> resolveBuildIdProperties() {
         return providerFactory.systemPropertiesPrefixedBy(DRA_ARTIFACTS_DEPENDENCY_PREFIX)
-                .map(
-                        stringStringMap -> stringStringMap.entrySet()
-                                .stream()
-                                .collect(
-                                        Collectors.toMap(entry -> entry.getKey().substring(DRA_ARTIFACTS_DEPENDENCY_PREFIX.length() + 1), Entry::getValue)
-                                )
-                );
+            .map(
+                stringStringMap -> stringStringMap.entrySet()
+                    .stream()
+                    .collect(
+                        Collectors.toMap(entry -> entry.getKey().substring(DRA_ARTIFACTS_DEPENDENCY_PREFIX.length() + 1), Entry::getValue)
+                    )
+            );
     }
 
     enum DraWorkflow {

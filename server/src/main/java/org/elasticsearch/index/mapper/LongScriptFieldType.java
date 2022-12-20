@@ -76,7 +76,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
                 fieldScript.setOnErrorContinue(onErrorContinue);
                 return fieldScript;
             };
-        }, script, scriptFactory.isResultDeterministic(), meta, onErrorContinue);
+        }, script, scriptFactory.isResultDeterministic(), meta);
     }
 
     @Override

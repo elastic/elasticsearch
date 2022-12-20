@@ -140,7 +140,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
                 fieldScript.setOnErrorContinue(onErrorContinue);
                 return fieldScript;
             };
-        }, script, scriptFactory.isResultDeterministic(), meta, onErrorContinue);
+        }, script, scriptFactory.isResultDeterministic(), meta);
         this.dateTimeFormatter = dateTimeFormatter;
         this.dateMathParser = dateTimeFormatter.toDateMathParser();
     }

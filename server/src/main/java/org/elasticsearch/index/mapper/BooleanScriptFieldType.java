@@ -81,7 +81,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
                 fieldScript.setOnErrorContinue(onErrorContinue);
                 return fieldScript;
             };
-        }, script, scriptFactory.isResultDeterministic(), meta, onErrorContinue);
+        }, script, scriptFactory.isResultDeterministic(), meta);
     }
 
     @Override

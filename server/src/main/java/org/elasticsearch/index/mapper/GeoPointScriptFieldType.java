@@ -80,7 +80,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
                 fieldScript.setOnErrorContinue(onErrorContinue);
                 return fieldScript;
             };
-        }, script, scriptFactory.isResultDeterministic(), meta, onErrorContinue);
+        }, script, scriptFactory.isResultDeterministic(), meta);
     }
 
     @Override

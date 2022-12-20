@@ -81,7 +81,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
                 fieldScript.setOnErrorContinue(onErrorContinue);
                 return fieldScript;
             };
-        }, script, scriptFactory.isResultDeterministic(), meta, onErrorContinue);
+        }, script, scriptFactory.isResultDeterministic(), meta);
     }
 
     @Override

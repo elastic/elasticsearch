@@ -88,7 +88,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
                 fieldScript.setOnErrorContinue(onErrorContinue);
                 return fieldScript;
             };
-        }, script, scriptFactory.isResultDeterministic(), meta, onErrorContinue);
+        }, script, scriptFactory.isResultDeterministic(), meta);
     }
 
     @Override

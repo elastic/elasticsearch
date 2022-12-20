@@ -50,8 +50,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         Function<SearchLookup, LeafFactory> factory,
         Script script,
         boolean isResultDeterministic,
-        Map<String, String> meta,
-        boolean onErrorContinue
+        Map<String, String> meta
     ) {
         super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.factory = factory;

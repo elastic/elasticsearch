@@ -270,7 +270,13 @@ public class MockScriptEngine implements ScriptEngine {
             IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(BooleanFieldScript.class)) {
-            BooleanFieldScript.Factory booleanFieldScript = (f, p, s) -> ctx -> new BooleanFieldScript(f, p, s, ctx) {
+            BooleanFieldScript.Factory booleanFieldScript = (f, p, s, errorBehaviour) -> ctx -> new BooleanFieldScript(
+                f,
+                p,
+                s,
+                ErrorBehaviour.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit(true);

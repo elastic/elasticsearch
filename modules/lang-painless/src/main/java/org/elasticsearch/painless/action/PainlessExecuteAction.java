@@ -558,7 +558,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     BooleanFieldScript.LeafFactory leafFactory = factory.newFactory(
                         BooleanFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        ErrorBehaviour.FAIL
                     );
                     BooleanFieldScript booleanFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Boolean> booleans = new ArrayList<>();

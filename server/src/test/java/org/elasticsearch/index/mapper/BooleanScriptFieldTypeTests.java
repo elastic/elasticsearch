@@ -426,7 +426,13 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
 
     private static BooleanFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
-            case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
+            case "read_foo" -> (fieldName, params, lookup, errorBehaviour) -> (ctx) -> new BooleanFieldScript(
+                fieldName,
+                params,
+                lookup,
+                errorBehaviour,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     for (Object foo : (List<?>) lookup.source().source().get("foo")) {
@@ -434,7 +440,13 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     }
                 }
             };
-            case "xor_param" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
+            case "xor_param" -> (fieldName, params, lookup, errorBehaviour) -> (ctx) -> new BooleanFieldScript(
+                fieldName,
+                params,
+                lookup,
+                errorBehaviour,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     for (Object foo : (List<?>) lookup.source().source().get("foo")) {
@@ -442,12 +454,18 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     }
                 }
             };
-            case "loop" -> (fieldName, params, lookup) -> {
+            case "loop" -> (fieldName, params, lookup, errorBehaviour) -> {
                 // Indicate that this script wants the field call "test", which *is* the name of this field
                 lookup.forkAndTrackFieldReferences("test");
                 throw new IllegalStateException("should have thrown on the line above");
             };
-            case "error" -> (fieldName, params, lookup) -> ctx -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
+            case "error" -> (fieldName, params, lookup, errorBehaviour) -> ctx -> new BooleanFieldScript(
+                fieldName,
+                params,
+                lookup,
+                errorBehaviour,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     throw new RuntimeException("test error");

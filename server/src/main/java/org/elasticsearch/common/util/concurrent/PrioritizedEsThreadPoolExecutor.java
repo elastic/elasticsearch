@@ -58,34 +58,6 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         return pending.toArray(new Pending[pending.size()]);
     }
 
-    public int getNumberOfPendingTasks() {
-        int size = current.size();
-        size += getQueue().size();
-        return size;
-    }
-
-    /**
-     * Returns the waiting time of the first task in the queue
-     */
-    public TimeValue getMaxTaskWaitTime() {
-        if (getQueue().size() == 0) {
-            return NO_WAIT_TIME_VALUE;
-        }
-
-        long now = System.nanoTime();
-        long oldestCreationDateInNanos = now;
-        for (Runnable queuedRunnable : getQueue()) {
-            if (queuedRunnable instanceof PrioritizedRunnable) {
-                oldestCreationDateInNanos = Math.min(
-                    oldestCreationDateInNanos,
-                    ((PrioritizedRunnable) queuedRunnable).getCreationDateInNanos()
-                );
-            }
-        }
-
-        return TimeValue.timeValueNanos(now - oldestCreationDateInNanos);
-    }
-
     private void addPending(List<Runnable> runnables, List<Pending> pending, boolean executing) {
         for (Runnable runnable : runnables) {
             if (runnable instanceof TieBreakingPrioritizedRunnable t) {

@@ -31,7 +31,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
-public class MultiFileWriterTest extends IndexShardTestCase {
+public class MultiFileWriterTests extends IndexShardTestCase {
 
     private IndexShard indexShard;
     private Directory directory;

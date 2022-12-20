@@ -22,8 +22,14 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
 
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, DateFormatter formatter) {
-            return ctx -> new DateFieldScript(field, params, lookup, formatter, ctx) {
+        public LeafFactory newFactory(
+            String field,
+            Map<String, Object> params,
+            SearchLookup lookup,
+            DateFormatter formatter,
+            ErrorBehaviour errorBehaviour
+        ) {
+            return ctx -> new DateFieldScript(field, params, lookup, formatter, ErrorBehaviour.FAIL, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -38,11 +44,11 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
     };
 
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
-        return (leafFieldName, params, searchLookup, formatter) -> {
+        return (leafFieldName, params, searchLookup, formatter, errorBehaviour) -> {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new DateFieldScript(leafFieldName, params, searchLookup, formatter, ctx) {
+                return new DateFieldScript(leafFieldName, params, searchLookup, formatter, ErrorBehaviour.FAIL, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);
@@ -61,7 +67,13 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup, DateFormatter formatter);
+        LeafFactory newFactory(
+            String fieldName,
+            Map<String, Object> params,
+            SearchLookup searchLookup,
+            DateFormatter formatter,
+            ErrorBehaviour errorBehaviour
+        );
     }
 
     public interface LeafFactory {
@@ -75,9 +87,10 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         Map<String, Object> params,
         SearchLookup searchLookup,
         DateFormatter formatter,
+        ErrorBehaviour errorBehaviour,
         LeafReaderContext ctx
     ) {
-        super(fieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx);
+        super(fieldName, params, searchLookup, errorBehaviour, ctx);
         this.formatter = formatter;
     }
 

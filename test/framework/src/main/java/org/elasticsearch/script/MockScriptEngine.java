@@ -326,7 +326,14 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(doubleFieldScript);
         } else if (context.instanceClazz.equals(DateFieldScript.class)) {
-            DateFieldScript.Factory dateFieldScript = (f, p, s, formatter) -> ctx -> new DateFieldScript(f, p, s, formatter, ctx) {
+            DateFieldScript.Factory dateFieldScript = (f, p, s, formatter, errorBehaviour) -> ctx -> new DateFieldScript(
+                f,
+                p,
+                s,
+                formatter,
+                ErrorBehaviour.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit(123L);

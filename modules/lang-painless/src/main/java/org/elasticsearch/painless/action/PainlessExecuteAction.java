@@ -573,7 +573,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         DateFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
                         context.lookup(),
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                        ErrorBehaviour.FAIL
                     );
                     DateFieldScript dateFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<String> dates = new ArrayList<>();

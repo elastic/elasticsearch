@@ -17,6 +17,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
@@ -75,6 +76,7 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
                     Map.of(),
                     searchLookup,
                     null,
+                    ErrorBehaviour.FAIL,
                     ctx
                 ) {
                     @Override

@@ -490,11 +490,12 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
     private static DateFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
-            case "read_timestamp" -> (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+            case "read_timestamp" -> (fieldName, params, lookup, formatter, errorBehaviour) -> ctx -> new DateFieldScript(
                 fieldName,
                 params,
                 lookup,
                 formatter,
+                errorBehaviour,
                 ctx
             ) {
                 @Override
@@ -505,11 +506,12 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
                 }
             };
-            case "add_days" -> (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+            case "add_days" -> (fieldName, params, lookup, formatter, errorBehaviour) -> ctx -> new DateFieldScript(
                 fieldName,
                 params,
                 lookup,
                 formatter,
+                errorBehaviour,
                 ctx
             ) {
                 @Override
@@ -522,16 +524,17 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     }
                 }
             };
-            case "loop" -> (fieldName, params, lookup, formatter) -> {
+            case "loop" -> (fieldName, params, lookup, formatter, errorBehaviour) -> {
                 // Indicate that this script wants the field call "test", which *is* the name of this field
                 lookup.forkAndTrackFieldReferences("test");
                 throw new IllegalStateException("should have thrown on the line above");
             };
-            case "error" -> (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+            case "error" -> (fieldName, params, lookup, formatter, errorBehaviour) -> ctx -> new DateFieldScript(
                 fieldName,
                 params,
                 lookup,
                 formatter,
+                errorBehaviour,
                 ctx
             ) {
                 @Override

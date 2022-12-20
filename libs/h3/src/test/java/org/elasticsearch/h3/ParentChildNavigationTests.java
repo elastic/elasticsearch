@@ -142,8 +142,8 @@ public class ParentChildNavigationTests extends ESTestCase {
     }
 
     public void testIssue91915() {
-        GeoPolygon polygon1 = getGeoPolygon("8cc373cb54069ff");
-        GeoPolygon polygon2 = getGeoPolygon("8cc373cb54065ff");
+        GeoPolygon polygon1 = getGeoPolygon("8ec82ea0650155f");
+        GeoPolygon polygon2 = getGeoPolygon("8ec82ea06501447");
         // these polygons are disjoint but due to https://github.com/apache/lucene/issues/11883
         // they are reported as intersects. Once this is fixed this test will fail, we should adjust
         // testNoChildrenIntersecting

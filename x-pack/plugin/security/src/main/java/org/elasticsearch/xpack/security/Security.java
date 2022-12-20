@@ -937,6 +937,7 @@ public class Security extends Plugin
         components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get(), profileService));
 
         reservedRoleMappingAction.set(new ReservedRoleMappingAction(nativeRoleMappingStore));
+        systemIndices.getMainIndexManager().onStateRecovered(state -> reservedRoleMappingAction.get().securityIndexRecovered());
 
         cacheInvalidatorRegistry.validate();
 

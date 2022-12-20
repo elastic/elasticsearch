@@ -77,7 +77,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
             IpFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup);
             return ctx -> {
                 IpFieldScript fieldScript = leafFactory.newInstance(ctx);
-                fieldScript.setErrorBehahiour(errorbehaviour);
+                // fieldScript.setErrorBehahiour(errorbehaviour);
                 return fieldScript;
             };
         }, script, scriptFactory.isResultDeterministic(), meta);

@@ -144,7 +144,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             DateFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter);
             return ctx -> {
                 DateFieldScript fieldScript = leafFactory.newInstance(ctx);
-                fieldScript.setErrorBehahiour(errorBehaviour);
+                // fieldScript.setErrorBehahiour(errorBehaviour);
                 return fieldScript;
             };
         }, script, scriptFactory.isResultDeterministic(), meta);

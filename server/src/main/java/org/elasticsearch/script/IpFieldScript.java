@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -92,7 +93,7 @@ public abstract class IpFieldScript extends AbstractFieldScript {
     private int count;
 
     public IpFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx);
+        super(fieldName, params, searchLookup, ctx, ErrorBehaviour.FAIL);
     }
 
     @Override

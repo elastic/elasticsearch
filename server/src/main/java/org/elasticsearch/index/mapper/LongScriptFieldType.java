@@ -79,7 +79,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             LongFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup);
             return ctx -> {
                 LongFieldScript fieldScript = leafFactory.newInstance(ctx);
-                fieldScript.setErrorBehahiour(errorbehaviour);
+                // fieldScript.setErrorBehahiour(errorbehaviour);
                 return fieldScript;
             };
         }, script, scriptFactory.isResultDeterministic(), meta);

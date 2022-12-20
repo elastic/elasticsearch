@@ -14,6 +14,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
@@ -82,7 +83,7 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
     private int count;
 
     public GeoPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx);
+        super(fieldName, params, searchLookup, ctx, ErrorBehaviour.FAIL);
     }
 
     @Override

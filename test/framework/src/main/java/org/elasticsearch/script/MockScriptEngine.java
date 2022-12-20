@@ -15,6 +15,7 @@ import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
@@ -277,7 +278,13 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(booleanFieldScript);
         } else if (context.instanceClazz.equals(StringFieldScript.class)) {
-            StringFieldScript.Factory stringFieldScript = (f, p, s) -> ctx -> new StringFieldScript(f, p, s, ctx) {
+            StringFieldScript.Factory stringFieldScript = (f, p, s, errorBehaviour) -> ctx -> new StringFieldScript(
+                f,
+                p,
+                s,
+                ErrorBehaviour.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit("test");

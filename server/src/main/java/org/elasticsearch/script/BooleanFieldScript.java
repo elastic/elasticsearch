@@ -10,6 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
@@ -72,7 +73,7 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
     private int falses;
 
     public BooleanFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx);
+        super(fieldName, params, searchLookup, ctx, ErrorBehaviour.FAIL);
     }
 
     @Override

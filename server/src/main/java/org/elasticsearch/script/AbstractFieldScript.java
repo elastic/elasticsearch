@@ -70,9 +70,15 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     protected final String fieldName;
     protected final SourceLookup sourceLookup;
     private final Map<String, Object> params;
-    private ErrorBehaviour errorBehaviour = ErrorBehaviour.FAIL;
+    private final ErrorBehaviour errorBehaviour;
 
-    public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public AbstractFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        LeafReaderContext ctx,
+        ErrorBehaviour errorBehaviour
+    ) {
         super(new DocValuesDocReader(searchLookup, ctx));
         this.fieldName = fieldName;
         Map<String, Object> docAsMap = docAsMap();
@@ -81,6 +87,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         params.put("_source", sourceLookup);
         params.put("_fields", docAsMap.get("_fields"));
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
+        this.errorBehaviour = errorBehaviour;
     }
 
     /**
@@ -154,8 +161,4 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     }
 
     public abstract void execute();
-
-    public void setErrorBehahiour(ErrorBehaviour errorBehaviour) {
-        this.errorBehaviour = errorBehaviour;
-    }
 }

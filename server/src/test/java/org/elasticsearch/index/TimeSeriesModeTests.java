@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -264,7 +265,12 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         if (context.equals(StringFieldScript.CONTEXT) && script.getLang().equals("mock")) {
             return (T) new StringFieldScript.Factory() {
                 @Override
-                public LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+                public LeafFactory newFactory(
+                    String fieldName,
+                    Map<String, Object> params,
+                    SearchLookup searchLookup,
+                    ErrorBehaviour errorBehaviour
+                ) {
                     throw new UnsupportedOperationException("error should be thrown before getting here");
                 }
             };

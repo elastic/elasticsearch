@@ -78,7 +78,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             GeoPointFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup);
             return ctx -> {
                 GeoPointFieldScript fieldScript = leafFactory.newInstance(ctx);
-                fieldScript.setErrorBehahiour(errorbehaviour);
+                // fieldScript.setErrorBehahiour(errorbehaviour);
                 return fieldScript;
             };
         }, script, scriptFactory.isResultDeterministic(), meta);

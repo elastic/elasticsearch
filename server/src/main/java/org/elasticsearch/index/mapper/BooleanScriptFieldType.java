@@ -79,7 +79,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
             BooleanFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup);
             return ctx -> {
                 BooleanFieldScript fieldScript = leafFactory.newInstance(ctx);
-                fieldScript.setErrorBehahiour(errorbehaviour);
+                // fieldScript.setErrorBehahiour(errorbehaviour);
                 return fieldScript;
             };
         }, script, scriptFactory.isResultDeterministic(), meta);

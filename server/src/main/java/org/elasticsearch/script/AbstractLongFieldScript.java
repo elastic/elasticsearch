@@ -10,6 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
@@ -23,7 +24,7 @@ public abstract class AbstractLongFieldScript extends AbstractFieldScript {
     private int count;
 
     public AbstractLongFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx);
+        super(fieldName, params, searchLookup, ctx, ErrorBehaviour.FAIL);
     }
 
     @Override

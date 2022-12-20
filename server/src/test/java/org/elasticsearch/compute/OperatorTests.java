@@ -60,6 +60,7 @@ import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
+import org.elasticsearch.compute.operator.TopNOperator.SortOrder;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -90,6 +91,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -119,6 +122,7 @@ import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INTERMEDIATE;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -870,9 +874,6 @@ public class OperatorTests extends ESTestCase {
         return rawPages;
     }
 
-    /** Tuple of groupId and respective value. Both of which are of type long. */
-    record LongGroupPair(long groupId, long value) {}
-
     // Basic test with small(ish) input
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
     public void testBasicGroupingOperators() {
@@ -888,18 +889,18 @@ public class OperatorTests extends ESTestCase {
         // create a list of group/value pairs. Each group has 100 monotonically increasing values.
         // Higher groupIds have higher sets of values, e.g. logical group1, values 0...99;
         // group2, values 100..199, etc. This way we can assert average values given the groupId.
-        List<LongGroupPair> values = new ArrayList<>();
+        List<Tuple<Long, Long>> values = new ArrayList<>();
         long group = initialGroupId;
         long value = initialValue;
         for (int i = 0; i < cardinality; i++) {
             for (int j = 0; j < 100; j++) {
-                values.add(new LongGroupPair(group, value++));
+                values.add(tuple(group, value++));
             }
             group++;
         }
         // shuffling provides a basic level of randomness to otherwise quite boring data
         Collections.shuffle(values, random());
-        var source = new GroupPairBlockSourceOperator(values, 99);
+        var source = new TupleBlockSourceOperator(values, 99);
 
         try (
             Driver driver = new Driver(
@@ -1084,18 +1085,18 @@ public class OperatorTests extends ESTestCase {
         // create a list of group/value pairs. Each group has 100 monotonically increasing values.
         // Higher groupIds have higher sets of values, e.g. logical group1, values 0...99;
         // group2, values 100..199, etc. This way we can assert average values given the groupId.
-        List<LongGroupPair> values = new ArrayList<>();
+        List<Tuple<Long, Long>> values = new ArrayList<>();
         long group = initialGroupId;
         long value = initialValue;
         for (int i = 0; i < cardinality; i++) {
             for (int j = 0; j < 100; j++) {
-                values.add(new LongGroupPair(group, value++));
+                values.add(tuple(group, value++));
             }
             group++;
         }
         // shuffling provides a basic level of randomness to otherwise quite boring data
         Collections.shuffle(values, random());
-        var source = new GroupPairBlockSourceOperator(values, 99);
+        var source = new TupleBlockSourceOperator(values, 99);
         List<Page> rawPages = drainSourceToPages(source);
 
         HashAggregationOperator partialAggregatorOperator = null;
@@ -1204,7 +1205,7 @@ public class OperatorTests extends ESTestCase {
                     Block block1 = page.getBlock(0);
                     Block block2 = page.getBlock(1);
                     for (int i = 0; i < page.getPositionCount(); i++) {
-                        results.add(Tuple.tuple(block1.getLong(i), block2.getLong(i)));
+                        results.add(tuple(block1.getLong(i), block2.getLong(i)));
                     }
                 }),
                 () -> {}
@@ -1218,7 +1219,7 @@ public class OperatorTests extends ESTestCase {
             contains(
                 values.stream()
                     .filter(condition1)
-                    .map(l -> Tuple.tuple(l, transformation.apply(l)))
+                    .map(l -> tuple(l, transformation.apply(l)))
                     .filter(t -> condition2.test(t.v2()))
                     .toArray()
             )
@@ -1257,35 +1258,70 @@ public class OperatorTests extends ESTestCase {
             List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
             Comparator<Long> comparator = asc ? Comparator.naturalOrder() : Comparator.reverseOrder();
             List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
-            List<Long> outputValues = topN(inputValues, limit, asc);
+            List<Long> outputValues = topN(inputValues, limit, asc, false);
             assertThat(outputValues, equalTo(expectedValues));
         }
     }
 
     public void testBasicTopN() {
-        List<Long> values = List.of(2L, 1L, 4L, 5L, 10L, 20L, 4L, 100L);
-        assertThat(topN(values, 1, true), equalTo(List.of(1L)));
-        assertThat(topN(values, 1, false), equalTo(List.of(100L)));
-        assertThat(topN(values, 2, true), equalTo(List.of(1L, 2L)));
-        assertThat(topN(values, 2, false), equalTo(List.of(100L, 20L)));
-        assertThat(topN(values, 3, true), equalTo(List.of(1L, 2L, 4L)));
-        assertThat(topN(values, 3, false), equalTo(List.of(100L, 20L, 10L)));
-        assertThat(topN(values, 4, true), equalTo(List.of(1L, 2L, 4L, 4L)));
-        assertThat(topN(values, 4, false), equalTo(List.of(100L, 20L, 10L, 5L)));
-        assertThat(topN(values, 5, true), equalTo(List.of(1L, 2L, 4L, 4L, 5L)));
-        assertThat(topN(values, 5, false), equalTo(List.of(100L, 20L, 10L, 5L, 4L)));
+        List<Long> values = Arrays.asList(2L, 1L, 4L, null, 5L, 10L, null, 20L, 4L, 100L);
+        assertThat(topN(values, 1, true, false), equalTo(Arrays.asList(1L)));
+        assertThat(topN(values, 1, false, false), equalTo(Arrays.asList(100L)));
+        assertThat(topN(values, 2, true, false), equalTo(Arrays.asList(1L, 2L)));
+        assertThat(topN(values, 2, false, false), equalTo(Arrays.asList(100L, 20L)));
+        assertThat(topN(values, 3, true, false), equalTo(Arrays.asList(1L, 2L, 4L)));
+        assertThat(topN(values, 3, false, false), equalTo(Arrays.asList(100L, 20L, 10L)));
+        assertThat(topN(values, 4, true, false), equalTo(Arrays.asList(1L, 2L, 4L, 4L)));
+        assertThat(topN(values, 4, false, false), equalTo(Arrays.asList(100L, 20L, 10L, 5L)));
+        assertThat(topN(values, 100, true, false), equalTo(Arrays.asList(1L, 2L, 4L, 4L, 5L, 10L, 20L, 100L, null, null)));
+        assertThat(topN(values, 100, false, false), equalTo(Arrays.asList(100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L, null, null)));
+        assertThat(topN(values, 1, true, true), equalTo(Arrays.asList(new Long[] { null })));
+        assertThat(topN(values, 1, false, true), equalTo(Arrays.asList(new Long[] { null })));
+        assertThat(topN(values, 2, true, true), equalTo(Arrays.asList(null, null)));
+        assertThat(topN(values, 2, false, true), equalTo(Arrays.asList(null, null)));
+        assertThat(topN(values, 3, true, true), equalTo(Arrays.asList(null, null, 1L)));
+        assertThat(topN(values, 3, false, true), equalTo(Arrays.asList(null, null, 100L)));
+        assertThat(topN(values, 4, true, true), equalTo(Arrays.asList(null, null, 1L, 2L)));
+        assertThat(topN(values, 4, false, true), equalTo(Arrays.asList(null, null, 100L, 20L)));
+        assertThat(topN(values, 100, true, true), equalTo(Arrays.asList(null, null, 1L, 2L, 4L, 4L, 5L, 10L, 20L, 100L)));
+        assertThat(topN(values, 100, false, true), equalTo(Arrays.asList(null, null, 100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L)));
     }
 
-    private List<Long> topN(List<Long> inputValues, int limit, boolean ascendingOrder) {
-        List<Long> outputValues = new ArrayList<>();
+    private List<Long> topN(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
+        return topNTwoColumns(
+            inputValues.stream().map(v -> tuple(v, 0L)).toList(),
+            limit,
+            List.of(new SortOrder(0, ascendingOrder, nullsFirst))
+        ).stream().map(Tuple::v1).toList();
+    }
+
+    public void testTopNTwoColumns() {
+        List<Tuple<Long, Long>> values = Arrays.asList(tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L), tuple(1L, null));
+        assertThat(
+            topNTwoColumns(values, 5, List.of(new SortOrder(0, true, false), new SortOrder(1, true, false))),
+            equalTo(List.of(tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null), tuple(null, 1L), tuple(null, null)))
+        );
+        assertThat(
+            topNTwoColumns(values, 5, List.of(new SortOrder(0, true, true), new SortOrder(1, true, false))),
+            equalTo(List.of(tuple(null, 1L), tuple(null, null), tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null)))
+        );
+        assertThat(
+            topNTwoColumns(values, 5, List.of(new SortOrder(0, true, false), new SortOrder(1, true, true))),
+            equalTo(List.of(tuple(1L, null), tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L)))
+        );
+    }
+
+    private List<Tuple<Long, Long>> topNTwoColumns(List<Tuple<Long, Long>> inputValues, int limit, List<SortOrder> sortOrders) {
+        List<Tuple<Long, Long>> outputValues = new ArrayList<>();
         try (
             Driver driver = new Driver(
-                new SequenceLongBlockSourceOperator(inputValues, randomIntBetween(1, 1000)),
-                List.of(new TopNOperator(0, ascendingOrder, limit, true)),
+                new TupleBlockSourceOperator(inputValues, randomIntBetween(1, 1000)),
+                List.of(new TopNOperator(limit, sortOrders)),
                 new PageConsumerOperator(page -> {
-                    Block block = page.getBlock(0);
-                    for (int i = 0; i < block.getPositionCount(); i++) {
-                        outputValues.add(block.getLong(i));
+                    Block block1 = page.getBlock(0);
+                    Block block2 = page.getBlock(1);
+                    for (int i = 0; i < block1.getPositionCount(); i++) {
+                        outputValues.add(tuple(block1.isNull(i) ? null : block1.getLong(i), block2.isNull(i) ? null : block2.getLong(i)));
                     }
                 }),
                 () -> {}
@@ -1298,37 +1334,45 @@ public class OperatorTests extends ESTestCase {
     }
 
     /**
-     * A source operator whose output is the given group tuple values. This operator produces pages
-     * with two Blocks. The first Block contains the groupId long values. The second Block contains
-     * the respective groupId {@link LongGroupPair#value()}. The returned pages preserve the order
-     * of values as given in the in initial list.
+     * A source operator whose output is the given tuple values. This operator produces pages
+     * with two Blocks. The returned pages preserve the order of values as given in the in initial list.
      */
-    class GroupPairBlockSourceOperator extends AbstractBlockSourceOperator {
+    class TupleBlockSourceOperator extends AbstractBlockSourceOperator {
 
         private static final int MAX_PAGE_POSITIONS = 8 * 1024;
 
-        private final List<LongGroupPair> values;
+        private final List<Tuple<Long, Long>> values;
 
-        GroupPairBlockSourceOperator(List<LongGroupPair> values) {
+        TupleBlockSourceOperator(List<Tuple<Long, Long>> values) {
             this(values, MAX_PAGE_POSITIONS);
         }
 
-        GroupPairBlockSourceOperator(List<LongGroupPair> values, int maxPagePositions) {
+        TupleBlockSourceOperator(List<Tuple<Long, Long>> values, int maxPagePositions) {
             super(maxPagePositions);
             this.values = values;
         }
 
         @Override
         Page createPage(int positionOffset, int length) {
-            final long[] groupsBlock = new long[length];
-            final long[] valuesBlock = new long[length];
+            final long[] block1 = new long[length];
+            final BitSet nulls1 = new BitSet(length);
+            final long[] block2 = new long[length];
+            final BitSet nulls2 = new BitSet(length);
             for (int i = 0; i < length; i++) {
-                LongGroupPair item = values.get(positionOffset + i);
-                groupsBlock[i] = item.groupId();
-                valuesBlock[i] = item.value();
+                Tuple<Long, Long> item = values.get(positionOffset + i);
+                if (item.v1() == null) {
+                    nulls1.set(i);
+                } else {
+                    block1[i] = item.v1();
+                }
+                if (item.v2() == null) {
+                    nulls2.set(i);
+                } else {
+                    block2[i] = item.v2();
+                }
             }
             currentPosition += length;
-            return new Page(new LongArrayBlock(groupsBlock, length), new LongArrayBlock(valuesBlock, length));
+            return new Page(new LongArrayBlock(block1, length, nulls1), new LongArrayBlock(block2, length, nulls2));
         }
 
         @Override
@@ -1346,6 +1390,7 @@ public class OperatorTests extends ESTestCase {
         static final int MAX_PAGE_POSITIONS = 8 * 1024;
 
         private final long[] values;
+        private final BitSet nulls;
 
         SequenceLongBlockSourceOperator(List<Long> values) {
             this(values, MAX_PAGE_POSITIONS);
@@ -1353,7 +1398,13 @@ public class OperatorTests extends ESTestCase {
 
         SequenceLongBlockSourceOperator(List<Long> values, int maxPagePositions) {
             super(maxPagePositions);
-            this.values = values.stream().mapToLong(Long::longValue).toArray();
+            this.values = values.stream().mapToLong(l -> l == null ? 0 : l).toArray();
+            this.nulls = new BitSet();
+            for (int i = 0; i < values.size(); i++) {
+                if (values.get(i) == null) {
+                    this.nulls.set(i);
+                }
+            }
         }
 
         protected Page createPage(int positionOffset, int length) {
@@ -1362,7 +1413,7 @@ public class OperatorTests extends ESTestCase {
                 array[i] = values[positionOffset + i];
             }
             currentPosition += length;
-            return new Page(new LongArrayBlock(array, array.length));
+            return new Page(new LongArrayBlock(array, array.length, nulls.get(positionOffset, positionOffset + length)));
         }
 
         int remaining() {

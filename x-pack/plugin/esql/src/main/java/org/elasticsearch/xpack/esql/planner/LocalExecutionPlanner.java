@@ -41,6 +41,7 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
@@ -330,16 +331,22 @@ public class LocalExecutionPlanner {
             return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(ex), layout);
         } else if (node instanceof TopNExec topNExec) {
             PhysicalOperation source = plan(topNExec.child(), context);
-            if (topNExec.order().size() != 1) {
-                throw new UnsupportedOperationException();
-            }
-            Order order = topNExec.order().get(0);
-            int sortByChannel;
-            if (order.child()instanceof Attribute a) {
-                sortByChannel = source.layout.getChannel(a.id());
-            } else {
-                throw new UnsupportedOperationException();
-            }
+
+            List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
+                int sortByChannel;
+                if (order.child()instanceof Attribute a) {
+                    sortByChannel = source.layout.getChannel(a.id());
+                } else {
+                    throw new UnsupportedOperationException();
+                }
+
+                return new TopNOperator.SortOrder(
+                    sortByChannel,
+                    order.direction().equals(Order.OrderDirection.ASC),
+                    order.nullsPosition().equals(Order.NullsPosition.FIRST)
+                );
+            }).toList();
+
             int limit;
             if (topNExec.getLimit()instanceof Literal literal) {
                 limit = Integer.parseInt(literal.value().toString());
@@ -347,15 +354,7 @@ public class LocalExecutionPlanner {
                 throw new UnsupportedOperationException();
             }
 
-            return source.with(
-                new TopNOperatorFactory(
-                    sortByChannel,
-                    order.direction() == Order.OrderDirection.ASC,
-                    limit,
-                    order.nullsPosition().equals(Order.NullsPosition.FIRST)
-                ),
-                source.layout
-            );
+            return source.with(new TopNOperatorFactory(limit, orders), source.layout);
         } else if (node instanceof EvalExec eval) {
             PhysicalOperation source = plan(eval.child(), context);
             if (eval.fields().size() != 1) {

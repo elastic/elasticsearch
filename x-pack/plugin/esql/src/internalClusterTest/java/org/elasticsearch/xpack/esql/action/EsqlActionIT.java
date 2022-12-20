@@ -295,6 +295,21 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(40, (long) results.values().get(0).get(position));
     }
 
+    public void testFromSortWithTieBreakerLimit() {
+        EsqlQueryResponse results = run("from test | sort data, count desc, time | limit 5 | project data, count, time");
+        logger.info(results);
+        assertThat(
+            results.values(),
+            contains(
+                List.of(1L, 44L, epoch + 2),
+                List.of(1L, 44L, epoch + 6),
+                List.of(1L, 44L, epoch + 10),
+                List.of(1L, 44L, epoch + 14),
+                List.of(1L, 44L, epoch + 18)
+            )
+        );
+    }
+
     public void testFromEvalSortLimit() {
         EsqlQueryResponse results = run("from test | eval x = count + 7 | sort x | limit 1");
         logger.info(results);

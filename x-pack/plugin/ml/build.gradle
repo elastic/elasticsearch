@@ -15,21 +15,6 @@ esplugin {
 
 def localRepo = providers.systemProperty('build.ml_cpp.repo').orNull
 
-
-// https://artifacts-snapshot.elastic.co/ml-cpp/7.17.9-aff9331e/downloads/ml-cpp/ml-cpp-7.17.9-SNAPSHOT.zip
-repositories {
-    ivy {
-        url "https://artifactss-snapshot.elasticc.co/"
-        patternLayout {
-            //artifact "ml-cpp/7.17.9-aff9331e/downloads/ml-cpp/[module]-[revision]-[classifier].[ext]"
-       }
-        metadataSources {
-          // no repository metadata, look directly for the artifact
-          artifact()
-        }
-    }
-}
-
 if (useDra == false) {
   repositories {
     exclusiveContent {

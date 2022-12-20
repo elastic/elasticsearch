@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
@@ -380,7 +379,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             final long size = Math.max(0, maxOrd - minOrd + 1);
             if (size > maxTerms) {
                 if (docsWithField == null) {
-                    docsWithField = getSortedDocValues(context, field);
+                    docsWithField = docValuesFunc.apply(context);
                 }
             } else if (postings == null) {
                 init(minOrd, maxOrd);
@@ -400,10 +399,6 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                     disjunction.addAll(postings);
                 }
             }
-        }
-
-        protected SortedSetDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
-            return DocValues.getSortedSet(context.reader(), field);
         }
 
         /**

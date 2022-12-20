@@ -120,6 +120,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -3353,7 +3354,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(1)))
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                    )
                 );
             },
             keywordMapping,
@@ -3377,7 +3381,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(1)))
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                    )
                 );
             },
             keywordMapping,
@@ -3413,7 +3420,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(1)))
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                    )
                 );
             },
             keywordMapping,
@@ -3438,7 +3448,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(1)))
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                    )
                 );
             },
             keywordMapping,
@@ -3479,7 +3492,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(1)))
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                    )
                 );
             },
             leadingKeywordMapping,
@@ -3508,7 +3524,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertMap(
                     debug,
-                    matchesMap().entry("name", matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", equalTo(1)))
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("num_global_ordinal_dynamic_pruning_initialized", greaterThanOrEqualTo(1))
+                    )
                 );
             },
             leadingKeywordMapping,

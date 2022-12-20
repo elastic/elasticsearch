@@ -52,7 +52,13 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
             };
         }
         if (context == LongFieldScript.CONTEXT) {
-            return (T) (LongFieldScript.Factory) (field, params, lookup) -> ctx -> new LongFieldScript(field, params, lookup, ctx) {
+            return (T) (LongFieldScript.Factory) (field, params, lookup, errorBehaviour) -> ctx -> new LongFieldScript(
+                field,
+                params,
+                lookup,
+                ErrorBehaviour.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
 

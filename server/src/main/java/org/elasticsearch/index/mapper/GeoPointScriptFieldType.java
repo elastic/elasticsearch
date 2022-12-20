@@ -162,7 +162,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     ) {
         return ctx -> {
             GeoPointFieldScript script = delegateLeafFactory.apply(ctx);
-            return new AbstractLongFieldScript(name, Map.of(), lookup, ctx) {
+            return new AbstractLongFieldScript(name, Map.of(), lookup, ErrorBehaviour.FAIL, ctx) {
                 private int docId;
 
                 @Override

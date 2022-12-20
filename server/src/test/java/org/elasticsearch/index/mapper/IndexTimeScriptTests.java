@@ -128,7 +128,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context.factoryClazz == LongFieldScript.Factory.class) {
-            return (T) (LongFieldScript.Factory) (n, p, l) -> ctx -> new TestLongFieldScript(
+            return (T) (LongFieldScript.Factory) (n, p, l, errorBehaviour) -> ctx -> new TestLongFieldScript(
                 n,
                 p,
                 l,
@@ -195,7 +195,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             LeafReaderContext ctx,
             Consumer<TestLongFieldScript> executor
         ) {
-            super(fieldName, params, searchLookup, ctx);
+            super(fieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx);
             this.executor = executor;
         }
 

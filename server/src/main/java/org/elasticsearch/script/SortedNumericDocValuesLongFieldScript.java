@@ -10,6 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.script.field.LongDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -21,7 +22,7 @@ public class SortedNumericDocValuesLongFieldScript extends AbstractLongFieldScri
     final LongDocValuesField longDocValuesField;
 
     public SortedNumericDocValuesLongFieldScript(String fieldName, SearchLookup lookup, LeafReaderContext ctx) {
-        super(fieldName, Map.of(), lookup, ctx);
+        super(fieldName, Map.of(), lookup, ErrorBehaviour.FAIL, ctx);
         try {
             longDocValuesField = new LongDocValuesField(DocValues.getSortedNumeric(ctx.reader(), fieldName), fieldName);
         } catch (IOException e) {

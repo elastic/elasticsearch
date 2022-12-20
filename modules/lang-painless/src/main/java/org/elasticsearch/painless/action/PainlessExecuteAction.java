@@ -637,7 +637,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     LongFieldScript.LeafFactory leafFactory = factory.newFactory(
                         LongFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        ErrorBehaviour.FAIL
                     );
                     LongFieldScript longFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Long> longs = new ArrayList<>();

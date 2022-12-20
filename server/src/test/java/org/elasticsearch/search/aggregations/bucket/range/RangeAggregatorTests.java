@@ -642,7 +642,13 @@ public class RangeAggregatorTests extends AggregatorTestCase {
      */
     public void testRuntimeFieldRangesNotOptimized() throws IOException {
         long totalDocs = (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 4;
-        LongFieldScript.Factory scriptFactory = (fieldName, params, l) -> ctx -> new LongFieldScript(fieldName, Map.of(), l, ctx) {
+        LongFieldScript.Factory scriptFactory = (fieldName, params, l, errorBehaviour) -> ctx -> new LongFieldScript(
+            fieldName,
+            Map.of(),
+            l,
+            ErrorBehaviour.FAIL,
+            ctx
+        ) {
             @Override
             public void execute() {
                 emit((long) getDoc().get(NUMBER_FIELD_NAME).get(0));

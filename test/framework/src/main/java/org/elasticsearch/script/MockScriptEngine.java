@@ -298,7 +298,13 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(stringFieldScript);
         } else if (context.instanceClazz.equals(LongFieldScript.class)) {
-            LongFieldScript.Factory longFieldScript = (f, p, s) -> ctx -> new LongFieldScript(f, p, s, ctx) {
+            LongFieldScript.Factory longFieldScript = (f, p, s, errorBehaviour) -> ctx -> new LongFieldScript(
+                f,
+                p,
+                s,
+                ErrorBehaviour.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit(1L);

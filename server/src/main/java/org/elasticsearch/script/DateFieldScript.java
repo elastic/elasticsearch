@@ -10,6 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
@@ -76,7 +77,7 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         DateFormatter formatter,
         LeafReaderContext ctx
     ) {
-        super(fieldName, params, searchLookup, ctx);
+        super(fieldName, params, searchLookup, ErrorBehaviour.FAIL, ctx);
         this.formatter = formatter;
     }
 

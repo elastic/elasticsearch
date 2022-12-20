@@ -23,8 +23,14 @@ public abstract class AbstractLongFieldScript extends AbstractFieldScript {
     private long[] values = new long[1];
     private int count;
 
-    public AbstractLongFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx, ErrorBehaviour.FAIL);
+    public AbstractLongFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        ErrorBehaviour errorBehaviour,
+        LeafReaderContext ctx
+    ) {
+        super(fieldName, params, searchLookup, ctx, errorBehaviour);
     }
 
     @Override

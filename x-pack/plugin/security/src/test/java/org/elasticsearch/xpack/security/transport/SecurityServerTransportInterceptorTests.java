@@ -8,15 +8,10 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,8 +19,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -66,8 +59,6 @@ import org.junit.After;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -596,7 +587,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             remoteClusterAuthorizationResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
-        ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
         final AtomicReference<String> sentCredential = new AtomicReference<>();
@@ -651,10 +641,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
         assertTrue(calledWrappedSender.get());
-        assertThat(
-            sentCredential.get(),
-            equalTo(Base64.getEncoder().encodeToString(("ApiKey " + remoteClusterCredential).getBytes(StandardCharsets.UTF_8)))
-        );
+        assertThat(sentCredential.get(), equalTo("ApiKey " + remoteClusterCredential));
         assertThat(
             sentRemoteAccessAuthentication.get(),
             equalTo(new RemoteAccessAuthentication(authentication, expectedRoleDescriptorsIntersection))
@@ -713,7 +700,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             remoteClusterAuthorizationResolver,
             ignored -> notRemoteConnection ? Optional.empty() : Optional.of(remoteClusterAlias)
         );
-        ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
         final AtomicReference<Authentication> sentAuthentication = new AtomicReference<>();
@@ -781,7 +767,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             remoteClusterAuthorizationResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
-        ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override

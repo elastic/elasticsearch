@@ -49,8 +49,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -366,11 +364,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
             record RemoteAccessCredentials(String clusterAlias, String credentials) {
                 void writeToContext(final ThreadContext ctx) {
-                    ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, encodedWithApiKeyPrefix(credentials));
+                    ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, withApiKeyPrefix(credentials));
                 }
 
-                private String encodedWithApiKeyPrefix(final String clusterCredential) {
-                    return Base64.getEncoder().encodeToString(("ApiKey " + clusterCredential).getBytes(StandardCharsets.UTF_8));
+                private String withApiKeyPrefix(final String clusterCredential) {
+                    return "ApiKey " + clusterCredential;
                 }
             }
         };

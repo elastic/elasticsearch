@@ -61,8 +61,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -354,7 +352,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                     assertContainsRemoteAccessHeaders(actual.headers());
                     assertThat(actual.headers(), hasKey(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY));
                     assertThat(
-                        decode(actual.headers().get(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY)),
+                        actual.headers().get(SecurityServerTransportInterceptor.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY),
                         equalTo("ApiKey " + clusterCredential)
                     );
                     final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
@@ -448,10 +446,6 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 service.close();
             }
         }
-    }
-
-    private String decode(final String src) {
-        return new String(Base64.getDecoder().decode(src), StandardCharsets.UTF_8);
     }
 
     private void assertContainsRemoteAccessHeaders(final Map<String, String> actualHeaders) {

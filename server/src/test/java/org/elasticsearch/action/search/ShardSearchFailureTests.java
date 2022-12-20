@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -113,7 +114,7 @@ public class ShardSearchFailureTests extends ESTestCase {
     public void testToXContentForNoShardAvailable() throws IOException {
         ShardId shardId = new ShardId(new Index("indexName", "indexUuid"), 123);
         ShardSearchFailure failure = new ShardSearchFailure(
-            new ShardSearchFailure.ShardUnavailableException("shard unassigned"),
+            NoShardAvailableActionException.forOnShardFailureWrapper("shard unassigned"),
             new SearchShardTarget("nodeId", shardId, null)
         );
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
@@ -122,7 +123,7 @@ public class ShardSearchFailureTests extends ESTestCase {
               "shard": 123,
               "index": "indexName",
               "node": "nodeId",
-              "reason":{"type":"shard_unavailable_exception","reason":"shard unassigned"}
+              "reason":{"type":"no_shard_available_action_exception","reason":"shard unassigned"}
             }"""), xContent.utf8ToString());
     }
 
@@ -153,7 +154,7 @@ public class ShardSearchFailureTests extends ESTestCase {
                 testItem = createTestItem(randomAlphaOfLength(12));
             } else {
                 SearchShardTarget target = randomShardTarget(randomAlphaOfLength(12));
-                testItem = new ShardSearchFailure(new ShardSearchFailure.ShardUnavailableException("unavailable"), target);
+                testItem = new ShardSearchFailure(NoShardAvailableActionException.forOnShardFailureWrapper("unavailable"), target);
             }
             ShardSearchFailure deserializedInstance = copyWriteable(
                 testItem,

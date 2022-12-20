@@ -8,7 +8,6 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -1586,12 +1585,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UnsupportedAggregationOnDownsampledIndex::new,
             167,
             Version.V_8_5_0
-        ),
-        SHARD_UNAVAILABLE_EXCEPTION(
-            ShardSearchFailure.ShardUnavailableException.class,
-            ShardSearchFailure.ShardUnavailableException::new,
-            168,
-            Version.V_8_7_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

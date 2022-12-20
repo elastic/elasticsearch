@@ -1061,14 +1061,6 @@ public class MasterService extends AbstractLifecycleComponent {
         return true;
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T extends ClusterStateTaskListener> List<ClusterStateTaskExecutor.TaskContext<T>> castTaskContexts(
-        List<?> executionResults
-    ) {
-        // the input is unmodifiable so it is ok to cast to a more general element type
-        return (List<ClusterStateTaskExecutor.TaskContext<T>>) executionResults;
-    }
-
     private static <T extends ClusterStateTaskListener> ClusterState innerExecuteTasks(
         ClusterState previousClusterState,
         List<ExecutionResult<T>> executionResults,
@@ -1076,7 +1068,6 @@ public class MasterService extends AbstractLifecycleComponent {
         BatchSummary summary,
         ThreadContext threadContext
     ) {
-        final List<ClusterStateTaskExecutor.TaskContext<T>> taskContexts = castTaskContexts(executionResults);
         try (var ignored = threadContext.newStoredContext()) {
             // if the executor leaks a response header then this will cause a test failure, but we also store the context here to be sure
             // to avoid leaking headers in production that were missed by tests
@@ -1085,7 +1076,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 return executor.execute(
                     new ClusterStateTaskExecutor.BatchExecutionContext<>(
                         previousClusterState,
-                        taskContexts,
+                        executionResults,
                         threadContext::newStoredContext
                     )
                 );

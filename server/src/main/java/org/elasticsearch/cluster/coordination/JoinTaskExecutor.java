@@ -197,7 +197,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
         ClusterState currentState,
-        List<TaskContext<JoinTask>> taskContexts,
+        List<? extends TaskContext<JoinTask>> taskContexts,
         long term
     ) {
         assert currentState.nodes().getMasterNodeId() == null : currentState;

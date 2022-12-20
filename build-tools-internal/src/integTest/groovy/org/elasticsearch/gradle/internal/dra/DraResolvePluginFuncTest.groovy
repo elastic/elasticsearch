@@ -96,7 +96,7 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         dependencies {
             someConfig "some.group:bar:1.0.0"
             someConfig "some.group:baz:1.0.0-SNAPSHOT"
-            someConfig "org.acme:$draArtifact:$draVersion:deps@zip"
+            someConfig "org.acme:$draArtifact:$draVersion@zip"
         }
         
         tasks.register('resolveArtifacts') {
@@ -120,11 +120,11 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
 
         where:
         workflow   | buildId          | draVersion       | draKey   | draArtifact  | expectedRequest
-        "snapshot" | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "staging"  | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "release"  | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "snapshot" | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "staging"  | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
-        "release"  | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}-deps.zip"
+        "snapshot" | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}.zip"
+        "staging"  | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}.zip"
+        "release"  | '8.6.0-f633b1d7' | "8.6.0"          | "ml-cpp" | "ml-cpp"     | "/$draKey/${buildId}/downloads/$draArtifact/${draArtifact}-${draVersion}.zip"
+        "snapshot" | '8.6.0-f633b1d7' | "8.6.0-SNAPSHOT" | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}.zip"
+        "staging"  | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}.zip"
+        "release"  | '8.6.0-f633b1d7' | "8.6.0"          | "beats"  | "metricbeat" | "/$draKey/${buildId}/downloads/$draKey/$draArtifact/${draArtifact}-${draVersion}.zip"
     }
 }

@@ -133,5 +133,16 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         }
     }
 
+    protected abstract void prepareExecute();
+
+    /**
+     * Execute the script for the provided {@code docId}.
+     */
+    public final void runForDoc(int docId) {
+        prepareExecute();
+        setDocument(docId);
+        execute();
+    }
+
     public abstract void execute();
 }

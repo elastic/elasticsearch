@@ -21,6 +21,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -647,7 +648,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 emit((long) getDoc().get(NUMBER_FIELD_NAME).get(0));
             }
         };
-        MappedFieldType dummyFt = new LongScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of(), false);
+        MappedFieldType dummyFt = new LongScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of(), ErrorBehaviour.FAIL);
         MappedFieldType numberFt = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
         debugTestCase(
             new RangeAggregationBuilder("r").field("dummy").addRange(0, 1).addRange(1, 2).addRange(2, 3),

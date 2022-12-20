@@ -60,7 +60,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             List<String> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType ft = build("append_param", Map.of("param", "-suffix"), false);
+                KeywordScriptFieldType ft = build("append_param", Map.of("param", "-suffix"), ErrorBehaviour.FAIL);
                 StringScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -287,7 +287,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), false);
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), ErrorBehaviour.FAIL);
                 assertThat(searcher.count(fieldType.termQuery("1-suffix", mockContext())), equalTo(1));
             }
         }
@@ -299,7 +299,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), false);
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"), ErrorBehaviour.FAIL);
                 expectThrows(
                     IllegalArgumentException.class,
                     () -> {
@@ -375,7 +375,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), false);
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), ErrorBehaviour.FAIL);
                 SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
                 Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(searchExecutionContext);
                 assertThat(searcher.count(query), equalTo(1));
@@ -385,12 +385,12 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
     @Override
     protected KeywordScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of(), false);
+        return build("read_foo", Map.of(), ErrorBehaviour.FAIL);
     }
 
     @Override
     protected KeywordScriptFieldType loopFieldType() {
-        return build("loop", Map.of(), false);
+        return build("loop", Map.of(), ErrorBehaviour.FAIL);
     }
 
     @Override
@@ -398,9 +398,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         return "keyword";
     }
 
-    protected KeywordScriptFieldType build(String code, Map<String, Object> params, boolean onErrorContinue) {
+    protected KeywordScriptFieldType build(String code, Map<String, Object> params, ErrorBehaviour errorbehaviour) {
         Script script = new Script(ScriptType.INLINE, "test", code, params);
-        return new KeywordScriptFieldType("test", factory(script), script, emptyMap(), onErrorContinue);
+        return new KeywordScriptFieldType("test", factory(script), script, emptyMap(), errorbehaviour);
     }
 
     private static StringFieldScript.Factory factory(Script script) {

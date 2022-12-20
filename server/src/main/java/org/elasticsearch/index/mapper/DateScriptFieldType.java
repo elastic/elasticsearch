@@ -92,17 +92,24 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             DateFieldScript.Factory factory,
             Script script,
             Map<String, String> meta,
-            Version supportedVersion
+            Version supportedVersion,
+            ErrorBehaviour errorBehavior
         ) {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
             Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
             DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern, supportedVersion).withLocale(locale);
-            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta, onErrorContinue());
+            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta, errorBehavior);
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name, DateFieldScript.Factory factory, Script script, Map<String, String> meta) {
-            return createFieldType(name, factory, script, meta, Version.CURRENT);
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DateFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            ErrorBehaviour errorBehavior
+        ) {
+            return createFieldType(name, factory, script, meta, Version.CURRENT, errorBehavior);
         }
 
         @Override
@@ -131,13 +138,13 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         DateFormatter dateTimeFormatter,
         Script script,
         Map<String, String> meta,
-        boolean onErrorContinue
+        ErrorBehaviour errorBehaviour
     ) {
         super(name, searchLookup -> {
             DateFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter);
             return ctx -> {
                 DateFieldScript fieldScript = leafFactory.newInstance(ctx);
-                fieldScript.setOnErrorContinue(onErrorContinue);
+                fieldScript.setErrorBehahiour(errorBehaviour);
                 return fieldScript;
             };
         }, script, scriptFactory.isResultDeterministic(), meta);

@@ -64,7 +64,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                GeoPointScriptFieldType ft = build("fromLatLon", Map.of(), false);
+                GeoPointScriptFieldType ft = build("fromLatLon", Map.of(), ErrorBehaviour.FAIL);
                 GeoPointScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -213,12 +213,12 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     @Override
     protected GeoPointScriptFieldType simpleMappedFieldType() {
-        return build("fromLatLon", Map.of(), false);
+        return build("fromLatLon", Map.of(), ErrorBehaviour.FAIL);
     }
 
     @Override
     protected MappedFieldType loopFieldType() {
-        return build("loop", Map.of(), false);
+        return build("loop", Map.of(), ErrorBehaviour.FAIL);
     }
 
     @Override
@@ -226,9 +226,9 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
         return "geo_point";
     }
 
-    protected GeoPointScriptFieldType build(String code, Map<String, Object> params, boolean onErrorContinue) {
+    protected GeoPointScriptFieldType build(String code, Map<String, Object> params, ErrorBehaviour errorbehaviour) {
         Script script = new Script(ScriptType.INLINE, "test", code, params);
-        return new GeoPointScriptFieldType("test", factory(script), script, emptyMap(), onErrorContinue);
+        return new GeoPointScriptFieldType("test", factory(script), script, emptyMap(), errorbehaviour);
     }
 
     private static GeoPointFieldScript.Factory factory(Script script) {

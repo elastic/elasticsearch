@@ -64,7 +64,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             List<Double> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                DoubleScriptFieldType ft = build("add_param", Map.of("param", 1), false);
+                DoubleScriptFieldType ft = build("add_param", Map.of("param", 1), ErrorBehaviour.FAIL);
                 DoubleScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -190,7 +190,10 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("1", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1.1, mockContext())), equalTo(0));
-                assertThat(searcher.count(build("add_param", Map.of("param", 1), false).termQuery(2, mockContext())), equalTo(1));
+                assertThat(
+                    searcher.count(build("add_param", Map.of("param", 1), ErrorBehaviour.FAIL).termQuery(2, mockContext())),
+                    equalTo(1)
+                );
             }
         }
     }
@@ -223,12 +226,12 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
 
     @Override
     protected DoubleScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of(), false);
+        return build("read_foo", Map.of(), ErrorBehaviour.FAIL);
     }
 
     @Override
     protected MappedFieldType loopFieldType() {
-        return build("loop", Map.of(), false);
+        return build("loop", Map.of(), ErrorBehaviour.FAIL);
     }
 
     @Override
@@ -236,9 +239,9 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         return "double";
     }
 
-    protected DoubleScriptFieldType build(String code, Map<String, Object> params, boolean onErrorContinue) {
+    protected DoubleScriptFieldType build(String code, Map<String, Object> params, ErrorBehaviour errorbehaviour) {
         Script script = new Script(ScriptType.INLINE, "test", code, params);
-        return new DoubleScriptFieldType("test", factory(script), script, emptyMap(), onErrorContinue);
+        return new DoubleScriptFieldType("test", factory(script), script, emptyMap(), errorbehaviour);
     }
 
     private static DoubleFieldScript.Factory factory(Script script) {

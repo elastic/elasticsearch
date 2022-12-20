@@ -66,7 +66,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                IpScriptFieldType ft = build("append_param", Map.of("param", ".1"), false);
+                IpScriptFieldType ft = build("append_param", Map.of("param", ".1"), ErrorBehaviour.FAIL);
                 BinaryScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 DocValueFormat format = ft.docValueFormat(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
@@ -198,7 +198,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"200.0.0\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                IpScriptFieldType fieldType = build("append_param", Map.of("param", ".1"), false);
+                IpScriptFieldType fieldType = build("append_param", Map.of("param", ".1"), ErrorBehaviour.FAIL);
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.1", mockContext())), equalTo(1));
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.7", mockContext())), equalTo(0));
                 assertThat(searcher.count(fieldType.termQuery("192.168.0.0/16", mockContext())), equalTo(2));
@@ -240,12 +240,12 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
 
     @Override
     protected IpScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of(), false);
+        return build("read_foo", Map.of(), ErrorBehaviour.FAIL);
     }
 
     @Override
     protected MappedFieldType loopFieldType() {
-        return build("loop", Map.of(), false);
+        return build("loop", Map.of(), ErrorBehaviour.FAIL);
     }
 
     @Override
@@ -253,9 +253,9 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
         return "ip";
     }
 
-    protected IpScriptFieldType build(String code, Map<String, Object> params, boolean onErrorContinue) {
+    protected IpScriptFieldType build(String code, Map<String, Object> params, ErrorBehaviour errorbehaviour) {
         Script script = new Script(ScriptType.INLINE, "test", code, params);
-        return new IpScriptFieldType("test", factory(script), script, emptyMap(), onErrorContinue);
+        return new IpScriptFieldType("test", factory(script), script, emptyMap(), errorbehaviour);
     }
 
     private static IpFieldScript.Factory factory(Script script) {

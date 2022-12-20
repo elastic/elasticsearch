@@ -10,6 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.ErrorBehaviour;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -69,7 +70,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     protected final String fieldName;
     protected final SourceLookup sourceLookup;
     private final Map<String, Object> params;
-    private boolean onErrorContinue = false;
+    private ErrorBehaviour errorBehaviour = ErrorBehaviour.FAIL;
 
     public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(new DocValuesDocReader(searchLookup, ctx));
@@ -143,8 +144,8 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         setDocument(docId);
         try {
             execute();
-        } catch (RuntimeException e) {
-            if (onErrorContinue) {
+        } catch (Exception e) {
+            if (errorBehaviour == ErrorBehaviour.CONTINUE) {
                 // ignore
             } else {
                 throw e;
@@ -154,7 +155,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
 
     public abstract void execute();
 
-    public void setOnErrorContinue(boolean onErrorContinue) {
-        this.onErrorContinue = onErrorContinue;
+    public void setErrorBehahiour(ErrorBehaviour errorBehaviour) {
+        this.errorBehaviour = errorBehaviour;
     }
 }

@@ -128,7 +128,11 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
     public void testFormatDuel() throws IOException {
         DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random()));
-        DateScriptFieldType scripted = build(new Script(ScriptType.INLINE, "test", "read_timestamp", Map.of()), formatter, false);
+        DateScriptFieldType scripted = build(
+            new Script(ScriptType.INLINE, "test", "read_timestamp", Map.of()),
+            formatter,
+            ErrorBehaviour.FAIL
+        );
         DateFieldMapper.DateFieldType indexed = new DateFieldMapper.DateFieldType("test", formatter);
         for (int i = 0; i < 100; i++) {
             long date = randomDate();
@@ -149,7 +153,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newUnthreadedSearcher(reader);
-                DateScriptFieldType ft = build("add_days", Map.of("days", 1), false);
+                DateScriptFieldType ft = build("add_days", Map.of("days", 1), ErrorBehaviour.FAIL);
                 DateScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -381,7 +385,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1595432181354L, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(2595432181354L, mockContext())), equalTo(0));
                 assertThat(
-                    searcher.count(build("add_days", Map.of("days", 1), false).termQuery("2020-07-23T15:36:21.354Z", mockContext())),
+                    searcher.count(
+                        build("add_days", Map.of("days", 1), ErrorBehaviour.FAIL).termQuery("2020-07-23T15:36:21.354Z", mockContext())
+                    ),
                     equalTo(1)
                 );
                 checkBadDate(() -> searcher.count(simpleMappedFieldType().termQuery("2020-07-22(-■_■)15:36:21.354Z", mockContext())));
@@ -462,7 +468,11 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private DateScriptFieldType coolFormattedFieldType() {
-        return build(simpleMappedFieldType().script, DateFormatter.forPattern("yyyy-MM-dd(-■_■)HH:mm:ss.SSSz||epoch_millis"), false);
+        return build(
+            simpleMappedFieldType().script,
+            DateFormatter.forPattern("yyyy-MM-dd(-■_■)HH:mm:ss.SSSz||epoch_millis"),
+            ErrorBehaviour.FAIL
+        );
     }
 
     @Override
@@ -471,11 +481,11 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private DateScriptFieldType build(String code) {
-        return build(code, Map.of(), false);
+        return build(code, Map.of(), ErrorBehaviour.FAIL);
     }
 
-    protected DateScriptFieldType build(String code, Map<String, Object> params, boolean onErrorContinue) {
-        return build(new Script(ScriptType.INLINE, "test", code, params), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, onErrorContinue);
+    protected DateScriptFieldType build(String code, Map<String, Object> params, ErrorBehaviour errorbehaviour) {
+        return build(new Script(ScriptType.INLINE, "test", code, params), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, errorbehaviour);
     }
 
     private static DateFieldScript.Factory factory(Script script) {
@@ -533,8 +543,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         };
     }
 
-    private static DateScriptFieldType build(Script script, DateFormatter dateTimeFormatter, boolean onErrorContinue) {
-        return new DateScriptFieldType("test", factory(script), dateTimeFormatter, script, emptyMap(), onErrorContinue);
+    private static DateScriptFieldType build(Script script, DateFormatter dateTimeFormatter, ErrorBehaviour errorbehaviour) {
+        return new DateScriptFieldType("test", factory(script), dateTimeFormatter, script, emptyMap(), errorbehaviour);
     }
 
     private static long randomDate() {

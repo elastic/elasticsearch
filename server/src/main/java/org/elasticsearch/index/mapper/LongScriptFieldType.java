@@ -43,8 +43,14 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name, LongFieldScript.Factory factory, Script script, Map<String, String> meta) {
-            return new LongScriptFieldType(name, factory, script, meta, onErrorContinue());
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            LongFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            ErrorBehaviour errorBehavior
+        ) {
+            return new LongScriptFieldType(name, factory, script, meta, errorBehavior);
         }
 
         @Override
@@ -67,13 +73,13 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         LongFieldScript.Factory scriptFactory,
         Script script,
         Map<String, String> meta,
-        boolean onErrorContinue
+        ErrorBehaviour errorbehaviour
     ) {
         super(name, searchLookup -> {
             LongFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(name, script.getParams(), searchLookup);
             return ctx -> {
                 LongFieldScript fieldScript = leafFactory.newInstance(ctx);
-                fieldScript.setOnErrorContinue(onErrorContinue);
+                fieldScript.setErrorBehahiour(errorbehaviour);
                 return fieldScript;
             };
         }, script, scriptFactory.isResultDeterministic(), meta);

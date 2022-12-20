@@ -259,7 +259,13 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             String fullName = parent + "." + name;
             return new LeafRuntimeField(
                 name,
-                createFieldType(fullName, getCompositeLeafFactory(parentScriptFactory), getScript(), meta()),
+                createFieldType(
+                    fullName,
+                    getCompositeLeafFactory(parentScriptFactory),
+                    getScript(),
+                    meta(),
+                    ErrorBehaviour.fromString(onScriptError.get())
+                ),
                 getParameters()
             );
         }
@@ -273,7 +279,13 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
-        abstract AbstractScriptFieldType<?> createFieldType(String name, Factory factory, Script script, Map<String, String> meta);
+        abstract AbstractScriptFieldType<?> createFieldType(
+            String name,
+            Factory factory,
+            Script script,
+            Map<String, String> meta,
+            ErrorBehaviour errorBehavior
+        );
 
         AbstractScriptFieldType<?> createFieldType(
             String name,
@@ -282,7 +294,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             Map<String, String> meta,
             Version supportedVersion
         ) {
-            return createFieldType(name, factory, script, meta);
+            return createFieldType(name, factory, script, meta, ErrorBehaviour.fromString(onScriptError.get()));
         }
 
         @Override
@@ -300,8 +312,5 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             return script.get();
         }
 
-        protected final boolean onErrorContinue() {
-            return onScriptError.get().equals("continue");
-        }
     }
 }

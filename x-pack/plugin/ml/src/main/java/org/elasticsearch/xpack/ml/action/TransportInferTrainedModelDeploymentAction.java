@@ -106,7 +106,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             listener::onFailure
         );
 
-        GroupedActionListener<InferenceResults> groupedListener = new GroupedActionListener<>(collectingListener, nlpInputs.size());
+        GroupedActionListener<InferenceResults> groupedListener = new GroupedActionListener<>(nlpInputs.size(), collectingListener);
         for (var input : nlpInputs) {
             task.infer(input, request.getUpdate(), request.isSkipQueue(), request.getInferenceTimeout(), actionTask, groupedListener);
         }

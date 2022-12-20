@@ -247,39 +247,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         AtomicInteger count = new AtomicInteger();
         AtomicArray<List<InferenceResults>> results = new AtomicArray<>(nodes.size());
         AtomicReference<Exception> failure = new AtomicReference<>();
-        ActionListener<InferTrainedModelDeploymentAction.Response> collectingListener = new ActionListener<
-            InferTrainedModelDeploymentAction.Response>() {
-            @Override
-            public void onResponse(InferTrainedModelDeploymentAction.Response response) {
-                results.setOnce(count.get(), response.getResults());
-                if (count.incrementAndGet() == nodes.size()) {
-                    sendResponse();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failure.set(e);
-                if (count.incrementAndGet() == nodes.size()) {
-                    sendResponse();
-                }
-            }
-
-            private void sendResponse() {
-                if (results.nonNullLength() > 0) {
-                    for (int i = 0; i < results.length(); i++) {
-                        if (results.get(i) != null) {
-                            responseBuilder.addInferenceResults(results.get(i));
-                        }
-                    }
-                    listener.onResponse(responseBuilder.build());
-                } else {
-                    listener.onFailure(failure.get());
-                }
-            }
-        };
 
         int startPos = 0;
+        int slot = 0;
         for (var node : nodes) {
             InferTrainedModelDeploymentAction.Request deploymentRequest;
             if (request.getTextInput() == null) {
@@ -302,7 +272,56 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
             startPos += node.v2();
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, InferTrainedModelDeploymentAction.INSTANCE, deploymentRequest, collectingListener);
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                InferTrainedModelDeploymentAction.INSTANCE,
+                deploymentRequest,
+                collectingListener(count, results, failure, slot, nodes.size(), responseBuilder, listener)
+            );
+
+            slot++;
         }
+    }
+
+    private ActionListener<InferTrainedModelDeploymentAction.Response> collectingListener(
+        AtomicInteger count,
+        AtomicArray<List<InferenceResults>> results,
+        AtomicReference<Exception> failure,
+        int slot,
+        int totalNumberOfResponses,
+        Response.Builder responseBuilder,
+        ActionListener<Response> finalListener
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(InferTrainedModelDeploymentAction.Response response) {
+                results.setOnce(slot, response.getResults());
+                if (count.incrementAndGet() == totalNumberOfResponses) {
+                    sendResponse();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+                if (count.incrementAndGet() == totalNumberOfResponses) {
+                    sendResponse();
+                }
+            }
+
+            private void sendResponse() {
+                if (results.nonNullLength() > 0) {
+                    for (int i = 0; i < results.length(); i++) {
+                        if (results.get(i) != null) {
+                            responseBuilder.addInferenceResults(results.get(i));
+                        }
+                    }
+                    finalListener.onResponse(responseBuilder.build());
+                } else {
+                    finalListener.onFailure(failure.get());
+                }
+            }
+        };
     }
 }
